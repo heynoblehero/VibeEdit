@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/better-sqlite3";
+import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 export const users = sqliteTable("users", {
@@ -19,6 +19,7 @@ export const sessions = sqliteTable("sessions", {
 	ipAddress: text("ip_address"),
 	userAgent: text("user_agent"),
 	createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+	updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
 export const accounts = sqliteTable("accounts", {

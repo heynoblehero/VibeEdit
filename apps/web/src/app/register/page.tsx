@@ -50,7 +50,10 @@ export default function RegisterPage() {
 				setError(result.error.message || "Registration failed");
 			} else {
 				// Create initial credit record
-				await fetch("/api/auth/credits/init", { method: "POST" });
+				const initResp = await fetch("/api/auth/credits/init", { method: "POST" });
+				if (!initResp.ok) {
+					console.error("Failed to init credits");
+				}
 				router.push("/dashboard");
 			}
 		} catch {

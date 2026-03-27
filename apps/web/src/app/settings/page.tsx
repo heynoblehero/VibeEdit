@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useSession } from "@/lib/auth/client";
 
 interface ServiceConfig {
   id: string;
@@ -11,10 +13,17 @@ interface ServiceConfig {
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { data: session, isPending } = useSession();
   const [services, setServices] = useState<ServiceConfig[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [keyInput, setKeyInput] = useState("");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isPending && !session) {
+      router.push("/login");
+    }
+  }, [session, isPending, router]);
 
   useEffect(() => {
     fetch("/api/ai/keys")
@@ -47,6 +56,14 @@ export default function SettingsPage() {
     setServices(prev => prev.map(s => s.id === serviceId ? { ...s, configured: false } : s));
   };
 
+  if (isPending || !session) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-lg">
@@ -55,12 +72,12 @@ export default function SettingsPage() {
             <h1 className="text-xl font-bold text-foreground">Settings</h1>
             <p className="text-sm text-muted-foreground mt-0.5">Manage API keys and preferences</p>
           </div>
-          <button
-            onClick={() => router.back()}
+          <Link
+            href="/dashboard"
             className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
-            Back to editor
-          </button>
+            Back to dashboard
+          </Link>
         </div>
 
         <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">

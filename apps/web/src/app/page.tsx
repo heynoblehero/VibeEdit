@@ -2,26 +2,32 @@ import Link from "next/link";
 
 const features = [
 	{
+		icon: "\u{1F916}",
 		title: "AI Chat Editor",
 		description: "Describe your edits in plain English. The AI understands cuts, transitions, overlays, and more.",
 	},
 	{
+		icon: "\u{1F6E0}\uFE0F",
 		title: "27 AI Tools",
 		description: "Text, video, keyframes, effects, cuts, color grading, and more — all driven by AI.",
 	},
 	{
+		icon: "\u2728",
 		title: "Remotion Effects",
 		description: "Custom motion graphics written by AI using Remotion's React-based rendering engine.",
 	},
 	{
+		icon: "\u{1F4E6}",
 		title: "Import Anything",
 		description: "PSD, LUT, Lottie, ZIP packs, SRT, EDL, Premiere XML — bring your existing assets.",
 	},
 	{
+		icon: "\u{1F4AC}",
 		title: "Auto-Captions",
 		description: "Generate captions from your audio automatically with accurate timing and formatting.",
 	},
 	{
+		icon: "\u{1F680}",
 		title: "Export Everywhere",
 		description: "One-click export presets for YouTube, Instagram, TikTok, and Twitter.",
 	},
@@ -143,8 +149,102 @@ export default function Home() {
 							See Pricing
 						</Link>
 					</div>
+
+					{/* Editor Mockup */}
+					<div className="mt-16 mx-auto max-w-4xl">
+						<div className="rounded-xl border border-border bg-card shadow-2xl overflow-hidden">
+							{/* Fake browser chrome */}
+							<div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/50">
+								<div className="flex gap-1.5">
+									<div className="w-3 h-3 rounded-full bg-red-400" />
+									<div className="w-3 h-3 rounded-full bg-yellow-400" />
+									<div className="w-3 h-3 rounded-full bg-green-400" />
+								</div>
+								<div className="flex-1 text-center text-xs text-muted-foreground">vibeedit.app/editor</div>
+							</div>
+							{/* Fake editor layout */}
+							<div className="flex" style={{ height: 320 }}>
+								{/* Chat side */}
+								<div className="w-[60%] border-r border-border p-4 flex flex-col gap-3">
+									<div className="flex items-center gap-2 mb-2">
+										<div className="w-6 h-6 rounded-full bg-ring/15 flex items-center justify-center">
+											<span className="text-[8px] font-bold text-ring">AI</span>
+										</div>
+										<span className="text-xs font-medium text-foreground">VibeEdit AI</span>
+									</div>
+									{/* Fake messages */}
+									<div className="flex justify-end">
+										<div className="bg-secondary rounded-xl rounded-tr-sm px-3 py-1.5 text-xs text-foreground max-w-[70%]">
+											add intro_clip as the main video
+										</div>
+									</div>
+									<div className="flex gap-2">
+										<div className="w-5 h-5 rounded-full bg-ring/15 shrink-0 mt-0.5" />
+										<div className="bg-card border border-border rounded-xl rounded-tl-sm px-3 py-1.5 text-xs text-foreground">
+											Done! Added intro_clip.mp4 to the main track.
+											<span className="block mt-1 text-[10px] text-emerald-500">{"\u2713"} insert_video</span>
+										</div>
+									</div>
+									<div className="flex justify-end">
+										<div className="bg-secondary rounded-xl rounded-tr-sm px-3 py-1.5 text-xs text-foreground max-w-[70%]">
+											overlay logo from 2s to 5s with fade in
+										</div>
+									</div>
+									<div className="flex gap-2">
+										<div className="w-5 h-5 rounded-full bg-ring/15 shrink-0 mt-0.5" />
+										<div className="bg-card border border-border rounded-xl rounded-tl-sm px-3 py-1.5 text-xs text-foreground">
+											Added logo overlay with fade-in animation!
+											<span className="block mt-1 text-[10px] text-emerald-500">{"\u2713"} insert_image {"\u2713"} upsert_keyframe</span>
+										</div>
+									</div>
+									<div className="mt-auto">
+										<div className="flex items-center gap-2 rounded-lg border border-border bg-card p-2">
+											<span className="text-muted-foreground text-xs">{"\u{1F4CE}"}</span>
+											<span className="text-xs text-muted-foreground flex-1">Describe your edit...</span>
+											<div className="w-6 h-6 rounded bg-primary flex items-center justify-center">
+												<span className="text-[10px] text-primary-foreground">{"\u27A4"}</span>
+											</div>
+										</div>
+									</div>
+								</div>
+								{/* Preview side */}
+								<div className="w-[40%] flex flex-col">
+									<div className="px-3 py-2 border-b border-border flex justify-between items-center">
+										<span className="text-[10px] text-muted-foreground">Assets (3) {"\u25BC"}</span>
+										<span className="text-[10px] bg-primary text-primary-foreground px-2 py-0.5 rounded">Render</span>
+									</div>
+									<div className="flex-1 bg-black flex items-center justify-center">
+										<div className="text-center">
+											<div className="text-white/80 text-sm font-bold">MY VIDEO</div>
+											<div className="text-white/40 text-[10px] mt-1">1920{"\u00D7"}1080 {"\u2022"} 30fps</div>
+										</div>
+									</div>
+									<div className="px-3 py-2 border-t border-border flex items-center gap-2">
+										<span className="text-[10px] text-muted-foreground">{"\u25B6"}</span>
+										<div className="flex-1 h-1 bg-border rounded-full overflow-hidden">
+											<div className="h-full w-[35%] bg-primary rounded-full" />
+										</div>
+										<span className="text-[10px] text-muted-foreground tabular-nums">1:23 / 4:55</span>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
 				</div>
 			</section>
+
+			{/* Trust bar */}
+			<div className="border-y border-border bg-muted/30 py-6">
+				<div className="max-w-5xl mx-auto px-6 flex items-center justify-center gap-8 text-muted-foreground text-sm">
+					<span>{"\u{1F3AC}"} 27 AI Tools</span>
+					<span className="text-border">|</span>
+					<span>{"\u{1F4E6}"} 15+ Import Formats</span>
+					<span className="text-border">|</span>
+					<span>{"\u{1F512}"} Secure & Private</span>
+					<span className="text-border">|</span>
+					<span>{"\u26A1"} Instant Rendering</span>
+				</div>
+			</div>
 
 			{/* Features Grid */}
 			<section className="py-20 px-6 bg-card/50">
@@ -156,6 +256,7 @@ export default function Home() {
 								key={feature.title}
 								className="rounded-2xl border border-border bg-card p-6 shadow-sm"
 							>
+								<div className="text-2xl mb-3">{feature.icon}</div>
 								<h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
 								<p className="text-sm text-muted-foreground leading-relaxed">
 									{feature.description}

@@ -87,7 +87,7 @@ export default function PricingPage() {
 					{creditPacks.map((pack) => (
 						<div
 							key={pack.name}
-							className={`relative flex flex-col rounded-2xl border p-8 shadow-sm ${
+							className={`relative flex flex-col rounded-2xl border p-8 shadow-sm hover:scale-[1.02] transition-transform ${
 								pack.popular
 									? "border-primary bg-card ring-2 ring-primary/20"
 									: "border-border bg-card"
@@ -117,7 +117,7 @@ export default function PricingPage() {
 								<ul className="space-y-2">
 									{pack.includes.map((item) => (
 										<li key={item} className="flex items-start gap-2 text-sm text-muted-foreground">
-											<span className="mt-0.5 text-primary font-bold">-</span>
+											<span className="mt-0.5 text-primary">&#10003;</span>
 											{item}
 										</li>
 									))}

@@ -3,97 +3,107 @@ import { credits, creditTransactions } from "@/lib/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { SIGNUP_BONUS_CREDITS } from "./costs";
 
-export async function getBalance(userId: string): Promise<number> {
-  const [record] = await db
+export function getBalance(userId: string): number {
+  const records = db
     .select()
     .from(credits)
-    .where(eq(credits.userId, userId));
-  return record?.balance ?? 0;
+    .where(eq(credits.userId, userId))
+    .all();
+  return records[0]?.balance ?? 0;
 }
 
-export async function ensureCreditRecord(userId: string): Promise<void> {
-  const [existing] = await db
+export function ensureCreditRecord(userId: string): void {
+  const existing = db
     .select()
     .from(credits)
-    .where(eq(credits.userId, userId));
+    .where(eq(credits.userId, userId))
+    .get();
 
   if (!existing) {
-    await db.insert(credits).values({
-      userId,
-      balance: SIGNUP_BONUS_CREDITS,
-    });
-    await db.insert(creditTransactions).values({
-      userId,
-      amount: SIGNUP_BONUS_CREDITS,
-      type: "signup",
-      description: "Welcome bonus credits",
-    });
+    db.insert(credits)
+      .values({
+        userId,
+        balance: SIGNUP_BONUS_CREDITS,
+      })
+      .run();
+    db.insert(creditTransactions)
+      .values({
+        userId,
+        amount: SIGNUP_BONUS_CREDITS,
+        type: "signup",
+        description: "Welcome bonus credits",
+      })
+      .run();
   }
 }
 
-export async function hasEnoughCredits(
+export function hasEnoughCredits(
   userId: string,
   amount: number,
-): Promise<boolean> {
-  const balance = await getBalance(userId);
+): boolean {
+  const balance = getBalance(userId);
   return balance >= amount;
 }
 
-export async function deductCredits(
+export function deductCredits(
   userId: string,
   amount: number,
   toolName: string,
   description: string,
-): Promise<boolean> {
+): boolean {
   if (amount <= 0) return true; // Free operations always succeed
 
-  const balance = await getBalance(userId);
+  const balance = getBalance(userId);
   if (balance < amount) return false;
 
-  await db
-    .update(credits)
+  db.update(credits)
     .set({
       balance: sql`${credits.balance} - ${amount}`,
       updatedAt: new Date(),
     })
-    .where(eq(credits.userId, userId));
+    .where(eq(credits.userId, userId))
+    .run();
 
-  await db.insert(creditTransactions).values({
-    userId,
-    amount: -amount,
-    type: "usage",
-    description,
-    toolName,
-  });
+  db.insert(creditTransactions)
+    .values({
+      userId,
+      amount: -amount,
+      type: "usage",
+      description,
+      toolName,
+    })
+    .run();
 
   return true;
 }
 
-export async function addCredits(
+export function addCredits(
   userId: string,
   amount: number,
   type: "purchase" | "bonus",
   description: string,
-): Promise<void> {
-  await ensureCreditRecord(userId);
+): void {
+  ensureCreditRecord(userId);
 
-  await db
-    .update(credits)
+  db.update(credits)
     .set({
       balance: sql`${credits.balance} + ${amount}`,
       updatedAt: new Date(),
     })
-    .where(eq(credits.userId, userId));
+    .where(eq(credits.userId, userId))
+    .run();
 
-  await db.insert(creditTransactions).values({
-    userId,
-    amount,
-    type,
-    description,
-  });
+  db.insert(creditTransactions)
+    .values({
+      userId,
+      amount,
+      type,
+      description,
+    })
+    .run();
 }
 
-export async function getTransactionHistory(
+export function getTransactionHistory(
   userId: string,
   limit: number = 50,
 ) {
@@ -102,5 +112,6 @@ export async function getTransactionHistory(
     .from(creditTransactions)
     .where(eq(creditTransactions.userId, userId))
     .orderBy(desc(creditTransactions.createdAt))
-    .limit(limit);
+    .limit(limit)
+    .all();
 }

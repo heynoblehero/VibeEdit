@@ -4,6 +4,8 @@ import { getApiKey } from "@/lib/ai/key-store";
 import { logSecurity } from "@/lib/ai/security-log";
 import { deductCredits, hasEnoughCredits } from "@/lib/credits";
 import { getCreditCost } from "@/lib/credits/costs";
+import { auth } from "@/lib/auth/server";
+import { headers } from "next/headers";
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 5;
@@ -43,7 +45,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = "anonymous"; // TODO: get from auth session
+    const session = await auth.api.getSession({ headers: await headers() });
+    const userId = session?.user?.id || "anonymous";
 
     const body = await request.json();
     const { service, action, params } = body;
@@ -51,7 +54,7 @@ export async function POST(request: NextRequest) {
     const costKey = `generate_media_${service}`;
     const cost = getCreditCost(costKey);
     if (cost > 0) {
-      const hasCredits = await hasEnoughCredits(userId, cost);
+      const hasCredits = hasEnoughCredits(userId, cost);
       if (!hasCredits) {
         return NextResponse.json({ error: "No credits remaining." }, { status: 402 });
       }
@@ -108,7 +111,7 @@ export async function POST(request: NextRequest) {
     logSecurity("info", "media_generated", { ip, service, action });
 
     if (cost > 0) {
-      await deductCredits(userId, cost, costKey, `Generated ${service} media`);
+      deductCredits(userId, cost, costKey, `Generated ${service} media`);
     }
 
     return new NextResponse(result.data, {

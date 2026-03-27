@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      await addCredits(
+      addCredits(
         userId,
         pack.credits,
         "purchase",

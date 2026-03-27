@@ -6,6 +6,8 @@ import type { AIRequest } from "@/lib/ai/types";
 import { logSecurity } from "@/lib/ai/security-log";
 import { deductCredits, hasEnoughCredits } from "@/lib/credits";
 import { getCreditCost } from "@/lib/credits/costs";
+import { auth } from "@/lib/auth/server";
+import { headers } from "next/headers";
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 20;
@@ -45,11 +47,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Credit check (use "anonymous" for now — auth integration comes later)
-    const userId = "anonymous"; // TODO: get from auth session
+    const session = await auth.api.getSession({ headers: await headers() });
+    const userId = session?.user?.id || "anonymous";
     const chatCost = getCreditCost("ai_message");
     if (chatCost > 0) {
-      const hasCredits = await hasEnoughCredits(userId, chatCost);
+      const hasCredits = hasEnoughCredits(userId, chatCost);
       if (!hasCredits) {
         return NextResponse.json(
           { error: "No credits remaining. Purchase more credits to continue.", text: "", actions: [], sessionId: "" },
@@ -128,14 +130,14 @@ export async function POST(request: NextRequest) {
 
     // Deduct credits for the chat message
     if (chatCost > 0) {
-      await deductCredits(userId, chatCost, "ai_message", `AI chat: "${message.slice(0, 50)}..."`);
+      deductCredits(userId, chatCost, "ai_message", `AI chat: "${message.slice(0, 50)}..."`);
     }
 
     // Also deduct for any paid actions in the response
     for (const action of actions) {
       const actionCost = getCreditCost(action.tool);
       if (actionCost > 0) {
-        await deductCredits(userId, actionCost, action.tool, `AI action: ${action.tool}`);
+        deductCredits(userId, actionCost, action.tool, `AI action: ${action.tool}`);
       }
     }
 

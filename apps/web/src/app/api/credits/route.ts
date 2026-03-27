@@ -1,10 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth/server";
+import { headers } from "next/headers";
 import { getBalance } from "@/lib/credits";
 
-export async function GET(request: NextRequest) {
-  // TODO: get userId from auth session
-  // For now, use a header
-  const userId = request.headers.get("x-user-id") || "anonymous";
-  const balance = await getBalance(userId);
+export async function GET() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const balance = getBalance(session.user.id);
   return NextResponse.json({ balance });
 }

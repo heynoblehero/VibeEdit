@@ -1,62 +1,80 @@
-import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { sqliteTable, text, integer, real } from "drizzle-orm/better-sqlite3";
+import { sql } from "drizzle-orm";
 
-export const users = pgTable("users", {
-	id: text("id").primaryKey(),
-
-	// todo: implement fully anonymous sign-in for privacy
-	// we don't have any auth flows currently so this is fine for now
-	name: text("name").notNull(),
+export const users = sqliteTable("users", {
+	id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
 	email: text("email").notNull().unique(),
-	emailVerified: boolean("email_verified").default(false).notNull(),
+	name: text("name").notNull().default(""),
+	emailVerified: integer("email_verified", { mode: "boolean" }).default(false),
 	image: text("image"),
-	createdAt: timestamp("created_at")
-		.$defaultFn(() => /* @__PURE__ */ new Date())
-		.notNull(),
-	updatedAt: timestamp("updated_at")
-		.$defaultFn(() => /* @__PURE__ */ new Date())
-		.notNull(),
-}).enableRLS();
+	createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+	updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
 
-export const sessions = pgTable("sessions", {
+export const sessions = sqliteTable("sessions", {
 	id: text("id").primaryKey(),
-	expiresAt: timestamp("expires_at").notNull(),
+	userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
 	token: text("token").notNull().unique(),
-	createdAt: timestamp("created_at").notNull(),
-	updatedAt: timestamp("updated_at").notNull(),
+	expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
 	ipAddress: text("ip_address"),
 	userAgent: text("user_agent"),
-	userId: text("user_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-}).enableRLS();
+	createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
 
-export const accounts = pgTable("accounts", {
-	id: text("id").primaryKey(),
+export const accounts = sqliteTable("accounts", {
+	id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+	userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
 	accountId: text("account_id").notNull(),
 	providerId: text("provider_id").notNull(),
-	userId: text("user_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
 	accessToken: text("access_token"),
 	refreshToken: text("refresh_token"),
-	idToken: text("id_token"),
-	accessTokenExpiresAt: timestamp("access_token_expires_at"),
-	refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+	accessTokenExpiresAt: integer("access_token_expires_at", { mode: "timestamp" }),
+	refreshTokenExpiresAt: integer("refresh_token_expires_at", { mode: "timestamp" }),
 	scope: text("scope"),
 	password: text("password"),
-	createdAt: timestamp("created_at").notNull(),
-	updatedAt: timestamp("updated_at").notNull(),
-}).enableRLS();
+	createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+	updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
 
-export const verifications = pgTable("verifications", {
-	id: text("id").primaryKey(),
+export const verifications = sqliteTable("verifications", {
+	id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
 	identifier: text("identifier").notNull(),
 	value: text("value").notNull(),
-	expiresAt: timestamp("expires_at").notNull(),
-	createdAt: timestamp("created_at").$defaultFn(
-		() => /* @__PURE__ */ new Date(),
-	),
-	updatedAt: timestamp("updated_at").$defaultFn(
-		() => /* @__PURE__ */ new Date(),
-	),
-}).enableRLS();
+	expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+	createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+	updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const credits = sqliteTable("credits", {
+	id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+	userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+	balance: integer("balance").notNull().default(10),
+	updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const creditTransactions = sqliteTable("credit_transactions", {
+	id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+	userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+	amount: integer("amount").notNull(),
+	type: text("type").notNull(),
+	description: text("description"),
+	toolName: text("tool_name"),
+	createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const projects = sqliteTable("projects", {
+	id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+	userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+	name: text("name").notNull().default("Untitled Project"),
+	settings: text("settings"),
+	createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+	updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const apiKeys = sqliteTable("api_keys", {
+	id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+	userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+	service: text("service").notNull(),
+	encryptedKey: text("encrypted_key").notNull(),
+	createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});

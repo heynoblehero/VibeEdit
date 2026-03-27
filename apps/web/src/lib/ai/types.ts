@@ -91,11 +91,18 @@ export interface SerializedMediaAsset {
   height?: number;
 }
 
+export interface ChatMessageAttachment {
+  name: string;
+  type: string;
+  duration?: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
   actions?: AIAction[];
   actionResults?: AIActionResult[];
+  attachments?: ChatMessageAttachment[];
   timestamp: number;
 }

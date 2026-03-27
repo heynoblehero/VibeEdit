@@ -7,27 +7,50 @@ import { useEditor } from "@/hooks/use-editor";
 import { processMediaAssets } from "@/lib/media/processing";
 import type { ChatMessage as ChatMessageType } from "@/lib/ai/types";
 
+/* ── Avatars ── */
 function Avatar({ type }: { type: "user" | "ai" }) {
 	if (type === "user") {
 		return (
-			<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900">
-				<span className="text-xs font-medium text-orange-700 dark:text-orange-300">Y</span>
+			<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15">
+				<span className="text-xs font-medium text-primary">Y</span>
 			</div>
 		);
 	}
 	return (
-		<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900">
-			<span className="text-xs font-bold text-amber-700 dark:text-amber-300">AI</span>
+		<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ring/15">
+			<span className="text-xs font-bold text-ring">AI</span>
 		</div>
 	);
 }
 
+/* ── Media Attachment Pill (shown after uploading) ── */
+function MediaPill({ name, type, duration }: { name: string; type: string; duration?: number }) {
+	const icon = type === "video" ? "\u{1F3AC}" : type === "audio" ? "\u{1F3B5}" : "\u{1F5BC}\uFE0F";
+	const durStr = duration ? ` \u00B7 ${duration.toFixed(1)}s` : "";
+	return (
+		<div className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-xs">
+			<span>{icon}</span>
+			<span className="font-medium text-foreground truncate max-w-[140px]">{name}</span>
+			<span className="text-muted-foreground">{type}{durStr}</span>
+		</div>
+	);
+}
+
+/* ── Chat Message Bubble ── */
 function ChatMessageBubble({ message }: { message: ChatMessageType }) {
 	if (message.role === "system") {
 		return (
 			<div className="flex justify-center mb-3">
-				<div className="text-xs text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800/50 rounded-lg px-3 py-1.5 max-w-[90%]">
+				<div className="text-xs text-muted-foreground bg-muted/60 rounded-lg px-3 py-1.5 max-w-[90%]">
 					<p className="whitespace-pre-wrap">{message.content}</p>
+					{/* Render media pills if system message contains file info */}
+					{message.attachments && message.attachments.length > 0 && (
+						<div className="flex flex-wrap gap-1.5 mt-2">
+							{message.attachments.map((a, i) => (
+								<MediaPill key={i} name={a.name} type={a.type} duration={a.duration} />
+							))}
+						</div>
+					)}
 				</div>
 			</div>
 		);
@@ -38,7 +61,7 @@ function ChatMessageBubble({ message }: { message: ChatMessageType }) {
 	if (isUser) {
 		return (
 			<div className="flex gap-2.5 justify-end mb-4">
-				<div className="max-w-[80%] rounded-2xl rounded-tr-md px-4 py-2.5 bg-stone-200 dark:bg-stone-800 text-sm text-stone-800 dark:text-stone-200">
+				<div className="max-w-[80%] rounded-2xl rounded-tr-md px-4 py-2.5 bg-secondary text-sm text-foreground">
 					<p className="whitespace-pre-wrap">{message.content}</p>
 				</div>
 				<Avatar type="user" />
@@ -49,7 +72,7 @@ function ChatMessageBubble({ message }: { message: ChatMessageType }) {
 	return (
 		<div className="flex gap-2.5 mb-4">
 			<Avatar type="ai" />
-			<div className="max-w-[80%] rounded-2xl rounded-tl-md px-4 py-2.5 bg-white dark:bg-stone-900 shadow-sm border border-stone-100 dark:border-stone-800 text-sm text-stone-700 dark:text-stone-300">
+			<div className="max-w-[80%] rounded-2xl rounded-tl-md px-4 py-2.5 bg-card shadow-sm border border-border text-sm text-foreground">
 				<p className="whitespace-pre-wrap">{message.content}</p>
 				{message.actions && message.actions.length > 0 && (
 					<div className="mt-2.5 flex flex-wrap gap-1.5">
@@ -76,12 +99,43 @@ function ChatMessageBubble({ message }: { message: ChatMessageType }) {
 	);
 }
 
+/* ── Attached Media Bar (shows project assets) ── */
+function AttachedMediaBar() {
+	const editor = useEditor();
+	const [assets, setAssets] = useState<Array<{ id: string; name: string; type: string; duration?: number }>>([]);
+
+	useEffect(() => {
+		const update = () => {
+			const all = editor.media.getAssets();
+			setAssets(all.map(a => ({ id: a.id, name: a.name, type: a.type, duration: a.duration })));
+		};
+		update();
+		const unsub = editor.media.subscribe(update);
+		return unsub;
+	}, [editor]);
+
+	if (assets.length === 0) return null;
+
+	return (
+		<div className="border-b border-border px-4 py-2 shrink-0">
+			<p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Project Media</p>
+			<div className="flex flex-wrap gap-1.5">
+				{assets.map((a) => (
+					<MediaPill key={a.id} name={a.name} type={a.type} duration={a.duration} />
+				))}
+			</div>
+		</div>
+	);
+}
+
+/* ── Main Chat Panel ── */
 export function ChatPanel() {
 	const { messages, isLoading, error, sendMessage, clearChat } = useAIChat();
 	const editor = useEditor();
 	const activeProject = editor.project.getActive();
 	const [input, setInput] = useState("");
 	const [isDragging, setIsDragging] = useState(false);
+	const [isUploading, setIsUploading] = useState(false);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -97,21 +151,36 @@ export function ChatPanel() {
 			toast.error("No active project");
 			return;
 		}
+		setIsUploading(true);
 		try {
 			const processedAssets = await processMediaAssets({
 				files,
 				onProgress: () => {},
 			});
+
+			const addedInfo: Array<{ name: string; type: string; duration?: number }> = [];
 			for (const asset of processedAssets) {
 				await editor.media.addMediaAsset({
 					projectId: activeProject.metadata.id,
 					asset,
 				});
+				addedInfo.push({
+					name: asset.name,
+					type: asset.type,
+					duration: asset.duration,
+				});
 			}
-			toast.success(`Imported ${processedAssets.length} file(s)`);
+
+			const summary = addedInfo.map(a => {
+				const dur = a.duration ? ` (${a.duration.toFixed(1)}s)` : "";
+				return `${a.name}${dur}`;
+			}).join(", ");
+			toast.success(`Added: ${summary}`);
 		} catch (err) {
 			console.error("Error processing files:", err);
 			toast.error("Failed to process files");
+		} finally {
+			setIsUploading(false);
 		}
 	};
 
@@ -152,39 +221,49 @@ export function ChatPanel() {
 	};
 
 	return (
-		<div className="flex h-full flex-col bg-stone-50 dark:bg-stone-950">
+		<div className="flex h-full flex-col bg-background">
 			{/* Header */}
-			<div className="flex items-center justify-between border-b border-stone-200 dark:border-stone-800 px-4 h-12 shrink-0">
-				<div className="flex items-center gap-2">
-					<div className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900">
-						<span className="text-[10px] font-bold text-amber-700 dark:text-amber-300">AI</span>
+			<div className="flex items-center justify-between border-b border-border px-5 h-14 shrink-0">
+				<div className="flex items-center gap-2.5">
+					<div className="flex h-7 w-7 items-center justify-center rounded-full bg-ring/15">
+						<span className="text-[11px] font-bold text-ring">AI</span>
 					</div>
-					<span className="text-sm font-medium text-stone-700 dark:text-stone-300">VibeEdit AI</span>
+					<div>
+						<span className="text-sm font-semibold text-foreground">VibeEdit</span>
+					</div>
 				</div>
 				<button
 					onClick={clearChat}
-					className="rounded-md px-2 py-1 text-xs text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+					className="rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
 				>
 					Clear
 				</button>
 			</div>
 
+			{/* Attached media bar */}
+			<AttachedMediaBar />
+
 			{/* Messages */}
-			<div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin p-4">
+			<div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin px-5 py-4">
 				{messages.length === 0 && !isLoading && (
-					<div className="flex flex-col items-center justify-center h-full text-center px-6">
-						<div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900 mb-4">
-							<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600 dark:text-amber-400">
+					<div className="flex flex-col items-center justify-center h-full text-center px-8">
+						<div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-ring/10 mb-5">
+							<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-ring">
 								<path d="M12 8V4H8" />
 								<rect width="16" height="12" x="4" y="8" rx="2" />
 								<path d="m2 14 6-6" />
 								<path d="m14 20 8-8" />
 							</svg>
 						</div>
-						<p className="font-medium text-stone-700 dark:text-stone-300 mb-1">VibeEdit AI</p>
-						<p className="text-xs text-stone-400 leading-relaxed">
-							Drop media files here, then tell me<br />what to create. I handle text, cuts,<br />effects, keyframes, and more.
+						<p className="text-base font-semibold text-foreground mb-2">What do you want to create?</p>
+						<p className="text-sm text-muted-foreground leading-relaxed max-w-[280px]">
+							Attach your media files below, then describe your video. I&apos;ll handle the editing.
 						</p>
+						<div className="flex flex-wrap gap-2 mt-5 text-xs text-muted-foreground">
+							<span className="rounded-full border border-border px-3 py-1">&quot;add intro as main&quot;</span>
+							<span className="rounded-full border border-border px-3 py-1">&quot;overlay logo 2s-5s&quot;</span>
+							<span className="rounded-full border border-border px-3 py-1">&quot;fade in text&quot;</span>
+						</div>
 					</div>
 				)}
 				{messages.map((msg) => (
@@ -193,58 +272,70 @@ export function ChatPanel() {
 				{isLoading && (
 					<div className="flex gap-2.5 mb-4">
 						<Avatar type="ai" />
-						<div className="rounded-2xl rounded-tl-md px-4 py-3 bg-white dark:bg-stone-900 shadow-sm border border-stone-100 dark:border-stone-800">
+						<div className="rounded-2xl rounded-tl-md px-4 py-3 bg-card shadow-sm border border-border">
 							<div className="flex gap-1.5">
-								<div className="h-2 w-2 rounded-full bg-stone-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-								<div className="h-2 w-2 rounded-full bg-stone-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-								<div className="h-2 w-2 rounded-full bg-stone-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+								<div className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "0ms" }} />
+								<div className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "150ms" }} />
+								<div className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "300ms" }} />
 							</div>
 						</div>
 					</div>
 				)}
 				{error && (
-					<div className="bg-red-50 dark:bg-red-950 text-red-500 dark:text-red-400 rounded-xl px-4 py-2.5 text-xs mb-3">
+					<div className="bg-destructive/10 text-destructive rounded-xl px-4 py-2.5 text-xs mb-3">
 						{error}
 					</div>
 				)}
 			</div>
 
-			{/* Input */}
-			<div className="border-t border-stone-200 dark:border-stone-800 p-3 shrink-0">
+			{/* Input area */}
+			<div className="border-t border-border px-4 py-3 shrink-0">
+				{isUploading && (
+					<div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+						<div className="h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+						Processing media...
+					</div>
+				)}
 				<div
-					className={`flex items-end gap-2 rounded-xl border p-2 shadow-sm transition-colors ${
+					className={`flex items-end gap-2 rounded-xl border p-2.5 transition-all ${
 						isDragging
-							? "border-amber-400 bg-amber-50/50 dark:bg-amber-950/20"
-							: "border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900"
+							? "border-primary bg-primary/5 shadow-md"
+							: "border-border bg-card shadow-sm"
 					}`}
-					onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-					onDragLeave={() => setIsDragging(false)}
+					onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+					onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
 					onDrop={handleDrop}
 				>
+					{/* Attach button */}
 					<button
 						type="button"
 						onClick={() => fileInputRef.current?.click()}
-						className="shrink-0 rounded-lg p-2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-						title="Attach media files"
+						className="shrink-0 rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+						title="Attach media files (video, image, audio)"
 					>
 						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
 							<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
 						</svg>
 					</button>
+
+					{/* Text input */}
 					<textarea
 						ref={textareaRef}
 						value={input}
 						onChange={handleInput}
 						onKeyDown={handleKeyDown}
-						placeholder="Tell me what to edit..."
-						disabled={isLoading}
+						placeholder={isDragging ? "Drop files here..." : "Describe what to edit..."}
+						disabled={isLoading || isUploading}
 						rows={1}
-						className="flex-1 resize-none bg-transparent text-sm text-stone-800 dark:text-stone-200 placeholder:text-stone-400 focus:outline-none disabled:opacity-50 min-h-[36px] max-h-[120px] py-1.5"
+						className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-50 min-h-[36px] max-h-[120px] py-1.5"
 					/>
+
+					{/* Send button */}
 					<button
 						onClick={handleSend}
-						disabled={!input.trim() || isLoading}
-						className="shrink-0 rounded-lg p-2 bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 hover:bg-stone-700 dark:hover:bg-stone-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+						disabled={!input.trim() || isLoading || isUploading}
+						className="shrink-0 rounded-lg p-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+						title="Send"
 					>
 						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
 							<path d="M5 12h14" /><path d="m12 5 7 7-7 7" />

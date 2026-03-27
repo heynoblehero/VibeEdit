@@ -1,295 +1,134 @@
-import type { Metadata } from "next";
-import { BasePage } from "@/app/base-page";
-import {
-	Accordion,
-	AccordionContent,
-	AccordionItem,
-	AccordionTrigger,
-} from "@/components/ui/accordion";
-import { Separator } from "@/components/ui/separator";
-import { SOCIAL_LINKS } from "@/constants/site-constants";
-
-export const metadata: Metadata = {
-	title: "Terms of Service - OpenCut",
-	description:
-		"OpenCut's Terms of Service. Fair, transparent terms for our free and open-source video editor.",
-	openGraph: {
-		title: "Terms of Service - OpenCut",
-		description:
-			"OpenCut's Terms of Service. Fair, transparent terms for our free and open-source video editor.",
-		type: "website",
-	},
-};
-
 export default function TermsPage() {
 	return (
-		<BasePage
-			title="Terms of service"
-			description="Fair and transparent terms for our free, open-source video editor. Contact us if you have any questions."
-		>
-			<Accordion type="single" collapsible className="w-full">
-				<AccordionItem
-					value="quick-summary"
-					className="rounded-2xl border px-5"
-				>
-					<AccordionTrigger className="no-underline!">
-						Quick summary
-					</AccordionTrigger>
-					<AccordionContent>
-						<h3 className="mb-3 text-lg font-medium">
-							You own your content, we own nothing.
-						</h3>
-						<ol className="list-decimal space-y-2 pl-6">
-							<li>
-								Your content stays private - basic editing is local, AI features
-								use encrypted uploads
-							</li>
-							<li>
-								We never claim ownership of your content, even when processing
-								AI features
-							</li>
-							<li>
-								Free for personal and commercial use with no watermarks or
-								restrictions
-							</li>
-							<li>Don't use OpenCut for illegal activities or harassment</li>
-							<li>
-								Service provided "as is" - we can't guarantee perfect uptime
-							</li>
-							<li>
-								Open source means you can review our code and self-host if
-								needed
-							</li>
-							<li>
-								You can delete your account anytime and keep using your exported
-								videos
-							</li>
-						</ol>
-						<p className="mt-4">
-							Questions? Email us at{" "}
-							<a
-								href="mailto:oss@opencut.app"
-								className="text-primary hover:underline"
-							>
-								oss@opencut.app
-							</a>
+		<div className="min-h-screen bg-background py-16 px-4">
+			<div className="max-w-3xl mx-auto">
+				<h1 className="text-3xl font-bold text-foreground mb-2">Terms of Service</h1>
+				<p className="text-sm text-muted-foreground mb-8">Last updated: March 2026</p>
+
+				<div className="prose prose-sm max-w-none text-foreground/80 space-y-6">
+					<section>
+						<h2 className="text-lg font-semibold text-foreground">1. Acceptance of Terms</h2>
+						<p>
+							By accessing or using VibeEdit, you agree to be bound by these Terms of Service. If you
+							do not agree to these terms, do not use the service.
 						</p>
-					</AccordionContent>
-				</AccordionItem>
-			</Accordion>
+					</section>
 
-			<section className="flex flex-col gap-3">
-				<h2 className="text-2xl font-semibold">Your Content, Your Rights</h2>
-				<p>
-					<strong>You own everything you create.</strong> OpenCut processes
-					basic editing locally on your device. For AI features, content is
-					encrypted before upload and we cannot access your original files. We
-					make no claims to ownership, licensing, or rights over your videos,
-					projects, or any content you create using OpenCut.
-				</p>
-				<ul className="list-disc space-y-2 pl-6">
-					<li>
-						Your content remains private and under your control at all times
-					</li>
-					<li>You retain all intellectual property rights to your content</li>
-					<li>
-						Even when using AI features, we cannot access your unencrypted
-						content
-					</li>
-					<li>You can export and use your content however you choose</li>
-					<li>No watermarks, no licensing restrictions from OpenCut</li>
-				</ul>
-			</section>
+					<section>
+						<h2 className="text-lg font-semibold text-foreground">2. Accounts</h2>
+						<p>
+							You must provide accurate information when creating an account. You are responsible for
+							maintaining the security of your account credentials and for all activity under your
+							account. You must be at least 13 years old to use VibeEdit.
+						</p>
+					</section>
 
-			<section className="flex flex-col gap-3">
-				<h2 className="text-2xl font-semibold">How You Can Use OpenCut</h2>
-				<p>OpenCut is free for personal and commercial use. You can:</p>
-				<ul className="list-disc space-y-2 pl-6">
-					<li>
-						Create videos for personal, educational, or commercial purposes
-					</li>
-					<li>Use OpenCut for client work and paid projects</li>
-					<li>Share and distribute videos created with OpenCut</li>
-					<li>
-						Modify and distribute the OpenCut software (under MIT license)
-					</li>
-				</ul>
-				<p>
-					<strong>What we ask:</strong> Don't use OpenCut for illegal
-					activities, harassment, or creating harmful content. Be respectful of
-					others and follow applicable laws.
-				</p>
-			</section>
+					<section>
+						<h2 className="text-lg font-semibold text-foreground">3. Credits & Payments</h2>
+						<p>
+							VibeEdit uses a credit-based system. Credits are purchased in advance and consumed when
+							you use AI features such as sending messages, generating media, or rendering videos.
+							Credits do not expire. All purchases are final and non-refundable unless required by
+							applicable law. Payments are processed by Polar.
+						</p>
+					</section>
 
-			<section className="flex flex-col gap-3">
-				<h2 className="text-2xl font-semibold">
-					AI Features and Data Processing
-				</h2>
-				<p>
-					OpenCut offers optional AI-powered features that require server
-					processing:
-				</p>
-				<ul className="list-disc space-y-2 pl-6">
-					<li>
-						AI features (auto captions, content analysis, etc.) are completely
-						optional
-					</li>
-					<li>Your content is encrypted on your device before any upload</li>
-					<li>
-						We use zero-knowledge encryption - we cannot decrypt your content
-					</li>
-					<li>Encrypted content is deleted immediately after processing</li>
-					<li>
-						You maintain full ownership and control of your content throughout
-					</li>
-				</ul>
-				<p>
-					By using AI features, you consent to the temporary, encrypted
-					processing of your content as described in our Privacy Policy. You can
-					always choose to use only local editing features.
-				</p>
-			</section>
+					<section>
+						<h2 className="text-lg font-semibold text-foreground">4. Content Ownership</h2>
+						<p>
+							You retain full ownership of all content you upload, create, or export using VibeEdit.
+							We do not claim any intellectual property rights over your content. By using the service,
+							you grant us a limited license to process your content solely for the purpose of
+							providing the editing features you request.
+						</p>
+					</section>
 
-			<section className="flex flex-col gap-3">
-				<h2 className="text-2xl font-semibold">Account and Service</h2>
-				<p>To use certain features, you may create an account:</p>
-				<ul className="list-disc space-y-2 pl-6">
-					<li>Provide accurate information when signing up</li>
-					<li>Keep your account secure and don't share credentials</li>
-					<li>You're responsible for activity under your account</li>
-					<li>You can delete your account at any time</li>
-				</ul>
-				<p>
-					OpenCut is provided "as is" without warranties. While we strive for
-					reliability, we can't guarantee uninterrupted service.
-				</p>
-			</section>
+					<section>
+						<h2 className="text-lg font-semibold text-foreground">5. Acceptable Use</h2>
+						<p>You agree not to:</p>
+						<ul className="list-disc pl-6 mt-2 space-y-1">
+							<li>Use VibeEdit for any illegal purpose or to violate any laws</li>
+							<li>Upload content that infringes on the rights of others</li>
+							<li>Attempt to gain unauthorized access to the service or its systems</li>
+							<li>Use the service to generate harmful, abusive, or deceptive content</li>
+							<li>Resell or redistribute credits or access to the service</li>
+							<li>Interfere with or disrupt the service or its infrastructure</li>
+						</ul>
+					</section>
 
-			<section className="flex flex-col gap-3">
-				<h2 className="text-2xl font-semibold">Open Source Benefits</h2>
-				<p>Because OpenCut is open source, you have additional rights:</p>
-				<ul className="list-disc space-y-2 pl-6">
-					<li>Review our code to see exactly how we handle your data</li>
-					<li>Self-host OpenCut on your own servers</li>
-					<li>Modify the software to suit your needs</li>
-					<li>Contribute improvements back to the community</li>
-				</ul>
-				<p>
-					View our source code and license on{" "}
-					<a
-						href={SOCIAL_LINKS.github}
-						target="_blank"
-						rel="noopener"
-						className="text-primary hover:underline"
-					>
-						GitHub
+					<section>
+						<h2 className="text-lg font-semibold text-foreground">6. AI-Generated Content</h2>
+						<p>
+							VibeEdit uses AI models to assist with video editing. AI-generated outputs may not
+							always be accurate, appropriate, or free of errors. You are solely responsible for
+							reviewing and using any AI-generated content. We do not guarantee the quality, accuracy,
+							or suitability of AI outputs.
+						</p>
+					</section>
+
+					<section>
+						<h2 className="text-lg font-semibold text-foreground">7. Third-Party Services</h2>
+						<p>
+							VibeEdit integrates with third-party services including ElevenLabs (voice and audio),
+							Stability AI (image generation), and Polar (payments). Your use of these integrations is
+							subject to each provider's own terms and privacy policies. If you supply your own API
+							keys, your usage is governed directly by your agreement with those providers.
+						</p>
+					</section>
+
+					<section>
+						<h2 className="text-lg font-semibold text-foreground">8. Termination</h2>
+						<p>
+							You may stop using VibeEdit and delete your account at any time. We may suspend or
+							terminate your access if you violate these terms. Upon termination, your right to use
+							the service ceases immediately, but you retain ownership of any content you have already
+							exported.
+						</p>
+					</section>
+
+					<section>
+						<h2 className="text-lg font-semibold text-foreground">9. Disclaimer of Warranties</h2>
+						<p>
+							VibeEdit is provided "as is" and "as available" without warranties of any kind, whether
+							express or implied. We do not warrant that the service will be uninterrupted, secure, or
+							error-free. We disclaim all warranties including implied warranties of merchantability,
+							fitness for a particular purpose, and non-infringement.
+						</p>
+					</section>
+
+					<section>
+						<h2 className="text-lg font-semibold text-foreground">10. Limitation of Liability</h2>
+						<p>
+							To the maximum extent permitted by law, VibeEdit and its operators shall not be liable
+							for any indirect, incidental, special, consequential, or punitive damages, or any loss
+							of profits, data, or goodwill arising from your use of the service. Our total liability
+							shall not exceed the amount you paid to us in the 12 months preceding the claim.
+						</p>
+					</section>
+
+					<section>
+						<h2 className="text-lg font-semibold text-foreground">11. Changes to Terms</h2>
+						<p>
+							We may update these terms from time to time. We will notify you of material changes by
+							posting the updated terms on this page with a revised date. Your continued use of
+							VibeEdit after changes are posted constitutes your acceptance of the updated terms.
+						</p>
+					</section>
+
+					<section>
+						<h2 className="text-lg font-semibold text-foreground">12. Contact</h2>
+						<p>
+							If you have questions about these terms, please contact us at support@vibeedit.app.
+						</p>
+					</section>
+				</div>
+
+				<div className="mt-12 pt-6 border-t border-border text-center text-xs text-muted-foreground">
+					<a href="/" className="hover:text-foreground">
+						&larr; Back to VibeEdit
 					</a>
-					.
-				</p>
-			</section>
-
-			<section className="flex flex-col gap-3">
-				<h2 className="text-2xl font-semibold">Third-Party Content</h2>
-				<p>
-					When using OpenCut, make sure you have the right to use any content
-					you import:
-				</p>
-				<ul className="list-disc space-y-2 pl-6">
-					<li>Only upload content you own or have permission to use</li>
-					<li>
-						Respect copyright, trademarks, and other intellectual property
-					</li>
-					<li>
-						Don't use copyrighted music, images, or videos without permission
-					</li>
-					<li>You're responsible for any claims related to your content</li>
-				</ul>
-			</section>
-
-			<section className="flex flex-col gap-3">
-				<h2 className="text-2xl font-semibold">Limitations and Liability</h2>
-				<p>
-					OpenCut is provided free of charge. To the extent permitted by law:
-				</p>
-				<ul className="list-disc space-y-2 pl-6">
-					<li>We're not liable for any loss of data or content</li>
-					<li>
-						Projects are stored in your browser and may be lost if you clear
-						browser data
-					</li>
-					<li>We're not responsible for how you use the service</li>
-					<li>Our liability is limited to the maximum extent allowed by law</li>
-				</ul>
-				<p>
-					Since your content stays on your device, we have no way to recover
-					lost projects. Consider exporting important videos when finished
-					editing.
-				</p>
-			</section>
-
-			<section className="flex flex-col gap-3">
-				<h2 className="text-2xl font-semibold">Service Changes</h2>
-				<p>We may update OpenCut and these terms:</p>
-				<ul className="list-disc space-y-2 pl-6">
-					<li>We'll notify you of significant changes to these terms</li>
-					<li>Continued use means you accept any updates</li>
-					<li>You can always self-host an older version if you prefer</li>
-					<li>Major changes will be discussed with the community on GitHub</li>
-				</ul>
-			</section>
-
-			<section className="flex flex-col gap-3">
-				<h2 className="text-2xl font-semibold">Termination</h2>
-				<p>You can stop using OpenCut at any time:</p>
-				<ul className="list-disc space-y-2 pl-6">
-					<li>Delete your account through your profile settings</li>
-					<li>Clear your browser data to remove local projects</li>
-					<li>Your content remains yours even if you stop using OpenCut</li>
-					<li>We may suspend accounts for violations of these terms</li>
-				</ul>
-			</section>
-
-			<section className="flex flex-col gap-3">
-				<h2 className="text-2xl font-semibold">Contact Us</h2>
-				<p>Questions about these terms or need to report an issue?</p>
-				<p>
-					Contact us through our{" "}
-					<a
-						href={`${SOCIAL_LINKS.github}/issues`}
-						target="_blank"
-						rel="noopener"
-						className="text-primary hover:underline"
-					>
-						GitHub repository
-					</a>
-					, email us at{" "}
-					<a
-						href="mailto:oss@opencut.app"
-						className="text-primary hover:underline"
-					>
-						oss@opencut.app
-					</a>
-					, or reach out on{" "}
-					<a
-						href={SOCIAL_LINKS.x}
-						target="_blank"
-						rel="noopener"
-						className="text-primary hover:underline"
-					>
-						X (Twitter)
-					</a>
-					.
-				</p>
-				<p>
-					These terms are governed by applicable law in your jurisdiction. We
-					prefer to resolve disputes through friendly discussion in our
-					open-source community.
-				</p>
-			</section>
-			<Separator />
-			<p className="text-muted-foreground text-sm">
-				Last updated: July 14, 2025
-			</p>
-		</BasePage>
+				</div>
+			</div>
+		</div>
 	);
 }

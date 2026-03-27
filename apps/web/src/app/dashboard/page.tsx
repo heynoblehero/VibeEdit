@@ -5,16 +5,17 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession, signOut } from "@/lib/auth/client";
 
-const placeholderProjects = [
-	{ id: "1", name: "My Intro", updatedAt: "2 min ago" },
-	{ id: "2", name: "Isaac Video", updatedAt: "yesterday" },
-	{ id: "3", name: "Demo Reel", updatedAt: "3 days ago" },
-];
+interface Project {
+	id: string;
+	name: string;
+	updatedAt: Date | string | null;
+}
 
 export default function DashboardPage() {
 	const router = useRouter();
 	const { data: session, isPending } = useSession();
 	const [creditBalance, setCreditBalance] = useState<number | null>(null);
+	const [projects, setProjects] = useState<Project[]>([]);
 
 	useEffect(() => {
 		if (!isPending && !session) {
@@ -28,6 +29,10 @@ export default function DashboardPage() {
 				.then((r) => r.json())
 				.then((d) => setCreditBalance(d.balance ?? 0))
 				.catch(() => setCreditBalance(0));
+			fetch("/api/projects")
+				.then((r) => r.json())
+				.then((d) => setProjects(d.projects || []))
+				.catch(() => setProjects([]));
 		}
 	}, [session]);
 
@@ -49,6 +54,23 @@ export default function DashboardPage() {
 	function handleNewProject() {
 		const id = crypto.randomUUID();
 		router.push(`/editor/${id}`);
+	}
+
+	async function handleBackup() {
+		const resp = await fetch("/api/projects");
+		const data = await resp.json();
+		const backup = {
+			version: 1,
+			exportedAt: new Date().toISOString(),
+			projects: data.projects || [],
+		};
+		const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = `vibeedit-backup-${new Date().toISOString().slice(0, 10)}.json`;
+		a.click();
+		URL.revokeObjectURL(url);
 	}
 
 	return (
@@ -115,6 +137,12 @@ export default function DashboardPage() {
 							>
 								Buy Credits
 							</Link>
+							<button
+								onClick={handleBackup}
+								className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+							>
+								Backup All
+							</button>
 						</div>
 
 						{/* Projects List */}
@@ -130,7 +158,7 @@ export default function DashboardPage() {
 							</div>
 
 							<div className="divide-y divide-border">
-								{placeholderProjects.map((project) => (
+								{projects.map((project) => (
 									<Link
 										key={project.id}
 										href={`/editor/${project.id}`}
@@ -140,12 +168,16 @@ export default function DashboardPage() {
 											<span className="text-muted-foreground text-lg">V</span>
 											<span className="text-sm font-medium">{project.name}</span>
 										</div>
-										<span className="text-xs text-muted-foreground">{project.updatedAt}</span>
+										<span className="text-xs text-muted-foreground">
+												{project.updatedAt
+													? new Date(project.updatedAt).toLocaleDateString()
+													: ""}
+											</span>
 									</Link>
 								))}
 							</div>
 
-							{placeholderProjects.length === 0 && (
+							{projects.length === 0 && (
 								<div className="px-6 py-12 text-center">
 									<p className="text-sm text-muted-foreground">No projects yet.</p>
 									<button

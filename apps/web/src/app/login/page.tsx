@@ -86,6 +86,14 @@ export default function LoginPage() {
 								autoComplete="current-password"
 							/>
 						</div>
+						<div className="flex justify-end">
+							<a
+								href="/forgot-password"
+								className="text-xs text-primary hover:underline"
+							>
+								Forgot password?
+							</a>
+						</div>
 					</CardContent>
 					<CardFooter className="flex flex-col gap-4">
 						<Button

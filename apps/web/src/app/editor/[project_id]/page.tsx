@@ -7,6 +7,8 @@ import { Timeline } from "@/components/editor/panels/timeline";
 import { PreviewPanel } from "@/components/editor/panels/preview";
 import { EditorProvider } from "@/components/providers/editor-provider";
 import { Onboarding } from "@/components/editor/onboarding";
+import { OnboardingTour } from "@/components/editor/onboarding-tour";
+import { ShortcutsModal } from "@/components/editor/shortcuts-modal";
 import { MigrationDialog } from "@/components/editor/dialogs/migration-dialog";
 import { usePasteMedia } from "@/hooks/use-paste-media";
 import { MobileGate } from "@/components/editor/mobile-gate";
@@ -24,6 +26,8 @@ export default function Editor() {
 				<EditorLayout />
 				<Onboarding />
 				<MigrationDialog />
+				<OnboardingTour />
+				<ShortcutsModal />
 			</EditorProvider>
 		</MobileGate>
 	);

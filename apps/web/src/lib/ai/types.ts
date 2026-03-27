@@ -93,7 +93,7 @@ export interface SerializedMediaAsset {
 
 export interface ChatMessage {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   actions?: AIAction[];
   actionResults?: AIActionResult[];

@@ -1,12 +1,24 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { toast } from "sonner";
 import { useAIChat } from "@/hooks/use-ai-chat";
+import { useEditor } from "@/hooks/use-editor";
+import { processMediaAssets } from "@/lib/media/processing";
 import { Button } from "@/components/ui/button";
 import type { ChatMessage as ChatMessageType } from "@/lib/ai/types";
-import { ManualToolsDrawer } from "./manual-tools-drawer";
 
 function ChatMessageBubble({ message }: { message: ChatMessageType }) {
+	if (message.role === "system") {
+		return (
+			<div className="flex justify-center mb-3">
+				<div className="text-xs text-muted-foreground bg-muted/50 rounded px-3 py-1.5 max-w-[90%]">
+					<p className="whitespace-pre-wrap">{message.content}</p>
+				</div>
+			</div>
+		);
+	}
+
 	const isUser = message.role === "user";
 	return (
 		<div
@@ -45,18 +57,57 @@ function ChatMessageBubble({ message }: { message: ChatMessageType }) {
 	);
 }
 
-export function ChatPanel() {
+export function ChatPanel({ onClose }: { onClose: () => void }) {
 	const { messages, isLoading, error, sendMessage, clearChat } = useAIChat();
+	const editor = useEditor();
+	const activeProject = editor.project.getActive();
 	const [input, setInput] = useState("");
-	const [drawerOpen, setDrawerOpen] = useState(false);
+	const [isDragging, setIsDragging] = useState(false);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
 		if (scrollRef.current) {
 			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
 		}
 	}, [messages, isLoading]);
+
+	const addMediaFiles = async (files: File[]) => {
+		if (!activeProject) {
+			toast.error("No active project");
+			return;
+		}
+		try {
+			const processedAssets = await processMediaAssets({
+				files,
+				onProgress: () => {},
+			});
+			for (const asset of processedAssets) {
+				await editor.media.addMediaAsset({
+					projectId: activeProject.metadata.id,
+					asset,
+				});
+			}
+			toast.success(`Imported ${processedAssets.length} file(s)`);
+		} catch (err) {
+			console.error("Error processing files:", err);
+			toast.error("Failed to process files");
+		}
+	};
+
+	const handleDrop = async (e: React.DragEvent) => {
+		e.preventDefault();
+		setIsDragging(false);
+		const files = Array.from(e.dataTransfer.files);
+		if (files.length > 0) await addMediaFiles(files);
+	};
+
+	const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+		const files = Array.from(e.target.files || []);
+		if (files.length > 0) await addMediaFiles(files);
+		e.target.value = ""; // reset for re-upload
+	};
 
 	const handleSend = () => {
 		if (!input.trim() || isLoading) return;
@@ -83,18 +134,27 @@ export function ChatPanel() {
 	};
 
 	return (
-		<div className="bg-background border-r flex h-full flex-col">
+		<div className="bg-background flex h-full flex-col">
 			{/* Header */}
 			<div className="flex items-center justify-between border-b px-4 py-3">
 				<h2 className="text-sm font-semibold">VibeEdit AI</h2>
-				<Button
-					variant="ghost"
-					size="sm"
-					onClick={clearChat}
-					className="text-muted-foreground h-7 text-xs"
-				>
-					Clear
-				</Button>
+				<div className="flex items-center gap-1">
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={clearChat}
+						className="text-muted-foreground h-7 text-xs"
+					>
+						Clear
+					</Button>
+					<button
+						onClick={onClose}
+						className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+						title="Close (Ctrl+K)"
+					>
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+					</button>
+				</div>
 			</div>
 
 			{/* Messages */}
@@ -149,8 +209,21 @@ export function ChatPanel() {
 			</div>
 
 			{/* Input */}
-			<div className="border-t p-3">
-				<div className="flex gap-2">
+			<div className="border-t p-3 shrink-0">
+				<div
+					className={`flex items-end gap-2 rounded-lg border bg-muted/30 p-2 transition-colors ${isDragging ? "border-primary bg-primary/5" : "border-border"}`}
+					onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+					onDragLeave={() => setIsDragging(false)}
+					onDrop={handleDrop}
+				>
+					<button
+						type="button"
+						onClick={() => fileInputRef.current?.click()}
+						className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+						title="Attach media files"
+					>
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+					</button>
 					<textarea
 						ref={textareaRef}
 						value={input}
@@ -159,35 +232,26 @@ export function ChatPanel() {
 						placeholder="Tell me what to edit..."
 						disabled={isLoading}
 						rows={1}
-						className="bg-background placeholder:text-muted-foreground focus:ring-ring flex-1 resize-none rounded-md border px-3 py-2 text-sm focus:ring-1 focus:outline-none disabled:opacity-50"
+						className="bg-transparent placeholder:text-muted-foreground flex-1 resize-none py-1.5 text-sm focus:outline-none disabled:opacity-50"
 					/>
 					<Button
 						onClick={handleSend}
 						disabled={!input.trim() || isLoading}
 						size="sm"
-						className="shrink-0 self-end"
+						className="shrink-0"
 					>
 						Send
 					</Button>
 				</div>
+				<input
+					ref={fileInputRef}
+					type="file"
+					className="hidden"
+					multiple
+					accept="image/*,video/*,audio/*"
+					onChange={handleFileSelect}
+				/>
 			</div>
-
-			{/* Manual Tools */}
-			<div className="border-t px-3 py-2">
-				<Button
-					variant="outline"
-					size="sm"
-					className="w-full text-xs"
-					onClick={() => setDrawerOpen(true)}
-				>
-					Manual Tools
-				</Button>
-			</div>
-
-			<ManualToolsDrawer
-				open={drawerOpen}
-				onOpenChange={setDrawerOpen}
-			/>
 		</div>
 	);
 }

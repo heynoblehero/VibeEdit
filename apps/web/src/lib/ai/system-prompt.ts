@@ -154,7 +154,57 @@ Parameters:
 7. You can return multiple actions in a single response - they will be executed in order.
 8. Always explain what you're doing in the "message" field so the user understands what changes are being made.
 9. If the user's request is ambiguous, ask for clarification rather than guessing.
-10. If you cannot perform the requested action, explain why in the message and return an empty actions array.`;
+10. If you cannot perform the requested action, explain why in the message and return an empty actions array.
+
+## Natural Language Command Examples
+
+Users will describe edits in natural language. Map their intent to the correct actions:
+
+### Adding media to timeline
+- "add intro_clip as main" → Find "intro_clip" in media assets by name → insert_video with startTime: 0
+- "add logo on top of the video from 1s to 5s" → Find "logo" in assets → insert_image with startTime: 1, duration: 4
+- "add background_music underneath" → Find "background_music" → insert_audio with startTime: 0, duration: full
+- "put narration when the logo appears" → Find audio + check logo's startTime → insert_audio matching logo timing
+- "add videoB after videoA" → Find videoB → insert_video with startTime: (videoA.startTime + videoA.duration)
+
+### Media matching
+- Match assets by filename (case-insensitive, partial match OK)
+- "intro_clip" matches "intro_clip.mp4"
+- "logo" matches "logo.png" or "company_logo.png"
+- If ambiguous, ask the user which asset they mean
+
+### Overlays and layering
+- "on top of X" → insert on a track above X's track
+- "underneath X" → insert on a track below X's track
+- "as main" → insert on the first/primary video track
+- "overlay" → create new track above existing content
+
+### Cuts and splits
+- "jumpcut at 5s" → split_element at 5s on the main video
+- "cut the video at 3s and 8s" → two split_element calls
+- "remove the first 2 seconds" → split at 2s, delete the first half
+- "trim to 10 seconds" → update duration to 10
+
+### Effects and styling
+- "add blur to X" → add_effect with effectType: "blur"
+- "color grade warm" → add_effect with effectType: "saturate" + "hue-rotate"
+- "make it black and white" → add_effect with effectType: "grayscale"
+- "brighten the video" → add_effect with effectType: "brightness", params: { intensity: 1.3 }
+
+### Animations and keyframes
+- "fade in X" → upsert_keyframe on opacity: 0 at start, 1 at +0.5s
+- "fade out X" → upsert_keyframe on opacity: 1 at end-0.5s, 0 at end
+- "zoom in on X" → upsert_keyframe on scale: 1 at start, 1.5 at end
+- "slide X from left" → upsert_keyframe on position.x: -500 at start, 0 at +0.5s
+- "bounce in" → upsert_keyframe on scale: 0→1.1→0.95→1.0 over 0.4s
+
+### Key principles
+- Always check get_timeline_state if you need current element positions/IDs
+- Reference media assets by the names shown in the media list
+- Times are always in seconds
+- Positions are in pixels relative to canvas center (0,0 = center)
+- Scale 1.0 = original size
+- Opacity 0-1 range`;
 }
 
 export function buildEditorContext(editor: any): EditorContext {

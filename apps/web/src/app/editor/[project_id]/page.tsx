@@ -1,11 +1,7 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import {
-	ResizablePanelGroup,
-	ResizablePanel,
-	ResizableHandle,
-} from "@/components/ui/resizable";
 import { ChatPanel } from "@/components/editor/panels/chat";
 import { Timeline } from "@/components/editor/panels/timeline";
 import { PreviewPanel } from "@/components/editor/panels/preview";
@@ -36,54 +32,60 @@ export default function Editor() {
 	);
 }
 
+function CollapsedSidebar({ onOpen }: { onOpen: () => void }) {
+	return (
+		<div className="flex h-full flex-col items-center pt-3">
+			<button
+				onClick={onOpen}
+				className="rounded-md p-2 hover:bg-muted transition-colors"
+				title="AI Assistant (Ctrl+K)"
+			>
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/><line x1="10" y1="22" x2="14" y2="22"/></svg>
+			</button>
+		</div>
+	);
+}
+
 function EditorLayout() {
 	usePasteMedia();
 
+	const [chatOpen, setChatOpen] = useState(false);
+
+	useEffect(() => {
+		const handler = (e: KeyboardEvent) => {
+			if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+				e.preventDefault();
+				setChatOpen((prev) => !prev);
+			}
+		};
+		document.addEventListener("keydown", handler);
+		return () => document.removeEventListener("keydown", handler);
+	}, []);
+
 	return (
-		<ResizablePanelGroup
-			direction="horizontal"
-			className="size-full"
-		>
-			{/* LEFT: AI Chat Panel */}
-			<ResizablePanel
-				defaultSize={35}
-				minSize={25}
-				maxSize={50}
-				className="min-w-0"
-			>
-				<ChatPanel />
-			</ResizablePanel>
-
-			<ResizableHandle withHandle />
-
-			{/* RIGHT: Preview + Timeline */}
-			<ResizablePanel defaultSize={65} className="min-h-0 min-w-0">
-				<ResizablePanelGroup
-					direction="vertical"
-					className="size-full"
+		<div className="flex h-full flex-col">
+			<div className="flex flex-1 overflow-hidden">
+				{/* Collapsible chat sidebar */}
+				<div
+					className="shrink-0 border-r bg-background transition-all duration-200"
+					style={{ width: chatOpen ? 380 : 48 }}
 				>
-					{/* Preview */}
-					<ResizablePanel
-						defaultSize={65}
-						minSize={30}
-						className="min-h-0"
-					>
+					{chatOpen ? (
+						<ChatPanel onClose={() => setChatOpen(false)} />
+					) : (
+						<CollapsedSidebar onOpen={() => setChatOpen(true)} />
+					)}
+				</div>
+				{/* Right side: preview + timeline */}
+				<div className="flex-1 flex flex-col overflow-hidden">
+					<div className="flex-1 min-h-0">
 						<PreviewPanel />
-					</ResizablePanel>
-
-					<ResizableHandle withHandle />
-
-					{/* Timeline (collapsible) */}
-					<ResizablePanel
-						defaultSize={35}
-						minSize={15}
-						collapsible
-						className="min-h-0"
-					>
+					</div>
+					<div className="h-[280px] shrink-0 border-t">
 						<Timeline />
-					</ResizablePanel>
-				</ResizablePanelGroup>
-			</ResizablePanel>
-		</ResizablePanelGroup>
+					</div>
+				</div>
+			</div>
+		</div>
 	);
 }

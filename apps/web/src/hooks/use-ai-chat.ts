@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import { useEditor } from "@/hooks/use-editor";
 import { buildEditorContext } from "@/lib/ai/system-prompt";
 import { executeAIActions } from "@/lib/ai/executor";
+import { processMediaAssets } from "@/lib/media/processing";
 import type { AIAction, AIActionResult, ChatMessage } from "@/lib/ai/types";
 
 interface AIChatState {
@@ -88,6 +89,53 @@ export function useAIChat() {
     }
   }, [editor]);
 
+  const addMediaFiles = useCallback(async (files: File[]) => {
+    if (files.length === 0) return;
+
+    const activeProject = editor.project.getActive();
+    if (!activeProject) return;
+
+    const projectId = activeProject.metadata.id;
+
+    try {
+      const processedAssets = await processMediaAssets({ files });
+
+      for (const asset of processedAssets) {
+        await editor.media.addMediaAsset({ projectId, asset });
+      }
+
+      // Build summary lines for the system message
+      const lines = processedAssets.map((asset) => {
+        if (asset.type === "video") {
+          const dur = asset.duration != null ? `${asset.duration.toFixed(1)}s` : "unknown duration";
+          return `\u2022 ${asset.name} (video, ${dur})`;
+        }
+        if (asset.type === "image") {
+          const dims = asset.width && asset.height ? `${asset.width}x${asset.height}` : "unknown size";
+          return `\u2022 ${asset.name} (image, ${dims})`;
+        }
+        if (asset.type === "audio") {
+          const dur = asset.duration != null ? `${asset.duration.toFixed(1)}s` : "unknown duration";
+          return `\u2022 ${asset.name} (audio, ${dur})`;
+        }
+        return `\u2022 ${asset.name}`;
+      });
+
+      const systemMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "system",
+        content: `\u{1F4CE} Added to media library:\n${lines.join("\n")}`,
+        timestamp: Date.now(),
+      };
+
+      useAIChatStore.setState((s) => ({
+        messages: [...s.messages, systemMsg],
+      }));
+    } catch (err) {
+      console.error("Error adding media files:", err);
+    }
+  }, [editor]);
+
   const clearChat = useCallback(() => {
     useAIChatStore.setState({
       messages: [],
@@ -96,5 +144,5 @@ export function useAIChat() {
     });
   }, []);
 
-  return { messages, sessionId, isLoading, error, sendMessage, clearChat };
+  return { messages, sessionId, isLoading, error, sendMessage, clearChat, addMediaFiles };
 }

@@ -16,7 +16,10 @@ export type AIActionTool =
   | "set_playhead"
   | "create_remotion_effect"
   | "generate_media"
-  | "apply_lut";
+  | "apply_lut"
+  | "import_subtitles"
+  | "auto_caption"
+  | "use_template";
 
 export interface AIAction {
   tool: AIActionTool;

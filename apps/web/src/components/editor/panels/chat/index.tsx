@@ -182,6 +182,61 @@ export function ChatPanel() {
 						toast.success(`Extracted ${psd.children.length} layers from ${file.name}`);
 					}
 
+				} else if (ext === ".srt" || ext === ".vtt") {
+					// Import subtitles as timed text elements
+					const { parseSubtitleFile } = await import("@/lib/media/subtitle-parser");
+					const text = await file.text();
+					const cues = parseSubtitleFile(text, file.name);
+
+					// Insert each cue as a text element via the editor
+					for (const cue of cues) {
+						editor.timeline.insertElement({
+							element: {
+								type: "text" as const,
+								content: cue.text,
+								fontSize: 32,
+								fontFamily: "Inter",
+								color: "#ffffff",
+								textAlign: "center" as const,
+								fontWeight: "bold" as const,
+								fontStyle: "normal" as const,
+								textDecoration: "none" as const,
+								background: { enabled: true, color: "#000000", paddingX: 12, paddingY: 6, cornerRadius: 4, offsetX: 0, offsetY: 0 },
+								name: `Sub: ${cue.text.slice(0, 20)}`,
+								duration: cue.endTime - cue.startTime,
+								startTime: cue.startTime,
+								trimStart: 0,
+								trimEnd: 0,
+								transform: { scale: 1, position: { x: 0, y: 350 }, rotate: 0 },
+								opacity: 1,
+							},
+							placement: { mode: "auto", trackType: "text" },
+						});
+					}
+					toast.success(`Imported ${cues.length} subtitles from ${file.name}`);
+					specialCount++;
+
+				} else if (ext === ".edl") {
+				const { parseEDL } = await import("@/lib/media/edl-parser");
+				const text = await file.text();
+				const edl = parseEDL(text);
+				toast.success(`Imported EDL: "${edl.title}" with ${edl.events.length} edits. Use AI to map clips to your media.`);
+				specialCount++;
+
+			} else if (ext === ".xml" || ext === ".fcpxml") {
+				const { parseFCPXML } = await import("@/lib/media/fcpxml-parser");
+				const text = await file.text();
+				const timeline = parseFCPXML(text);
+				toast.success(`Imported timeline: "${timeline.name}" — ${timeline.clips.length} clips, ${timeline.duration.toFixed(1)}s`);
+				specialCount++;
+
+			} else if (ext === ".ttf" || ext === ".otf" || ext === ".woff2") {
+					// Load custom font
+					const { loadCustomFont } = await import("@/lib/media/font-loader");
+					const loaded = await loadCustomFont(file);
+					toast.success(`Loaded font: ${loaded.name} (use as "${loaded.family}")`);
+					specialCount++;
+
 				} else {
 					regularFiles.push(file);
 				}
@@ -370,7 +425,7 @@ export function ChatPanel() {
 					type="file"
 					className="hidden"
 					multiple
-					accept="image/*,video/*,audio/*,.zip,.cube,.3dl,.psd,.json"
+					accept="image/*,video/*,audio/*,.zip,.cube,.3dl,.psd,.json,.srt,.vtt,.ttf,.otf,.woff2,.edl,.xml,.fcpxml"
 					onChange={handleFileSelect}
 				/>
 			</div>

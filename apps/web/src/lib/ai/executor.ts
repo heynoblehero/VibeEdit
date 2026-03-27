@@ -581,6 +581,103 @@ function handleApplyLut(params: Record<string, unknown>): unknown {
   return { effectId, lutId };
 }
 
+async function handleAutoCaption(
+  params: Record<string, unknown>
+): Promise<unknown> {
+  const { generatePlaceholderCaptions } = await import(
+    "@/lib/media/auto-caption"
+  );
+  const duration = (params.duration as number) || 30;
+  const segments = generatePlaceholderCaptions(duration);
+
+  const editor = getEditor();
+  for (const seg of segments) {
+    editor.timeline.insertElement({
+      element: {
+        type: "text" as const,
+        content: seg.text,
+        fontSize: 32,
+        fontFamily: "Inter",
+        color: "#ffffff",
+        textAlign: "center" as const,
+        fontWeight: "bold" as const,
+        fontStyle: "normal" as const,
+        textDecoration: "none" as const,
+        background: {
+          enabled: true,
+          color: "#000000",
+          paddingX: 12,
+          paddingY: 6,
+          cornerRadius: 4,
+          offsetX: 0,
+          offsetY: 0,
+        },
+        name: `Caption ${seg.startTime}s`,
+        duration: seg.endTime - seg.startTime,
+        startTime: seg.startTime,
+        trimStart: 0,
+        trimEnd: 0,
+        transform: { scale: 1, position: { x: 0, y: 350 }, rotate: 0 },
+        opacity: 1,
+      },
+      placement: { mode: "auto", trackType: "text" },
+    });
+  }
+
+  return {
+    captions: segments.length,
+    message: `Added ${segments.length} caption placeholders`,
+  };
+}
+
+function handleUseTemplate(params: Record<string, unknown>): unknown {
+  const {
+    getTemplate,
+    getAllTemplates,
+  } = require("@/lib/remotion/templates");
+
+  const templateId = params.templateId as string;
+  const startTime = (params.startTime as number) ?? 0;
+  const customProps = (params.customProps as Record<string, unknown>) || {};
+
+  const template = getTemplate(templateId);
+  if (!template) {
+    const available = getAllTemplates().map(
+      (t: any) => `${t.id}: ${t.name} (${t.category})`
+    );
+    throw new Error(
+      `Template "${templateId}" not found. Available: ${available.join(", ")}`
+    );
+  }
+
+  // Customize the template code by replacing default values with custom props
+  let code = template.code;
+  for (const [key, value] of Object.entries(customProps)) {
+    if (typeof value === "string") {
+      const regex = new RegExp(`const ${key} = "[^"]*"`, "g");
+      code = code.replace(regex, `const ${key} = "${value}"`);
+    } else if (typeof value === "number") {
+      const regex = new RegExp(`const ${key} = \\d+`, "g");
+      code = code.replace(regex, `const ${key} = ${value}`);
+    }
+  }
+
+  const fps = 30;
+  const effect = {
+    id: crypto.randomUUID(),
+    name: template.name,
+    code,
+    startFrame: Math.round(startTime * fps),
+    durationFrames: Math.round(
+      ((customProps.duration as number) || template.defaultDuration) * fps
+    ),
+    props: customProps,
+  };
+
+  registerEffect(effect);
+  return { effectId: effect.id, template: template.name };
+}
+
 async function executeAction(action: AIAction): Promise<AIActionResult> {
   const { tool, params } = action;
 
@@ -656,6 +753,14 @@ async function executeAction(action: AIAction): Promise<AIActionResult> {
       }
       case "apply_lut": {
         const result = handleApplyLut(params);
+        return { tool, success: true, result };
+      }
+      case "auto_caption": {
+        const result = await handleAutoCaption(params);
+        return { tool, success: true, result };
+      }
+      case "use_template": {
+        const result = handleUseTemplate(params);
         return { tool, success: true, result };
       }
       default: {

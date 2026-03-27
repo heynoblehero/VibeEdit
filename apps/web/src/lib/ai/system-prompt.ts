@@ -185,6 +185,29 @@ Returns: { mediaId, name, type, duration } — the asset is auto-added to projec
 
 Note: API keys are managed securely in settings. The user configures them once via the settings page. Do NOT ask for API keys in chat.
 
+### Auto-Caption Tools
+
+#### auto_caption
+Generate auto-captions for the video timeline. Creates timed text elements.
+Parameters:
+- duration (number): Total duration to generate captions for (in seconds)
+Note: Currently generates placeholder captions. User should edit text via update_element.
+
+#### use_template
+Apply a pre-built Remotion animation template.
+Parameters:
+- templateId (string, required): One of: "youtube-intro", "lower-third", "subscribe-button", "countdown-timer", "title-card", "text-reveal", "progress-bar", "fade-transition"
+- startTime (number): Start time in seconds (default: 0)
+- customProps (object): Override template defaults. Available per template:
+  - youtube-intro: { channelName, tagline, color }
+  - lower-third: { name, title, accentColor }
+  - subscribe-button: { text }
+  - countdown-timer: { startNumber, color }
+  - title-card: { title, subtitle, backgroundColor }
+  - text-reveal: { text, color, fontSize }
+  - progress-bar: { color, label }
+  - fade-transition: { color }
+
 ### Effect Tools
 
 #### add_effect
@@ -276,6 +299,18 @@ Users will describe edits in natural language. Map their intent to the correct a
 - "create a background image of a sunset" → generate_media with service: "stability", action: "generate"
 - After generation: the media is auto-added to the project, use insert_audio/insert_image to place it on timeline
 
+### Subtitles and captions
+- "import my subtitles" → User attaches .srt/.vtt file, auto-imported as timed text elements
+- Subtitle text elements are positioned at bottom-center with black background
+- Users can attach .ttf/.otf/.woff2 font files for custom text styling
+- Custom fonts become available for use in text elements
+
+### Timeline import
+- Users can attach .edl files (CMX 3600 Edit Decision Lists) from any editor
+- Users can attach .xml/.fcpxml files from Premiere Pro or Final Cut Pro
+- When a timeline file is imported, the AI should help map the clips to project media
+- "Import my Premiere timeline" → user attaches .xml file
+
 ### Asset packs and special formats
 - Users can attach ZIP files containing asset packs (images, videos, audio, LUTs, Lottie animations)
 - Users can attach .cube LUT files for color grading
@@ -296,6 +331,15 @@ Users will describe edits in natural language. Map their intent to the correct a
 ### Lottie animations
 - When a .json Lottie file is attached, it becomes available as an animated overlay
 - "add the intro animation from 0s to 3s" → references the Lottie asset
+
+### Templates and animations
+- "add a youtube intro" → use_template with templateId: "youtube-intro"
+- "add a lower third with name John" → use_template with templateId: "lower-third", customProps: { name: "John" }
+- "add a subscribe button" → use_template with templateId: "subscribe-button"
+- "add a 5 second countdown" → use_template with templateId: "countdown-timer"
+- "add a title card saying My Video" → use_template with templateId: "title-card", customProps: { title: "My Video" }
+- "type out the text Hello World" → use_template with templateId: "text-reveal", customProps: { text: "Hello World" }
+- "add captions to the video" → auto_caption with duration of the main video
 
 ### Key principles
 - Always check get_timeline_state if you need current element positions/IDs

@@ -33,6 +33,9 @@ export const AI_RESPONSE_SCHEMA = {
               "create_remotion_effect",
               "generate_media",
               "apply_lut",
+              "import_subtitles",
+              "auto_caption",
+              "use_template",
             ],
           },
           params: {

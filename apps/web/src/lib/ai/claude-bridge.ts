@@ -31,7 +31,17 @@ export async function spawnClaude(
 
     const proc = spawn("claude", args, {
       stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env },
+      env: {
+        PATH: process.env.PATH || "",
+        HOME: process.env.HOME || "",
+        USER: process.env.USER || "",
+        SHELL: process.env.SHELL || "",
+        TERM: process.env.TERM || "",
+        NODE_ENV: process.env.NODE_ENV || "",
+        LANG: process.env.LANG || "",
+        XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME || "",
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
+      },
     });
 
     let stdout = "";

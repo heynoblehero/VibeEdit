@@ -7,15 +7,63 @@ type EffectRenderer = React.FC<{ frame: number; fps: number; width: number; heig
 const compiledEffects = new Map<string, EffectRenderer>();
 const effectsList: RemotionEffect[] = [];
 
+const BLOCKED_PATTERNS = [
+  /\bfetch\s*\(/,
+  /\bXMLHttpRequest\b/,
+  /\bWebSocket\b/,
+  /\blocalStorage\b/,
+  /\bsessionStorage\b/,
+  /\bdocument\.cookie\b/,
+  /\beval\s*\(/,
+  /\bnew\s+Function\b/,
+  /\bimport\s*\(/,
+  /\brequire\s*\(/,
+  /\bwindow\.open\b/,
+  /\bnavigator\b/,
+  /\blocation\b/,
+  /\b__editor\b/,
+  /\bprocess\b/,
+  /\bglobalThis\b/,
+  /\bwindow\[/,
+  /\bdocument\.(write|createElement|querySelector|getElementById)/,
+  /\bpostMessage\b/,
+  /\bsetInterval\b/,
+  /\bsetTimeout\b.*\bfunction\b/,
+];
+
+function validateEffectCode(code: string): string | null {
+  for (const pattern of BLOCKED_PATTERNS) {
+    if (pattern.test(code)) {
+      return `Blocked: code contains unsafe pattern "${pattern.source}"`;
+    }
+  }
+  if (code.length > 5000) {
+    return "Code too long (max 5000 chars)";
+  }
+  return null;
+}
+
 export function registerEffect(effect: RemotionEffect): void {
+  const violation = validateEffectCode(effect.code);
+  if (violation) {
+    throw new Error(`Security: ${violation}`);
+  }
+
   try {
     // Compile the code string into a React component function
     // The code should be a function that receives { frame, fps, width, height }
     const compileFn = new Function(
       "React", "interpolate", "spring", "useCurrentFrame", "useVideoConfig",
-      `return (${effect.code});`
+      // Shadow dangerous globals
+      "fetch", "XMLHttpRequest", "WebSocket", "localStorage", "sessionStorage",
+      "eval", "Function", "importScripts",
+      `"use strict"; return (${effect.code});`
     );
-    const component = compileFn(React, interpolate, spring, useCurrentFrame, useVideoConfig) as EffectRenderer;
+    const component = compileFn(
+      React, interpolate, spring, useCurrentFrame, useVideoConfig,
+      undefined, undefined, undefined, undefined, undefined,
+      undefined, undefined, undefined
+    ) as EffectRenderer;
     compiledEffects.set(effect.id, component);
 
     // Add to list (replace if same id)

@@ -4,14 +4,44 @@ import { buildSystemPrompt } from "@/lib/ai/system-prompt";
 import { AI_RESPONSE_SCHEMA } from "@/lib/ai/schema";
 import type { AIRequest } from "@/lib/ai/types";
 
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT = 20;
+const RATE_WINDOW = 60_000;
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_WINDOW });
+    return true;
+  }
+  entry.count++;
+  return entry.count <= RATE_LIMIT;
+}
+
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json(
+        { error: "Too many requests. Try again later." },
+        { status: 429 }
+      );
+    }
+
     const body = (await request.json()) as AIRequest;
     const { message, sessionId, editorContext } = body;
 
     if (!message || typeof message !== "string") {
       return NextResponse.json(
         { error: "Message is required" },
+        { status: 400 }
+      );
+    }
+
+    if (message.length > 10000) {
+      return NextResponse.json(
+        { error: "Message too long (max 10000 chars)" },
         { status: 400 }
       );
     }
@@ -41,12 +71,27 @@ export async function POST(request: NextRequest) {
       if (codeBlockMatch) {
         jsonStr = codeBlockMatch[1].trim();
       }
-      try {
-        const parsed = JSON.parse(jsonStr);
-        if (parsed.actions) actions = parsed.actions;
-        if (parsed.message) text = parsed.message;
-      } catch {
-        // result is plain text, no actions
+      if (jsonStr.length > 100000) {
+        text = "Response was too large to process.";
+      } else {
+        try {
+          const parsed = JSON.parse(jsonStr);
+          if (typeof parsed.message === "string") text = parsed.message;
+          if (Array.isArray(parsed.actions)) {
+            actions = parsed.actions
+              .filter(
+                (a: unknown) =>
+                  a &&
+                  typeof a === "object" &&
+                  typeof (a as Record<string, unknown>).tool === "string" &&
+                  typeof (a as Record<string, unknown>).params === "object" &&
+                  (a as Record<string, unknown>).params !== null
+              )
+              .slice(0, 20);
+          }
+        } catch {
+          // result is plain text, no actions
+        }
       }
     }
 

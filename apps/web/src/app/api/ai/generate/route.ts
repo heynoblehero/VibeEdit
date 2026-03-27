@@ -1,8 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateMedia, TRUSTED_SERVICES, type TrustedServiceId } from "@/lib/ai/services";
 
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT = 5;
+const RATE_WINDOW = 60_000;
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_WINDOW });
+    return true;
+  }
+  entry.count++;
+  return entry.count <= RATE_LIMIT;
+}
+
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded. Max 5 generation requests per minute." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { service, action, params, apiKey } = body;
 

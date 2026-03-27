@@ -3,6 +3,7 @@ import { spawnClaude } from "@/lib/ai/claude-bridge";
 import { buildSystemPrompt } from "@/lib/ai/system-prompt";
 import { AI_RESPONSE_SCHEMA } from "@/lib/ai/schema";
 import type { AIRequest } from "@/lib/ai/types";
+import { logSecurity } from "@/lib/ai/security-log";
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 20;
@@ -22,7 +23,20 @@ function checkRateLimit(ip: string): boolean {
 export async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+
+    // CSRF protection: verify request comes from our own origin
+    const origin = request.headers.get("origin");
+    const host = request.headers.get("host") || "localhost:3001";
+    const allowedOrigin = `http://${host}`;
+    const allowedOriginHttps = `https://${host}`;
+
+    if (origin && origin !== allowedOrigin && origin !== allowedOriginHttps) {
+      logSecurity("error", "csrf_blocked", { ip, origin, endpoint: "/api/ai/chat" });
+      return NextResponse.json({ error: "Forbidden: invalid origin" }, { status: 403 });
+    }
+
     if (!checkRateLimit(ip)) {
+      logSecurity("warn", "rate_limit_hit", { ip, endpoint: "/api/ai/chat" });
       return NextResponse.json(
         { error: "Too many requests. Try again later." },
         { status: 429 }
@@ -45,6 +59,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    logSecurity("info", "ai_chat_request", { ip, messageLength: message.length });
 
     const systemPrompt = buildSystemPrompt(editorContext);
     const schemaJson = JSON.stringify(AI_RESPONSE_SCHEMA, null, 2);

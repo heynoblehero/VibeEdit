@@ -457,17 +457,16 @@ async function handleGenerateMedia(params: Record<string, unknown>): Promise<unk
   const service = params.service as string;
   const action = params.action as string;
   const serviceParams = (params.params as Record<string, unknown>) || {};
-  const apiKey = params.apiKey as string;
 
-  if (!service || !action || !apiKey) {
-    throw new Error("generate_media requires service, action, and apiKey");
+  if (!service || !action) {
+    throw new Error("generate_media requires service and action");
   }
 
-  // Call the server-side API
+  // Call the server-side API (API keys are managed server-side)
   const response = await fetch("/api/ai/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ service, action, params: serviceParams, apiKey }),
+    body: JSON.stringify({ service, action, params: serviceParams }),
   });
 
   if (!response.ok) {

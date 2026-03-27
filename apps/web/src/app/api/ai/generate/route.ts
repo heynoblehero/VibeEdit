@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateMedia, TRUSTED_SERVICES, type TrustedServiceId } from "@/lib/ai/services";
+import { getApiKey } from "@/lib/ai/key-store";
+import { logSecurity } from "@/lib/ai/security-log";
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 5;
@@ -19,7 +21,20 @@ function checkRateLimit(ip: string): boolean {
 export async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+
+    // CSRF protection: verify request comes from our own origin
+    const origin = request.headers.get("origin");
+    const host = request.headers.get("host") || "localhost:3001";
+    const allowedOrigin = `http://${host}`;
+    const allowedOriginHttps = `https://${host}`;
+
+    if (origin && origin !== allowedOrigin && origin !== allowedOriginHttps) {
+      logSecurity("error", "csrf_blocked", { ip, origin, endpoint: "/api/ai/generate" });
+      return NextResponse.json({ error: "Forbidden: invalid origin" }, { status: 403 });
+    }
+
     if (!checkRateLimit(ip)) {
+      logSecurity("warn", "rate_limit_hit", { ip, endpoint: "/api/ai/generate" });
       return NextResponse.json(
         { error: "Rate limit exceeded. Max 5 generation requests per minute." },
         { status: 429 }
@@ -27,17 +42,26 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { service, action, params, apiKey } = body;
+    const { service, action, params } = body;
+    const apiKey = getApiKey(service);
 
-    if (!service || !action || !apiKey) {
+    if (!service || !action) {
       return NextResponse.json(
-        { error: "service, action, and apiKey are required" },
+        { error: "service and action are required" },
+        { status: 400 }
+      );
+    }
+
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: `No API key configured for ${service}. Set it via the settings.` },
         { status: 400 }
       );
     }
 
     // Security: reject untrusted services at the API boundary
     if (!(service in TRUSTED_SERVICES)) {
+      logSecurity("warn", "untrusted_service_attempt", { ip, service, endpoint: "/api/ai/generate" });
       return NextResponse.json(
         {
           error: `Service "${service}" is not trusted. Allowed services: ${Object.keys(TRUSTED_SERVICES).join(", ")}`,
@@ -67,10 +91,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: 502 });
     }
 
+    logSecurity("info", "media_generated", { ip, service, action });
+
     return new NextResponse(result.data, {
       headers: {
         "Content-Type": result.mimeType || "application/octet-stream",
         "X-Filename": result.filename || "generated_media",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'",
+        "Cache-Control": "no-store",
       },
     });
   } catch (error) {

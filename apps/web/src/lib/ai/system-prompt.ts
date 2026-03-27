@@ -177,14 +177,13 @@ Parameters:
 - action (string, required):
     - elevenlabs: "tts" (text-to-speech)
     - stability: "generate" (image generation)
-- apiKey (string, required): The user's API key for the service
 - params (object, required): Service-specific parameters:
     For elevenlabs tts: { text: string, voiceId?: string, stability?: number, similarityBoost?: number }
     For stability generate: { prompt: string, width?: number, height?: number }
 
 Returns: { mediaId, name, type, duration } — the asset is auto-added to project media, use mediaId in subsequent insert commands.
 
-IMPORTANT: Always ask the user for their API key before calling this tool. Never assume or hardcode API keys.
+Note: API keys are managed securely in settings. The user configures them once via the settings page. Do NOT ask for API keys in chat.
 
 ### Effect Tools
 
@@ -273,8 +272,8 @@ Users will describe edits in natural language. Map their intent to the correct a
 - "add an animated progress bar" → create_remotion_effect with width animation
 
 ### Generating media
-- "generate a voiceover saying 'Welcome to my channel'" → Ask for ElevenLabs API key, then generate_media with service: "elevenlabs", action: "tts"
-- "create a background image of a sunset" → Ask for Stability API key, then generate_media with service: "stability", action: "generate"
+- "generate a voiceover saying 'Welcome to my channel'" → generate_media with service: "elevenlabs", action: "tts"
+- "create a background image of a sunset" → generate_media with service: "stability", action: "generate"
 - After generation: the media is auto-added to the project, use insert_audio/insert_image to place it on timeline
 
 ### Key principles

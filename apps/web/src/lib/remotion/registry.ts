@@ -1,6 +1,7 @@
 import React from "react";
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import type { RemotionEffect } from "./types";
+import { logSecurity } from "@/lib/ai/security-log";
 
 type EffectRenderer = React.FC<{ frame: number; fps: number; width: number; height: number }>;
 
@@ -46,6 +47,7 @@ function validateEffectCode(code: string): string | null {
 export function registerEffect(effect: RemotionEffect): void {
   const violation = validateEffectCode(effect.code);
   if (violation) {
+    logSecurity("critical", "remotion_code_blocked", { effectName: effect.name, violation });
     throw new Error(`Security: ${violation}`);
   }
 

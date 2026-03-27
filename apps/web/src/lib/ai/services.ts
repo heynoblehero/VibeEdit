@@ -17,6 +17,8 @@
  * 10. No redirects followed to untrusted domains
  */
 
+import { logSecurity } from "@/lib/ai/security-log";
+
 // ── SECURITY CONSTANTS ──
 const MAX_RESPONSE_SIZE = 50 * 1024 * 1024; // 50MB max download
 const REQUEST_TIMEOUT_MS = 30_000; // 30 second timeout
@@ -190,20 +192,39 @@ function validateMagicBytes(data: ArrayBuffer, claimedType: string): boolean {
   const bytes = new Uint8Array(data.slice(0, 16));
 
   if (claimedType.startsWith("image/png")) {
-    // PNG magic: 89 50 4E 47
     return bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
   }
   if (claimedType.startsWith("image/jpeg")) {
-    // JPEG magic: FF D8 FF
     return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
   }
+  if (claimedType.startsWith("image/webp")) {
+    return bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46; // RIFF
+  }
   if (claimedType.startsWith("audio/mpeg") || claimedType.startsWith("audio/mp3")) {
-    // MP3: starts with FF FB, FF F3, FF F2, or ID3
     return (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) ||
            (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33); // ID3
   }
-  // For octet-stream or unknown types, accept (already domain-validated)
-  return true;
+  if (claimedType.startsWith("audio/wav")) {
+    return bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46; // RIFF
+  }
+  if (claimedType.startsWith("video/mp4")) {
+    // ftyp box
+    return bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
+  }
+  if (claimedType === "application/octet-stream") {
+    // For octet-stream, check if it matches ANY known media format
+    const isPNG = bytes[0] === 0x89 && bytes[1] === 0x50;
+    const isJPEG = bytes[0] === 0xff && bytes[1] === 0xd8;
+    const isMP3 = (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) || (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33);
+    const isRIFF = bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46;
+    const isMP4 = bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
+    if (!isPNG && !isJPEG && !isMP3 && !isRIFF && !isMP4) {
+      return false; // Unknown binary format — reject
+    }
+    return true;
+  }
+  // Unknown content type — reject
+  return false;
 }
 
 // ── ElevenLabs TTS ──
@@ -248,7 +269,8 @@ async function elevenLabsTTS(params: Record<string, unknown>, apiKey: string): P
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "Unknown error");
-    return { success: false, error: `ElevenLabs error (${response.status}): ${errorText.slice(0, 200)}` };
+    logSecurity("error", "elevenlabs_api_error", { status: response.status, error: errorText.slice(0, 500) });
+    return { success: false, error: `ElevenLabs request failed (${response.status}). Check your API key and try again.` };
   }
 
   const { data, mimeType } = await safeReadBody(response, "elevenlabs");
@@ -295,7 +317,8 @@ async function stabilityImage(params: Record<string, unknown>, apiKey: string): 
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "Unknown error");
-    return { success: false, error: `Stability error (${response.status}): ${errorText.slice(0, 200)}` };
+    logSecurity("error", "stability_api_error", { status: response.status, error: errorText.slice(0, 500) });
+    return { success: false, error: `Stability AI request failed (${response.status}). Check your API key and try again.` };
   }
 
   const { data, mimeType } = await safeReadBody(response, "stability");

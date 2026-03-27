@@ -63,7 +63,7 @@ export function useAIChat() {
       // Execute actions client-side
       let actionResults: AIActionResult[] = [];
       if (data.actions && data.actions.length > 0) {
-        actionResults = executeAIActions(data.actions);
+        actionResults = await executeAIActions(data.actions);
       }
 
       const assistantMsg: ChatMessage = {

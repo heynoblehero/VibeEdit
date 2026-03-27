@@ -31,6 +31,7 @@ export const AI_RESPONSE_SCHEMA = {
               "update_effect_params",
               "set_playhead",
               "create_remotion_effect",
+              "generate_media",
             ],
           },
           params: {

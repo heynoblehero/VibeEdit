@@ -14,7 +14,8 @@ export type AIActionTool =
   | "add_effect"
   | "update_effect_params"
   | "set_playhead"
-  | "create_remotion_effect";
+  | "create_remotion_effect"
+  | "generate_media";
 
 export interface AIAction {
   tool: AIActionTool;

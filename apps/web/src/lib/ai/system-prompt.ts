@@ -168,6 +168,24 @@ Parameters:
 IMPORTANT: Code must use React.createElement() NOT JSX syntax (code is compiled at runtime).
 IMPORTANT: Use 'interpolate' for smooth animations (imported from Remotion).
 
+### External Media Generation
+
+#### generate_media
+Generate media (audio, images) using external AI services. The generated file is automatically added to the project media library.
+Parameters:
+- service (string, required): "elevenlabs" | "stability"
+- action (string, required):
+    - elevenlabs: "tts" (text-to-speech)
+    - stability: "generate" (image generation)
+- apiKey (string, required): The user's API key for the service
+- params (object, required): Service-specific parameters:
+    For elevenlabs tts: { text: string, voiceId?: string, stability?: number, similarityBoost?: number }
+    For stability generate: { prompt: string, width?: number, height?: number }
+
+Returns: { mediaId, name, type, duration } — the asset is auto-added to project media, use mediaId in subsequent insert commands.
+
+IMPORTANT: Always ask the user for their API key before calling this tool. Never assume or hardcode API keys.
+
 ### Effect Tools
 
 #### add_effect
@@ -253,6 +271,11 @@ Users will describe edits in natural language. Map their intent to the correct a
 - "add particle burst at 5 seconds" → create_remotion_effect with particle animation
 - "add a glitch effect from 3s to 5s" → create_remotion_effect with glitch distortion
 - "add an animated progress bar" → create_remotion_effect with width animation
+
+### Generating media
+- "generate a voiceover saying 'Welcome to my channel'" → Ask for ElevenLabs API key, then generate_media with service: "elevenlabs", action: "tts"
+- "create a background image of a sunset" → Ask for Stability API key, then generate_media with service: "stability", action: "generate"
+- After generation: the media is auto-added to the project, use insert_audio/insert_image to place it on timeline
 
 ### Key principles
 - Always check get_timeline_state if you need current element positions/IDs

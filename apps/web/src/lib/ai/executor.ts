@@ -453,6 +453,77 @@ function handleSetPlayhead(params: Record<string, unknown>): void {
   editor.playback.seek({ time });
 }
 
+async function handleGenerateMedia(params: Record<string, unknown>): Promise<unknown> {
+  const service = params.service as string;
+  const action = params.action as string;
+  const serviceParams = (params.params as Record<string, unknown>) || {};
+  const apiKey = params.apiKey as string;
+
+  if (!service || !action || !apiKey) {
+    throw new Error("generate_media requires service, action, and apiKey");
+  }
+
+  // Call the server-side API
+  const response = await fetch("/api/ai/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ service, action, params: serviceParams, apiKey }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: "Unknown error" }));
+    throw new Error(err.error || `Generation failed (${response.status})`);
+  }
+
+  const filename = response.headers.get("X-Filename") || "generated_media";
+  const mimeType = response.headers.get("Content-Type") || "application/octet-stream";
+  const blob = await response.blob();
+  const file = new File([blob], filename, { type: mimeType });
+
+  // Determine media type
+  let mediaType: "audio" | "video" | "image" = "audio";
+  if (mimeType.startsWith("image/")) mediaType = "image";
+  else if (mimeType.startsWith("video/")) mediaType = "video";
+
+  // Get duration for audio/video
+  let duration: number | undefined;
+  if (mediaType === "audio") {
+    duration = await new Promise<number>((resolve) => {
+      const audio = new Audio();
+      audio.onloadedmetadata = () => { resolve(audio.duration); URL.revokeObjectURL(audio.src); };
+      audio.onerror = () => resolve(0);
+      audio.src = URL.createObjectURL(file);
+    });
+  }
+
+  // Add to editor
+  const editor = getEditor();
+  const activeProject = (window as any).__editor.project.getActive();
+  if (!activeProject) throw new Error("No active project");
+
+  await editor.media.addMediaAsset({
+    projectId: activeProject.metadata.id,
+    asset: {
+      name: filename,
+      type: mediaType,
+      file,
+      duration,
+    },
+  });
+
+  // Return info so AI can use the asset
+  const allAssets = editor.media.getAssets();
+  const addedAsset = allAssets.find((a: any) => a.name === filename);
+
+  return {
+    mediaId: addedAsset?.id,
+    name: filename,
+    type: mediaType,
+    duration,
+    message: `Generated and added ${filename} to project media`,
+  };
+}
+
 function handleCreateRemotionEffect(params: Record<string, unknown>): unknown {
   const name = params.name as string;
   const startTime = params.startTime as number;
@@ -477,7 +548,7 @@ function handleCreateRemotionEffect(params: Record<string, unknown>): unknown {
   return { effectId: effect.id, name, startFrame: effect.startFrame, durationFrames: effect.durationFrames };
 }
 
-function executeAction(action: AIAction): AIActionResult {
+async function executeAction(action: AIAction): Promise<AIActionResult> {
   const { tool, params } = action;
 
   try {
@@ -546,6 +617,10 @@ function executeAction(action: AIAction): AIActionResult {
         const result = handleCreateRemotionEffect(params);
         return { tool, success: true, result };
       }
+      case "generate_media": {
+        const result = await handleGenerateMedia(params);
+        return { tool, success: true, result };
+      }
       default: {
         const unknownTool = tool as string;
         return {
@@ -564,11 +639,11 @@ function executeAction(action: AIAction): AIActionResult {
   }
 }
 
-export function executeAIActions(actions: AIAction[]): AIActionResult[] {
+export async function executeAIActions(actions: AIAction[]): Promise<AIActionResult[]> {
   const results: AIActionResult[] = [];
 
   for (const action of actions) {
-    const result = executeAction(action);
+    const result = await executeAction(action);
     results.push(result);
   }
 

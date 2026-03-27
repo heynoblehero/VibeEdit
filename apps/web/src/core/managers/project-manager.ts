@@ -137,7 +137,9 @@ export class ProjectManager {
 		try {
 			const result = await storageService.loadProject({ id });
 			if (!result) {
-				throw new Error(`Project with id ${id} not found`);
+				const notFoundErr = new Error(`Project with id ${id} not found`);
+				notFoundErr.name = "ProjectNotFoundError";
+				throw notFoundErr;
 			}
 
 			const project = result.project;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useEditor } from "@/hooks/use-editor";
 import {
@@ -19,6 +19,7 @@ interface EditorProviderProps {
 export function EditorProvider({ projectId, children }: EditorProviderProps) {
 	const editor = useEditor();
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const { disableKeybindings, enableKeybindings } = useKeybindingDisabler();
@@ -54,8 +55,9 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 
 				if (isNotFound) {
 					try {
+						const projectName = searchParams.get("name") || "Untitled Project";
 						const newProjectId = await editor.project.createNewProject({
-							name: "Untitled Project",
+							name: projectName,
 						});
 						router.replace(`/editor/${newProjectId}`);
 					} catch (_createErr) {

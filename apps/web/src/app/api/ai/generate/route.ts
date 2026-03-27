@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateMedia } from "@/lib/ai/services";
+import { generateMedia, TRUSTED_SERVICES, type TrustedServiceId } from "@/lib/ai/services";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,16 +13,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await generateMedia({ service, action, params: params || {}, apiKey });
-
-    if (!result.success) {
+    // Security: reject untrusted services at the API boundary
+    if (!(service in TRUSTED_SERVICES)) {
       return NextResponse.json(
-        { error: result.error },
-        { status: 502 }
+        {
+          error: `Service "${service}" is not trusted. Allowed services: ${Object.keys(TRUSTED_SERVICES).join(", ")}`,
+        },
+        { status: 403 }
       );
     }
 
-    // Return the binary data with proper content type
+    const svc = TRUSTED_SERVICES[service as TrustedServiceId];
+    if (!svc.actions.includes(action)) {
+      return NextResponse.json(
+        {
+          error: `Action "${action}" is not allowed for ${svc.name}. Allowed: ${svc.actions.join(", ") || "none"}`,
+        },
+        { status: 403 }
+      );
+    }
+
+    const result = await generateMedia({
+      service: service as TrustedServiceId,
+      action,
+      params: params || {},
+      apiKey,
+    });
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 502 });
+    }
+
     return new NextResponse(result.data, {
       headers: {
         "Content-Type": result.mimeType || "application/octet-stream",

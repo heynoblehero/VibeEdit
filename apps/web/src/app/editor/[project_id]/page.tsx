@@ -34,14 +34,15 @@ export default function Editor() {
 
 function CollapsedSidebar({ onOpen }: { onOpen: () => void }) {
 	return (
-		<div className="flex h-full flex-col items-center pt-3">
+		<div className="flex h-full w-full flex-col items-center bg-stone-50 dark:bg-stone-950 border-r border-stone-200 dark:border-stone-800 pt-3">
 			<button
 				onClick={onOpen}
-				className="rounded-md p-2 hover:bg-muted transition-colors"
+				className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors"
 				title="AI Assistant (Ctrl+K)"
 			>
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/><line x1="10" y1="22" x2="14" y2="22"/></svg>
+				<span className="text-xs font-bold text-amber-700 dark:text-amber-300">AI</span>
 			</button>
+			<span className="text-[10px] text-stone-400 mt-1.5">⌘K</span>
 		</div>
 	);
 }
@@ -67,7 +68,7 @@ function EditorLayout() {
 			<div className="flex flex-1 overflow-hidden">
 				{/* Collapsible chat sidebar */}
 				<div
-					className="shrink-0 border-r bg-background transition-all duration-200"
+					className="shrink-0 transition-all duration-200 overflow-hidden"
 					style={{ width: chatOpen ? 380 : 48 }}
 				>
 					{chatOpen ? (

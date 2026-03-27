@@ -1,33 +1,22 @@
 "use client";
 
-import { Button } from "../ui/button";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { ExportButton } from "./export-button";
 import { ThemeToggle } from "../theme-toggle";
 import { toast } from "sonner";
 import { useEditor } from "@/hooks/use-editor";
-import { Logout05Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { cn } from "@/utils/ui";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "../ui/tooltip";
 
 export function EditorHeader() {
 	return (
-		<header className="bg-background flex h-[3.4rem] items-center justify-between border-b px-4 pt-0.5">
+		<header className="flex h-[3.4rem] items-center justify-between border-b border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-950 px-4 pt-0.5">
 			<div className="flex items-center gap-2">
 				<BrandMark />
-				<span className="text-muted-foreground/40 text-sm">/</span>
+				<span className="text-stone-300 dark:text-stone-600 text-sm">/</span>
 				<EditableProjectName />
 			</div>
 			<nav className="flex items-center gap-2">
 				<ExportButton />
-				<ExitButton />
 				<ThemeToggle />
 			</nav>
 		</header>
@@ -36,49 +25,7 @@ export function EditorHeader() {
 
 function BrandMark() {
 	return (
-		<span className="text-sm font-bold tracking-tight">VibeEdit</span>
-	);
-}
-
-function ExitButton() {
-	const [isExiting, setIsExiting] = useState(false);
-	const router = useRouter();
-	const editor = useEditor();
-
-	const handleExit = async () => {
-		if (isExiting) return;
-		setIsExiting(true);
-
-		try {
-			await editor.project.prepareExit();
-			editor.project.closeProject();
-		} catch (error) {
-			console.error("Failed to prepare project exit:", error);
-		} finally {
-			editor.project.closeProject();
-			router.push("/projects");
-		}
-	};
-
-	return (
-		<TooltipProvider>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<Button
-						variant="ghost"
-						size="icon"
-						onClick={handleExit}
-						disabled={isExiting}
-						className="size-8"
-					>
-						<HugeiconsIcon icon={Logout05Icon} className="size-4" />
-					</Button>
-				</TooltipTrigger>
-				<TooltipContent>
-					<p>Exit project</p>
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<span className="text-sm font-bold tracking-tight text-stone-800 dark:text-stone-200">VibeEdit</span>
 	);
 }
 

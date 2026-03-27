@@ -5,14 +5,28 @@ import { toast } from "sonner";
 import { useAIChat } from "@/hooks/use-ai-chat";
 import { useEditor } from "@/hooks/use-editor";
 import { processMediaAssets } from "@/lib/media/processing";
-import { Button } from "@/components/ui/button";
 import type { ChatMessage as ChatMessageType } from "@/lib/ai/types";
+
+function Avatar({ type }: { type: "user" | "ai" }) {
+	if (type === "user") {
+		return (
+			<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900">
+				<span className="text-xs font-medium text-orange-700 dark:text-orange-300">Y</span>
+			</div>
+		);
+	}
+	return (
+		<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900">
+			<span className="text-xs font-bold text-amber-700 dark:text-amber-300">AI</span>
+		</div>
+	);
+}
 
 function ChatMessageBubble({ message }: { message: ChatMessageType }) {
 	if (message.role === "system") {
 		return (
 			<div className="flex justify-center mb-3">
-				<div className="text-xs text-muted-foreground bg-muted/50 rounded px-3 py-1.5 max-w-[90%]">
+				<div className="text-xs text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800/50 rounded-lg px-3 py-1.5 max-w-[90%]">
 					<p className="whitespace-pre-wrap">{message.content}</p>
 				</div>
 			</div>
@@ -20,30 +34,35 @@ function ChatMessageBubble({ message }: { message: ChatMessageType }) {
 	}
 
 	const isUser = message.role === "user";
+
+	if (isUser) {
+		return (
+			<div className="flex gap-2.5 justify-end mb-4">
+				<div className="max-w-[80%] rounded-2xl rounded-tr-md px-4 py-2.5 bg-stone-200 dark:bg-stone-800 text-sm text-stone-800 dark:text-stone-200">
+					<p className="whitespace-pre-wrap">{message.content}</p>
+				</div>
+				<Avatar type="user" />
+			</div>
+		);
+	}
+
 	return (
-		<div
-			className={`flex ${isUser ? "justify-end" : "justify-start"} mb-3`}
-		>
-			<div
-				className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-					isUser
-						? "bg-zinc-800 text-zinc-100"
-						: "bg-muted text-foreground"
-				}`}
-			>
+		<div className="flex gap-2.5 mb-4">
+			<Avatar type="ai" />
+			<div className="max-w-[80%] rounded-2xl rounded-tl-md px-4 py-2.5 bg-white dark:bg-stone-900 shadow-sm border border-stone-100 dark:border-stone-800 text-sm text-stone-700 dark:text-stone-300">
 				<p className="whitespace-pre-wrap">{message.content}</p>
 				{message.actions && message.actions.length > 0 && (
-					<div className="mt-2 flex flex-wrap gap-1">
+					<div className="mt-2.5 flex flex-wrap gap-1.5">
 						{message.actions.map((action, i) => {
 							const result = message.actionResults?.[i];
 							const ok = result?.success;
 							return (
 								<span
 									key={i}
-									className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-mono ${
+									className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-mono ${
 										ok
-											? "bg-green-500/20 text-green-400"
-											: "bg-red-500/20 text-red-400"
+											? "bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400"
+											: "bg-red-50 dark:bg-red-950 text-red-500 dark:text-red-400"
 									}`}
 								>
 									{ok ? "\u2713" : "\u2717"} {action.tool}
@@ -106,7 +125,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
 	const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const files = Array.from(e.target.files || []);
 		if (files.length > 0) await addMediaFiles(files);
-		e.target.value = ""; // reset for re-upload
+		e.target.value = "";
 	};
 
 	const handleSend = () => {
@@ -127,67 +146,53 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
 
 	const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
 		setInput(e.target.value);
-		// Auto-resize textarea
 		const el = e.target;
 		el.style.height = "auto";
 		el.style.height = Math.min(el.scrollHeight, 120) + "px";
 	};
 
 	return (
-		<div className="bg-background flex h-full flex-col">
+		<div className="flex h-full flex-col bg-stone-50 dark:bg-stone-950">
 			{/* Header */}
-			<div className="flex items-center justify-between border-b px-4 py-3">
-				<h2 className="text-sm font-semibold">VibeEdit AI</h2>
+			<div className="flex items-center justify-between border-b border-stone-200 dark:border-stone-800 px-4 h-12 shrink-0">
+				<div className="flex items-center gap-2">
+					<div className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900">
+						<span className="text-[10px] font-bold text-amber-700 dark:text-amber-300">AI</span>
+					</div>
+					<span className="text-sm font-medium text-stone-700 dark:text-stone-300">VibeEdit AI</span>
+				</div>
 				<div className="flex items-center gap-1">
-					<Button
-						variant="ghost"
-						size="sm"
+					<button
 						onClick={clearChat}
-						className="text-muted-foreground h-7 text-xs"
+						className="rounded-md px-2 py-1 text-xs text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
 					>
 						Clear
-					</Button>
+					</button>
 					<button
 						onClick={onClose}
-						className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+						className="rounded-md p-1.5 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
 						title="Close (Ctrl+K)"
 					>
-						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
 					</button>
 				</div>
 			</div>
 
 			{/* Messages */}
-			<div
-				ref={scrollRef}
-				className="scrollbar-thin flex-1 overflow-y-auto p-4"
-			>
+			<div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin p-4">
 				{messages.length === 0 && !isLoading && (
-					<div className="text-muted-foreground flex h-full flex-col items-center justify-center px-6 text-center">
-						<div className="bg-muted mb-4 flex h-12 w-12 items-center justify-center rounded-full">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								width="24"
-								height="24"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="2"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-							>
+					<div className="flex flex-col items-center justify-center h-full text-center px-6">
+						<div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900 mb-4">
+							<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600 dark:text-amber-400">
 								<path d="M12 8V4H8" />
 								<rect width="16" height="12" x="4" y="8" rx="2" />
 								<path d="m2 14 6-6" />
 								<path d="m14 20 8-8" />
 							</svg>
 						</div>
-						<p className="mb-1 text-sm font-medium">
-							Tell me what to create
-						</p>
-						<p className="text-xs leading-relaxed">
-							I can add text, images, effects, keyframes, and
-							more. Describe your vision and I&apos;ll build it.
+						<p className="font-medium text-stone-700 dark:text-stone-300 mb-1">VibeEdit AI</p>
+						<p className="text-xs text-stone-400 leading-relaxed">
+							Drop media files here, then tell me<br />what to create. I handle text, cuts,<br />effects, keyframes, and more.
 						</p>
 					</div>
 				)}
@@ -195,23 +200,32 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
 					<ChatMessageBubble key={msg.id} message={msg} />
 				))}
 				{isLoading && (
-					<div className="mb-3 flex justify-start">
-						<div className="bg-muted text-muted-foreground rounded-lg px-3 py-2 text-sm">
-							<span className="animate-pulse">Thinking...</span>
+					<div className="flex gap-2.5 mb-4">
+						<Avatar type="ai" />
+						<div className="rounded-2xl rounded-tl-md px-4 py-3 bg-white dark:bg-stone-900 shadow-sm border border-stone-100 dark:border-stone-800">
+							<div className="flex gap-1.5">
+								<div className="h-2 w-2 rounded-full bg-stone-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+								<div className="h-2 w-2 rounded-full bg-stone-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+								<div className="h-2 w-2 rounded-full bg-stone-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+							</div>
 						</div>
 					</div>
 				)}
 				{error && (
-					<div className="bg-destructive/10 text-destructive mb-3 rounded-lg px-3 py-2 text-xs">
+					<div className="bg-red-50 dark:bg-red-950 text-red-500 dark:text-red-400 rounded-xl px-4 py-2.5 text-xs mb-3">
 						{error}
 					</div>
 				)}
 			</div>
 
 			{/* Input */}
-			<div className="border-t p-3 shrink-0">
+			<div className="border-t border-stone-200 dark:border-stone-800 p-3 shrink-0">
 				<div
-					className={`flex items-end gap-2 rounded-lg border bg-muted/30 p-2 transition-colors ${isDragging ? "border-primary bg-primary/5" : "border-border"}`}
+					className={`flex items-end gap-2 rounded-xl border p-2 shadow-sm transition-colors ${
+						isDragging
+							? "border-amber-400 bg-amber-50/50 dark:bg-amber-950/20"
+							: "border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900"
+					}`}
 					onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
 					onDragLeave={() => setIsDragging(false)}
 					onDrop={handleDrop}
@@ -219,10 +233,12 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
 					<button
 						type="button"
 						onClick={() => fileInputRef.current?.click()}
-						className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+						className="shrink-0 rounded-lg p-2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
 						title="Attach media files"
 					>
-						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+							<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+						</svg>
 					</button>
 					<textarea
 						ref={textareaRef}
@@ -232,16 +248,17 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
 						placeholder="Tell me what to edit..."
 						disabled={isLoading}
 						rows={1}
-						className="bg-transparent placeholder:text-muted-foreground flex-1 resize-none py-1.5 text-sm focus:outline-none disabled:opacity-50"
+						className="flex-1 resize-none bg-transparent text-sm text-stone-800 dark:text-stone-200 placeholder:text-stone-400 focus:outline-none disabled:opacity-50 min-h-[36px] max-h-[120px] py-1.5"
 					/>
-					<Button
+					<button
 						onClick={handleSend}
 						disabled={!input.trim() || isLoading}
-						size="sm"
-						className="shrink-0"
+						className="shrink-0 rounded-lg p-2 bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 hover:bg-stone-700 dark:hover:bg-stone-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
 					>
-						Send
-					</Button>
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+							<path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+						</svg>
+					</button>
 				</div>
 				<input
 					ref={fileInputRef}

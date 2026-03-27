@@ -34,39 +34,39 @@ export default function Home() {
 	};
 
 	return (
-		<div className="flex min-h-screen items-center justify-center bg-stone-100 dark:bg-stone-950 p-4">
+		<div className="flex min-h-screen items-center justify-center bg-background p-4">
 			<div className="w-full max-w-md">
 				{/* Logo */}
 				<div className="text-center mb-8">
-					<h1 className="text-2xl font-bold text-stone-800 dark:text-stone-200 tracking-tight">VibeEdit</h1>
-					<p className="text-sm text-stone-500 dark:text-stone-400 mt-1">AI-Powered Video Editor</p>
+					<h1 className="text-2xl font-bold text-foreground tracking-tight">VibeEdit</h1>
+					<p className="text-sm text-muted-foreground mt-1">AI-Powered Video Editor</p>
 				</div>
 
 				{/* Form Card */}
-				<div className="rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 shadow-sm p-6">
-					<h2 className="text-lg font-semibold text-stone-800 dark:text-stone-200 mb-5">New Project</h2>
+				<div className="rounded-2xl bg-card border border-border shadow-sm p-6">
+					<h2 className="text-lg font-semibold text-foreground mb-5">New Project</h2>
 
 					{/* Project Name */}
 					<div className="mb-4">
-						<label className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-1.5">Project Name</label>
+						<label className="block text-sm font-medium text-muted-foreground mb-1.5">Project Name</label>
 						<input
 							type="text"
 							value={name}
 							onChange={(e) => setName(e.target.value)}
 							onKeyDown={handleKeyDown}
 							placeholder="My awesome video"
-							className="w-full rounded-lg border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 px-3 py-2.5 text-sm text-stone-800 dark:text-stone-200 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition-colors"
+							className="w-full rounded-lg border border-border bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
 							autoFocus
 						/>
 					</div>
 
 					{/* Resolution */}
 					<div className="mb-4">
-						<label className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-1.5">Resolution</label>
+						<label className="block text-sm font-medium text-muted-foreground mb-1.5">Resolution</label>
 						<select
 							value={resolution}
 							onChange={(e) => setResolution(e.target.value as Resolution)}
-							className="w-full rounded-lg border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 px-3 py-2.5 text-sm text-stone-800 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition-colors appearance-none"
+							className="w-full rounded-lg border border-border bg-muted px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors appearance-none"
 						>
 							<option value="720p">720p (HD)</option>
 							<option value="1080p">1080p (Full HD)</option>
@@ -76,7 +76,7 @@ export default function Home() {
 
 					{/* Aspect Ratio */}
 					<div className="mb-6">
-						<label className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-1.5">Aspect Ratio</label>
+						<label className="block text-sm font-medium text-muted-foreground mb-1.5">Aspect Ratio</label>
 						<div className="grid grid-cols-4 gap-2">
 							{aspectRatios.map((ratio) => (
 								<button
@@ -84,15 +84,15 @@ export default function Home() {
 									onClick={() => setAspectRatio(ratio)}
 									className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
 										aspectRatio === ratio
-											? "border-amber-500 bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300"
-											: "border-stone-200 dark:border-stone-700 text-stone-500 hover:border-stone-300 dark:hover:border-stone-600"
+											? "border-primary bg-primary/10 text-primary"
+											: "border-border text-muted-foreground hover:border-muted-foreground/30"
 									}`}
 								>
 									{ratio}
 								</button>
 							))}
 						</div>
-						<p className="text-xs text-stone-400 mt-1.5">
+						<p className="text-xs text-muted-foreground mt-1.5">
 							{resolution} • {resolutions[resolution][aspectRatio].w}x{resolutions[resolution][aspectRatio].h}
 						</p>
 					</div>
@@ -101,14 +101,14 @@ export default function Home() {
 					<button
 						onClick={handleCreate}
 						disabled={isCreating}
-						className="w-full rounded-xl bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 py-3 text-sm font-medium hover:bg-stone-700 dark:hover:bg-stone-300 disabled:opacity-50 transition-colors"
+						className="w-full rounded-xl bg-primary text-primary-foreground py-3 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
 					>
 						{isCreating ? "Creating..." : "Create Project"}
 					</button>
 				</div>
 
 				{/* Quick start hint */}
-				<p className="text-center text-xs text-stone-400 mt-4">
+				<p className="text-center text-xs text-muted-foreground mt-4">
 					Press Enter to create with defaults
 				</p>
 			</div>

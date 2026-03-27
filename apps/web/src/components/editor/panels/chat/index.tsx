@@ -76,7 +76,7 @@ function ChatMessageBubble({ message }: { message: ChatMessageType }) {
 	);
 }
 
-export function ChatPanel({ onClose }: { onClose: () => void }) {
+export function ChatPanel() {
 	const { messages, isLoading, error, sendMessage, clearChat } = useAIChat();
 	const editor = useEditor();
 	const activeProject = editor.project.getActive();
@@ -161,21 +161,12 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
 					</div>
 					<span className="text-sm font-medium text-stone-700 dark:text-stone-300">VibeEdit AI</span>
 				</div>
-				<div className="flex items-center gap-1">
-					<button
-						onClick={clearChat}
-						className="rounded-md px-2 py-1 text-xs text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-					>
-						Clear
-					</button>
-					<button
-						onClick={onClose}
-						className="rounded-md p-1.5 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-						title="Close (Ctrl+K)"
-					>
-						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-					</button>
-				</div>
+				<button
+					onClick={clearChat}
+					className="rounded-md px-2 py-1 text-xs text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+				>
+					Clear
+				</button>
 			</div>
 
 			{/* Messages */}

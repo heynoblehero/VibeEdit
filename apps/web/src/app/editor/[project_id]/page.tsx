@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import { ChatPanel } from "@/components/editor/panels/chat";
 import { Timeline } from "@/components/editor/panels/timeline";
 import { PreviewPanel } from "@/components/editor/panels/preview";
-import { EditorHeader } from "@/components/editor/editor-header";
 import { EditorProvider } from "@/components/providers/editor-provider";
 import { Onboarding } from "@/components/editor/onboarding";
 import { MigrationDialog } from "@/components/editor/dialogs/migration-dialog";
 import { usePasteMedia } from "@/hooks/use-paste-media";
 import { MobileGate } from "@/components/editor/mobile-gate";
 import { ExportButton } from "@/components/editor/export-button";
+import { useAIChat } from "@/hooks/use-ai-chat";
+import { useEditor } from "@/hooks/use-editor";
 
 export default function Editor() {
 	const params = useParams();
@@ -28,17 +29,64 @@ export default function Editor() {
 	);
 }
 
-function CollapsedSidebar({ onOpen }: { onOpen: () => void }) {
+function StarryOverlay() {
 	return (
-		<div className="flex h-full w-full flex-col items-center bg-stone-50 dark:bg-stone-950 border-r border-stone-200 dark:border-stone-800 pt-3">
+		<div className="absolute inset-0 z-10 bg-[#0a0a0f]/90 flex items-center justify-center overflow-hidden">
+			{Array.from({ length: 50 }).map((_, i) => (
+				<div
+					key={i}
+					className="absolute rounded-full bg-white animate-pulse"
+					style={{
+						width: Math.random() * 3 + 1,
+						height: Math.random() * 3 + 1,
+						top: `${Math.random() * 100}%`,
+						left: `${Math.random() * 100}%`,
+						animationDelay: `${Math.random() * 3}s`,
+						animationDuration: `${1.5 + Math.random() * 2}s`,
+						opacity: Math.random() * 0.7 + 0.3,
+					}}
+				/>
+			))}
+			<div className="text-white/60 text-sm font-medium z-20">
+				<div className="flex items-center gap-2">
+					<div className="flex gap-1">
+						<div className="h-1.5 w-1.5 rounded-full bg-white/60 animate-bounce" style={{ animationDelay: "0ms" }} />
+						<div className="h-1.5 w-1.5 rounded-full bg-white/60 animate-bounce" style={{ animationDelay: "150ms" }} />
+						<div className="h-1.5 w-1.5 rounded-full bg-white/60 animate-bounce" style={{ animationDelay: "300ms" }} />
+					</div>
+					<span>Creating your vision</span>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function formatTime(seconds: number): string {
+	const m = Math.floor(seconds / 60);
+	const s = Math.floor(seconds % 60);
+	return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function TimelineScrubber() {
+	const editor = useEditor();
+	const currentTime = editor.playback.getCurrentTime();
+	const totalDuration = editor.timeline.getTotalDuration() || 1;
+	const progress = (currentTime / totalDuration) * 100;
+
+	return (
+		<div className="shrink-0 border-t border-border px-4 py-2 flex items-center gap-3">
 			<button
-				onClick={onOpen}
-				className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors"
-				title="AI Assistant (Ctrl+K)"
+				onClick={() => editor.playback.toggle()}
+				className="text-muted-foreground hover:text-foreground transition-colors"
 			>
-				<span className="text-xs font-bold text-amber-700 dark:text-amber-300">AI</span>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
 			</button>
-			<span className="text-[10px] text-stone-400 mt-1.5">⌘K</span>
+			<div className="flex-1 h-1 bg-border rounded-full overflow-hidden cursor-pointer">
+				<div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
+			</div>
+			<span className="text-xs text-muted-foreground tabular-nums">
+				{formatTime(currentTime)} / {formatTime(totalDuration)}
+			</span>
 		</div>
 	);
 }
@@ -46,59 +94,47 @@ function CollapsedSidebar({ onOpen }: { onOpen: () => void }) {
 function EditorLayout() {
 	usePasteMedia();
 
-	const [chatOpen, setChatOpen] = useState(false);
 	const [advancedView, setAdvancedView] = useState(false);
-
-	useEffect(() => {
-		const handler = (e: KeyboardEvent) => {
-			if ((e.ctrlKey || e.metaKey) && e.key === "k") {
-				e.preventDefault();
-				setChatOpen((prev) => !prev);
-			}
-		};
-		document.addEventListener("keydown", handler);
-		return () => document.removeEventListener("keydown", handler);
-	}, []);
+	const { isLoading } = useAIChat();
 
 	return (
-		<div className="flex h-screen flex-col bg-stone-100 dark:bg-stone-950">
-			<EditorHeader
-				advancedView={advancedView}
-				onToggleAdvanced={() => setAdvancedView((v) => !v)}
-			/>
+		<div className="flex h-screen bg-background">
+			{/* LEFT: Chat (60%) */}
+			<div className="w-[60%] shrink-0 border-r border-border">
+				<ChatPanel />
+			</div>
 
-			<div className="flex flex-1 overflow-hidden">
-				{/* Collapsible chat sidebar */}
-				<div
-					className="shrink-0 transition-all duration-200 overflow-hidden"
-					style={{ width: chatOpen ? 380 : 48 }}
-				>
-					{chatOpen ? (
-						<ChatPanel onClose={() => setChatOpen(false)} />
-					) : (
-						<CollapsedSidebar onOpen={() => setChatOpen(true)} />
-					)}
-				</div>
-
-				{/* Main content */}
-				<div className="flex-1 flex flex-col overflow-hidden">
-					{/* Preview area - takes all available space */}
-					<div className="flex-1 min-h-0 bg-stone-900 dark:bg-black">
-						<PreviewPanel />
-					</div>
-
-					{/* Playback controls + Render button */}
-					<div className="shrink-0 border-t border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-950 px-6 py-3 flex items-center justify-center gap-6">
+			{/* RIGHT: Preview + controls (40%) */}
+			<div className="flex-1 flex flex-col">
+				{/* Render button bar */}
+				<div className="shrink-0 border-b border-border px-4 py-2 flex items-center justify-between">
+					<span className="text-xs text-muted-foreground">Preview</span>
+					<div className="flex items-center gap-2">
+						<button
+							onClick={() => setAdvancedView((v) => !v)}
+							className="rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+						>
+							{advancedView ? "Simple" : "Advanced"}
+						</button>
 						<ExportButton />
 					</div>
-
-					{/* Timeline - only visible in advanced mode */}
-					{advancedView && (
-						<div className="shrink-0 border-t border-stone-200 dark:border-stone-800 h-[280px] bg-stone-50 dark:bg-stone-950">
-							<Timeline />
-						</div>
-					)}
 				</div>
+
+				{/* Video preview with optional starry overlay */}
+				<div className="flex-1 min-h-0 relative">
+					<PreviewPanel />
+					{isLoading && <StarryOverlay />}
+				</div>
+
+				{/* Slim timeline scrubber */}
+				<TimelineScrubber />
+
+				{/* Advanced: full timeline */}
+				{advancedView && (
+					<div className="shrink-0 h-[250px] border-t border-border">
+						<Timeline />
+					</div>
+				)}
 			</div>
 		</div>
 	);

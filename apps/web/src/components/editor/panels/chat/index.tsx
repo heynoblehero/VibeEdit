@@ -124,29 +124,84 @@ export function ChatPanel() {
 		}
 		setIsUploading(true);
 		try {
-			const processedAssets = await processMediaAssets({
-				files,
-				onProgress: () => {},
-			});
+			const regularFiles: File[] = [];
+			let specialCount = 0;
 
-			const addedInfo: Array<{ name: string; type: string; duration?: number }> = [];
-			for (const asset of processedAssets) {
-				await editor.media.addMediaAsset({
-					projectId: activeProject.metadata.id,
-					asset,
-				});
-				addedInfo.push({
-					name: asset.name,
-					type: asset.type,
-					duration: asset.duration,
-				});
+			for (const file of files) {
+				const ext = file.name.toLowerCase().match(/\.[^.]+$/)?.[0] || "";
+
+				if (ext === ".zip") {
+					// Extract ZIP asset pack
+					const { extractZipAssets } = await import("@/lib/media/zip-import");
+					const extracted = await extractZipAssets(file, ({ currentFile }) => {
+						toast.info(`Extracting: ${currentFile}`);
+					});
+
+					for (const item of extracted) {
+						if (item.type === "lut") {
+							// Parse and register LUT
+							const { parseCubeLUT, registerLUT } = await import("@/lib/media/lut-parser");
+							const text = await item.file.text();
+							const lut = parseCubeLUT(text);
+							registerLUT(crypto.randomUUID(), lut);
+							specialCount++;
+						} else if (item.type === "lottie") {
+							// Add Lottie as image asset (rendered via lottie-web later)
+							regularFiles.push(item.file);
+						} else if (item.type !== "unknown") {
+							regularFiles.push(item.file);
+						}
+					}
+					toast.success(`Extracted ${extracted.length} files from ${file.name}`);
+
+				} else if (ext === ".cube" || ext === ".3dl") {
+					// Parse LUT file
+					const { parseCubeLUT, registerLUT } = await import("@/lib/media/lut-parser");
+					const text = await file.text();
+					const lut = parseCubeLUT(text);
+					const lutId = crypto.randomUUID();
+					registerLUT(lutId, lut);
+					toast.success(`Loaded LUT: ${lut.title}`);
+					specialCount++;
+
+				} else if (ext === ".psd") {
+					// Extract PSD layers
+					const { readPsd } = await import("ag-psd");
+					const buffer = await file.arrayBuffer();
+					const psd = readPsd(buffer);
+					if (psd.children) {
+						for (const layer of psd.children) {
+							if (layer.canvas) {
+								const blob = await new Promise<Blob>((resolve) => {
+									layer.canvas!.toBlob((b) => resolve(b!), "image/png");
+								});
+								const layerFile = new File([blob], `${layer.name || "layer"}.png`, { type: "image/png" });
+								regularFiles.push(layerFile);
+							}
+						}
+						toast.success(`Extracted ${psd.children.length} layers from ${file.name}`);
+					}
+
+				} else {
+					regularFiles.push(file);
+				}
 			}
 
-			const summary = addedInfo.map(a => {
-				const dur = a.duration ? ` (${a.duration.toFixed(1)}s)` : "";
-				return `${a.name}${dur}`;
-			}).join(", ");
-			toast.success(`Added: ${summary}`);
+			// Process regular media files
+			if (regularFiles.length > 0) {
+				const processedAssets = await processMediaAssets({ files: regularFiles, onProgress: () => {} });
+				for (const asset of processedAssets) {
+					await editor.media.addMediaAsset({ projectId: activeProject.metadata.id, asset });
+				}
+
+				const summary = processedAssets.map(a => {
+					const dur = a.duration ? ` (${a.duration.toFixed(1)}s)` : "";
+					return `${a.name}${dur}`;
+				}).join(", ");
+				if (processedAssets.length > 0) toast.success(`Added: ${summary}`);
+			}
+
+			if (specialCount > 0) toast.success(`Loaded ${specialCount} special asset(s) (LUTs, etc.)`);
 		} catch (err) {
 			console.error("Error processing files:", err);
 			toast.error("Failed to process files");
@@ -315,7 +370,7 @@ export function ChatPanel() {
 					type="file"
 					className="hidden"
 					multiple
-					accept="image/*,video/*,audio/*"
+					accept="image/*,video/*,audio/*,.zip,.cube,.3dl,.psd,.json"
 					onChange={handleFileSelect}
 				/>
 			</div>

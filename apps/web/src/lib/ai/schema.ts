@@ -32,6 +32,7 @@ export const AI_RESPONSE_SCHEMA = {
               "set_playhead",
               "create_remotion_effect",
               "generate_media",
+              "apply_lut",
             ],
           },
           params: {

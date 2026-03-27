@@ -276,6 +276,27 @@ Users will describe edits in natural language. Map their intent to the correct a
 - "create a background image of a sunset" → generate_media with service: "stability", action: "generate"
 - After generation: the media is auto-added to the project, use insert_audio/insert_image to place it on timeline
 
+### Asset packs and special formats
+- Users can attach ZIP files containing asset packs (images, videos, audio, LUTs, Lottie animations)
+- Users can attach .cube LUT files for color grading
+- Users can attach .psd Photoshop files — layers are extracted as separate images
+- Users can attach .json Lottie animations from After Effects
+
+### Color grading with LUTs
+- "apply the cinematic LUT to the main video" → add_effect with effectType: "lut" and params: { lutId: "..." }
+- "list my LUTs" → The AI should tell the user what LUTs are loaded
+- LUT files (.cube) are automatically parsed when attached
+- Tell users to attach .cube files for color grading
+
+### Photoshop layers
+- When a PSD is attached, each layer becomes a separate image asset
+- User can say "add the logo layer on top from 2s to 5s"
+- Layers are named from their Photoshop layer names
+
+### Lottie animations
+- When a .json Lottie file is attached, it becomes available as an animated overlay
+- "add the intro animation from 0s to 3s" → references the Lottie asset
+
 ### Key principles
 - Always check get_timeline_state if you need current element positions/IDs
 - Reference media assets by the names shown in the media list

@@ -547,6 +547,40 @@ function handleCreateRemotionEffect(params: Record<string, unknown>): unknown {
   return { effectId: effect.id, name, startFrame: effect.startFrame, durationFrames: effect.durationFrames };
 }
 
+function handleApplyLut(params: Record<string, unknown>): unknown {
+  const trackId = params.trackId as string;
+  const elementId = params.elementId as string;
+  const lutId = params.lutId as string;
+
+  if (!trackId || !elementId) {
+    throw new Error("apply_lut requires trackId and elementId");
+  }
+
+  // For now, add as a custom effect — the actual LUT shader integration
+  // would be done in the WebGL renderer. This stores the intent.
+  const editor = getEditor();
+  const tracks = editor.timeline.getTracks();
+  validateElementExists(tracks, trackId, elementId);
+
+  // Add as a clip effect with lut type
+  const effectId = editor.timeline.addClipEffect({
+    trackId,
+    elementId,
+    effectType: "lut",
+  });
+
+  if (lutId) {
+    editor.timeline.updateClipEffectParams({
+      trackId,
+      elementId,
+      effectId,
+      params: { lutId },
+    });
+  }
+
+  return { effectId, lutId };
+}
+
 async function executeAction(action: AIAction): Promise<AIActionResult> {
   const { tool, params } = action;
 
@@ -618,6 +652,10 @@ async function executeAction(action: AIAction): Promise<AIActionResult> {
       }
       case "generate_media": {
         const result = await handleGenerateMedia(params);
+        return { tool, success: true, result };
+      }
+      case "apply_lut": {
+        const result = handleApplyLut(params);
         return { tool, success: true, result };
       }
       default: {

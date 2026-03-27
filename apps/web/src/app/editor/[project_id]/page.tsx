@@ -166,7 +166,7 @@ function AssetDropdown() {
 						>
 							+ Attach files
 						</button>
-						<input ref={fileInputRef} type="file" className="hidden" multiple accept="image/*,video/*,audio/*"
+						<input ref={fileInputRef} type="file" className="hidden" multiple accept="image/*,video/*,audio/*,.zip,.cube,.3dl,.psd,.json"
 							onChange={async (e) => { const f = Array.from(e.target.files || []); if (f.length) await handleFiles(f); e.target.value = ""; setOpen(false); }} />
 					</div>
 				</div>

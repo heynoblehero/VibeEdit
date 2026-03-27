@@ -13,7 +13,8 @@ export type AIActionTool =
   | "remove_keyframe"
   | "add_effect"
   | "update_effect_params"
-  | "set_playhead";
+  | "set_playhead"
+  | "create_remotion_effect";
 
 export interface AIAction {
   tool: AIActionTool;

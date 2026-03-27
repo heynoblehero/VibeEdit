@@ -1,6 +1,7 @@
 import type { AIAction, AIActionResult, AIActionTool } from "./types";
 import type { EditorCore } from "@/core";
 import type { TimelineTrack, TimelineElement } from "@/types/timeline";
+import { registerEffect } from "@/lib/remotion/registry";
 
 function getEditor(): EditorCore {
   const editor = (window as any).__editor;
@@ -452,6 +453,30 @@ function handleSetPlayhead(params: Record<string, unknown>): void {
   editor.playback.seek({ time });
 }
 
+function handleCreateRemotionEffect(params: Record<string, unknown>): unknown {
+  const name = params.name as string;
+  const startTime = params.startTime as number;
+  const duration = params.duration as number;
+  const code = params.code as string;
+
+  if (!name || !code || startTime == null || duration == null) {
+    throw new Error("create_remotion_effect requires name, startTime, duration, and code");
+  }
+
+  const fps = 30;
+  const effect = {
+    id: crypto.randomUUID(),
+    name,
+    code,
+    startFrame: Math.round(startTime * fps),
+    durationFrames: Math.round(duration * fps),
+    props: {},
+  };
+
+  registerEffect(effect);
+  return { effectId: effect.id, name, startFrame: effect.startFrame, durationFrames: effect.durationFrames };
+}
+
 function executeAction(action: AIAction): AIActionResult {
   const { tool, params } = action;
 
@@ -516,6 +541,10 @@ function executeAction(action: AIAction): AIActionResult {
       case "set_playhead": {
         handleSetPlayhead(params);
         return { tool, success: true };
+      }
+      case "create_remotion_effect": {
+        const result = handleCreateRemotionEffect(params);
+        return { tool, success: true, result };
       }
       default: {
         const unknownTool = tool as string;

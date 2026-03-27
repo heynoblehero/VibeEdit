@@ -99,35 +99,6 @@ function ChatMessageBubble({ message }: { message: ChatMessageType }) {
 	);
 }
 
-/* ── Attached Media Bar (shows project assets) ── */
-function AttachedMediaBar() {
-	const editor = useEditor();
-	const [assets, setAssets] = useState<Array<{ id: string; name: string; type: string; duration?: number }>>([]);
-
-	useEffect(() => {
-		const update = () => {
-			const all = editor.media.getAssets();
-			setAssets(all.map(a => ({ id: a.id, name: a.name, type: a.type, duration: a.duration })));
-		};
-		update();
-		const unsub = editor.media.subscribe(update);
-		return unsub;
-	}, [editor]);
-
-	if (assets.length === 0) return null;
-
-	return (
-		<div className="border-b border-border px-4 py-2 shrink-0">
-			<p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Project Media</p>
-			<div className="flex flex-wrap gap-1.5">
-				{assets.map((a) => (
-					<MediaPill key={a.id} name={a.name} type={a.type} duration={a.duration} />
-				))}
-			</div>
-		</div>
-	);
-}
-
 /* ── Main Chat Panel ── */
 export function ChatPanel() {
 	const { messages, isLoading, error, sendMessage, clearChat } = useAIChat();
@@ -239,9 +210,6 @@ export function ChatPanel() {
 					Clear
 				</button>
 			</div>
-
-			{/* Attached media bar */}
-			<AttachedMediaBar />
 
 			{/* Messages */}
 			<div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin px-5 py-4">

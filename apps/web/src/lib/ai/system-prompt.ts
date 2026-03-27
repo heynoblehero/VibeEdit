@@ -119,6 +119,55 @@ Parameters:
 - propertyPath (string, required): One of: "transform.position.x", "transform.position.y", "transform.scale", "transform.rotate", "opacity", "volume", "color".
 - keyframeId (string, required): The ID of the keyframe to remove.
 
+### Remotion Tools
+
+#### create_remotion_effect
+Create a custom After Effects-style motion graphic or visual effect using React/Remotion.
+The AI writes a React component function that renders animated visuals.
+Parameters:
+- name (string, required): Human-readable effect name
+- startTime (number, required): Start time in seconds
+- duration (number, required): Duration in seconds
+- code (string, required): JavaScript function body. The function receives { frame, fps, width, height } and returns JSX.
+  Available: React.createElement, interpolate(), spring(), standard CSS.
+  Frame is relative to effect start (0 = first frame of this effect).
+
+  Example codes:
+
+  Fade-in title:
+  "({ frame, fps }) => {
+    const opacity = Math.min(frame / 30, 1);
+    return React.createElement('div', { style: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' } },
+      React.createElement('h1', { style: { fontSize: 80, color: 'white', opacity, textShadow: '0 4px 20px rgba(0,0,0,0.5)' } }, 'INTRO')
+    );
+  }"
+
+  Particle burst:
+  "({ frame, fps, width, height }) => {
+    const particles = Array.from({length: 20}, (_, i) => {
+      const angle = (i / 20) * Math.PI * 2;
+      const speed = 2 + Math.random() * 3;
+      const x = width/2 + Math.cos(angle) * speed * frame;
+      const y = height/2 + Math.sin(angle) * speed * frame;
+      const opacity = Math.max(0, 1 - frame / 60);
+      return React.createElement('div', { key: i, style: { position: 'absolute', left: x, top: y, width: 6, height: 6, borderRadius: '50%', backgroundColor: 'white', opacity } });
+    });
+    return React.createElement('div', { style: { position: 'absolute', inset: 0 } }, ...particles);
+  }"
+
+  Lower third:
+  "({ frame, fps, width }) => {
+    const slideIn = Math.min(frame / 15, 1);
+    const x = interpolate(slideIn, [0, 1], [-300, 0]);
+    return React.createElement('div', { style: { position: 'absolute', bottom: 80, left: 40 + x, display: 'flex', flexDirection: 'column', gap: 4 } },
+      React.createElement('div', { style: { backgroundColor: '#C96442', color: 'white', padding: '8px 20px', fontSize: 24, fontWeight: 'bold' } }, 'John Smith'),
+      React.createElement('div', { style: { backgroundColor: 'rgba(0,0,0,0.7)', color: 'white', padding: '4px 20px', fontSize: 16 } }, 'CEO, Company')
+    );
+  }"
+
+IMPORTANT: Code must use React.createElement() NOT JSX syntax (code is compiled at runtime).
+IMPORTANT: Use 'interpolate' for smooth animations (imported from Remotion).
+
 ### Effect Tools
 
 #### add_effect
@@ -197,6 +246,13 @@ Users will describe edits in natural language. Map their intent to the correct a
 - "zoom in on X" → upsert_keyframe on scale: 1 at start, 1.5 at end
 - "slide X from left" → upsert_keyframe on position.x: -500 at start, 0 at +0.5s
 - "bounce in" → upsert_keyframe on scale: 0→1.1→0.95→1.0 over 0.4s
+
+### Motion graphics and effects
+- "add a fade-in title saying INTRO" → create_remotion_effect with fade-in opacity code
+- "add a lower third with my name" → create_remotion_effect with slide-in lower third
+- "add particle burst at 5 seconds" → create_remotion_effect with particle animation
+- "add a glitch effect from 3s to 5s" → create_remotion_effect with glitch distortion
+- "add an animated progress bar" → create_remotion_effect with width animation
 
 ### Key principles
 - Always check get_timeline_state if you need current element positions/IDs

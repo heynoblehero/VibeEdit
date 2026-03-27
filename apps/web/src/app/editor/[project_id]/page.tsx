@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { ChatPanel } from "@/components/editor/panels/chat";
 import { Timeline } from "@/components/editor/panels/timeline";
@@ -91,6 +91,90 @@ function TimelineScrubber() {
 	);
 }
 
+function AssetDropdown() {
+	const editor = useEditor();
+	const [open, setOpen] = useState(false);
+	const [assets, setAssets] = useState<Array<{ id: string; name: string; type: string; duration?: number; width?: number; height?: number }>>([]);
+	const dropdownRef = useRef<HTMLDivElement>(null);
+	const fileInputRef = useRef<HTMLInputElement>(null);
+
+	useEffect(() => {
+		const update = () => {
+			const all = editor.media.getAssets();
+			setAssets(all.map(a => ({ id: a.id, name: a.name, type: a.type, duration: a.duration, width: a.width, height: a.height })));
+		};
+		update();
+		const unsub = editor.media.subscribe(update);
+		return unsub;
+	}, [editor]);
+
+	// Close on click outside
+	useEffect(() => {
+		if (!open) return;
+		const handler = (e: MouseEvent) => {
+			if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setOpen(false);
+		};
+		document.addEventListener("mousedown", handler);
+		return () => document.removeEventListener("mousedown", handler);
+	}, [open]);
+
+	const handleFiles = async (files: File[]) => {
+		const activeProject = editor.project.getActive();
+		if (!activeProject) return;
+		const { processMediaAssets } = await import("@/lib/media/processing");
+		const processed = await processMediaAssets({ files, onProgress: () => {} });
+		for (const asset of processed) {
+			await editor.media.addMediaAsset({ projectId: activeProject.metadata.id, asset });
+		}
+	};
+
+	const icon = (type: string) => type === "video" ? "\u{1F3AC}" : type === "audio" ? "\u{1F3B5}" : "\u{1F5BC}\uFE0F";
+
+	return (
+		<div className="relative" ref={dropdownRef}>
+			<button
+				onClick={() => setOpen(v => !v)}
+				className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+			>
+				Assets{assets.length > 0 ? ` (${assets.length})` : ""}
+				<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`transition-transform ${open ? "rotate-180" : ""}`}><path d="m6 9 6 6 6-6"/></svg>
+			</button>
+
+			{open && (
+				<div className="absolute top-full left-0 mt-1 w-64 rounded-xl border border-border bg-card shadow-lg z-50 overflow-hidden">
+					{assets.length === 0 ? (
+						<div className="p-4 text-center text-xs text-muted-foreground">
+							No media attached yet.<br />Use the chat to attach files.
+						</div>
+					) : (
+						<div className="max-h-48 overflow-y-auto scrollbar-thin">
+							{assets.map(a => (
+								<div key={a.id} className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/50 transition-colors">
+									<span>{icon(a.type)}</span>
+									<span className="font-medium text-foreground truncate flex-1">{a.name}</span>
+									<span className="text-muted-foreground shrink-0">
+										{a.type}{a.duration ? ` \u00B7 ${a.duration.toFixed(1)}s` : ""}{a.width ? ` \u00B7 ${a.width}\u00D7${a.height}` : ""}
+									</span>
+								</div>
+							))}
+						</div>
+					)}
+					<div className="border-t border-border p-2">
+						<button
+							onClick={() => fileInputRef.current?.click()}
+							className="w-full rounded-lg px-3 py-1.5 text-xs text-primary hover:bg-primary/5 transition-colors text-center"
+						>
+							+ Attach files
+						</button>
+						<input ref={fileInputRef} type="file" className="hidden" multiple accept="image/*,video/*,audio/*"
+							onChange={async (e) => { const f = Array.from(e.target.files || []); if (f.length) await handleFiles(f); e.target.value = ""; setOpen(false); }} />
+					</div>
+				</div>
+			)}
+		</div>
+	);
+}
+
 function EditorLayout() {
 	usePasteMedia();
 
@@ -107,14 +191,14 @@ function EditorLayout() {
 			{/* RIGHT: Preview + controls (40%) */}
 			<div className="flex-1 flex flex-col">
 				{/* Render button bar */}
-				<div className="shrink-0 border-b border-border px-4 py-2 flex items-center justify-between">
-					<span className="text-xs text-muted-foreground">Preview</span>
+				<div className="shrink-0 border-b border-border px-3 py-2 flex items-center justify-between bg-card">
+					<AssetDropdown />
 					<div className="flex items-center gap-2">
 						<button
 							onClick={() => setAdvancedView((v) => !v)}
 							className="rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
 						>
-							{advancedView ? "Simple" : "Advanced"}
+							{advancedView ? "Hide Timeline" : "Timeline"}
 						</button>
 						<ExportButton />
 					</div>

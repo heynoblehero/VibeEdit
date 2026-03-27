@@ -7,7 +7,12 @@ import { toast } from "sonner";
 import { useEditor } from "@/hooks/use-editor";
 import { cn } from "@/utils/ui";
 
-export function EditorHeader() {
+interface EditorHeaderProps {
+	advancedView: boolean;
+	onToggleAdvanced: () => void;
+}
+
+export function EditorHeader({ advancedView, onToggleAdvanced }: EditorHeaderProps) {
 	return (
 		<header className="flex h-[3.4rem] items-center justify-between border-b border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-950 px-4 pt-0.5">
 			<div className="flex items-center gap-2">
@@ -16,6 +21,16 @@ export function EditorHeader() {
 				<EditableProjectName />
 			</div>
 			<nav className="flex items-center gap-2">
+				<button
+					onClick={onToggleAdvanced}
+					className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+						advancedView
+							? "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300"
+							: "text-stone-500 hover:text-stone-700 dark:hover:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800"
+					}`}
+				>
+					{advancedView ? "Simple View" : "Advanced"}
+				</button>
 				<ExportButton />
 				<ThemeToggle />
 			</nav>

@@ -11,6 +11,7 @@ import { Onboarding } from "@/components/editor/onboarding";
 import { MigrationDialog } from "@/components/editor/dialogs/migration-dialog";
 import { usePasteMedia } from "@/hooks/use-paste-media";
 import { MobileGate } from "@/components/editor/mobile-gate";
+import { ExportButton } from "@/components/editor/export-button";
 
 export default function Editor() {
 	const params = useParams();
@@ -19,14 +20,9 @@ export default function Editor() {
 	return (
 		<MobileGate>
 			<EditorProvider projectId={projectId}>
-				<div className="bg-background flex h-screen w-screen flex-col overflow-hidden">
-					<EditorHeader />
-					<div className="min-h-0 min-w-0 flex-1">
-						<EditorLayout />
-					</div>
-					<Onboarding />
-					<MigrationDialog />
-				</div>
+				<EditorLayout />
+				<Onboarding />
+				<MigrationDialog />
 			</EditorProvider>
 		</MobileGate>
 	);
@@ -51,6 +47,7 @@ function EditorLayout() {
 	usePasteMedia();
 
 	const [chatOpen, setChatOpen] = useState(false);
+	const [advancedView, setAdvancedView] = useState(false);
 
 	useEffect(() => {
 		const handler = (e: KeyboardEvent) => {
@@ -64,7 +61,12 @@ function EditorLayout() {
 	}, []);
 
 	return (
-		<div className="flex h-full flex-col">
+		<div className="flex h-screen flex-col bg-stone-100 dark:bg-stone-950">
+			<EditorHeader
+				advancedView={advancedView}
+				onToggleAdvanced={() => setAdvancedView((v) => !v)}
+			/>
+
 			<div className="flex flex-1 overflow-hidden">
 				{/* Collapsible chat sidebar */}
 				<div
@@ -77,14 +79,25 @@ function EditorLayout() {
 						<CollapsedSidebar onOpen={() => setChatOpen(true)} />
 					)}
 				</div>
-				{/* Right side: preview + timeline */}
+
+				{/* Main content */}
 				<div className="flex-1 flex flex-col overflow-hidden">
-					<div className="flex-1 min-h-0">
+					{/* Preview area - takes all available space */}
+					<div className="flex-1 min-h-0 bg-stone-900 dark:bg-black">
 						<PreviewPanel />
 					</div>
-					<div className="h-[280px] shrink-0 border-t">
-						<Timeline />
+
+					{/* Playback controls + Render button */}
+					<div className="shrink-0 border-t border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-950 px-6 py-3 flex items-center justify-center gap-6">
+						<ExportButton />
 					</div>
+
+					{/* Timeline - only visible in advanced mode */}
+					{advancedView && (
+						<div className="shrink-0 border-t border-stone-200 dark:border-stone-800 h-[280px] bg-stone-50 dark:bg-stone-950">
+							<Timeline />
+						</div>
+					)}
 				</div>
 			</div>
 		</div>

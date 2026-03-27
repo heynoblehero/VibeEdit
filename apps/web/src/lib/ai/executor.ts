@@ -678,6 +678,89 @@ function handleUseTemplate(params: Record<string, unknown>): unknown {
   return { effectId: effect.id, template: template.name };
 }
 
+function handleUndo(): unknown {
+  const editor = getEditor();
+  editor.command.undo();
+  return { message: "Undone" };
+}
+
+function handleRedo(): unknown {
+  const editor = getEditor();
+  editor.command.redo();
+  return { message: "Redone" };
+}
+
+function handleBatchUpdate(params: Record<string, unknown>): unknown {
+  const editor = getEditor();
+  const filter = params.filter as Record<string, unknown> | undefined;
+  const updates = params.updates as Record<string, unknown>;
+
+  if (!updates) throw new Error("batch_update requires updates object");
+
+  const tracks = editor.timeline.getTracks();
+  const matchingElements: Array<{ trackId: string; elementId: string }> = [];
+
+  for (const track of tracks) {
+    for (const el of track.elements) {
+      let matches = true;
+      if (filter) {
+        if (filter.type && el.type !== filter.type) matches = false;
+        if (filter.name && !(el.name as string)?.includes(filter.name as string)) matches = false;
+      }
+      if (matches) {
+        matchingElements.push({ trackId: track.id, elementId: el.id });
+      }
+    }
+  }
+
+  if (matchingElements.length === 0) {
+    return { updated: 0, message: "No matching elements found" };
+  }
+
+  editor.timeline.updateElements({
+    updates: matchingElements.map(({ trackId, elementId }) => ({
+      trackId,
+      elementId,
+      updates: updates as any,
+    })),
+  });
+
+  return { updated: matchingElements.length, message: `Updated ${matchingElements.length} elements` };
+}
+
+function handleSaveProject(): unknown {
+  const { exportProject, downloadProject } = require("@/lib/project/save-load");
+  const editor = getEditor();
+  const project = exportProject(editor);
+  downloadProject(project);
+  return { name: project.name, message: `Saved "${project.name}.vibeedit"` };
+}
+
+function handleExportPreset(params: Record<string, unknown>): unknown {
+  const { getPreset, EXPORT_PRESETS } = require("@/lib/project/export-presets");
+  const presetId = params.presetId as string;
+
+  if (!presetId) {
+    // List available presets
+    return {
+      presets: EXPORT_PRESETS.map((p: any) => ({ id: p.id, name: p.name, platform: p.platform })),
+      message: "Available export presets",
+    };
+  }
+
+  const preset = getPreset(presetId);
+  if (!preset) {
+    return { error: `Unknown preset "${presetId}". Available: ${EXPORT_PRESETS.map((p: any) => p.id).join(", ")}` };
+  }
+
+  // Return the settings — the frontend export button handles the actual rendering
+  return {
+    preset: preset.name,
+    settings: preset.settings,
+    message: `Export settings ready for ${preset.name}. Use the Render button to start export.`,
+  };
+}
+
 async function executeAction(action: AIAction): Promise<AIActionResult> {
   const { tool, params } = action;
 
@@ -762,6 +845,26 @@ async function executeAction(action: AIAction): Promise<AIActionResult> {
       case "use_template": {
         const result = handleUseTemplate(params);
         return { tool, success: true, result };
+      }
+      case "undo": {
+        const r = handleUndo();
+        return { tool, success: true, result: r };
+      }
+      case "redo": {
+        const r = handleRedo();
+        return { tool, success: true, result: r };
+      }
+      case "batch_update": {
+        const r = handleBatchUpdate(params);
+        return { tool, success: true, result: r };
+      }
+      case "save_project": {
+        const r = handleSaveProject();
+        return { tool, success: true, result: r };
+      }
+      case "export_preset": {
+        const r = handleExportPreset(params);
+        return { tool, success: true, result: r };
       }
       default: {
         const unknownTool = tool as string;

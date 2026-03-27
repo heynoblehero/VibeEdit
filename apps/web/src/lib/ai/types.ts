@@ -19,7 +19,12 @@ export type AIActionTool =
   | "apply_lut"
   | "import_subtitles"
   | "auto_caption"
-  | "use_template";
+  | "use_template"
+  | "undo"
+  | "redo"
+  | "batch_update"
+  | "save_project"
+  | "export_preset";
 
 export interface AIAction {
   tool: AIActionTool;

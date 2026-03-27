@@ -36,6 +36,11 @@ export const AI_RESPONSE_SCHEMA = {
               "import_subtitles",
               "auto_caption",
               "use_template",
+              "undo",
+              "redo",
+              "batch_update",
+              "save_project",
+              "export_preset",
             ],
           },
           params: {

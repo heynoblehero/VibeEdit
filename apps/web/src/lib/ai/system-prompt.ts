@@ -208,6 +208,37 @@ Parameters:
   - progress-bar: { color, label }
   - fade-transition: { color }
 
+### Project Tools
+
+#### save_project
+Save the current project as a .vibeedit JSON file (downloads to user's computer). No params needed.
+
+#### export_preset
+Get export settings for a specific platform. If no presetId given, lists all available presets.
+Parameters:
+- presetId (string, optional): One of: "youtube-1080", "youtube-4k", "instagram-reel", "instagram-post", "tiktok", "twitter", "linkedin", "gif", "thumbnail"
+
+### Undo/Redo Tools
+
+#### undo
+Undo the last editor action. No params needed.
+
+#### redo
+Redo the last undone action. No params needed.
+
+### Batch Tools
+
+#### batch_update
+Update multiple elements at once. Applies the same changes to all matching elements.
+Parameters:
+- filter (object, optional): { type?: "text"|"video"|"image"|"audio", name?: string (partial match) }
+  If omitted, updates ALL elements.
+- updates (object, required): Properties to change (same as update_element updates)
+
+Examples:
+- "Make all text white" → batch_update with filter: { type: "text" }, updates: { color: "#ffffff" }
+- "Hide all audio" → batch_update with filter: { type: "audio" }, updates: { muted: true }
+
 ### Effect Tools
 
 #### add_effect
@@ -340,6 +371,20 @@ Users will describe edits in natural language. Map their intent to the correct a
 - "add a title card saying My Video" → use_template with templateId: "title-card", customProps: { title: "My Video" }
 - "type out the text Hello World" → use_template with templateId: "text-reveal", customProps: { text: "Hello World" }
 - "add captions to the video" → auto_caption with duration of the main video
+
+### Saving and exporting
+- "save my project" / "download project file" → save_project
+- "export for youtube" → export_preset with presetId: "youtube-1080"
+- "export for instagram reel" → export_preset with presetId: "instagram-reel"
+- "export for tiktok" → export_preset with presetId: "tiktok"
+- "what export options are available?" → export_preset with no presetId (lists all)
+
+### Undo and batch
+- "undo that" / "go back" → undo
+- "redo" → redo
+- "make all text bigger" → batch_update with filter: { type: "text" }, updates: { fontSize: 48 }
+- "apply this effect to all videos" → batch_update with appropriate filter
+- "move everything forward 2 seconds" → batch_update (startTime offset — requires getting current times first)
 
 ### Key principles
 - Always check get_timeline_state if you need current element positions/IDs

@@ -230,7 +230,14 @@ export function ChatPanel() {
 				toast.success(`Imported timeline: "${timeline.name}" — ${timeline.clips.length} clips, ${timeline.duration.toFixed(1)}s`);
 				specialCount++;
 
-			} else if (ext === ".ttf" || ext === ".otf" || ext === ".woff2") {
+			} else if (ext === ".vibeedit") {
+					const { readProjectFile } = await import("@/lib/project/save-load");
+					const project = await readProjectFile(file);
+					toast.success(`Loaded project: "${project.name}" (${project.mediaAssets.length} assets referenced)`);
+					// Note: actual media files need to be re-attached
+					specialCount++;
+
+				} else if (ext === ".ttf" || ext === ".otf" || ext === ".woff2") {
 					// Load custom font
 					const { loadCustomFont } = await import("@/lib/media/font-loader");
 					const loaded = await loadCustomFont(file);
@@ -425,7 +432,7 @@ export function ChatPanel() {
 					type="file"
 					className="hidden"
 					multiple
-					accept="image/*,video/*,audio/*,.zip,.cube,.3dl,.psd,.json,.srt,.vtt,.ttf,.otf,.woff2,.edl,.xml,.fcpxml"
+					accept="image/*,video/*,audio/*,.zip,.cube,.3dl,.psd,.json,.srt,.vtt,.ttf,.otf,.woff2,.edl,.xml,.fcpxml,.vibeedit"
 					onChange={handleFileSelect}
 				/>
 			</div>

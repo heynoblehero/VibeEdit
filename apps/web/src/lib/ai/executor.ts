@@ -2,6 +2,9 @@ import type { AIAction, AIActionResult, AIActionTool } from "./types";
 import type { EditorCore } from "@/core";
 import type { TimelineTrack, TimelineElement } from "@/types/timeline";
 import { registerEffect } from "@/lib/remotion/registry";
+import { getTemplate, getAllTemplates } from "@/lib/remotion/templates";
+import { exportProject, downloadProject } from "@/lib/project/save-load";
+import { getPreset, EXPORT_PRESETS } from "@/lib/project/export-presets";
 
 function getEditor(): EditorCore {
   const editor = (window as any).__editor;
@@ -631,10 +634,6 @@ async function handleAutoCaption(
 }
 
 function handleUseTemplate(params: Record<string, unknown>): unknown {
-  const {
-    getTemplate,
-    getAllTemplates,
-  } = require("@/lib/remotion/templates");
 
   const templateId = params.templateId as string;
   const startTime = (params.startTime as number) ?? 0;
@@ -729,7 +728,7 @@ function handleBatchUpdate(params: Record<string, unknown>): unknown {
 }
 
 function handleSaveProject(): unknown {
-  const { exportProject, downloadProject } = require("@/lib/project/save-load");
+  // exportProject and downloadProject imported at top
   const editor = getEditor();
   const project = exportProject(editor);
   downloadProject(project);
@@ -737,7 +736,7 @@ function handleSaveProject(): unknown {
 }
 
 function handleExportPreset(params: Record<string, unknown>): unknown {
-  const { getPreset, EXPORT_PRESETS } = require("@/lib/project/export-presets");
+  // getPreset and EXPORT_PRESETS imported at top
   const presetId = params.presetId as string;
 
   if (!presetId) {

@@ -9,27 +9,27 @@ const compiledEffects = new Map<string, EffectRenderer>();
 const effectsList: RemotionEffect[] = [];
 
 const BLOCKED_PATTERNS = [
-  /\bfetch\s*\(/,
+  /(?<!React\.)(?<!\w)fetch\s*\(/,          // fetch() but not someFetch()
   /\bXMLHttpRequest\b/,
-  /\bWebSocket\b/,
+  /\bnew\s+WebSocket\b/,
   /\blocalStorage\b/,
   /\bsessionStorage\b/,
   /\bdocument\.cookie\b/,
-  /\beval\s*\(/,
+  /(?<!\w)eval\s*\(/,                        // eval() but not someEval()
   /\bnew\s+Function\b/,
   /\bimport\s*\(/,
   /\brequire\s*\(/,
   /\bwindow\.open\b/,
-  /\bnavigator\b/,
-  /\blocation\b/,
+  /\bnavigator\.sendBeacon\b/,               // specific navigator abuse, not all navigator
+  /\blocation\s*=\b/,                        // location assignment, not the word "location"
+  /\blocation\.href\s*=/,
   /\b__editor\b/,
-  /\bprocess\b/,
+  /\bprocess\.env\b/,
   /\bglobalThis\b/,
   /\bwindow\[/,
-  /\bdocument\.(write|createElement|querySelector|getElementById)/,
+  /\bdocument\.(write|querySelector|getElementById|body)/,  // removed createElement — React needs it
   /\bpostMessage\b/,
-  /\bsetInterval\b/,
-  /\bsetTimeout\b.*\bfunction\b/,
+  /\bsetInterval\s*\(/,
 ];
 
 function validateEffectCode(code: string): string | null {

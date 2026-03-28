@@ -47,16 +47,18 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 					// Project not found in IndexedDB — create locally
 					try {
 						const projectName = searchParams.get("name") || "Untitled Project";
-						const newProjectId = await editor.project.createNewProject({
+						await editor.project.createNewProject({
 							name: projectName,
+							id: projectId, // Reuse the URL's ID so no redirect needed
 						});
-						// Also save to server DB so it appears in dashboard
+						// Save to server DB so it appears in dashboard
 						fetch("/api/projects", {
 							method: "POST",
 							headers: { "Content-Type": "application/json" },
-							body: JSON.stringify({ id: newProjectId, name: projectName }),
+							body: JSON.stringify({ id: projectId, name: projectName }),
 						}).catch(() => {}); // non-blocking
-						router.replace(`/editor/${newProjectId}`);
+						setIsLoading(false);
+						prefetchFontAtlas();
 					} catch (_createErr) {
 						setError("Failed to create project");
 						setIsLoading(false);

@@ -263,8 +263,6 @@ export function ChatPanel() {
 				} else {
 					regularFiles.push(file);
 				}
-					regularFiles.push(file);
-				}
 			}
 
 			// Process regular media files

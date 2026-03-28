@@ -39,21 +39,12 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 		const loadProject = async () => {
 			try {
 				setIsLoading(true);
-				await editor.project.loadProject({ id: projectId });
+				const loaded = await editor.project.loadProject({ id: projectId });
 
 				if (cancelled) return;
 
-				setIsLoading(false);
-				prefetchFontAtlas();
-			} catch (err) {
-				if (cancelled) return;
-
-				const isNotFound =
-					err instanceof Error &&
-					(err.message.includes("not found") ||
-						err.message.includes("does not exist"));
-
-				if (isNotFound) {
+				if (!loaded) {
+					// Project not found — create a new one
 					try {
 						const projectName = searchParams.get("name") || "Untitled Project";
 						const newProjectId = await editor.project.createNewProject({
@@ -64,12 +55,17 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 						setError("Failed to create project");
 						setIsLoading(false);
 					}
-				} else {
-					setError(
-						err instanceof Error ? err.message : "Failed to load project",
-					);
-					setIsLoading(false);
+					return;
 				}
+
+				setIsLoading(false);
+				prefetchFontAtlas();
+			} catch (err) {
+				if (cancelled) return;
+				setError(
+					err instanceof Error ? err.message : "Failed to load project",
+				);
+				setIsLoading(false);
 			}
 		};
 

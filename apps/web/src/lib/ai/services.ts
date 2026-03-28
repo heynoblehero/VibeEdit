@@ -109,7 +109,7 @@ function validateRequest(service: string, action: string): string | null {
     return `Service "${service}" is not trusted. Allowed: ${Object.keys(TRUSTED_SERVICES).join(", ")}`;
   }
   const svc = TRUSTED_SERVICES[service as TrustedServiceId];
-  if (!svc.actions.includes(action)) {
+  if (!(svc.actions as readonly string[]).includes(action)) {
     return `Action "${action}" is not allowed for ${svc.name}. Allowed: ${svc.actions.join(", ") || "none (coming soon)"}`;
   }
   return null;

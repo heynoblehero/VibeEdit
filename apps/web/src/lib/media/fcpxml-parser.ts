@@ -150,7 +150,7 @@ export function parseFCPXML(content: string): ParsedTimeline {
 						startTime: startFrame / fps,
 						duration: (endFrame - startFrame) / fps,
 						sourceIn: inFrame / fps,
-						sourceFile,
+						sourceFile: sourceFile ?? undefined,
 						trackIndex,
 						type: isAudio ? "audio" : "video",
 					};

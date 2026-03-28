@@ -123,7 +123,7 @@ export class ProjectManager {
 		}
 	}
 
-	async loadProject({ id }: { id: string }): Promise<void> {
+	async loadProject({ id }: { id: string }): Promise<boolean | null> {
 		if (!this.isInitialized) {
 			this.isLoading = true;
 			this.notify();
@@ -163,6 +163,8 @@ export class ProjectManager {
 					await this.saveCurrentProject();
 				}
 			}
+
+			return true;
 		} catch (error) {
 			console.error("Failed to load project:", error);
 			throw error;

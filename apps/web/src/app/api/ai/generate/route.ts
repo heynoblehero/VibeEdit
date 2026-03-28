@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     }
 
     const svc = TRUSTED_SERVICES[service as TrustedServiceId];
-    if (!svc.actions.includes(action)) {
+    if (!(svc.actions as readonly string[]).includes(action)) {
       return NextResponse.json(
         {
           error: `Action "${action}" is not allowed for ${svc.name}. Allowed: ${svc.actions.join(", ") || "none"}`,

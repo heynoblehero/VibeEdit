@@ -44,12 +44,18 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 				if (cancelled) return;
 
 				if (!loaded) {
-					// Project not found — create a new one
+					// Project not found in IndexedDB — create locally
 					try {
 						const projectName = searchParams.get("name") || "Untitled Project";
 						const newProjectId = await editor.project.createNewProject({
 							name: projectName,
 						});
+						// Also save to server DB so it appears in dashboard
+						fetch("/api/projects", {
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({ id: newProjectId, name: projectName }),
+						}).catch(() => {}); // non-blocking
 						router.replace(`/editor/${newProjectId}`);
 					} catch (_createErr) {
 						setError("Failed to create project");
@@ -60,6 +66,18 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 
 				setIsLoading(false);
 				prefetchFontAtlas();
+				// Sync project to server DB (non-blocking)
+				const active = editor.project.getActiveOrNull();
+				if (active) {
+					fetch("/api/projects", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							id: projectId,
+							name: active.metadata?.name || "Untitled Project",
+						}),
+					}).catch(() => {});
+				}
 			} catch (err) {
 				if (cancelled) return;
 				setError(

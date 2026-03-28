@@ -244,7 +244,25 @@ export function ChatPanel() {
 					toast.success(`Loaded font: ${loaded.name} (use as "${loaded.family}")`);
 					specialCount++;
 
+				} else if (ext === ".json") {
+					try {
+						const text = await file.text();
+						const { parseLottieJSON, registerLottie } = await import("@/lib/media/lottie-utils");
+						const result = parseLottieJSON(text);
+						if (result.valid && result.metadata) {
+							registerLottie(crypto.randomUUID(), JSON.parse(text));
+							toast.success(`Loaded Lottie: ${result.metadata.name}`);
+							specialCount++;
+						} else {
+							regularFiles.push(file);
+						}
+					} catch {
+						regularFiles.push(file);
+					}
+
 				} else {
+					regularFiles.push(file);
+				}
 					regularFiles.push(file);
 				}
 			}

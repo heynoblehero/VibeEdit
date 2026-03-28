@@ -841,6 +841,11 @@ async function executeAction(action: AIAction): Promise<AIActionResult> {
         const result = await handleAutoCaption(params);
         return { tool, success: true, result };
       }
+      case "import_subtitles": {
+        // Subtitles are imported via file attachment in chat, not via executor.
+        // This is a no-op — the actual import happens in addMediaFiles.
+        return { tool, success: true, result: { message: "Subtitles are imported by attaching .srt/.vtt files in the chat." } };
+      }
       case "use_template": {
         const result = handleUseTemplate(params);
         return { tool, success: true, result };

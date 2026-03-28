@@ -217,20 +217,20 @@ export function ChatPanel() {
 					specialCount++;
 
 				} else if (ext === ".edl") {
-				const { parseEDL } = await import("@/lib/media/edl-parser");
-				const text = await file.text();
-				const edl = parseEDL(text);
-				toast.success(`Imported EDL: "${edl.title}" with ${edl.events.length} edits. Use AI to map clips to your media.`);
-				specialCount++;
+					const { parseEDL } = await import("@/lib/media/edl-parser");
+					const text = await file.text();
+					const edl = parseEDL(text);
+					toast.success(`Imported EDL: "${edl.title}" with ${edl.events.length} edits. Use AI to map clips to your media.`);
+					specialCount++;
 
-			} else if (ext === ".xml" || ext === ".fcpxml") {
-				const { parseFCPXML } = await import("@/lib/media/fcpxml-parser");
-				const text = await file.text();
-				const timeline = parseFCPXML(text);
-				toast.success(`Imported timeline: "${timeline.name}" — ${timeline.clips.length} clips, ${timeline.duration.toFixed(1)}s`);
-				specialCount++;
+				} else if (ext === ".xml" || ext === ".fcpxml") {
+					const { parseFCPXML } = await import("@/lib/media/fcpxml-parser");
+					const text = await file.text();
+					const timeline = parseFCPXML(text);
+					toast.success(`Imported timeline: "${timeline.name}" — ${timeline.clips.length} clips, ${timeline.duration.toFixed(1)}s`);
+					specialCount++;
 
-			} else if (ext === ".vibeedit") {
+				} else if (ext === ".vibeedit") {
 					const { readProjectFile } = await import("@/lib/project/save-load");
 					const project = await readProjectFile(file);
 					toast.success(`Loaded project: "${project.name}" (${project.mediaAssets.length} assets referenced)`);

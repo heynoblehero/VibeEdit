@@ -5,17 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession, signOut } from "@/lib/auth/client";
 import { motion } from "motion/react";
-import { NeonBadge } from "@/components/ui/motion/neon-badge";
 import {
-	Coins,
-	Plus,
-	Trash2,
-	ExternalLink,
-	Download,
-	LogOut,
-	Settings,
-	Sparkles,
-	FolderPlus,
+	Coins, Plus, Trash2, ExternalLink, Download, LogOut,
+	Settings, Sparkles, FolderPlus, ArrowRight, Video,
 } from "lucide-react";
 
 interface Project {
@@ -37,6 +29,23 @@ function timeAgo(d: Date | string | null): string {
 	const days = Math.floor(hours / 24);
 	if (days < 7) return `${days}d ago`;
 	return date.toLocaleDateString();
+}
+
+// Deterministic color from project name
+function projectGradient(name: string) {
+	const gradients = [
+		"from-violet-500 to-purple-600",
+		"from-fuchsia-500 to-pink-600",
+		"from-cyan-500 to-blue-600",
+		"from-emerald-500 to-green-600",
+		"from-amber-500 to-orange-600",
+		"from-rose-500 to-red-600",
+		"from-indigo-500 to-violet-600",
+		"from-teal-500 to-cyan-600",
+	];
+	let hash = 0;
+	for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+	return gradients[Math.abs(hash) % gradients.length];
 }
 
 export default function DashboardPage() {
@@ -63,9 +72,11 @@ export default function DashboardPage() {
 	if (isPending || !session) {
 		return (
 			<div className="flex min-h-screen items-center justify-center bg-background">
-				<div className="flex items-center gap-3">
-					<div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-					<p className="text-muted-foreground text-sm">Loading...</p>
+				<div className="flex flex-col items-center gap-4">
+					<div className="h-10 w-10 rounded-xl gradient-primary flex items-center justify-center shadow-[0_0_20px_hsl(262_83%_58%/0.3)]">
+						<Sparkles className="h-5 w-5 text-white animate-pulse" />
+					</div>
+					<p className="text-muted-foreground text-sm">Loading your workspace...</p>
 				</div>
 			</div>
 		);
@@ -107,215 +118,233 @@ export default function DashboardPage() {
 
 	const remaining = creditBalance ?? 0;
 	const isLowCredits = remaining < 10;
+	const firstName = session.user.name?.split(" ")[0];
 
 	return (
 		<div className="min-h-screen bg-background text-foreground">
-			{/* Glassmorphism top bar */}
-			<header className="glass-strong border-b border-border/40 sticky top-0 z-50">
-				<div className="mx-auto flex max-w-5xl items-center justify-between px-6 h-16">
-					{/* Logo with gradient icon */}
-					<Link href="/" className="flex items-center gap-2.5">
-						<div className="gradient-primary flex h-8 w-8 items-center justify-center rounded-full">
-							<Sparkles className="h-4 w-4 text-white" />
-						</div>
-						<span className="text-base font-bold tracking-tight font-[family-name:var(--font-display)]">
-							VibeEdit
-						</span>
-					</Link>
+			{/* ── Gradient background ─────────────────────────── */}
+			<div className="fixed inset-0 pointer-events-none">
+				<div className="absolute -top-[40%] -left-[20%] w-[60%] h-[60%] rounded-full bg-gradient-to-br from-violet-600/[0.07] via-purple-600/[0.04] to-transparent blur-[100px]" />
+				<div className="absolute -bottom-[30%] -right-[15%] w-[50%] h-[50%] rounded-full bg-gradient-to-tl from-fuchsia-600/[0.05] via-pink-600/[0.03] to-transparent blur-[100px]" />
+			</div>
 
-					<div className="flex items-center gap-3">
-						{/* Credits pill */}
-						<Link
-							href="/pricing"
-							className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all ${
-								isLowCredits
-									? "bg-destructive/15 text-destructive border border-destructive/30"
-									: "gradient-primary text-white shadow-sm"
-							}`}
-						>
-							<Coins className="h-3.5 w-3.5" />
-							<span>{creditBalance === null ? "..." : remaining} credits</span>
+			{/* ── Top bar ─────────────────────────────────────── */}
+			<header className="sticky top-0 z-50">
+				<div className="mx-auto max-w-6xl px-6 py-3">
+					<div className="flex items-center justify-between rounded-2xl border border-white/[0.06] bg-black/30 backdrop-blur-2xl px-5 py-2.5 shadow-lg">
+						<Link href="/" className="flex items-center gap-2.5">
+							<div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 shadow-[0_0_12px_hsl(262_83%_58%/0.3)]">
+								<Sparkles className="h-4 w-4 text-white" />
+							</div>
+							<span className="text-base font-bold tracking-tight font-[family-name:var(--font-display)] text-white">
+								VibeEdit
+							</span>
 						</Link>
-						<Link
-							href="/settings"
-							className="rounded-full p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-						>
-							<Settings className="h-4 w-4" />
-						</Link>
-						<button
-							onClick={() => signOut().then(() => router.push("/"))}
-							className="rounded-full p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-						>
-							<LogOut className="h-4 w-4" />
-						</button>
+
+						<div className="flex items-center gap-2">
+							<Link
+								href="/pricing"
+								className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 ${
+									isLowCredits
+										? "bg-red-500/15 text-red-400 border border-red-500/20"
+										: "bg-white/[0.06] text-white/70 hover:bg-white/10 hover:text-white"
+								}`}
+							>
+								<Coins className="h-3 w-3" />
+								{creditBalance === null ? "..." : remaining}
+							</Link>
+							<Link href="/settings" className="rounded-full p-2 text-white/40 hover:text-white hover:bg-white/5 transition-all duration-200">
+								<Settings className="h-4 w-4" />
+							</Link>
+							<button
+								onClick={() => signOut().then(() => router.push("/"))}
+								className="rounded-full p-2 text-white/40 hover:text-white hover:bg-white/5 transition-all duration-200"
+							>
+								<LogOut className="h-4 w-4" />
+							</button>
+						</div>
 					</div>
 				</div>
 			</header>
 
-			<main className="mx-auto max-w-5xl px-6 py-12">
-				{/* Welcome section */}
+			{/* ── Main content ────────────────────────────────── */}
+			<main className="relative mx-auto max-w-6xl px-6 py-10">
+				{/* Welcome + Actions */}
 				<motion.div
-					className="mb-10"
-					initial={{ opacity: 0, y: 12 }}
+					className="flex items-end justify-between mb-10"
+					initial={{ opacity: 0, y: 16 }}
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ duration: 0.4 }}
 				>
-					<h1 className="text-3xl font-bold tracking-tight font-[family-name:var(--font-display)]">
-						{session.user.name ? (
-							<>
-								Welcome back,{" "}
-								<span className="gradient-text bg-clip-text text-transparent">
-									{session.user.name}
-								</span>
-							</>
-						) : (
-							"Welcome back"
+					<div>
+						<h1 className="text-4xl font-extrabold tracking-tight font-[family-name:var(--font-display)]">
+							{firstName ? (
+								<>Hey, <span className="gradient-text">{firstName}</span></>
+							) : (
+								"Your Projects"
+							)}
+						</h1>
+						<p className="mt-2 text-muted-foreground">
+							{projects.length > 0 ? `${projects.length} project${projects.length === 1 ? "" : "s"}` : "Create your first project to get started"}
+						</p>
+					</div>
+
+					<div className="flex items-center gap-2">
+						<button
+							onClick={handleBackup}
+							className="rounded-full px-4 py-2 text-xs text-muted-foreground hover:text-foreground border border-border/30 hover:border-border/50 hover:bg-card/40 transition-all duration-200"
+						>
+							<Download className="h-3.5 w-3.5 inline mr-1.5" />
+							Backup
+						</button>
+						{!showCreate && (
+							<button
+								onClick={() => { setShowCreate(true); setNewProjectName(""); }}
+								className="group flex items-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-600 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_20px_hsl(262_83%_58%/0.25)] hover:shadow-[0_0_35px_hsl(262_83%_58%/0.4)] transition-all duration-300"
+							>
+								<Plus className="h-4 w-4" />
+								New Project
+								<ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+							</button>
 						)}
-					</h1>
-					<p className="mt-2 text-sm text-muted-foreground">
-						Your projects
-					</p>
+					</div>
 				</motion.div>
 
-				{/* New Project + Backup row */}
-				<motion.div
-					className="flex items-center gap-3 mb-8"
-					initial={{ opacity: 0, y: 8 }}
-					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.4, delay: 0.1 }}
-				>
-					{!showCreate ? (
-						<button
-							onClick={() => { setShowCreate(true); setNewProjectName(""); }}
-							className="flex items-center gap-2 gradient-primary text-white rounded-full px-5 py-2.5 text-sm font-semibold hover:glow-primary transition-all hover:shadow-lg hover:shadow-primary/25 active:scale-[0.98]"
-						>
-							<Plus className="h-4 w-4" />
-							New Project
-						</button>
-					) : (
-						<div className="flex items-center gap-2 flex-1 max-w-md">
+				{/* Create project inline */}
+				{showCreate && (
+					<motion.div
+						className="mb-8 rounded-2xl border border-border/30 bg-card/40 backdrop-blur-sm p-5"
+						initial={{ opacity: 0, height: 0 }}
+						animate={{ opacity: 1, height: "auto" }}
+						transition={{ duration: 0.3 }}
+					>
+						<p className="text-sm font-semibold font-[family-name:var(--font-display)] mb-3">Create a new project</p>
+						<div className="flex items-center gap-3">
 							<input
 								type="text"
 								value={newProjectName}
 								onChange={(e) => setNewProjectName(e.target.value)}
 								onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-								placeholder="Project name..."
+								placeholder="My awesome video..."
 								autoFocus
-								className="flex-1 rounded-full border border-border/40 bg-card/60 backdrop-blur-sm px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
+								className="flex-1 rounded-xl border border-border/30 bg-background/50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all placeholder:text-muted-foreground/50"
 							/>
 							<button
 								onClick={handleCreate}
 								disabled={!newProjectName.trim() || isCreating}
-								className="rounded-full gradient-primary text-white px-5 py-2.5 text-sm font-semibold hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 transition-all active:scale-[0.98]"
+								className="rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white px-6 py-3 text-sm font-semibold hover:shadow-[0_0_20px_hsl(262_83%_58%/0.3)] disabled:opacity-50 transition-all duration-200"
 							>
-								{isCreating ? "..." : "Create"}
+								{isCreating ? "Creating..." : "Create"}
 							</button>
 							<button
 								onClick={() => setShowCreate(false)}
-								className="text-sm text-muted-foreground hover:text-foreground px-3 py-2 rounded-full hover:bg-muted/50 transition-colors"
+								className="text-sm text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg hover:bg-muted/30 transition-colors"
 							>
 								Cancel
 							</button>
 						</div>
-					)}
-					<button
-						onClick={handleBackup}
-						className="ml-auto flex items-center gap-1.5 rounded-full px-4 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-						title="Download backup of all projects"
-					>
-						<Download className="h-3.5 w-3.5" />
-						Backup
-					</button>
-				</motion.div>
+					</motion.div>
+				)}
 
 				{/* Projects grid */}
 				{projects.length === 0 ? (
 					<motion.div
-						className="bg-card/60 backdrop-blur-sm border-2 border-dashed border-border/40 rounded-2xl py-20 text-center"
-						initial={{ opacity: 0, y: 12 }}
+						className="rounded-3xl border border-dashed border-border/30 py-24 text-center relative overflow-hidden"
+						initial={{ opacity: 0, y: 16 }}
 						animate={{ opacity: 1, y: 0 }}
-						transition={{ duration: 0.4, delay: 0.15 }}
+						transition={{ duration: 0.4, delay: 0.1 }}
 					>
-						<div className="flex flex-col items-center gap-4">
-							<div className="gradient-primary flex h-14 w-14 items-center justify-center rounded-2xl">
-								<FolderPlus className="h-7 w-7 text-white" />
+						{/* Subtle gradient bg */}
+						<div className="absolute inset-0 bg-gradient-to-b from-card/20 to-card/40" />
+						<div className="relative flex flex-col items-center gap-5">
+							<div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-500 to-fuchsia-600 shadow-[0_0_40px_hsl(262_83%_58%/0.25)]">
+								<Video className="h-9 w-9 text-white" />
 							</div>
 							<div>
-								<h3 className="text-lg font-semibold font-[family-name:var(--font-display)]">
-									No projects yet
+								<h3 className="text-2xl font-bold font-[family-name:var(--font-display)]">
+									Create your first video
 								</h3>
-								<p className="text-muted-foreground text-sm mt-1">
-									Create your first project to get started.
+								<p className="text-muted-foreground mt-2 max-w-sm mx-auto">
+									Upload media, describe your edit in plain English, and let AI do the rest.
 								</p>
 							</div>
 							<button
 								onClick={() => { setShowCreate(true); setNewProjectName(""); }}
-								className="mt-2 flex items-center gap-2 gradient-primary text-white rounded-full px-6 py-2.5 text-sm font-semibold hover:shadow-lg hover:shadow-primary/25 transition-all active:scale-[0.98]"
+								className="group mt-2 flex items-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-600 px-8 py-3.5 text-base font-semibold text-white shadow-[0_0_30px_hsl(262_83%_58%/0.3)] hover:shadow-[0_0_50px_hsl(262_83%_58%/0.5)] transition-all duration-300"
 							>
-								<Plus className="h-4 w-4" />
+								<Sparkles className="h-4 w-4" />
 								New Project
+								<ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
 							</button>
 						</div>
 					</motion.div>
 				) : (
 					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-						{projects.map((project, i) => (
-							<motion.div
-								key={project.id}
-								className="group relative bg-card/60 backdrop-blur-sm border border-border/40 rounded-2xl hover:border-primary/30 transition-colors"
-								initial={{ opacity: 0, y: 12 }}
-								animate={{ opacity: 1, y: 0 }}
-								transition={{ duration: 0.3, delay: 0.1 + i * 0.05 }}
-								whileHover={{
-									y: -2,
-									boxShadow: "0 8px 30px hsl(262 83% 58% / 0.1), 0 2px 8px rgba(0,0,0,0.08)",
-								}}
-							>
-								{/* Gradient left border accent on hover */}
-								<div className="absolute left-0 top-4 bottom-4 w-0.5 rounded-full gradient-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+						{projects.map((project, i) => {
+							const grad = projectGradient(project.name);
+							return (
+								<motion.div
+									key={project.id}
+									className="group relative rounded-2xl border border-border/20 bg-card/30 backdrop-blur-sm overflow-hidden transition-colors hover:border-primary/20"
+									initial={{ opacity: 0, y: 16 }}
+									animate={{ opacity: 1, y: 0 }}
+									transition={{ duration: 0.3, delay: 0.05 + i * 0.04 }}
+									whileHover={{
+										y: -3,
+										boxShadow: "0 12px 40px hsl(262 83% 58% / 0.08), 0 2px 8px rgba(0,0,0,0.06)",
+									}}
+								>
+									{/* Color banner */}
+									<div className={`h-1.5 w-full bg-gradient-to-r ${grad} opacity-60 group-hover:opacity-100 transition-opacity`} />
 
-								<Link href={`/editor/${project.id}`} className="block p-6">
-									<div className="flex items-start justify-between">
-										<div className="min-w-0 flex-1">
-											<h3 className="text-sm font-semibold truncate font-[family-name:var(--font-display)]">
-												{project.name}
-											</h3>
-											<p className="text-xs text-muted-foreground mt-1.5">
-												{timeAgo(project.updatedAt || project.createdAt)}
-											</p>
+									<Link href={`/editor/${project.id}`} className="block p-5">
+										<div className="flex items-start justify-between">
+											<div className="min-w-0 flex-1">
+												<div className="flex items-center gap-2.5 mb-2">
+													<div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${grad} shadow-sm`}>
+														<Video className="h-3.5 w-3.5 text-white" />
+													</div>
+													<h3 className="text-sm font-semibold truncate font-[family-name:var(--font-display)]">
+														{project.name}
+													</h3>
+												</div>
+												<p className="text-xs text-muted-foreground ml-[42px]">
+													{timeAgo(project.updatedAt || project.createdAt)}
+												</p>
+											</div>
+											<ExternalLink className="h-3.5 w-3.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1" />
 										</div>
-										<ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
+									</Link>
+
+									{/* Delete */}
+									<div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+										{deleteConfirm === project.id ? (
+											<div className="flex items-center gap-1.5 bg-card/95 backdrop-blur-sm rounded-full px-1.5 py-1 border border-border/30 shadow-sm">
+												<button
+													onClick={() => handleDelete(project.id)}
+													className="rounded-full px-2.5 py-1 text-[10px] font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors"
+												>
+													Delete
+												</button>
+												<button
+													onClick={() => setDeleteConfirm(null)}
+													className="text-[10px] text-muted-foreground hover:text-foreground px-1.5 transition-colors"
+												>
+													No
+												</button>
+											</div>
+										) : (
+											<button
+												onClick={() => setDeleteConfirm(project.id)}
+												className="rounded-full p-1.5 text-muted-foreground/50 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200"
+											>
+												<Trash2 className="h-3.5 w-3.5" />
+											</button>
+										)}
 									</div>
-								</Link>
-
-								{/* Delete button */}
-								<div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-									{deleteConfirm === project.id ? (
-										<div className="flex items-center gap-1.5 bg-card/90 backdrop-blur-sm rounded-full px-1.5 py-1 border border-border/40">
-											<button
-												onClick={() => handleDelete(project.id)}
-												className="rounded-full px-2.5 py-1 text-[10px] font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 transition-colors"
-											>
-												Delete
-											</button>
-											<button
-												onClick={() => setDeleteConfirm(null)}
-												className="text-[10px] text-muted-foreground hover:text-foreground px-1.5 transition-colors"
-											>
-												Cancel
-											</button>
-										</div>
-									) : (
-										<button
-											onClick={() => setDeleteConfirm(project.id)}
-											className="rounded-full p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-										>
-											<Trash2 className="h-3.5 w-3.5" />
-										</button>
-									)}
-								</div>
-							</motion.div>
-						))}
+								</motion.div>
+							);
+						})}
 					</div>
 				)}
 			</main>

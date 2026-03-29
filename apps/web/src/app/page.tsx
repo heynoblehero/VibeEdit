@@ -38,7 +38,7 @@ const pricing = [
 	{
 		name: "Pro", price: 20, subtitle: "500 credits", popular: true,
 		includesLabel: "Everything in Starter, plus:",
-		features: ["~500 AI edits", "~100 video exports", "Auto-clip generator", "AI Storyboard", "Priority support"],
+		features: ["~500 AI edits", "~100 video exports", "AI Storyboard", "Background removal", "Priority support"],
 	},
 	{
 		name: "Studio", price: 50, subtitle: "1,500 credits", popular: false,

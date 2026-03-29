@@ -17,9 +17,7 @@ import { CreditsBadge } from "@/components/editor/credits-badge";
 import { RenderingOverlay } from "@/components/editor/panels/preview/rendering-overlay";
 import { useAIChat } from "@/hooks/use-ai-chat";
 import { useEditor } from "@/hooks/use-editor";
-import { Layers, Settings, ChevronDown, Download, Scissors, Clapperboard, Sparkles } from "lucide-react";
-import { ClipperPanel } from "@/components/editor/clipper/clipper-panel";
-import { useClipperStore } from "@/stores/clipper-store";
+import { Layers, Settings, ChevronDown, Download, Clapperboard, Sparkles } from "lucide-react";
 import { StoryboardPanel } from "@/components/editor/storyboard/storyboard-panel";
 import { useStoryboardStore } from "@/stores/storyboard-store";
 
@@ -210,7 +208,6 @@ function EditorLayout() {
 
 	const [advancedView, setAdvancedView] = useState(false);
 	const { isLoading } = useAIChat();
-	const openClipper = useClipperStore((s) => s.open);
 	const openStoryboard = useStoryboardStore((s) => s.open);
 	return (
 		<div className="flex h-screen bg-background overflow-hidden">
@@ -230,7 +227,6 @@ function EditorLayout() {
 						<AssetDropdown />
 					</div>
 					<div className="flex items-center gap-1">
-						<ToolButton onClick={() => openClipper()} icon={Scissors} label="Auto Clip" />
 						<ToolButton onClick={() => openStoryboard()} icon={Clapperboard} label="Storyboard" />
 						<ToolButton onClick={() => setAdvancedView((v) => !v)} icon={Layers} label="Timeline" active={advancedView} />
 						<div className="w-px h-4 bg-border/30 mx-1" />
@@ -267,7 +263,6 @@ function EditorLayout() {
 					</div>
 				</div>
 			</div>
-			<ClipperPanel />
 			<StoryboardPanel />
 		</div>
 	);

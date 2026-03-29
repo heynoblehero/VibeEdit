@@ -1,22 +1,28 @@
 import type { EditorCore } from "@/core";
+import { storageService } from "@/services/storage/service";
 
 type SaveManagerOptions = {
 	debounceMs?: number;
+	versionIntervalMs?: number;
 };
 
 export class SaveManager {
 	private debounceMs: number;
+	private versionIntervalMs: number;
 	private isPaused = false;
 	private isSaving = false;
 	private hasPendingSave = false;
 	private saveTimer: ReturnType<typeof setTimeout> | null = null;
 	private unsubscribeHandlers: Array<() => void> = [];
+	private lastVersionTime = 0;
+	private saveCount = 0;
 
 	constructor(
 		private editor: EditorCore,
-		{ debounceMs = 800 }: SaveManagerOptions = {},
+		{ debounceMs = 800, versionIntervalMs = 60_000 }: SaveManagerOptions = {},
 	) {
 		this.debounceMs = debounceMs;
+		this.versionIntervalMs = versionIntervalMs;
 	}
 
 	start(): void {
@@ -91,12 +97,36 @@ export class SaveManager {
 
 		try {
 			await this.editor.project.saveCurrentProject();
+			this.saveCount++;
+
+			// Create version snapshot periodically (throttled)
+			const now = Date.now();
+			if (now - this.lastVersionTime >= this.versionIntervalMs) {
+				this.lastVersionTime = now;
+				this.createVersionSnapshot().catch(() => {});
+			}
 		} finally {
 			this.isSaving = false;
 			if (this.hasPendingSave) {
 				this.queueSave();
 			}
 		}
+	}
+
+	private async createVersionSnapshot(): Promise<void> {
+		const activeProject = this.editor.project.getActive();
+		if (!activeProject) return;
+
+		const projectId = activeProject.metadata.id;
+		const serialized = this.editor.project.serializeProject() as any;
+		if (!serialized) return;
+
+		const label = `Auto-save #${this.saveCount}`;
+		await storageService.saveVersionSnapshot({
+			projectId,
+			label,
+			project: serialized,
+		});
 	}
 
 	private clearTimer(): void {

@@ -43,7 +43,7 @@ const pricing = [
 	{
 		name: "Studio", price: 50, subtitle: "1,500 credits", popular: false,
 		includesLabel: "Everything in Pro, plus:",
-		features: ["~1,500 AI edits", "~300 video exports", "AI Avatar", "Team collaboration", "Custom export presets"],
+		features: ["~1,500 AI edits", "~300 video exports", "Team collaboration", "Custom export presets"],
 	},
 ];
 

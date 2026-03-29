@@ -198,6 +198,37 @@ export class ProjectManager {
 		}
 	}
 
+	serializeProject(): { metadata: { id: string; name: string; thumbnail?: string | null; duration: number; createdAt: string; updatedAt: string }; scenes: any[]; currentSceneId: string; settings: TProjectSettings; version: number; timelineViewState?: TTimelineViewState } | null {
+		if (!this.active) return null;
+		const scenes = this.editor.scenes.getScenes();
+		return {
+			metadata: {
+				id: this.active.metadata.id,
+				name: this.active.metadata.name,
+				thumbnail: this.active.metadata.thumbnail,
+				duration: getProjectDurationFromScenes({ scenes }),
+				createdAt: this.active.metadata.createdAt.toISOString(),
+				updatedAt: new Date().toISOString(),
+			},
+			scenes: scenes.map((scene) => ({
+				id: scene.id,
+				name: scene.name,
+				isMain: scene.isMain,
+				tracks: scene.tracks.map((track) => {
+					if (track.type !== "audio") return track;
+					return { ...track, elements: track.elements.map(({ buffer: _b, ...rest }) => rest) };
+				}),
+				bookmarks: scene.bookmarks,
+				createdAt: scene.createdAt.toISOString(),
+				updatedAt: scene.updatedAt.toISOString(),
+			})),
+			currentSceneId: this.active.currentSceneId,
+			settings: this.active.settings,
+			version: this.active.version,
+			timelineViewState: this.active.timelineViewState,
+		};
+	}
+
 	async export({ options }: { options: ExportOptions }): Promise<ExportResult> {
 		this.exportCancelRequested = false;
 		this.exportState = { isExporting: true, progress: 0, result: null };

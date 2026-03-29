@@ -12,6 +12,7 @@ import { buildScene } from "@/services/renderer/scene-builder";
 import { getLastFrameTime } from "@/lib/time";
 import { PreviewInteractionOverlay } from "./preview-interaction-overlay";
 import { BookmarkNoteOverlay } from "./bookmark-note-overlay";
+import { RenderingOverlay } from "./rendering-overlay";
 import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { usePreviewStore } from "@/stores/preview-store";
 import { PreviewContextMenu } from "./context-menu";
@@ -96,6 +97,8 @@ function PreviewCanvas({
 	const editor = useEditor();
 	const activeProject = editor.project.getActive();
 	const { overlays } = usePreviewStore();
+
+	const { isExporting } = editor.project.getExportState();
 
 	const renderer = useMemo(() => {
 		return new CanvasRenderer({
@@ -199,6 +202,7 @@ function PreviewCanvas({
 							containerRef={canvasBoundsRef}
 						/>
 						{overlays.bookmarks && <BookmarkNoteOverlay />}
+						{isExporting && <RenderingOverlay />}
 					</div>
 				</ContextMenuTrigger>
 				<PreviewContextMenu

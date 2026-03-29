@@ -2,50 +2,15 @@ import React from "react";
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import type { RemotionEffect } from "./types";
 import { logSecurity } from "@/lib/ai/security-log";
+import { validateUserCode } from "@/lib/ai/code-validator";
 
 type EffectRenderer = React.FC<{ frame: number; fps: number; width: number; height: number }>;
 
 const compiledEffects = new Map<string, EffectRenderer>();
 const effectsList: RemotionEffect[] = [];
 
-const BLOCKED_PATTERNS = [
-  /(?<!React\.)(?<!\w)fetch\s*\(/,          // fetch() but not someFetch()
-  /\bXMLHttpRequest\b/,
-  /\bnew\s+WebSocket\b/,
-  /\blocalStorage\b/,
-  /\bsessionStorage\b/,
-  /\bdocument\.cookie\b/,
-  /(?<!\w)eval\s*\(/,                        // eval() but not someEval()
-  /\bnew\s+Function\b/,
-  /\bimport\s*\(/,
-  /\brequire\s*\(/,
-  /\bwindow\.open\b/,
-  /\bnavigator\.sendBeacon\b/,               // specific navigator abuse, not all navigator
-  /\blocation\s*=\b/,                        // location assignment, not the word "location"
-  /\blocation\.href\s*=/,
-  /\b__editor\b/,
-  /\bprocess\.env\b/,
-  /\bglobalThis\b/,
-  /\bwindow\[/,
-  /\bdocument\.(write|querySelector|getElementById|body)/,  // removed createElement — React needs it
-  /\bpostMessage\b/,
-  /\bsetInterval\s*\(/,
-];
-
-function validateEffectCode(code: string): string | null {
-  for (const pattern of BLOCKED_PATTERNS) {
-    if (pattern.test(code)) {
-      return `Blocked: code contains unsafe pattern "${pattern.source}"`;
-    }
-  }
-  if (code.length > 5000) {
-    return "Code too long (max 5000 chars)";
-  }
-  return null;
-}
-
 export function registerEffect(effect: RemotionEffect): void {
-  const violation = validateEffectCode(effect.code);
+  const violation = validateUserCode(effect.code);
   if (violation) {
     logSecurity("critical", "remotion_code_blocked", { effectName: effect.name, violation });
     throw new Error(`Security: ${violation}`);
@@ -54,17 +19,19 @@ export function registerEffect(effect: RemotionEffect): void {
   try {
     // Compile the code string into a React component function
     // The code should be a function that receives { frame, fps, width, height }
+    // Shadow dangerous globals via var declarations in the body.
+    // NOTE: "eval" and "Function" cannot be var-declared in strict mode,
+    // but they are already blocked by validateUserCode() before reaching here.
     const compileFn = new Function(
       "React", "interpolate", "spring", "useCurrentFrame", "useVideoConfig",
-      // Shadow dangerous globals
-      "fetch", "XMLHttpRequest", "WebSocket", "localStorage", "sessionStorage",
-      "eval", "Function", "importScripts",
-      `"use strict"; return (${effect.code});`
+      `"use strict";
+       var fetch = void 0, XMLHttpRequest = void 0, WebSocket = void 0;
+       var localStorage = void 0, sessionStorage = void 0;
+       var importScripts = void 0;
+       return (${effect.code});`
     );
     const component = compileFn(
       React, interpolate, spring, useCurrentFrame, useVideoConfig,
-      undefined, undefined, undefined, undefined, undefined,
-      undefined, undefined, undefined
     ) as EffectRenderer;
     compiledEffects.set(effect.id, component);
 

@@ -146,6 +146,10 @@ export const ACTIONS = {
 		category: "history",
 		defaultShortcuts: ["ctrl+shift+z", "ctrl+y"],
 	},
+	"open-recording": {
+		description: "Open recording panel",
+		category: "controls",
+	},
 } as const satisfies Record<string, TActionDefinition>;
 
 export type TAction = keyof typeof ACTIONS;

@@ -5,6 +5,8 @@ import { registerEffect } from "@/lib/remotion/registry";
 import { getTemplate, getAllTemplates } from "@/lib/remotion/templates";
 import { exportProject, downloadProject } from "@/lib/project/save-load";
 import { getPreset, EXPORT_PRESETS } from "@/lib/project/export-presets";
+import { validateUserCode } from "@/lib/ai/code-validator";
+import { logSecurity } from "@/lib/ai/security-log";
 
 function getEditor(): EditorCore {
   const editor = (window as any).__editor;
@@ -213,6 +215,145 @@ function handleInsertAudio(params: Record<string, unknown>): void {
     },
     placement: { mode: "auto", trackType: "audio" },
   });
+}
+
+const MAX_GENERATED_IMAGE_SIZE = 4096;
+
+async function handleInsertGeneratedImage(params: Record<string, unknown>): Promise<unknown> {
+  const color = params.color as string | undefined;
+  const code = params.code as string | undefined;
+  const name = (params.name as string) ?? "Generated Image";
+  const startTime = (params.startTime as number) ?? 0;
+  const duration = (params.duration as number) ?? 5;
+
+  if (!color && !code) {
+    throw new Error("insert_generated_image requires at least one of color or code");
+  }
+
+  const editor = getEditor();
+  const activeProject = (window as any).__editor.project.getActive();
+  if (!activeProject) throw new Error("No active project");
+
+  const projectWidth = activeProject.settings?.canvasSize?.width ?? 1920;
+  const projectHeight = activeProject.settings?.canvasSize?.height ?? 1080;
+  const width = Math.min((params.width as number) ?? projectWidth, MAX_GENERATED_IMAGE_SIZE);
+  const height = Math.min((params.height as number) ?? projectHeight, MAX_GENERATED_IMAGE_SIZE);
+
+  // Validate drawing code if provided
+  if (code) {
+    const violation = validateUserCode(code);
+    if (violation) {
+      logSecurity("critical", "canvas_code_blocked", { name, violation });
+      throw new Error(`Security: ${violation}`);
+    }
+  }
+
+  // Create canvas and draw
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not get canvas 2D context");
+
+  // Apply solid color fill first (as base layer)
+  if (color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  // Execute drawing code on top
+  if (code) {
+    try {
+      // Determine if code is a function expression or imperative statements
+      const trimmed = code.trim();
+      const isFunctionExpr = /^\s*(\(|function[\s(])/.test(trimmed);
+      const userCode = isFunctionExpr
+        ? `var __fn = (${trimmed}); __fn(ctx, width, height);`
+        : code;
+
+      // Shadow dangerous globals via var declarations in the body.
+      // NOTE: "eval" and "Function" cannot be used as parameter names or
+      // var-declared in strict mode, but they are already blocked by
+      // validateUserCode() so they never reach execution.
+      const drawFn = new Function(
+        "ctx", "width", "height",
+        `"use strict";
+         var fetch = void 0, XMLHttpRequest = void 0, WebSocket = void 0;
+         var localStorage = void 0, sessionStorage = void 0;
+         var importScripts = void 0;
+         ${userCode}`
+      );
+      drawFn(ctx, width, height);
+    } catch (err) {
+      throw new Error(`Canvas drawing code error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Export canvas to PNG blob
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("Failed to export canvas to PNG"))),
+      "image/png"
+    );
+  });
+
+  const filename = `${name.replace(/[^a-zA-Z0-9_ -]/g, "_")}_${Date.now()}.png`;
+  const file = new File([blob], filename, { type: "image/png" });
+  const url = URL.createObjectURL(file);
+
+  // Generate a thumbnail data URL from the canvas
+  const thumbnailUrl = canvas.toDataURL("image/jpeg", 0.8);
+
+  // Add to media library (url is required for the scene builder to render the image)
+  await editor.media.addMediaAsset({
+    projectId: activeProject.metadata.id,
+    asset: {
+      name: filename,
+      type: "image" as const,
+      file,
+      url,
+      thumbnailUrl,
+      width,
+      height,
+    },
+  });
+
+  // Find the newly added asset
+  const allAssets = editor.media.getAssets();
+  const addedAsset = allAssets.find((a: any) => a.name === filename);
+  if (!addedAsset) throw new Error("Failed to find generated image in media library");
+
+  // Insert as image element on the video track
+  editor.timeline.insertElement({
+    element: {
+      type: "image" as const,
+      mediaId: addedAsset.id,
+      name,
+      duration,
+      startTime,
+      trimStart: 0,
+      trimEnd: 0,
+      transform: (params.transform as {
+        scale: number;
+        position: { x: number; y: number };
+        rotate: number;
+      }) ?? {
+        scale: (params.scale as number) ?? 1,
+        position: (params.position as { x: number; y: number }) ?? { x: 0, y: 0 },
+        rotate: 0,
+      },
+      opacity: (params.opacity as number) ?? 1,
+    },
+    placement: { mode: "auto", trackType: "video" },
+  });
+
+  return {
+    mediaId: addedAsset.id,
+    name: filename,
+    startTime,
+    duration,
+    message: `Generated and inserted "${name}" (${width}x${height}) on timeline`,
+  };
 }
 
 function handleUpdateElement(params: Record<string, unknown>): void {
@@ -788,6 +929,10 @@ async function executeAction(action: AIAction): Promise<AIActionResult> {
       case "insert_audio": {
         handleInsertAudio(params);
         return { tool, success: true };
+      }
+      case "insert_generated_image": {
+        const result = await handleInsertGeneratedImage(params);
+        return { tool, success: true, result };
       }
       case "update_element": {
         handleUpdateElement(params);

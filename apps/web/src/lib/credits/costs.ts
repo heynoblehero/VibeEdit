@@ -13,6 +13,12 @@ export const CREDIT_COSTS: Record<string, number> = {
   // Auto-caption
   auto_caption: 5,
 
+  // Storyboard generation
+  storyboard_generate: 10,
+
+  // Auto-clip analysis
+  clip_analysis: 10,
+
   // Render (per minute of output video)
   render_per_minute: 10,
 
@@ -20,6 +26,7 @@ export const CREDIT_COSTS: Record<string, number> = {
   insert_text: 0,
   insert_video: 0,
   insert_image: 0,
+  insert_generated_image: 0,
   insert_audio: 0,
   update_element: 0,
   delete_elements: 0,

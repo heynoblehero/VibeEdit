@@ -17,15 +17,11 @@ import { CreditsBadge } from "@/components/editor/credits-badge";
 import { RenderingOverlay } from "@/components/editor/panels/preview/rendering-overlay";
 import { useAIChat } from "@/hooks/use-ai-chat";
 import { useEditor } from "@/hooks/use-editor";
-import { Layers, Settings, ChevronDown, Camera, Download, Scissors, Clapperboard, Smile, Sparkles } from "lucide-react";
-import { RecordingPanel } from "@/components/editor/recording/recording-panel";
-import { useRecordingStore } from "@/stores/recording-store";
+import { Layers, Settings, ChevronDown, Download, Scissors, Clapperboard, Sparkles } from "lucide-react";
 import { ClipperPanel } from "@/components/editor/clipper/clipper-panel";
 import { useClipperStore } from "@/stores/clipper-store";
 import { StoryboardPanel } from "@/components/editor/storyboard/storyboard-panel";
 import { useStoryboardStore } from "@/stores/storyboard-store";
-import { AvatarPanel } from "@/components/editor/avatar/avatar-panel";
-import { useAvatarStore } from "@/stores/avatar-store";
 
 export default function Editor() {
 	const params = useParams();
@@ -214,11 +210,8 @@ function EditorLayout() {
 
 	const [advancedView, setAdvancedView] = useState(false);
 	const { isLoading } = useAIChat();
-	const openRecording = useRecordingStore((s) => s.open);
 	const openClipper = useClipperStore((s) => s.open);
 	const openStoryboard = useStoryboardStore((s) => s.open);
-	const openAvatar = useAvatarStore((s) => s.open);
-
 	return (
 		<div className="flex h-screen bg-background overflow-hidden">
 			{/* LEFT: Chat */}
@@ -237,10 +230,8 @@ function EditorLayout() {
 						<AssetDropdown />
 					</div>
 					<div className="flex items-center gap-1">
-						<ToolButton onClick={() => openRecording()} icon={Camera} label="Record" />
 						<ToolButton onClick={() => openClipper()} icon={Scissors} label="Auto Clip" />
 						<ToolButton onClick={() => openStoryboard()} icon={Clapperboard} label="Storyboard" />
-						<ToolButton onClick={() => openAvatar()} icon={Smile} label="Avatar" />
 						<ToolButton onClick={() => setAdvancedView((v) => !v)} icon={Layers} label="Timeline" active={advancedView} />
 						<div className="w-px h-4 bg-border/30 mx-1" />
 						<CreditsBadge />
@@ -276,10 +267,8 @@ function EditorLayout() {
 					</div>
 				</div>
 			</div>
-			<RecordingPanel />
 			<ClipperPanel />
 			<StoryboardPanel />
-			<AvatarPanel />
 		</div>
 	);
 }

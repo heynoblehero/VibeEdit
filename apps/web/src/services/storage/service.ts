@@ -486,6 +486,107 @@ class StorageService {
 	isFullySupported(): boolean {
 		return this.isIndexedDBSupported() && this.isOPFSSupported();
 	}
+
+	// ── Chat History ──
+
+	private getChatAdapter({ projectId }: { projectId: string }) {
+		return new IndexedDBAdapter<{ messages: unknown[]; sessionId: string | null }>(
+			`video-editor-chat-${projectId}`,
+			"chat",
+			this.config.version,
+		);
+	}
+
+	async saveChatHistory({
+		projectId,
+		messages,
+		sessionId,
+	}: {
+		projectId: string;
+		messages: unknown[];
+		sessionId: string | null;
+	}): Promise<void> {
+		const adapter = this.getChatAdapter({ projectId });
+		await adapter.set(projectId, { messages, sessionId } as any);
+	}
+
+	async loadChatHistory({
+		projectId,
+	}: {
+		projectId: string;
+	}): Promise<{ messages: unknown[]; sessionId: string | null } | null> {
+		const adapter = this.getChatAdapter({ projectId });
+		const data = await adapter.get(projectId);
+		if (!data) return null;
+		return { messages: (data as any).messages || [], sessionId: (data as any).sessionId || null };
+	}
+
+	// ── Project Version Snapshots ──
+
+	private getVersionAdapter({ projectId }: { projectId: string }) {
+		return new IndexedDBAdapter<{
+			label: string;
+			timestamp: number;
+			project: SerializedProject;
+		}>(
+			`video-editor-versions-${projectId}`,
+			"versions",
+			this.config.version,
+		);
+	}
+
+	async saveVersionSnapshot({
+		projectId,
+		label,
+		project,
+	}: {
+		projectId: string;
+		label: string;
+		project: SerializedProject;
+	}): Promise<string> {
+		const adapter = this.getVersionAdapter({ projectId });
+		const snapshotId = `v-${Date.now()}`;
+		await adapter.set(snapshotId, { label, timestamp: Date.now(), project } as any);
+
+		// Keep max 50 versions — prune oldest if over limit
+		const allIds = await adapter.list();
+		if (allIds.length > 50) {
+			const toDelete = allIds.sort().slice(0, allIds.length - 50);
+			for (const id of toDelete) {
+				await adapter.remove(id);
+			}
+		}
+
+		return snapshotId;
+	}
+
+	async loadVersionSnapshots({
+		projectId,
+	}: {
+		projectId: string;
+	}): Promise<Array<{ id: string; label: string; timestamp: number }>> {
+		const adapter = this.getVersionAdapter({ projectId });
+		const all = await adapter.getAll();
+		return all
+			.map((item: any) => ({
+				id: item.id,
+				label: item.label,
+				timestamp: item.timestamp,
+			}))
+			.sort((a, b) => b.timestamp - a.timestamp);
+	}
+
+	async loadVersionSnapshot({
+		projectId,
+		snapshotId,
+	}: {
+		projectId: string;
+		snapshotId: string;
+	}): Promise<SerializedProject | null> {
+		const adapter = this.getVersionAdapter({ projectId });
+		const data = await adapter.get(snapshotId);
+		return (data as any)?.project || null;
+	}
 }
 
 export const storageService = new StorageService();

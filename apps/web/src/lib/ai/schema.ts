@@ -20,6 +20,7 @@ export const AI_RESPONSE_SCHEMA = {
               "insert_text",
               "insert_video",
               "insert_image",
+              "insert_generated_image",
               "insert_audio",
               "update_element",
               "delete_elements",

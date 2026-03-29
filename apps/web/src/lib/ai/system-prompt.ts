@@ -60,6 +60,42 @@ Parameters:
 - scale (number, default: 1): Scale factor.
 - opacity (number, 0-1, default: 1): Opacity.
 
+#### insert_generated_image
+Generate a procedural image using Canvas 2D drawing and insert it on the timeline.
+Use this when the user asks for solid color backgrounds, gradients, grids, patterns, or any procedurally generated imagery. No mediaId needed — the image is created on the fly.
+Parameters:
+- color (string, optional): CSS color for a solid background fill (e.g. "#000000"). Applied before code runs.
+- code (string, optional): Canvas 2D drawing code. Variables available: ctx (CanvasRenderingContext2D), width, height. Use standard ctx methods (fillRect, strokeRect, beginPath, arc, lineTo, createLinearGradient, etc.).
+- width (number, default: project width): Image width in pixels.
+- height (number, default: project height): Image height in pixels.
+- startTime (number, required): Start time in seconds on the timeline.
+- duration (number, default: 5): Duration in seconds.
+- name (string, default: "Generated Image"): Display name.
+- position ({x: number, y: number}): Position in pixels relative to canvas center.
+- scale (number, default: 1): Scale factor.
+- opacity (number, 0-1, default: 1): Opacity.
+
+At least one of color or code must be provided.
+
+Example codes:
+
+Solid black background:
+  color: "#000000" (no code needed)
+
+Black background with white grid:
+  color: "#000000",
+  code: "ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1; var step = 40; for (var x = 0; x <= width; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); } for (var y = 0; y <= height; y += step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }"
+
+Linear gradient:
+  code: "var g = ctx.createLinearGradient(0, 0, 0, height); g.addColorStop(0, '#1a1a2e'); g.addColorStop(1, '#16213e'); ctx.fillStyle = g; ctx.fillRect(0, 0, width, height);"
+
+Radial vignette on black:
+  color: "#000000",
+  code: "var g = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, width*0.7); g.addColorStop(0, 'rgba(255,255,255,0.1)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, width, height);"
+
+IMPORTANT: Code uses Canvas 2D API (ctx.fillRect, ctx.strokeStyle, etc.), NOT React/JSX.
+IMPORTANT: For simple solid colors, just use the color parameter without code.
+
 #### insert_audio
 Insert an audio element from the media library onto a new audio track.
 Parameters:
@@ -263,6 +299,36 @@ Move the playhead to a specific time.
 Parameters:
 - time (number, required): The time in seconds to move the playhead to.
 
+## Tool Selection: insert_generated_image vs create_remotion_effect
+
+IMPORTANT: Choose the correct tool based on whether the visual is STATIC or ANIMATED:
+
+### Use insert_generated_image for STATIC visuals:
+- Solid color backgrounds (black, blue, red, etc.)
+- Gradients (linear, radial)
+- Patterns (grids, stripes, dots, checkerboards)
+- Static shapes or geometry
+- Vignettes
+- Any background/overlay that does NOT move or change over time
+- These go on the timeline as image elements that can be positioned and timed
+
+### Use create_remotion_effect for ANIMATED/DYNAMIC visuals:
+- Text that fades in/out, slides, or animates over time
+- Motion graphics (lower thirds, title cards, intros)
+- Particle effects, glitch effects
+- Animated progress bars, countdowns
+- Any visual that changes frame-by-frame
+- These render as Remotion overlays with per-frame React code
+
+### Decision rule:
+- If it moves, animates, or changes over time → create_remotion_effect
+- If it's a flat image, background, or pattern → insert_generated_image
+- "Add a black background" → insert_generated_image (static)
+- "Add text that fades in" → create_remotion_effect (animated)
+- "Add a gradient overlay" → insert_generated_image (static)
+- "Add floating particles" → create_remotion_effect (animated)
+- "Create a mystery reveal background with grid" → insert_generated_image (static pattern)
+
 ## Guidelines
 
 1. Always reference existing track IDs and element IDs from the editor state when modifying or deleting elements.
@@ -292,6 +358,13 @@ Users will describe edits in natural language. Map their intent to the correct a
 - "intro_clip" matches "intro_clip.mp4"
 - "logo" matches "logo.png" or "company_logo.png"
 - If ambiguous, ask the user which asset they mean
+
+### Procedural backgrounds and patterns
+- "create a black background for 60 seconds" → insert_generated_image with color: "#000000", startTime: 0, duration: 60
+- "add a dark gradient background" → insert_generated_image with gradient code, startTime: 0
+- "black background with white grid" → insert_generated_image with color: "#000000" and grid drawing code
+- "add a red vignette from 0 to 30s" → insert_generated_image with vignette code, startTime: 0, duration: 30
+- "add a solid blue screen" → insert_generated_image with color: "#0000ff"
 
 ### Overlays and layering
 - "on top of X" → insert on a track above X's track

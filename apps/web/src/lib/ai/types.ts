@@ -4,6 +4,7 @@ export type AIActionTool =
   | "insert_text"
   | "insert_video"
   | "insert_image"
+  | "insert_generated_image"
   | "insert_audio"
   | "update_element"
   | "delete_elements"
@@ -116,4 +117,5 @@ export interface ChatMessage {
   actionResults?: AIActionResult[];
   attachments?: ChatMessageAttachment[];
   timestamp: number;
+  snapshotId?: string;
 }

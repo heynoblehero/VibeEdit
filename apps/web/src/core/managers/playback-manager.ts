@@ -147,7 +147,6 @@ export class PlaybackManager {
 		const duration = this.editor.timeline.getTotalDuration();
 
 		if (duration > 0 && newTime >= duration) {
-			this.pause();
 			this.currentTime = duration;
 			this.notify();
 
@@ -156,16 +155,20 @@ export class PlaybackManager {
 					detail: { time: duration },
 				}),
 			);
-		} else {
-			this.currentTime = newTime;
-			this.notify();
 
-			window.dispatchEvent(
-				new CustomEvent("playback-update", {
-					detail: { time: newTime },
-				}),
-			);
+			// Stop playback after reaching the end — do NOT schedule another frame
+			this.pause();
+			return;
 		}
+
+		this.currentTime = newTime;
+		this.notify();
+
+		window.dispatchEvent(
+			new CustomEvent("playback-update", {
+				detail: { time: newTime },
+			}),
+		);
 
 		this.playbackTimer = requestAnimationFrame(this.updateTime);
 	};

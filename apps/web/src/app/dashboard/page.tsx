@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession, signOut } from "@/lib/auth/client";
 import { motion } from "motion/react";
 import {
-	Coins, Plus, Trash2, ExternalLink, Download, LogOut,
+	Coins, Plus, Trash2, Download, LogOut,
 	Settings, Sparkles, FolderPlus, ArrowRight, Video,
+	Upload, Play, CreditCard, Film, Calendar,
 } from "lucide-react";
 
 interface Project {
@@ -29,6 +30,12 @@ function timeAgo(d: Date | string | null): string {
 	const days = Math.floor(hours / 24);
 	if (days < 7) return `${days}d ago`;
 	return date.toLocaleDateString();
+}
+
+function memberSince(d: Date | string | null | undefined): string {
+	if (!d) return "Recently";
+	const date = new Date(d);
+	return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
 // Deterministic color from project name
@@ -57,6 +64,7 @@ export default function DashboardPage() {
 	const [isCreating, setIsCreating] = useState(false);
 	const [showCreate, setShowCreate] = useState(false);
 	const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+	const importInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
 		if (!isPending && !session) router.push("/login");
@@ -116,12 +124,85 @@ export default function DashboardPage() {
 		URL.revokeObjectURL(url);
 	}
 
+	function handleImportClick() {
+		importInputRef.current?.click();
+	}
+
+	async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+		const file = e.target.files?.[0];
+		if (!file) return;
+		try {
+			const text = await file.text();
+			const data = JSON.parse(text);
+			if (data.projects && Array.isArray(data.projects)) {
+				for (const project of data.projects) {
+					await fetch("/api/projects", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ id: project.id || crypto.randomUUID(), name: project.name }),
+					});
+				}
+				// Refresh project list
+				const resp = await fetch("/api/projects");
+				const refreshed = await resp.json();
+				setProjects(refreshed.projects || []);
+			}
+		} catch {
+			// silently ignore bad files
+		}
+		// Reset input so the same file can be re-imported
+		if (importInputRef.current) importInputRef.current.value = "";
+	}
+
 	const remaining = creditBalance ?? 0;
 	const isLowCredits = remaining < 10;
 	const firstName = session.user.name?.split(" ")[0];
 
+	const quickActions = [
+		{
+			label: "New Video",
+			icon: <Plus className="h-4 w-4" />,
+			gradient: "from-violet-500 to-fuchsia-500",
+			onClick: () => { setShowCreate(true); setNewProjectName(""); },
+		},
+		{
+			label: "Import Project",
+			icon: <Upload className="h-4 w-4" />,
+			gradient: "from-cyan-500 to-blue-500",
+			onClick: handleImportClick,
+		},
+		{
+			label: "Watch Tutorial",
+			icon: <Play className="h-4 w-4" />,
+			gradient: "from-emerald-500 to-green-500",
+			href: "https://www.youtube.com/@vibeedit",
+			external: true,
+		},
+		{
+			label: "Buy Credits",
+			icon: <CreditCard className="h-4 w-4" />,
+			gradient: "from-amber-500 to-orange-500",
+			href: "/pricing",
+		},
+	];
+
+	const examplePrompts = [
+		"Add my intro clip as the main video",
+		"Cut the first 3 seconds and add a fade in",
+		"Overlay background music at 50% volume",
+	];
+
 	return (
 		<div className="min-h-screen bg-background text-foreground">
+			{/* Hidden file input for import */}
+			<input
+				ref={importInputRef}
+				type="file"
+				accept=".json,.vibeedit"
+				className="hidden"
+				onChange={handleImportFile}
+			/>
+
 			{/* ── Gradient background ─────────────────────────── */}
 			<div className="fixed inset-0 pointer-events-none">
 				<div className="absolute -top-[40%] -left-[20%] w-[60%] h-[60%] rounded-full bg-gradient-to-br from-violet-600/[0.07] via-purple-600/[0.04] to-transparent blur-[100px]" />
@@ -171,7 +252,7 @@ export default function DashboardPage() {
 			<main className="relative mx-auto max-w-6xl px-6 py-10">
 				{/* Welcome + Actions */}
 				<motion.div
-					className="flex items-end justify-between mb-10"
+					className="flex items-end justify-between mb-4"
 					initial={{ opacity: 0, y: 16 }}
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ duration: 0.4 }}
@@ -208,6 +289,74 @@ export default function DashboardPage() {
 							</button>
 						)}
 					</div>
+				</motion.div>
+
+				{/* ── Stats bar ───────────────────────────────────── */}
+				<motion.div
+					className="flex items-center gap-3 mb-8 text-xs text-muted-foreground/70"
+					initial={{ opacity: 0 }}
+					animate={{ opacity: 1 }}
+					transition={{ duration: 0.4, delay: 0.1 }}
+				>
+					<span className="flex items-center gap-1.5">
+						<FolderPlus className="h-3 w-3" />
+						{projects.length} project{projects.length === 1 ? "" : "s"}
+					</span>
+					<span className="text-border/50">|</span>
+					<span className="flex items-center gap-1.5">
+						<Coins className="h-3 w-3" />
+						{creditBalance === null ? "..." : remaining} credits remaining
+					</span>
+					<span className="text-border/50">|</span>
+					<span className="flex items-center gap-1.5">
+						<Calendar className="h-3 w-3" />
+						Member since {memberSince((session.user as Record<string, unknown>).createdAt as string | null | undefined)}
+					</span>
+				</motion.div>
+
+				{/* ── Quick Actions Row ───────────────────────────── */}
+				<motion.div
+					className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10"
+					initial={{ opacity: 0, y: 12 }}
+					animate={{ opacity: 1, y: 0 }}
+					transition={{ duration: 0.4, delay: 0.15 }}
+				>
+					{quickActions.map((action) => {
+						const inner = (
+							<motion.div
+								className="group flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-sm px-4 py-3 cursor-pointer transition-colors hover:bg-white/[0.06] hover:border-white/[0.1]"
+								whileHover={{ y: -2 }}
+								transition={{ duration: 0.2 }}
+							>
+								<div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${action.gradient} shadow-sm`}>
+									{action.icon}
+								</div>
+								<span className="text-sm font-medium text-white/80 group-hover:text-white transition-colors">
+									{action.label}
+								</span>
+							</motion.div>
+						);
+
+						if (action.href && action.external) {
+							return (
+								<a key={action.label} href={action.href} target="_blank" rel="noopener noreferrer">
+									{inner}
+								</a>
+							);
+						}
+						if (action.href) {
+							return (
+								<Link key={action.label} href={action.href}>
+									{inner}
+								</Link>
+							);
+						}
+						return (
+							<div key={action.label} onClick={action.onClick}>
+								{inner}
+							</div>
+						);
+					})}
 				</motion.div>
 
 				{/* Create project inline */}
@@ -276,6 +425,22 @@ export default function DashboardPage() {
 								New Project
 								<ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
 							</button>
+
+							{/* Example prompts */}
+							<div className="mt-6 flex flex-col items-center gap-2.5 max-w-md">
+								<p className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wider">
+									Try saying
+								</p>
+								{examplePrompts.map((prompt) => (
+									<div
+										key={prompt}
+										className="flex items-center gap-2 rounded-full border border-border/20 bg-white/[0.03] px-4 py-2 text-sm text-muted-foreground/80"
+									>
+										<Sparkles className="h-3 w-3 text-violet-400/60 shrink-0" />
+										<span className="italic">&ldquo;{prompt}&rdquo;</span>
+									</div>
+								))}
+							</div>
 						</div>
 					</motion.div>
 				) : (
@@ -297,22 +462,35 @@ export default function DashboardPage() {
 									{/* Color banner */}
 									<div className={`h-1.5 w-full bg-gradient-to-r ${grad} opacity-60 group-hover:opacity-100 transition-opacity`} />
 
+									{/* Film strip decoration */}
+									<div className="absolute top-1.5 right-0 h-full w-6 opacity-0 group-hover:opacity-[0.04] transition-opacity pointer-events-none">
+										{Array.from({ length: 8 }).map((_, idx) => (
+											<div key={idx} className="w-3 h-2 bg-white rounded-[1px] ml-1.5 mb-1" />
+										))}
+									</div>
+
 									<Link href={`/editor/${project.id}`} className="block p-5">
 										<div className="flex items-start justify-between">
 											<div className="min-w-0 flex-1">
-												<div className="flex items-center gap-2.5 mb-2">
+												<div className="flex items-center gap-2.5 mb-1">
 													<div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${grad} shadow-sm`}>
-														<Video className="h-3.5 w-3.5 text-white" />
+														<Film className="h-3.5 w-3.5 text-white" />
 													</div>
 													<h3 className="text-sm font-semibold truncate font-[family-name:var(--font-display)]">
 														{project.name}
 													</h3>
 												</div>
-												<p className="text-xs text-muted-foreground ml-[42px]">
-													{timeAgo(project.updatedAt || project.createdAt)}
-												</p>
+												<div className="ml-[42px] flex items-center gap-2">
+													<p className="text-[11px] text-muted-foreground/70 font-medium">
+														Edited {timeAgo(project.updatedAt || project.createdAt)}
+													</p>
+												</div>
 											</div>
-											<ExternalLink className="h-3.5 w-3.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1" />
+											{/* "Open" text that slides in on hover */}
+											<div className="flex items-center gap-1 opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 shrink-0 mt-1">
+												<span className="text-xs font-medium text-primary/80">Open</span>
+												<ArrowRight className="h-3 w-3 text-primary/80" />
+											</div>
 										</div>
 									</Link>
 

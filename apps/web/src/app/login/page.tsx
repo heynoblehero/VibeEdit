@@ -3,19 +3,10 @@
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { motion } from "motion/react";
 import { signIn } from "@/lib/auth/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardFooter,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
-import { FloatingOrbs } from "@/components/ui/motion/floating-orbs";
+import { Sparkles } from "lucide-react";
 
 function LoginForm() {
 	const router = useRouter();
@@ -32,7 +23,6 @@ function LoginForm() {
 		e.preventDefault();
 		setError("");
 		setLoading(true);
-
 		try {
 			const result = await signIn.email({ email, password });
 			if (result.error) {
@@ -48,91 +38,76 @@ function LoginForm() {
 	}
 
 	return (
-		<div className="relative flex min-h-screen items-center justify-center gradient-hero-bg px-4">
-			<FloatingOrbs />
-			<motion.div
-				initial={{ opacity: 0, y: 20, scale: 0.97 }}
-				animate={{ opacity: 1, y: 0, scale: 1 }}
-				transition={{ duration: 0.5, ease: [0.25, 0.4, 0.25, 1] }}
-				className="relative z-10 w-full max-w-md"
-			>
-				<Card className="glass-strong rounded-2xl shadow-xl border-border/40">
-					<CardHeader className="text-center">
-						<CardTitle className="text-2xl font-bold font-[family-name:var(--font-display)]">
-							Welcome back
-						</CardTitle>
-						<CardDescription>Sign in to your VibeEdit account</CardDescription>
-					</CardHeader>
-					<form onSubmit={handleSubmit}>
-						<CardContent className="space-y-4">
-							{error && (
-								<div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
-									{error}
-								</div>
-							)}
-							<div className="space-y-2">
-								<Label htmlFor="email">Email</Label>
-								<Input
-									id="email"
-									type="email"
-									placeholder="you@example.com"
-									value={email}
-									onChange={(e) => setEmail(e.target.value)}
-									required
-									autoComplete="email"
-								/>
+		<div className="min-h-screen bg-[#08080c] flex items-center justify-center px-4 relative overflow-hidden">
+			{/* BG blobs */}
+			<div className="absolute -top-[30%] -left-[15%] w-[50%] h-[50%] rounded-full bg-violet-600/15 blur-[100px]" />
+			<div className="absolute -bottom-[20%] -right-[15%] w-[40%] h-[40%] rounded-full bg-fuchsia-600/10 blur-[100px]" />
+
+			<div className="relative z-10 w-full max-w-md">
+				{/* Logo */}
+				<div className="flex items-center justify-center gap-2.5 mb-8">
+					<div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 shadow-[0_0_20px_hsl(262_83%_58%/0.3)]">
+						<Sparkles className="h-5 w-5 text-white" />
+					</div>
+					<span className="text-xl font-bold font-[family-name:var(--font-display)] text-white">VibeEdit</span>
+				</div>
+
+				{/* Card */}
+				<div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm p-8">
+					<div className="text-center mb-6">
+						<h1 className="text-2xl font-bold font-[family-name:var(--font-display)] text-white">Welcome back</h1>
+						<p className="text-sm text-white/50 mt-1">Sign in to your account</p>
+					</div>
+
+					<form onSubmit={handleSubmit} className="space-y-4">
+						{error && (
+							<div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+								{error}
 							</div>
-							<div className="space-y-2">
-								<Label htmlFor="password">Password</Label>
-								<Input
-									id="password"
-									type="password"
-									placeholder="Enter your password"
-									value={password}
-									onChange={(e) => setPassword(e.target.value)}
-									showPassword={showPassword}
-									onShowPasswordChange={setShowPassword}
-									required
-									autoComplete="current-password"
-								/>
-							</div>
-							<div className="flex justify-end">
-								<a
-									href="/forgot-password"
-									className="text-xs text-primary hover:underline"
-								>
-									Forgot password?
-								</a>
-							</div>
-						</CardContent>
-						<CardFooter className="flex flex-col gap-4">
-							<button
-								type="submit"
-								className="w-full gradient-primary text-white rounded-full py-3 text-sm font-semibold transition-all duration-200 hover:shadow-[0_0_30px_hsl(262_83%_58%/0.4)] hover:brightness-110 disabled:opacity-50 disabled:pointer-events-none"
-								disabled={loading}
-							>
-								{loading ? "Signing in..." : "Sign in"}
-							</button>
-							<p className="text-sm text-muted-foreground">
-								Don&apos;t have an account?{" "}
-								<Link
-									href="/register"
-									className="text-primary underline underline-offset-4 hover:text-primary/80"
-								>
-									Register
-								</Link>
-							</p>
-						</CardFooter>
+						)}
+						<div className="space-y-2">
+							<Label htmlFor="email" className="text-white/70 text-sm font-medium">Email</Label>
+							<Input
+								id="email" type="email" placeholder="you@example.com"
+								value={email} onChange={(e) => setEmail(e.target.value)}
+								required autoComplete="email"
+								className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/25 focus:border-violet-500/50 focus:ring-violet-500/20 rounded-xl h-11"
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="password" className="text-white/70 text-sm font-medium">Password</Label>
+							<Input
+								id="password" type="password" placeholder="Enter your password"
+								value={password} onChange={(e) => setPassword(e.target.value)}
+								showPassword={showPassword} onShowPasswordChange={setShowPassword}
+								required autoComplete="current-password"
+								className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/25 focus:border-violet-500/50 focus:ring-violet-500/20 rounded-xl h-11"
+							/>
+						</div>
+						<div className="flex justify-end">
+							<a href="/forgot-password" className="text-xs text-violet-400 hover:text-violet-300">Forgot password?</a>
+						</div>
+						<button
+							type="submit" disabled={loading}
+							className="w-full rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-600 py-3 text-sm font-bold text-white hover:shadow-[0_0_30px_hsl(262_83%_58%/0.4)] disabled:opacity-50 transition-all duration-200 mt-2"
+						>
+							{loading ? "Signing in..." : "Sign in"}
+						</button>
 					</form>
-				</Card>
-			</motion.div>
+
+					<p className="text-sm text-white/40 text-center mt-6">
+						Don&apos;t have an account?{" "}
+						<Link href="/register" className="text-violet-400 hover:text-violet-300 font-medium">Register</Link>
+					</p>
+				</div>
+			</div>
 		</div>
 	);
 }
 
 export default function LoginPage() {
 	return (
-		<Suspense fallback={<div className="flex min-h-screen items-center justify-center gradient-hero-bg"><p className="text-muted-foreground">Loading...</p></div>}>
+		<Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#08080c]"><p className="text-white/40">Loading...</p></div>}>
 			<LoginForm />
 		</Suspense>
 	);

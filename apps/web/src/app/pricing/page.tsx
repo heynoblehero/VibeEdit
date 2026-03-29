@@ -85,7 +85,7 @@ const trustBadges = [
 
 export default function PricingPage() {
 	return (
-		<div className="min-h-screen bg-background text-foreground">
+		<div className="min-h-screen bg-[#08080c] text-white">
 			<MarketingNav />
 
 			{/* Hero Header */}

@@ -220,14 +220,14 @@ function EditorLayout() {
 	const openAvatar = useAvatarStore((s) => s.open);
 
 	return (
-		<div className="flex h-screen bg-background">
+		<div className="flex h-screen bg-background overflow-hidden">
 			{/* LEFT: Chat */}
-			<div className="w-[60%] shrink-0 border-r border-border/30">
+			<div className="w-[60%] shrink-0 border-r border-border/30 overflow-hidden">
 				<ChatPanel />
 			</div>
 
 			{/* RIGHT: Preview + controls */}
-			<div className="flex-1 flex flex-col min-w-0">
+			<div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 				{/* Top toolbar */}
 				<div className="shrink-0 border-b border-border/30 px-3 py-1.5 flex items-center justify-between glass-strong">
 					<div className="flex items-center gap-1">

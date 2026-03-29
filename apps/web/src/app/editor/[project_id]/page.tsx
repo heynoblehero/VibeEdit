@@ -13,8 +13,19 @@ import { MigrationDialog } from "@/components/editor/dialogs/migration-dialog";
 import { usePasteMedia } from "@/hooks/use-paste-media";
 import { MobileGate } from "@/components/editor/mobile-gate";
 import { ExportButton } from "@/components/editor/export-button";
+import { CreditsBadge } from "@/components/editor/credits-badge";
+import { RenderingOverlay } from "@/components/editor/panels/preview/rendering-overlay";
 import { useAIChat } from "@/hooks/use-ai-chat";
 import { useEditor } from "@/hooks/use-editor";
+import { Layers, Settings, ChevronDown, Camera, Download, Scissors, Clapperboard, Smile, Sparkles } from "lucide-react";
+import { RecordingPanel } from "@/components/editor/recording/recording-panel";
+import { useRecordingStore } from "@/stores/recording-store";
+import { ClipperPanel } from "@/components/editor/clipper/clipper-panel";
+import { useClipperStore } from "@/stores/clipper-store";
+import { StoryboardPanel } from "@/components/editor/storyboard/storyboard-panel";
+import { useStoryboardStore } from "@/stores/storyboard-store";
+import { AvatarPanel } from "@/components/editor/avatar/avatar-panel";
+import { useAvatarStore } from "@/stores/avatar-store";
 
 export default function Editor() {
 	const params = useParams();
@@ -33,38 +44,6 @@ export default function Editor() {
 	);
 }
 
-function StarryOverlay() {
-	return (
-		<div className="absolute inset-0 z-10 bg-[#0a0a0f]/90 flex items-center justify-center overflow-hidden">
-			{Array.from({ length: 50 }).map((_, i) => (
-				<div
-					key={i}
-					className="absolute rounded-full bg-white animate-pulse"
-					style={{
-						width: Math.random() * 3 + 1,
-						height: Math.random() * 3 + 1,
-						top: `${Math.random() * 100}%`,
-						left: `${Math.random() * 100}%`,
-						animationDelay: `${Math.random() * 3}s`,
-						animationDuration: `${1.5 + Math.random() * 2}s`,
-						opacity: Math.random() * 0.7 + 0.3,
-					}}
-				/>
-			))}
-			<div className="text-white/60 text-sm font-medium z-20">
-				<div className="flex items-center gap-2">
-					<div className="flex gap-1">
-						<div className="h-1.5 w-1.5 rounded-full bg-white/60 animate-bounce" style={{ animationDelay: "0ms" }} />
-						<div className="h-1.5 w-1.5 rounded-full bg-white/60 animate-bounce" style={{ animationDelay: "150ms" }} />
-						<div className="h-1.5 w-1.5 rounded-full bg-white/60 animate-bounce" style={{ animationDelay: "300ms" }} />
-					</div>
-					<span>Creating your vision</span>
-				</div>
-			</div>
-		</div>
-	);
-}
-
 function formatTime(seconds: number): string {
 	const m = Math.floor(seconds / 60);
 	const s = Math.floor(seconds % 60);
@@ -76,19 +55,34 @@ function TimelineScrubber() {
 	const currentTime = editor.playback.getCurrentTime();
 	const totalDuration = editor.timeline.getTotalDuration() || 1;
 	const progress = (currentTime / totalDuration) * 100;
+	const isPlaying = editor.playback.getIsPlaying();
 
 	return (
-		<div className="shrink-0 border-t border-border px-4 py-2 flex items-center gap-3">
+		<div className="shrink-0 px-4 py-2.5 flex items-center gap-3 bg-card/40 backdrop-blur-sm border-t border-border/30">
 			<button
 				onClick={() => editor.playback.toggle()}
-				className="text-muted-foreground hover:text-foreground transition-colors"
+				className="flex items-center justify-center h-7 w-7 rounded-full gradient-primary text-white hover:shadow-[0_0_12px_hsl(262_83%_58%/0.3)] transition-all duration-200"
 			>
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+				{isPlaying ? (
+					<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+				) : (
+					<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+				)}
 			</button>
-			<div className="flex-1 h-1 bg-border rounded-full overflow-hidden cursor-pointer">
-				<div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
+			<div
+				className="flex-1 h-1.5 bg-border/40 rounded-full overflow-hidden cursor-pointer group"
+				onClick={(e) => {
+					const rect = e.currentTarget.getBoundingClientRect();
+					const pct = (e.clientX - rect.left) / rect.width;
+					editor.playback.seek({ time: pct * totalDuration });
+				}}
+			>
+				<div
+					className="h-full rounded-full transition-all gradient-primary group-hover:shadow-[0_0_8px_hsl(262_83%_58%/0.3)]"
+					style={{ width: `${progress}%` }}
+				/>
 			</div>
-			<span className="text-xs text-muted-foreground tabular-nums">
+			<span className="text-[11px] text-muted-foreground tabular-nums font-mono">
 				{formatTime(currentTime)} / {formatTime(totalDuration)}
 			</span>
 		</div>
@@ -98,21 +92,33 @@ function TimelineScrubber() {
 function AssetDropdown() {
 	const editor = useEditor();
 	const [open, setOpen] = useState(false);
-	const [assets, setAssets] = useState<Array<{ id: string; name: string; type: string; duration?: number; width?: number; height?: number }>>([]);
+	const [assets, setAssets] = useState<Array<{ id: string; name: string; type: string; duration?: number; width?: number; height?: number; url?: string; file?: File }>>([]);
 	const dropdownRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
 		const update = () => {
 			const all = editor.media.getAssets();
-			setAssets(all.map(a => ({ id: a.id, name: a.name, type: a.type, duration: a.duration, width: a.width, height: a.height })));
+			setAssets(all.map(a => ({ id: a.id, name: a.name, type: a.type, duration: a.duration, width: a.width, height: a.height, url: a.url, file: a.file })));
 		};
 		update();
 		const unsub = editor.media.subscribe(update);
 		return unsub;
 	}, [editor]);
 
-	// Close on click outside
+	const handleDownload = (asset: { name: string; url?: string; file?: File }) => {
+		let downloadUrl = asset.url;
+		if (!downloadUrl && asset.file) {
+			downloadUrl = URL.createObjectURL(asset.file);
+		}
+		if (!downloadUrl) return;
+		const a = document.createElement("a");
+		a.href = downloadUrl;
+		a.download = asset.name;
+		a.click();
+		if (!asset.url && downloadUrl) URL.revokeObjectURL(downloadUrl);
+	};
+
 	useEffect(() => {
 		if (!open) return;
 		const handler = (e: MouseEvent) => {
@@ -138,14 +144,15 @@ function AssetDropdown() {
 		<div className="relative" ref={dropdownRef}>
 			<button
 				onClick={() => setOpen(v => !v)}
-				className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+				className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200"
 			>
+				<Layers className="h-3.5 w-3.5" />
 				Assets{assets.length > 0 ? ` (${assets.length})` : ""}
-				<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`transition-transform ${open ? "rotate-180" : ""}`}><path d="m6 9 6 6 6-6"/></svg>
+				<ChevronDown className={`h-3 w-3 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
 			</button>
 
 			{open && (
-				<div className="absolute top-full left-0 mt-1 w-64 rounded-xl border border-border bg-card shadow-lg z-50 overflow-hidden">
+				<div className="absolute top-full left-0 mt-1 w-64 rounded-xl border border-border/40 bg-card/90 backdrop-blur-xl shadow-lg z-50 overflow-hidden">
 					{assets.length === 0 ? (
 						<div className="p-4 text-center text-xs text-muted-foreground">
 							No media attached yet.<br />Use the chat to attach files.
@@ -153,20 +160,27 @@ function AssetDropdown() {
 					) : (
 						<div className="max-h-48 overflow-y-auto scrollbar-thin">
 							{assets.map(a => (
-								<div key={a.id} className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/50 transition-colors">
+								<div key={a.id} className="group flex items-center gap-2 px-3 py-2 text-xs hover:bg-accent/50 transition-colors">
 									<span>{icon(a.type)}</span>
 									<span className="font-medium text-foreground truncate flex-1">{a.name}</span>
 									<span className="text-muted-foreground shrink-0">
 										{a.type}{a.duration ? ` \u00B7 ${a.duration.toFixed(1)}s` : ""}{a.width ? ` \u00B7 ${a.width}\u00D7${a.height}` : ""}
 									</span>
+									<button
+										onClick={(e) => { e.stopPropagation(); handleDownload(a); }}
+										className="opacity-0 group-hover:opacity-100 shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-all"
+										title={`Download ${a.name}`}
+									>
+										<Download className="h-3 w-3" />
+									</button>
 								</div>
 							))}
 						</div>
 					)}
-					<div className="border-t border-border p-2">
+					<div className="border-t border-border/30 p-2">
 						<button
 							onClick={() => fileInputRef.current?.click()}
-							className="w-full rounded-lg px-3 py-1.5 text-xs text-primary hover:bg-primary/5 transition-colors text-center"
+							className="w-full rounded-lg px-3 py-1.5 text-xs text-primary hover:bg-primary/5 transition-colors text-center font-medium"
 						>
 							+ Attach files
 						</button>
@@ -179,62 +193,93 @@ function AssetDropdown() {
 	);
 }
 
+function ToolButton({ onClick, icon: Icon, label, active }: { onClick: () => void; icon: React.ComponentType<{ className?: string }>; label: string; active?: boolean }) {
+	return (
+		<button
+			onClick={onClick}
+			className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+				active
+					? "text-primary bg-primary/10 shadow-[0_0_8px_hsl(262_83%_58%/0.1)]"
+					: "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+			}`}
+		>
+			<Icon className="h-3.5 w-3.5" />
+			{label}
+		</button>
+	);
+}
+
 function EditorLayout() {
 	usePasteMedia();
 
 	const [advancedView, setAdvancedView] = useState(false);
 	const { isLoading } = useAIChat();
+	const openRecording = useRecordingStore((s) => s.open);
+	const openClipper = useClipperStore((s) => s.open);
+	const openStoryboard = useStoryboardStore((s) => s.open);
+	const openAvatar = useAvatarStore((s) => s.open);
 
 	return (
 		<div className="flex h-screen bg-background">
-			{/* LEFT: Chat (60%) */}
-			<div className="w-[60%] shrink-0 border-r border-border">
+			{/* LEFT: Chat */}
+			<div className="w-[60%] shrink-0 border-r border-border/30">
 				<ChatPanel />
 			</div>
 
-			{/* RIGHT: Preview + controls (40%) */}
-			<div className="flex-1 flex flex-col">
-				{/* Render button bar */}
-				<div className="shrink-0 border-b border-border px-3 py-2 flex items-center justify-between bg-card">
-					<AssetDropdown />
-					<div className="flex items-center gap-2">
-						<button
-							onClick={() => setAdvancedView((v) => !v)}
-							className="rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-						>
-							{advancedView ? "Hide Timeline" : "Timeline"}
-						</button>
+			{/* RIGHT: Preview + controls */}
+			<div className="flex-1 flex flex-col min-w-0">
+				{/* Top toolbar */}
+				<div className="shrink-0 border-b border-border/30 px-3 py-1.5 flex items-center justify-between glass-strong">
+					<div className="flex items-center gap-1">
+						<div className="flex h-6 w-6 items-center justify-center rounded-md gradient-primary mr-1">
+							<Sparkles className="h-3 w-3 text-white" />
+						</div>
+						<AssetDropdown />
+					</div>
+					<div className="flex items-center gap-1">
+						<ToolButton onClick={() => openRecording()} icon={Camera} label="Record" />
+						<ToolButton onClick={() => openClipper()} icon={Scissors} label="Auto Clip" />
+						<ToolButton onClick={() => openStoryboard()} icon={Clapperboard} label="Storyboard" />
+						<ToolButton onClick={() => openAvatar()} icon={Smile} label="Avatar" />
+						<ToolButton onClick={() => setAdvancedView((v) => !v)} icon={Layers} label="Timeline" active={advancedView} />
+						<div className="w-px h-4 bg-border/30 mx-1" />
+						<CreditsBadge />
 						<ExportButton />
 						<a
 							href="/settings"
 							target="_blank"
-							className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+							rel="noopener noreferrer"
+							className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200"
 							title="Settings"
 						>
-							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-								<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-								<circle cx="12" cy="12" r="3"/>
-							</svg>
+							<Settings className="h-4 w-4" />
 						</a>
 					</div>
 				</div>
 
-				{/* Video preview with optional starry overlay */}
+				{/* Video preview */}
 				<div className="flex-1 min-h-0 relative">
 					<PreviewPanel />
-					{isLoading && <StarryOverlay />}
+					{isLoading && <RenderingOverlay />}
 				</div>
 
-				{/* Slim timeline scrubber */}
+				{/* Scrubber */}
 				<TimelineScrubber />
 
-				{/* Advanced: full timeline */}
-				{advancedView && (
-					<div className="shrink-0 h-[250px] border-t border-border">
+				{/* Timeline panel - smooth show/hide */}
+				<div
+					className="shrink-0 border-t border-border/30 overflow-hidden transition-[max-height] duration-300 ease-in-out"
+					style={{ maxHeight: advancedView ? "250px" : "0px" }}
+				>
+					<div className="h-[250px]">
 						<Timeline />
 					</div>
-				)}
+				</div>
 			</div>
+			<RecordingPanel />
+			<ClipperPanel />
+			<StoryboardPanel />
+			<AvatarPanel />
 		</div>
 	);
 }

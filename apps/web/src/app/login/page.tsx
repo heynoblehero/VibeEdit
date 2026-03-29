@@ -7,6 +7,7 @@ import { signIn } from "@/lib/auth/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sparkles } from "lucide-react";
+import { trackEvent } from "@/lib/analytics";
 
 function LoginForm() {
 	const router = useRouter();
@@ -28,6 +29,7 @@ function LoginForm() {
 			if (result.error) {
 				setError(result.error.message || "Invalid email or password");
 			} else {
+				trackEvent("login");
 				router.push(redirect);
 			}
 		} catch {

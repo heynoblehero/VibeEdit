@@ -2,6 +2,7 @@ import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { Toaster } from "../components/ui/sonner";
 import { TooltipProvider } from "../components/ui/tooltip";
+import { Analytics } from "@vercel/analytics/next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import type { Metadata } from "next";
 
@@ -49,6 +50,7 @@ export default function RootLayout({
 						{children}
 					</TooltipProvider>
 				</ThemeProvider>
+				<Analytics />
 			</body>
 		</html>
 	);

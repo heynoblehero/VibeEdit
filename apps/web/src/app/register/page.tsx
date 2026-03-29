@@ -7,6 +7,7 @@ import { signUp } from "@/lib/auth/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sparkles, Gift } from "lucide-react";
+import { trackEvent } from "@/lib/analytics";
 
 export default function RegisterPage() {
 	const router = useRouter();
@@ -32,6 +33,7 @@ export default function RegisterPage() {
 				setError(result.error.message || "Registration failed");
 			} else {
 				await fetch("/api/auth/credits/init", { method: "POST" }).catch(() => {});
+				trackEvent("signup");
 				router.push("/dashboard");
 			}
 		} catch {

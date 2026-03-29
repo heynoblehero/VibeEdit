@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useSession, signOut } from "@/lib/auth/client";
 import { motion } from "motion/react";
+import { toast } from "sonner";
+import { trackEvent } from "@/lib/analytics";
 import {
 	Coins, Plus, Trash2, Download, LogOut,
 	Settings, Sparkles, FolderPlus, ArrowRight, Video,
@@ -55,8 +57,17 @@ function projectGradient(name: string) {
 	return gradients[Math.abs(hash) % gradients.length];
 }
 
-export default function DashboardPage() {
+export default function DashboardPageWrapper() {
+	return (
+		<Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-background"><p className="text-muted-foreground text-sm">Loading...</p></div>}>
+			<DashboardPage />
+		</Suspense>
+	);
+}
+
+function DashboardPage() {
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const { data: session, isPending } = useSession();
 	const [creditBalance, setCreditBalance] = useState<number | null>(null);
 	const [projects, setProjects] = useState<Project[]>([]);
@@ -65,6 +76,19 @@ export default function DashboardPage() {
 	const [showCreate, setShowCreate] = useState(false);
 	const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 	const importInputRef = useRef<HTMLInputElement>(null);
+
+	// Handle purchase redirect
+	useEffect(() => {
+		const purchased = searchParams.get("purchased");
+		if (purchased) {
+			trackEvent("purchase_completed", { pack: purchased });
+			toast.success("Credits added! You're all set.");
+			// Refresh credits
+			fetch("/api/credits").then(r => r.json()).then(d => setCreditBalance(d.balance ?? 0)).catch(() => {});
+			// Clean URL
+			router.replace("/dashboard");
+		}
+	}, [searchParams, router]);
 
 	useEffect(() => {
 		if (!isPending && !session) router.push("/login");
@@ -100,7 +124,10 @@ export default function DashboardPage() {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ id, name: newProjectName.trim() }),
 			});
-			if (resp.ok) router.push(`/editor/${id}?name=${encodeURIComponent(newProjectName.trim())}`);
+			if (resp.ok) {
+					trackEvent("project_created");
+					router.push(`/editor/${id}?name=${encodeURIComponent(newProjectName.trim())}`);
+				}
 		} finally {
 			setIsCreating(false);
 		}

@@ -1,26 +1,20 @@
 FROM node:22-slim AS base
 WORKDIR /app
+
+# Install bun for package resolution
 RUN npm install -g bun
 
-# Install dependencies
-FROM base AS deps
-COPY package.json bun.lock turbo.json ./
-COPY apps/web/package.json ./apps/web/
-COPY packages/env/package.json ./packages/env/
-COPY packages/ui/package.json ./packages/ui/
-RUN bun install --frozen-lockfile
-
-# Build with Node directly (skip turbo/bun to avoid OOM panics)
+# Copy everything first, then install (simpler for monorepo)
 FROM base AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN bun install --frozen-lockfile
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=3072"
 RUN cd apps/web && npx next build
 
-# Production
+# Production (minimal image)
 FROM node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production

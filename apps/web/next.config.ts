@@ -41,6 +41,13 @@ const nextConfig: NextConfig = {
 	compiler: {
 		removeConsole: process.env.NODE_ENV === "production",
 	},
+	webpack: (config) => {
+		config.module.rules.push({
+			test: /\.glsl$/,
+			type: "asset/source",
+		});
+		return config;
+	},
 	reactStrictMode: true,
 	productionBrowserSourceMaps: false,
 	output: "standalone",

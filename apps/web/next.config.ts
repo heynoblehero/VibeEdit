@@ -24,14 +24,20 @@ const nextConfig: NextConfig = {
 			},
 		];
 	},
-	turbopack: {
-		rules: {
-			"*.glsl": {
-				loaders: [require.resolve("raw-loader")],
-				as: "*.js",
-			},
-		},
-	},
+	turbopack: (() => {
+		try {
+			return {
+				rules: {
+					"*.glsl": {
+						loaders: [require.resolve("raw-loader")],
+						as: "*.js",
+					},
+				},
+			};
+		} catch {
+			return {};
+		}
+	})(),
 	compiler: {
 		removeConsole: process.env.NODE_ENV === "production",
 	},

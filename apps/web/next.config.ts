@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
-import { withContentCollections } from "@content-collections/next";
+
+let withContentCollections = (config: NextConfig) => config;
+try { withContentCollections = require("@content-collections/next").withContentCollections; } catch {}
 
 const nextConfig: NextConfig = {
 	async headers() {

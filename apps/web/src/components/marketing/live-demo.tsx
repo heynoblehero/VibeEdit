@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Sparkles, Play, ArrowRight, Check } from "lucide-react";
 
-/* ── Demo script — what happens step by step ───────────────────── */
+/*  Demo script — what happens step by step  */
 
 interface DemoStep {
 	type: "user" | "ai" | "tool" | "progress" | "pause";

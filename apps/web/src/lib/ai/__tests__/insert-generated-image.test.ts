@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, mock } from "bun:test";
 import { executeAIActions } from "@/lib/ai/executor";
 import type { AIAction } from "@/lib/ai/types";
 
-/* ── Mock helpers ── */
+/*  Mock helpers  */
 
 let mockAssets: Array<{ id: string; name: string; type: string }> = [];
 let insertElementCalls: unknown[] = [];
@@ -120,7 +120,7 @@ function teardownMocks() {
   delete (globalThis as any).window.__editor;
 }
 
-/* ── Helper to run a single action ── */
+/*  Helper to run a single action  */
 
 async function runInsertGeneratedImage(params: Record<string, unknown>) {
   const action: AIAction = {
@@ -131,7 +131,7 @@ async function runInsertGeneratedImage(params: Record<string, unknown>) {
   return results[0];
 }
 
-/* ── Tests ── */
+/*  Tests  */
 
 describe("insert_generated_image", () => {
   beforeEach(() => {
@@ -142,7 +142,7 @@ describe("insert_generated_image", () => {
     teardownMocks();
   });
 
-  // ── Validation tests ──
+  //  Validation tests 
 
   describe("parameter validation", () => {
     test("fails when neither color nor code is provided", async () => {
@@ -177,7 +177,7 @@ describe("insert_generated_image", () => {
     });
   });
 
-  // ── Security validation tests ──
+  //  Security validation tests 
 
   describe("security validation", () => {
     test("blocks code containing fetch()", async () => {
@@ -253,7 +253,7 @@ describe("insert_generated_image", () => {
     });
   });
 
-  // ── Solid color tests ──
+  //  Solid color tests 
 
   describe("solid color (no code)", () => {
     test("creates a solid black background", async () => {
@@ -322,7 +322,7 @@ describe("insert_generated_image", () => {
     });
   });
 
-  // ── Drawing code tests ──
+  //  Drawing code tests 
 
   describe("canvas drawing code", () => {
     test("executes imperative drawing code", async () => {
@@ -420,7 +420,7 @@ describe("insert_generated_image", () => {
     });
   });
 
-  // ── Dimension tests ──
+  //  Dimension tests 
 
   describe("dimensions", () => {
     test("uses project canvas size by default", async () => {
@@ -458,7 +458,7 @@ describe("insert_generated_image", () => {
     });
   });
 
-  // ── Transform/opacity tests ──
+  //  Transform/opacity tests 
 
   describe("transform and opacity", () => {
     test("uses default transform when not specified", async () => {
@@ -496,7 +496,7 @@ describe("insert_generated_image", () => {
     });
   });
 
-  // ── Media library integration tests ──
+  //  Media library integration tests 
 
   describe("media library integration", () => {
     test("asset filename is sanitized and unique", async () => {
@@ -546,7 +546,7 @@ describe("insert_generated_image", () => {
     });
   });
 
-  // ── End-to-end scenario tests ──
+  //  End-to-end scenario tests 
 
   describe("end-to-end scenarios", () => {
     test("black background with white grid for 60 seconds (user's exact request)", async () => {
@@ -619,7 +619,7 @@ describe("insert_generated_image", () => {
     });
   });
 
-  // ── Dangerous globals shadowing tests ──
+  //  Dangerous globals shadowing tests 
 
   describe("global shadowing in code execution", () => {
     test("fetch is undefined inside code execution", async () => {
@@ -633,7 +633,7 @@ describe("insert_generated_image", () => {
     });
   });
 
-  // ── executeAIActions integration ──
+  //  executeAIActions integration 
 
   describe("executeAIActions integration", () => {
     test("insert_generated_image is recognized as a valid tool", async () => {

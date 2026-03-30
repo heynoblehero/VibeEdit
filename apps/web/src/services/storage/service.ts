@@ -487,7 +487,7 @@ class StorageService {
 		return this.isIndexedDBSupported() && this.isOPFSSupported();
 	}
 
-	// ── Chat History ──
+	//  Chat History 
 
 	private getChatAdapter({ projectId }: { projectId: string }) {
 		return new IndexedDBAdapter<{ messages: unknown[]; sessionId: string | null }>(
@@ -521,7 +521,7 @@ class StorageService {
 		return { messages: (data as any).messages || [], sessionId: (data as any).sessionId || null };
 	}
 
-	// ── Project Version Snapshots ──
+	//  Project Version Snapshots 
 
 	private getVersionAdapter({ projectId }: { projectId: string }) {
 		return new IndexedDBAdapter<{

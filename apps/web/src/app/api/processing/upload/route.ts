@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────
+//  Helpers 
 
 function sanitizePath(path: string): string {
   return path

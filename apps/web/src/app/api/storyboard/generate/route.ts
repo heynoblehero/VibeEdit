@@ -6,7 +6,7 @@ import { getCreditCost } from "@/lib/credits/costs";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 
-// ── Rate limiting ─────────────────────────────────────────────
+//  Rate limiting 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 5;
 const RATE_WINDOW = 60_000;
@@ -22,7 +22,7 @@ function checkRateLimit(ip: string): boolean {
   return entry.count <= RATE_LIMIT;
 }
 
-// ── System prompt ─────────────────────────────────────────────
+//  System prompt 
 function buildStoryboardSystemPrompt(
   mediaAssets: Array<{ id: string; name: string; type: string; duration?: number }>,
   style: string,
@@ -133,7 +133,7 @@ IMPORTANT rules:
 6. Respond ONLY with valid JSON. No markdown, no explanation.`;
 }
 
-// ── JSON schema for Claude response ──────────────────────────
+//  JSON schema for Claude response 
 const STORYBOARD_SCHEMA = {
   type: "object",
   properties: {
@@ -172,7 +172,7 @@ const STORYBOARD_SCHEMA = {
   required: ["scenes"],
 };
 
-// ── Route handler ─────────────────────────────────────────────
+//  Route handler 
 export async function POST(request: NextRequest) {
   try {
     const ip =

@@ -1,16 +1,16 @@
 import { describe, test, expect, beforeEach } from "bun:test";
 
-// ─── 1. Subtitle Parser ─────────────────────────────────────────────────────
+//  1. Subtitle Parser 
 import {
   parseSRT,
   parseVTT,
   parseSubtitleFile,
 } from "@/lib/media/subtitle-parser";
 
-// ─── 2. EDL Parser ──────────────────────────────────────────────────────────
+//  2. EDL Parser 
 import { parseEDL } from "@/lib/media/edl-parser";
 
-// ─── 3. LUT Parser ──────────────────────────────────────────────────────────
+//  3. LUT Parser 
 import {
   parseCubeLUT,
   registerLUT,
@@ -18,7 +18,7 @@ import {
   getAllLUTs,
 } from "@/lib/media/lut-parser";
 
-// ─── 4. Lottie Utilities ────────────────────────────────────────────────────
+//  4. Lottie Utilities 
 import {
   parseLottieJSON,
   registerLottie,
@@ -26,17 +26,17 @@ import {
   getAllLotties,
 } from "@/lib/media/lottie-utils";
 
-// ─── 5. Media Utilities ─────────────────────────────────────────────────────
+//  5. Media Utilities 
 import {
   getMediaTypeFromFile,
   mediaSupportsAudio,
   SUPPORTS_AUDIO,
 } from "@/lib/media/media-utils";
 
-// ─── 6. Auto-Caption ────────────────────────────────────────────────────────
+//  6. Auto-Caption 
 import { generatePlaceholderCaptions } from "@/lib/media/auto-caption";
 
-// ─── 7. Effects Registry ────────────────────────────────────────────────────
+//  7. Effects Registry 
 import {
   registerEffect,
   getEffect,
@@ -45,7 +45,7 @@ import {
   buildDefaultEffectInstance,
 } from "@/lib/effects";
 
-// ─── 8. Remotion Templates ──────────────────────────────────────────────────
+//  8. Remotion Templates 
 import {
   getTemplate,
   getTemplatesByCategory,
@@ -53,41 +53,41 @@ import {
   TEMPLATES,
 } from "@/lib/remotion/templates";
 
-// ─── 9. Sticker ID ──────────────────────────────────────────────────────────
+//  9. Sticker ID 
 import {
   parseStickerId,
   buildStickerId,
 } from "@/lib/stickers/sticker-id";
 
-// ─── 10. Security Log ───────────────────────────────────────────────────────
+//  10. Security Log 
 import {
   logSecurity,
   getSecurityLog,
 } from "@/lib/ai/security-log";
 
-// ─── 11. Action Definitions ─────────────────────────────────────────────────
+//  11. Action Definitions 
 import {
   ACTIONS,
   getActionDefinition,
   getDefaultShortcuts,
 } from "@/lib/actions/definitions";
 
-// ─── 12. Action Registry ────────────────────────────────────────────────────
+//  12. Action Registry 
 import {
   bindAction,
   unbindAction,
   invokeAction,
 } from "@/lib/actions/registry";
 
-// ─── 13. Gradient Parser ────────────────────────────────────────────────────
+//  13. Gradient Parser 
 import { parseGradient } from "@/lib/gradients/parser";
 
-// ─── 14. Transcription Captions ─────────────────────────────────────────────
+//  14. Transcription Captions 
 import { buildCaptionChunks } from "@/lib/transcription/caption";
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 //  1. SUBTITLE PARSER
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 describe("parseSRT", () => {
   const SAMPLE_SRT = `1
@@ -276,9 +276,9 @@ Unknown ext`;
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 //  2. EDL PARSER
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 describe("parseEDL", () => {
   const SAMPLE_EDL = `TITLE: My Project
@@ -376,9 +376,9 @@ FCM: NON-DROP FRAME
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 //  3. LUT PARSER
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 describe("parseCubeLUT", () => {
   function makeCube2(): string {
@@ -488,9 +488,9 @@ describe("LUT store (registerLUT, getLUT, getAllLUTs)", () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 //  4. LOTTIE UTILITIES
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 describe("parseLottieJSON", () => {
   const VALID_LOTTIE = JSON.stringify({
@@ -580,9 +580,9 @@ describe("Lottie store (registerLottie, getLottieData, getAllLotties)", () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 //  5. MEDIA UTILITIES
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 describe("getMediaTypeFromFile", () => {
   function makeFile(name: string, type: string): File {
@@ -646,9 +646,9 @@ describe("mediaSupportsAudio", () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 //  6. AUTO-CAPTION
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 describe("generatePlaceholderCaptions", () => {
   test("generates correct number of segments for even duration", () => {
@@ -701,9 +701,9 @@ describe("generatePlaceholderCaptions", () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 //  7. EFFECTS REGISTRY
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 describe("Effects registry", () => {
   const testEffectDef = {
@@ -786,9 +786,9 @@ describe("buildDefaultEffectInstance", () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 //  8. REMOTION TEMPLATES
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 describe("Remotion Templates", () => {
   test("TEMPLATES is a non-empty array", () => {
@@ -871,9 +871,9 @@ describe("getAllTemplates", () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 //  9. STICKER ID
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 describe("parseStickerId", () => {
   test("parses simple provider:value format", () => {
@@ -936,9 +936,9 @@ describe("buildStickerId", () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 //  10. SECURITY LOG
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 describe("Security log", () => {
   test("logSecurity adds an entry to the log", () => {
@@ -994,9 +994,9 @@ describe("Security log", () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 //  11. ACTION DEFINITIONS
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 describe("ACTIONS constant", () => {
   test("ACTIONS is a non-empty object", () => {
@@ -1080,9 +1080,9 @@ describe("getDefaultShortcuts", () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 //  12. ACTION REGISTRY (bind / unbind / invoke)
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 describe("Action registry (bind / unbind / invoke)", () => {
   test("bindAction + invokeAction calls handler", () => {
@@ -1154,9 +1154,9 @@ describe("Action registry (bind / unbind / invoke)", () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 //  13. GRADIENT PARSER
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 describe("parseGradient", () => {
   test("parses a simple linear-gradient with two hex colors", () => {
@@ -1264,9 +1264,9 @@ describe("parseGradient", () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 //  14. TRANSCRIPTION CAPTIONS
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 describe("buildCaptionChunks", () => {
   test("splits a single segment into chunks of N words", () => {

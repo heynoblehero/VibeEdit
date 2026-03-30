@@ -278,7 +278,7 @@
 	}
 }
 
-/* ── Utility classes ──────────────────────────────────────────────── */
+/*  Utility classes  */
 
 @utility glass {
 	background: color-mix(in srgb, var(--card) 60%, transparent);

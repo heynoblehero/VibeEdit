@@ -19,7 +19,7 @@
 
 import { logSecurity } from "@/lib/ai/security-log";
 
-// ── SECURITY CONSTANTS ──
+//  SECURITY CONSTANTS 
 const MAX_RESPONSE_SIZE = 50 * 1024 * 1024; // 50MB max download
 const REQUEST_TIMEOUT_MS = 30_000; // 30 second timeout
 const MAX_TEXT_INPUT_LENGTH = 5000; // Max chars for text inputs
@@ -44,7 +44,7 @@ const ALLOWED_RESPONSE_TYPES = new Set([
   "application/octet-stream", // some APIs return this for binary
 ]);
 
-// ── Trusted service registry ──
+//  Trusted service registry 
 export const TRUSTED_SERVICES = {
   elevenlabs: {
     name: "ElevenLabs",
@@ -89,7 +89,7 @@ export interface GenerateMediaResult {
   error?: string;
 }
 
-// ── Security: validate URL is HTTPS + on allowed domain ──
+//  Security: validate URL is HTTPS + on allowed domain 
 function validateUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
@@ -103,7 +103,7 @@ function validateUrl(url: string): boolean {
   }
 }
 
-// ── Security: validate service + action ──
+//  Security: validate service + action 
 function validateRequest(service: string, action: string): string | null {
   if (!(service in TRUSTED_SERVICES)) {
     return `Service "${service}" is not trusted. Allowed: ${Object.keys(TRUSTED_SERVICES).join(", ")}`;
@@ -115,7 +115,7 @@ function validateRequest(service: string, action: string): string | null {
   return null;
 }
 
-// ── Security: sanitize filename (prevent path traversal) ──
+//  Security: sanitize filename (prevent path traversal) 
 function sanitizeFilename(name: string, maxLen: number = 60): string {
   return name
     .replace(/[^a-zA-Z0-9._-]/g, "_") // only safe chars
@@ -124,7 +124,7 @@ function sanitizeFilename(name: string, maxLen: number = 60): string {
     .slice(0, maxLen);
 }
 
-// ── Security: fetch with size limit + timeout ──
+//  Security: fetch with size limit + timeout 
 async function safeFetch(url: string, options: RequestInit): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -148,7 +148,7 @@ async function safeFetch(url: string, options: RequestInit): Promise<Response> {
   }
 }
 
-// ── Security: read response with size enforcement ──
+//  Security: read response with size enforcement 
 async function safeReadBody(response: Response, service: TrustedServiceId): Promise<{ data: ArrayBuffer; mimeType: string }> {
   const contentType = response.headers.get("content-type")?.split(";")[0].trim() || "application/octet-stream";
   const svc = TRUSTED_SERVICES[service];
@@ -187,7 +187,7 @@ async function safeReadBody(response: Response, service: TrustedServiceId): Prom
   return { data: combined.buffer, mimeType: contentType };
 }
 
-// ── Security: validate magic bytes match claimed type ──
+//  Security: validate magic bytes match claimed type 
 function validateMagicBytes(data: ArrayBuffer, claimedType: string): boolean {
   const bytes = new Uint8Array(data.slice(0, 16));
 
@@ -227,7 +227,7 @@ function validateMagicBytes(data: ArrayBuffer, claimedType: string): boolean {
   return false;
 }
 
-// ── ElevenLabs TTS ──
+//  ElevenLabs TTS 
 async function elevenLabsTTS(params: Record<string, unknown>, apiKey: string): Promise<GenerateMediaResult> {
   const text = params.text as string;
   if (!text) return { success: false, error: "text is required for ElevenLabs TTS" };
@@ -283,7 +283,7 @@ async function elevenLabsTTS(params: Record<string, unknown>, apiKey: string): P
   return { success: true, data, mimeType: "audio/mpeg", filename: `elevenlabs_${safeName}.mp3` };
 }
 
-// ── Stability AI Image ──
+//  Stability AI Image 
 async function stabilityImage(params: Record<string, unknown>, apiKey: string): Promise<GenerateMediaResult> {
   const prompt = params.prompt as string;
   if (!prompt) return { success: false, error: "prompt is required for Stability AI" };
@@ -331,7 +331,7 @@ async function stabilityImage(params: Record<string, unknown>, apiKey: string): 
   return { success: true, data, mimeType: "image/png", filename: `generated_${safeName}.png` };
 }
 
-// ── Main dispatcher ──
+//  Main dispatcher 
 export async function generateMedia(params: GenerateMediaParams): Promise<GenerateMediaResult> {
   const { service, action, params: serviceParams, apiKey } = params;
 
@@ -357,7 +357,7 @@ export async function generateMedia(params: GenerateMediaParams): Promise<Genera
   }
 }
 
-// ── Public: list available services ──
+//  Public: list available services 
 export function getTrustedServices() {
   return Object.entries(TRUSTED_SERVICES).map(([id, svc]) => ({
     id,

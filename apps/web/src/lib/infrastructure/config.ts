@@ -6,7 +6,7 @@
  * With env vars set: offloads GPU/CPU work to external serverless endpoints.
  */
 
-// ── Types ────────────────────────────────────────────────────────────
+//  Types 
 
 export type ProcessingBackend = "client" | "server" | "hybrid";
 export type StorageProvider = "local" | "s3" | "do-spaces" | "cloudflare-r2";
@@ -67,7 +67,7 @@ export interface InfraConfig {
   limits: ProcessingLimits;
 }
 
-// ── Defaults ─────────────────────────────────────────────────────────
+//  Defaults 
 
 export const DEFAULT_LIMITS: ProcessingLimits = {
   maxUploadSizeMb: 500,
@@ -84,7 +84,7 @@ export const DEFAULT_CONFIG: InfraConfig = {
   limits: { ...DEFAULT_LIMITS },
 };
 
-// ── Load config from environment variables ───────────────────────────
+//  Load config from environment variables 
 
 /**
  * Build an InfraConfig from environment variables.
@@ -143,7 +143,7 @@ export function loadInfraConfig(): InfraConfig {
   };
 }
 
-// ── Singleton accessor (cached) ──────────────────────────────────────
+//  Singleton accessor (cached) 
 
 let _cachedConfig: InfraConfig | null = null;
 
@@ -163,7 +163,7 @@ export function resetInfraConfig(): void {
   _cachedConfig = null;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────
+//  Helpers 
 
 function parseBackend(value: string | undefined): ProcessingBackend {
   if (value === "server" || value === "hybrid" || value === "client") {

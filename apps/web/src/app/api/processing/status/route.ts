@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
  * to the actual remote endpoint.
  */
 
-// ── In-memory job registry ───────────────────────────────────────────
+//  In-memory job registry 
 // Maps jobId -> { statusUrl, lastStatus, createdAt }
 
 interface RemoteJobRecord {
@@ -41,7 +41,7 @@ function cleanupOldRecords(): void {
   }
 }
 
-// ── Register a remote job (called from server-side code) ─────────────
+//  Register a remote job (called from server-side code) 
 
 export function registerRemoteJob(jobId: string, statusUrl: string): void {
   remoteJobs.set(jobId, {
@@ -57,7 +57,7 @@ export function getRemoteJobRecord(jobId: string): RemoteJobRecord | undefined {
   return remoteJobs.get(jobId);
 }
 
-// ── GET handler ──────────────────────────────────────────────────────
+//  GET handler 
 
 export async function GET(request: NextRequest) {
   const jobId = request.nextUrl.searchParams.get("jobId");
@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ── POST handler: register a new remote job ──────────────────────────
+//  POST handler: register a new remote job 
 
 export async function POST(request: NextRequest) {
   try {

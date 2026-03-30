@@ -20,7 +20,7 @@ import {
   getEndpoint,
 } from "./config";
 
-// ── Types ────────────────────────────────────────────────────────────
+//  Types 
 
 export interface RoutingDecision {
   /** Where the task will run */
@@ -59,7 +59,7 @@ export interface ProcessingResult<T = unknown> {
   data: T;
 }
 
-// ── Routing Decision ─────────────────────────────────────────────────
+//  Routing Decision 
 
 /**
  * Determine whether a task should run on the client or server.
@@ -145,7 +145,7 @@ export function shouldOffloadToServer({
   };
 }
 
-// ── Task Dispatcher ──────────────────────────────────────────────────
+//  Task Dispatcher 
 
 /**
  * Route a processing task to either client or server.
@@ -219,7 +219,7 @@ export async function routeProcessingTask<T = unknown>({
   }
 }
 
-// ── Remote Execution ─────────────────────────────────────────────────
+//  Remote Execution 
 
 const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_ATTEMPTS = 900; // 30 minutes max
@@ -326,7 +326,7 @@ async function pollForResult<T>(
   throw new Error("Remote processing timed out (exceeded maximum poll attempts)");
 }
 
-// ── Utilities ────────────────────────────────────────────────────────
+//  Utilities 
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

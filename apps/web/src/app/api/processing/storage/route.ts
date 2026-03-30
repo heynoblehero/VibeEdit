@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ── S3 Client ────────────────────────────────────────────────────────
+//  S3 Client 
 
 function createS3Client(
   storage: ReturnType<typeof loadInfraConfig>["storage"],
@@ -102,7 +102,7 @@ function sanitizePath(path: string): string {
     .slice(0, 512);
 }
 
-// ── Handlers ─────────────────────────────────────────────────────────
+//  Handlers 
 
 async function handlePresignUpload(
   client: AwsClient,

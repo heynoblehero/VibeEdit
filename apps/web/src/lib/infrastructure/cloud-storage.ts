@@ -12,7 +12,7 @@
 
 import type { StorageConfig, StorageProvider as StorageProviderType } from "./config";
 
-// ── Interface ────────────────────────────────────────────────────────
+//  Interface 
 
 export interface CloudStorageProvider {
   readonly name: string;
@@ -34,7 +34,7 @@ export interface CloudStorageProvider {
   list(prefix: string): Promise<string[]>;
 }
 
-// ── Factory ──────────────────────────────────────────────────────────
+//  Factory 
 
 /**
  * Create a storage provider based on config.
@@ -54,7 +54,7 @@ export function createStorageProvider(
   }
 }
 
-// ── Local Storage (IndexedDB) ────────────────────────────────────────
+//  Local Storage (IndexedDB) 
 
 const IDB_NAME = "vibeedit-storage";
 const IDB_STORE = "files";
@@ -175,7 +175,7 @@ class LocalStorageProvider implements CloudStorageProvider {
   }
 }
 
-// ── S3-Compatible Storage ────────────────────────────────────────────
+//  S3-Compatible Storage 
 
 /**
  * S3-compatible storage provider.
@@ -307,7 +307,7 @@ class S3StorageProvider implements CloudStorageProvider {
   }
 }
 
-// ── Singleton ────────────────────────────────────────────────────────
+//  Singleton 
 
 let _storageInstance: CloudStorageProvider | null = null;
 

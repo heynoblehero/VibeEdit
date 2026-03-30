@@ -9,7 +9,7 @@ import type { ChatMessage as ChatMessageType } from "@/lib/ai/types";
 import { X, Pencil, Sparkles } from "lucide-react";
 import { VersionHistory } from "./version-history";
 
-/* ── Avatars ── */
+/*  Avatars  */
 function Avatar({ type }: { type: "user" | "ai" }) {
 	if (type === "user") {
 		return (
@@ -25,7 +25,7 @@ function Avatar({ type }: { type: "user" | "ai" }) {
 	);
 }
 
-/* ── Media Attachment Pill (shown after uploading) ── */
+/*  Media Attachment Pill (shown after uploading)  */
 function MediaPill({ name, type, duration }: { name: string; type: string; duration?: number }) {
 	const icon = type === "video" ? "\u{1F3AC}" : type === "audio" ? "\u{1F3B5}" : "\u{1F5BC}\uFE0F";
 	const durStr = duration ? ` \u00B7 ${duration.toFixed(1)}s` : "";
@@ -38,7 +38,7 @@ function MediaPill({ name, type, duration }: { name: string; type: string; durat
 	);
 }
 
-/* ── Chat Message Bubble ── */
+/*  Chat Message Bubble  */
 function ChatMessageBubble({ message, onEdit }: { message: ChatMessageType; onEdit?: (messageId: string) => void }) {
 	if (message.role === "system") {
 		return (
@@ -111,7 +111,7 @@ function ChatMessageBubble({ message, onEdit }: { message: ChatMessageType; onEd
 	);
 }
 
-/* ── Main Chat Panel ── */
+/*  Main Chat Panel  */
 export function ChatPanel() {
 	const {
 		messages, isLoading, error, sendMessage, clearChat,

@@ -10,12 +10,12 @@ import type {
   ChatMessageAttachment,
 } from "@/lib/ai/types";
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    1. Code Validator
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 
 describe("Code Validator", () => {
-  // ── Blocked patterns ──
+  //  Blocked patterns 
 
   describe("blocked patterns", () => {
     test("blocks fetch()", () => {
@@ -140,7 +140,7 @@ describe("Code Validator", () => {
     });
   });
 
-  // ── Safe code (should NOT be blocked) ──
+  //  Safe code (should NOT be blocked) 
 
   describe("allowed safe code", () => {
     test("allows bare 'location' as a variable name", () => {
@@ -201,7 +201,7 @@ describe("Code Validator", () => {
     });
   });
 
-  // ── Code length limits ──
+  //  Code length limits 
 
   describe("code length limits", () => {
     test("rejects code exceeding default 5000 char limit", () => {
@@ -224,7 +224,7 @@ describe("Code Validator", () => {
     });
   });
 
-  // ── Empty / edge-case code ──
+  //  Empty / edge-case code 
 
   describe("edge cases", () => {
     test("allows empty string", () => {
@@ -242,9 +242,9 @@ describe("Code Validator", () => {
   });
 });
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    2. Snapshot Restore
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 
 // We need to mock all the external modules that restoreProjectFromSnapshot imports.
 // We use a dynamic approach: mock the modules, then import the function.
@@ -537,9 +537,9 @@ describe("Snapshot Restore", () => {
   });
 });
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    3. Playback Manager
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 
 // PlaybackManager depends on EditorCore, window.dispatchEvent, requestAnimationFrame,
 // cancelAnimationFrame, and performance.now. We mock all of these.
@@ -626,7 +626,7 @@ describe("PlaybackManager", () => {
     }
   }
 
-  // ── Play / Pause / Toggle ──
+  //  Play / Pause / Toggle 
 
   describe("play / pause / toggle", () => {
     test("starts not playing", () => {
@@ -660,7 +660,7 @@ describe("PlaybackManager", () => {
     });
   });
 
-  // ── Seek ──
+  //  Seek 
 
   describe("seek", () => {
     test("seek sets currentTime", () => {
@@ -693,7 +693,7 @@ describe("PlaybackManager", () => {
     });
   });
 
-  // ── updateTime ──
+  //  updateTime 
 
   describe("time advancement", () => {
     test("updateTime advances currentTime by delta", () => {
@@ -740,7 +740,7 @@ describe("PlaybackManager", () => {
     });
   });
 
-  // ── Volume / Mute ──
+  //  Volume / Mute 
 
   describe("volume and mute", () => {
     test("default volume is 1", () => {
@@ -794,7 +794,7 @@ describe("PlaybackManager", () => {
     });
   });
 
-  // ── Scrubbing ──
+  //  Scrubbing 
 
   describe("scrubbing", () => {
     test("default scrubbing state is false", () => {
@@ -809,7 +809,7 @@ describe("PlaybackManager", () => {
     });
   });
 
-  // ── Subscriber notifications ──
+  //  Subscriber notifications 
 
   describe("subscriber notifications", () => {
     test("subscribe returns an unsubscribe function", () => {
@@ -856,7 +856,7 @@ describe("PlaybackManager", () => {
     });
   });
 
-  // ── Duration = 0 edge case ──
+  //  Duration = 0 edge case 
 
   describe("zero-duration timeline", () => {
     test("play does not reset time when duration is 0", () => {
@@ -876,9 +876,9 @@ describe("PlaybackManager", () => {
   });
 });
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    4. ChatMessage Type Validation
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 
 describe("ChatMessage type", () => {
   test("ChatMessage with snapshotId", () => {
@@ -1010,9 +1010,9 @@ describe("ChatMessage type", () => {
   });
 });
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    5. Chat History & Version Snapshot Storage Contract
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 
 describe("Chat History & Version Snapshot storage contract", () => {
   // These tests verify the shape of data that saveChatHistory/loadChatHistory

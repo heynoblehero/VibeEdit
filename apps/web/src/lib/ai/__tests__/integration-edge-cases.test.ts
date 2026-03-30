@@ -13,7 +13,7 @@ import {
 import type { AIAction, AIActionTool, EditorContext } from "@/lib/ai/types";
 import type { RemotionEffect } from "@/lib/remotion/types";
 
-/* ── Shared mock infrastructure ── */
+/*  Shared mock infrastructure  */
 
 let mockAssets: Array<{ id: string; name: string; type: string; duration?: number; width?: number; height?: number }> = [];
 let insertElementCalls: unknown[] = [];
@@ -229,9 +229,9 @@ function addMockTrack(
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* 
    1. Multi-Action Sequences
-   ═══════════════════════════════════════════════════════════════════════ */
+    */
 
 describe("Multi-Action Sequences", () => {
   beforeEach(() => {
@@ -453,9 +453,9 @@ describe("Multi-Action Sequences", () => {
   });
 });
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* 
    2. Credit Cost Validation
-   ═══════════════════════════════════════════════════════════════════════ */
+    */
 
 describe("Credit Cost Validation", () => {
   test("ai_message costs 1 credit", () => {
@@ -548,9 +548,9 @@ describe("Credit Cost Validation", () => {
   });
 });
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* 
    3. Schema Validation
-   ═══════════════════════════════════════════════════════════════════════ */
+    */
 
 describe("Schema Validation", () => {
   test("AI_RESPONSE_SCHEMA has required top-level fields", () => {
@@ -605,9 +605,9 @@ describe("Schema Validation", () => {
   });
 });
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* 
    4. System Prompt
-   ═══════════════════════════════════════════════════════════════════════ */
+    */
 
 describe("System Prompt", () => {
   const sampleContext: EditorContext = {
@@ -725,9 +725,9 @@ describe("System Prompt", () => {
   });
 });
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* 
    5. Remotion Registry
-   ═══════════════════════════════════════════════════════════════════════ */
+    */
 
 describe("Remotion Registry", () => {
   beforeEach(() => {
@@ -931,9 +931,9 @@ describe("Remotion Registry", () => {
   });
 });
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* 
    6. Edge Cases
-   ═══════════════════════════════════════════════════════════════════════ */
+    */
 
 describe("Edge Cases", () => {
   beforeEach(() => {

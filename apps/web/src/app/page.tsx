@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useState, useRef } from "react";
 
-/* ── Pain list ────────────────────────────────────────────────── */
+/*  Pain list  */
 
 const painList = [
 	{ hours: "3 hrs", task: "learning Premiere keyboard shortcuts" },
@@ -28,7 +28,7 @@ const painList = [
 	{ hours: "\u221E hrs", task: "watching YouTube tutorials..." },
 ];
 
-/* ── Pricing ──────────────────────────────────────────────────── */
+/*  Pricing  */
 
 const pricing = [
 	{
@@ -47,7 +47,7 @@ const pricing = [
 	},
 ];
 
-/* ── Example prompts ──────────────────────────────────────────── */
+/*  Example prompts  */
 
 const prompts = [
 	"Cut the first 10 seconds",
@@ -62,7 +62,7 @@ const prompts = [
 	"Export at 4K",
 ];
 
-/* ── FAQ ──────────────────────────────────────────────────────── */
+/*  FAQ  */
 
 const faqs = [
 	{ q: "Do I need editing experience?", a: "No. If you can type a sentence, you can edit video. The AI handles cuts, transitions, timing, effects \u2014 everything." },
@@ -73,11 +73,11 @@ const faqs = [
 	{ q: "Can I cancel?", a: "Yes, cancel anytime from your account. You keep your remaining credits until the end of the billing period. No cancellation fees." },
 ];
 
-/* ── Marquee ──────────────────────────────────────────────────── */
+/*  Marquee  */
 
 const marqueeText = "MP4 \u00B7 MOV \u00B7 WebM \u00B7 PSD \u00B7 LUT \u00B7 SRT \u00B7 EDL \u00B7 XML \u00B7 Lottie \u00B7 ZIP \u00B7 TTF \u00B7 WOFF2";
 
-/* ── Components ───────────────────────────────────────────────── */
+/*  Components  */
 
 function FAQItem({ q, a }: { q: string; a: string }) {
 	const [open, setOpen] = useState(false);
@@ -94,7 +94,7 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 	);
 }
 
-/* ── Page ─────────────────────────────────────────────────────── */
+/*  Page  */
 
 export default function Home() {
 	const heroRef = useRef<HTMLDivElement>(null);
@@ -106,7 +106,7 @@ export default function Home() {
 		<div className="min-h-screen bg-[#08080c] text-white overflow-x-hidden">
 			<MarketingNav />
 
-			{/* ════════════════════ HERO ═══════════════════════════ */}
+			{/*  HERO  */}
 			<section ref={heroRef} className="relative overflow-hidden">
 				{/* BG gradient blobs */}
 				<div className="absolute inset-0">
@@ -176,7 +176,7 @@ export default function Home() {
 				</motion.div>
 			</section>
 
-			{/* ═══════════ PAIN BREAKDOWN ═════════════════════════ */}
+			{/*  PAIN BREAKDOWN  */}
 			<section className="py-28 px-6 border-t border-white/[0.05]">
 				<div className="mx-auto max-w-3xl">
 					<AnimatedSection className="text-center mb-14">
@@ -216,7 +216,7 @@ export default function Home() {
 				</div>
 			</section>
 
-			{/* ═══════════ OUTCOMES ════════════════════════════════ */}
+			{/*  OUTCOMES  */}
 			<section className="py-20 px-6">
 				<div className="mx-auto max-w-5xl">
 					<StaggerChildren className="grid gap-5 sm:grid-cols-3">
@@ -237,7 +237,7 @@ export default function Home() {
 				</div>
 			</section>
 
-			{/* ═══════════ HOW IT WORKS ════════════════════════════ */}
+			{/*  HOW IT WORKS  */}
 			<section className="py-28 px-6 border-t border-white/[0.05]">
 				<div className="mx-auto max-w-3xl">
 					<AnimatedSection className="text-center mb-14">
@@ -267,7 +267,7 @@ export default function Home() {
 				</div>
 			</section>
 
-			{/* ═══════════ WHAT CAN YOU SAY? ══════════════════════ */}
+			{/*  WHAT CAN YOU SAY?  */}
 			<section className="py-20 px-6">
 				<div className="mx-auto max-w-4xl">
 					<AnimatedSection className="text-center mb-10">
@@ -289,7 +289,7 @@ export default function Home() {
 				</div>
 			</section>
 
-			{/* ═══════════ PRICING ═════════════════════════════════ */}
+			{/*  PRICING  */}
 			<section className="py-28 px-6 border-t border-white/[0.05]">
 				<div className="mx-auto max-w-4xl">
 					<AnimatedSection className="text-center mb-14">
@@ -342,7 +342,7 @@ export default function Home() {
 				</div>
 			</section>
 
-			{/* ═══════════ FAQ ═════════════════════════════════════ */}
+			{/*  FAQ  */}
 			<section className="py-28 px-6">
 				<div className="mx-auto max-w-2xl">
 					<AnimatedSection className="text-center mb-12">
@@ -354,7 +354,7 @@ export default function Home() {
 				</div>
 			</section>
 
-			{/* ═══════════ FINAL CTA ══════════════════════════════ */}
+			{/*  FINAL CTA  */}
 			<section className="relative py-32 px-6 overflow-hidden">
 				<div className="absolute inset-0">
 					<div className="absolute -top-[30%] left-[10%] w-[50%] h-[50%] rounded-full bg-violet-600/15 blur-[100px]" />

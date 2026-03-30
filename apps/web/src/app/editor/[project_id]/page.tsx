@@ -183,7 +183,7 @@ function ToolButton({ onClick, icon: Icon, label, active }: { onClick: () => voi
 	);
 }
 
-/* ── Mobile view toggle ──────────────────────────────────────────── */
+/*  Mobile view toggle  */
 
 function MobileViewToggle({ view, onChange }: { view: "chat" | "preview"; onChange: (v: "chat" | "preview") => void }) {
 	return (
@@ -210,7 +210,7 @@ function MobileViewToggle({ view, onChange }: { view: "chat" | "preview"; onChan
 	);
 }
 
-/* ── Editor Layout ───────────────────────────────────────────────── */
+/*  Editor Layout  */
 
 function EditorLayout() {
 	usePasteMedia();

@@ -11,7 +11,7 @@
 
 import { nanoid } from "nanoid";
 
-// ── Types ────────────────────────────────────────────────────────────
+//  Types 
 
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 
@@ -43,14 +43,14 @@ export type JobExecutor<T> = (
 
 type Listener = () => void;
 
-// ── Internal job record (includes executor + abort controller) ───────
+//  Internal job record (includes executor + abort controller) 
 
 interface InternalJob<T = unknown> extends Job<T> {
   executor: JobExecutor<T>;
   abortController: AbortController;
 }
 
-// ── JobQueue ─────────────────────────────────────────────────────────
+//  JobQueue 
 
 export class JobQueue {
   private jobs = new Map<string, InternalJob>();
@@ -234,7 +234,7 @@ export class JobQueue {
     };
   }
 
-  // ── Internal ─────────────────────────────────────────────────────
+  //  Internal 
 
   private notify(): void {
     for (const listener of this.listeners) {
@@ -320,7 +320,7 @@ export class JobQueue {
   }
 }
 
-// ── Global Queue Singleton ───────────────────────────────────────────
+//  Global Queue Singleton 
 
 let _queueInstance: JobQueue | null = null;
 

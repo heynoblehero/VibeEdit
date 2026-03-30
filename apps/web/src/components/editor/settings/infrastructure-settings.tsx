@@ -323,7 +323,7 @@ export function InfrastructureSettings() {
 
   return (
     <div className="space-y-6">
-      {/* ── Processing Backend ─────────────────────────────────── */}
+      {/*  Processing Backend  */}
       <section>
         <div className="mb-3">
           <h3 className="text-sm font-semibold text-foreground">
@@ -381,7 +381,7 @@ export function InfrastructureSettings() {
 
       <Separator />
 
-      {/* ── Cloud Storage ──────────────────────────────────────── */}
+      {/*  Cloud Storage  */}
       <section>
         <div className="mb-3">
           <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -501,7 +501,7 @@ export function InfrastructureSettings() {
         </div>
       </section>
 
-      {/* ── Processing Endpoints ───────────────────────────────── */}
+      {/*  Processing Endpoints  */}
       {showEndpoints && (
         <>
           <Separator />
@@ -561,7 +561,7 @@ export function InfrastructureSettings() {
 
       <Separator />
 
-      {/* ── Save ───────────────────────────────────────────────── */}
+      {/*  Save  */}
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
           Changes take effect after saving. Storage credentials are managed via

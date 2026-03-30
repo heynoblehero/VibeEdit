@@ -230,13 +230,13 @@ function DashboardPage() {
 				onChange={handleImportFile}
 			/>
 
-			{/* ── Gradient background ─────────────────────────── */}
+			{/*  Gradient background  */}
 			<div className="fixed inset-0 pointer-events-none">
 				<div className="absolute -top-[40%] -left-[20%] w-[60%] h-[60%] rounded-full bg-gradient-to-br from-violet-600/[0.07] via-purple-600/[0.04] to-transparent blur-[100px]" />
 				<div className="absolute -bottom-[30%] -right-[15%] w-[50%] h-[50%] rounded-full bg-gradient-to-tl from-fuchsia-600/[0.05] via-pink-600/[0.03] to-transparent blur-[100px]" />
 			</div>
 
-			{/* ── Top bar ─────────────────────────────────────── */}
+			{/*  Top bar  */}
 			<header className="sticky top-0 z-50">
 				<div className="mx-auto max-w-6xl px-6 py-3">
 					<div className="flex items-center justify-between rounded-2xl border border-white/[0.06] bg-black/30 backdrop-blur-2xl px-5 py-2.5 shadow-lg">
@@ -275,7 +275,7 @@ function DashboardPage() {
 				</div>
 			</header>
 
-			{/* ── Main content ────────────────────────────────── */}
+			{/*  Main content  */}
 			<main className="relative mx-auto max-w-6xl px-6 py-10">
 				{/* Welcome + Actions */}
 				<motion.div
@@ -318,7 +318,7 @@ function DashboardPage() {
 					</div>
 				</motion.div>
 
-				{/* ── Stats bar ───────────────────────────────────── */}
+				{/*  Stats bar  */}
 				<motion.div
 					className="flex items-center gap-3 mb-8 text-xs text-muted-foreground/70"
 					initial={{ opacity: 0 }}
@@ -341,7 +341,7 @@ function DashboardPage() {
 					</span>
 				</motion.div>
 
-				{/* ── Quick Actions Row ───────────────────────────── */}
+				{/*  Quick Actions Row  */}
 				<motion.div
 					className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10"
 					initial={{ opacity: 0, y: 12 }}

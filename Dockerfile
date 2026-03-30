@@ -3,8 +3,19 @@ WORKDIR /app
 
 # Build tools for native modules (better-sqlite3)
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+
+# Install bun for workspace:* protocol support
+RUN npm install -g bun
+
 COPY . .
-RUN npm install --legacy-peer-deps
+
+# Install with hoisted node_modules (flat layout, no .bun/ symlinks)
+# This is critical: Turbopack can't resolve bun's default symlinked layout
+RUN bun install --frozen-lockfile && \
+    cp -rL node_modules node_modules_flat && \
+    rm -rf node_modules && \
+    mv node_modules_flat node_modules
+
 RUN npm rebuild better-sqlite3
 
 ENV NEXT_TELEMETRY_DISABLED=1

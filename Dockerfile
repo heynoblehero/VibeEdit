@@ -12,7 +12,7 @@ RUN bun install --frozen-lockfile
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=3072"
-RUN cd apps/web && NEXT_PRIVATE_TURBOPACK=0 npx next build --no-turbopack
+RUN cd apps/web && npx next build
 
 # Production (minimal image)
 FROM node:22-slim AS runner

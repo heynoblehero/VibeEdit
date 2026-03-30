@@ -44,6 +44,9 @@ const nextConfig: NextConfig = {
 	reactStrictMode: true,
 	productionBrowserSourceMaps: false,
 	output: "standalone",
+	// Disable incremental cache for standalone Docker builds
+	cacheHandler: undefined,
+	cacheMaxMemorySize: 0,
 	images: {
 		remotePatterns: [
 			{

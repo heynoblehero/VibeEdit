@@ -3,10 +3,8 @@ WORKDIR /app
 
 # Build tools for native modules (better-sqlite3)
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
-RUN npm install -g bun
-
 COPY . .
-RUN bun install --frozen-lockfile
+RUN npm install --legacy-peer-deps
 RUN npm rebuild better-sqlite3
 
 ENV NEXT_TELEMETRY_DISABLED=1

@@ -10,14 +10,15 @@ COPY packages/env/package.json ./packages/env/
 COPY packages/ui/package.json ./packages/ui/
 RUN bun install --frozen-lockfile
 
-# Build with Node.js (Bun panics on large Next.js builds)
+# Build with Node directly (skip turbo/bun to avoid OOM panics)
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-RUN npx turbo run build --filter=@opencut/web
+ENV NODE_OPTIONS="--max-old-space-size=3072"
+RUN cd apps/web && npx next build
 
 # Production
 FROM node:22-slim AS runner

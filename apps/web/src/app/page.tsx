@@ -32,18 +32,18 @@ const painList = [
 
 const pricing = [
 	{
-		name: "Starter", price: 5, subtitle: "100 credits", popular: false,
-		features: ["~100 AI edits", "~20 video exports", "Auto-captions", "All import formats", "TikTok/YouTube/IG presets"],
+		name: "Starter", price: 5, period: "/mo", subtitle: "100 credits/month", popular: false,
+		features: ["~100 AI edits/mo", "~20 video exports/mo", "Auto-captions", "All import formats", "TikTok/YouTube/IG presets"],
 	},
 	{
-		name: "Pro", price: 20, subtitle: "500 credits", popular: true,
+		name: "Pro", price: 20, period: "/mo", subtitle: "500 credits/month", popular: true,
 		includesLabel: "Everything in Starter, plus:",
-		features: ["~500 AI edits", "~100 video exports", "AI Storyboard", "Background removal", "Priority support"],
+		features: ["~500 AI edits/mo", "~100 exports/mo", "AI Storyboard", "Background removal", "Priority support"],
 	},
 	{
-		name: "Studio", price: 50, subtitle: "1,500 credits", popular: false,
+		name: "Studio", price: 50, period: "/mo", subtitle: "1,500 credits/month", popular: false,
 		includesLabel: "Everything in Pro, plus:",
-		features: ["~1,500 AI edits", "~300 video exports", "Team collaboration", "Custom export presets"],
+		features: ["~1,500 AI edits/mo", "~300 exports/mo", "Team collaboration", "Custom presets"],
 	},
 ];
 
@@ -69,8 +69,8 @@ const faqs = [
 	{ q: "How fast is it?", a: "Most edits happen in seconds. A full video that takes 4 hours in Premiere takes about 5 minutes here." },
 	{ q: "What if the AI gets it wrong?", a: "Just tell it. \u201CMake the text bigger\u201D or \u201Cundo that.\u201D It\u2019s a conversation. You can edit any previous message to redo from that point." },
 	{ q: "What formats are supported?", a: "Import: MP4, MOV, WebM, PSD, LUT, SRT, EDL, Premiere XML, and more. Export: YouTube, TikTok, Instagram, Twitter presets built in." },
-	{ q: "How do credits work?", a: "1 credit per AI message, 5 per render. Buy packs, use anytime. Credits never expire. No subscriptions." },
-	{ q: "Can I cancel?", a: "Nothing to cancel. You buy credit packs when you need them. No recurring charges." },
+	{ q: "How do credits work?", a: "1 credit per AI message, 5 per render. Pick a monthly plan and get fresh credits every month. Unused credits roll over." },
+	{ q: "Can I cancel?", a: "Yes, cancel anytime from your account. You keep your remaining credits until the end of the billing period. No cancellation fees." },
 ];
 
 /* ── Marquee ──────────────────────────────────────────────────── */
@@ -297,7 +297,7 @@ export default function Home() {
 						<h2 className="text-4xl sm:text-5xl font-black font-[family-name:var(--font-display)] tracking-tight text-white">
 							Pay for what you use
 						</h2>
-						<p className="mt-4 text-lg text-white/60">No subscriptions. No monthly fees. Credits never expire.</p>
+						<p className="mt-4 text-lg text-white/60">Simple monthly plans. Credits refresh every month. Cancel anytime.</p>
 					</AnimatedSection>
 
 					<StaggerChildren className="grid gap-5 sm:grid-cols-3">
@@ -310,8 +310,9 @@ export default function Home() {
 									{p.popular && <NeonBadge className="absolute -top-3 left-1/2 -translate-x-1/2">Most Popular</NeonBadge>}
 									<h3 className="text-xl font-black font-[family-name:var(--font-display)] text-white">{p.name}</h3>
 									<p className="text-sm text-white/50 mt-1">{p.subtitle}</p>
-									<div className="mt-4">
+									<div className="mt-4 flex items-baseline gap-1">
 										<span className="text-5xl font-black font-[family-name:var(--font-display)] text-white">${p.price}</span>
+										<span className="text-lg text-white/30 font-medium">{p.period}</span>
 									</div>
 
 									{/* Features */}
@@ -334,7 +335,7 @@ export default function Home() {
 					</StaggerChildren>
 
 					<div className="mt-10 flex items-center justify-center gap-8 text-sm text-white/40 font-medium">
-						<span className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400" /> No subscription</span>
+						<span className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400" /> Cancel anytime</span>
 						<span className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400" /> Credits never expire</span>
 						<span className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400" /> Nothing to cancel</span>
 					</div>

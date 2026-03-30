@@ -14,18 +14,18 @@ import { StaggerChildren, StaggerItem } from "@/components/ui/motion/stagger-chi
 
 const packs = [
 	{
-		id: "starter", name: "Starter", price: 5, credits: 100, perCredit: "$0.05", popular: false,
-		features: ["~100 AI edits", "~20 video exports", "Auto-captions", "All import formats", "TikTok/YouTube/IG presets"],
+		id: "starter", name: "Starter", price: 5, period: "/mo", credits: 100, perCredit: "$0.05", popular: false,
+		features: ["100 credits/month", "~100 AI edits", "~20 video exports", "Auto-captions", "All import formats"],
 	},
 	{
-		id: "pro", name: "Pro", price: 20, credits: 500, perCredit: "$0.04", popular: true,
+		id: "pro", name: "Pro", price: 20, period: "/mo", credits: 500, perCredit: "$0.04", popular: true,
 		includesLabel: "Everything in Starter, plus:",
-		features: ["~500 AI edits", "~100 video exports", "AI Storyboard", "Background removal", "Priority support"],
+		features: ["500 credits/month", "~500 AI edits", "~100 video exports", "AI Storyboard", "Priority support"],
 	},
 	{
-		id: "studio", name: "Studio", price: 50, credits: 1500, perCredit: "$0.033", popular: false,
+		id: "studio", name: "Studio", price: 50, period: "/mo", credits: 1500, perCredit: "$0.033", popular: false,
 		includesLabel: "Everything in Pro, plus:",
-		features: ["~1,500 AI edits", "~300 video exports", "Team collaboration", "Custom export presets"],
+		features: ["1,500 credits/month", "~1,500 AI edits", "~300 video exports", "Team collaboration", "Custom presets"],
 	},
 ];
 
@@ -77,10 +77,10 @@ export default function PricingPage() {
 				<div className="absolute -bottom-[20%] -right-[15%] w-[40%] h-[40%] rounded-full bg-fuchsia-600/10 blur-[100px]" />
 				<AnimatedSection className="relative z-10 mx-auto max-w-3xl text-center">
 					<h1 className="text-4xl sm:text-5xl font-black tracking-tight font-[family-name:var(--font-display)]">
-						Pay for what you use
+						Simple, predictable pricing
 					</h1>
 					<p className="mt-4 text-lg text-white/60">
-						No subscriptions. No monthly fees. Credits never expire.
+						Pick a plan. Get credits every month. Cancel anytime.
 					</p>
 				</AnimatedSection>
 			</section>
@@ -102,11 +102,11 @@ export default function PricingPage() {
 
 								<h2 className="text-xl font-black font-[family-name:var(--font-display)]">{pack.name}</h2>
 
-								<div className="mt-4">
+								<div className="mt-4 flex items-baseline gap-1">
 									<span className="text-5xl font-black font-[family-name:var(--font-display)]">${pack.price}</span>
+									<span className="text-lg text-white/40 font-medium">{pack.period}</span>
 								</div>
-								<p className="mt-1 text-sm text-white/50">{pack.credits} credits</p>
-								<p className="text-xs text-white/30">{pack.perCredit} per credit</p>
+								<p className="mt-1 text-sm text-white/50">{pack.credits} credits every month</p>
 
 								<div className="mt-6 flex-1 space-y-2.5">
 									{pack.includesLabel && <p className="text-xs text-white/40 font-medium">{pack.includesLabel}</p>}
@@ -127,7 +127,7 @@ export default function PricingPage() {
 											: "border border-white/15 text-white hover:bg-white/5"
 									}`}
 								>
-									{loading === pack.id ? "Redirecting..." : `Buy ${pack.name}`}
+									{loading === pack.id ? "Redirecting..." : `Subscribe to ${pack.name}`}
 								</button>
 							</GlassCard>
 						</StaggerItem>
@@ -135,9 +135,9 @@ export default function PricingPage() {
 				</StaggerChildren>
 
 				<div className="mt-10 flex items-center justify-center gap-8 text-sm text-white/40 font-medium">
-					<span className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400" /> No subscription</span>
-					<span className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400" /> Credits never expire</span>
-					<span className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400" /> Nothing to cancel</span>
+					<span className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400" /> Cancel anytime</span>
+					<span className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400" /> Credits refresh monthly</span>
+					<span className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400" /> No long-term contracts</span>
 				</div>
 			</section>
 

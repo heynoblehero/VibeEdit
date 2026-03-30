@@ -1,5 +1,6 @@
-FROM oven/bun:1.3 AS base
+FROM node:22-slim AS base
 WORKDIR /app
+RUN npm install -g bun
 
 # Install dependencies
 FROM base AS deps
@@ -9,17 +10,17 @@ COPY packages/env/package.json ./packages/env/
 COPY packages/ui/package.json ./packages/ui/
 RUN bun install --frozen-lockfile
 
-# Build
+# Build with Node.js (Bun panics on large Next.js builds)
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-RUN bun run build:web
+RUN npx turbo run build --filter=@opencut/web
 
 # Production
-FROM base AS runner
+FROM node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -35,4 +36,4 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV DATABASE_PATH="/data/vibeedit.db"
 
-CMD ["bun", "apps/web/server.js"]
+CMD ["node", "apps/web/server.js"]

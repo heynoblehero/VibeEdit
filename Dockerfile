@@ -1,9 +1,9 @@
 FROM oven/bun:1.3 AS base
 WORKDIR /app
 
-# Install dependencies
+# Install ALL dependencies with full workspace context
 FROM base AS deps
-COPY package.json bun.lock ./
+COPY package.json bun.lock turbo.json ./
 COPY apps/web/package.json ./apps/web/
 COPY packages/env/package.json ./packages/env/
 COPY packages/ui/package.json ./packages/ui/
@@ -13,6 +13,7 @@ RUN bun install --frozen-lockfile
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules 2>/dev/null || true
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
@@ -24,16 +25,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Create data directory for SQLite
 RUN mkdir -p /data
 
-# Copy standalone output
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
-
-# Install Claude CLI (needed for AI chat)
-# Note: In production, mount claude binary or install separately
 
 EXPOSE 3000
 ENV PORT=3000

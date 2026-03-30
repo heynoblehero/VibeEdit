@@ -1,22 +1,20 @@
-FROM node:22-slim AS base
+FROM node:22-slim AS builder
 WORKDIR /app
 
-# Install bun for package resolution
+# Build tools for native modules (better-sqlite3)
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 RUN npm install -g bun
 
-# Copy everything first, then install (simpler for monorepo)
-FROM base AS builder
-WORKDIR /app
 COPY . .
-RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 RUN bun install --frozen-lockfile
 RUN npm rebuild better-sqlite3
+
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=3072"
 RUN cd apps/web && npx next build --webpack
 
-# Production (minimal image)
+# --- Production ---
 FROM node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production

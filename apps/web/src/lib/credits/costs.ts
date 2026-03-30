@@ -53,9 +53,9 @@ export function getCreditCost(toolName: string): number {
 }
 
 export const CREDIT_PACKS = [
-  { id: "starter", name: "Starter", credits: 100, price: 500, priceDisplay: "$5/mo", popular: false },
-  { id: "pro", name: "Pro", credits: 500, price: 2000, priceDisplay: "$20/mo", popular: true },
-  { id: "studio", name: "Studio", credits: 1500, price: 5000, priceDisplay: "$50/mo", popular: false },
+  { id: "starter", name: "Starter", credits: 200, price: 1900, priceDisplay: "$19/mo", popular: false },
+  { id: "pro", name: "Pro", credits: 1000, price: 4900, priceDisplay: "$49/mo", popular: true },
+  { id: "studio", name: "Studio", credits: 3000, price: 9900, priceDisplay: "$99/mo", popular: false },
 ] as const;
 
 export const SIGNUP_BONUS_CREDITS = 10;

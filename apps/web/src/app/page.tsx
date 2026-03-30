@@ -32,18 +32,18 @@ const painList = [
 
 const pricing = [
 	{
-		name: "Starter", price: 5, period: "/mo", subtitle: "100 credits/month", popular: false,
-		features: ["~100 AI edits/mo", "~20 video exports/mo", "Auto-captions", "All import formats", "TikTok/YouTube/IG presets"],
+		name: "Starter", price: 19, period: "/mo", subtitle: "200 credits/month", popular: false,
+		features: ["~200 AI edits", "~40 video exports", "Auto-captions", "All formats"],
 	},
 	{
-		name: "Pro", price: 20, period: "/mo", subtitle: "500 credits/month", popular: true,
+		name: "Pro", price: 49, period: "/mo", subtitle: "1,000 credits/month", popular: true,
 		includesLabel: "Everything in Starter, plus:",
-		features: ["~500 AI edits/mo", "~100 exports/mo", "AI Storyboard", "Background removal", "Priority support"],
+		features: ["~1,000 AI edits", "~200 exports", "AI Storyboard", "Priority support"],
 	},
 	{
-		name: "Studio", price: 50, period: "/mo", subtitle: "1,500 credits/month", popular: false,
+		name: "Studio", price: 99, period: "/mo", subtitle: "3,000 credits/month", popular: false,
 		includesLabel: "Everything in Pro, plus:",
-		features: ["~1,500 AI edits/mo", "~300 exports/mo", "Team collaboration", "Custom presets"],
+		features: ["~3,000 AI edits", "~600 exports", "Team collaboration", "Custom presets"],
 	},
 ];
 
@@ -142,7 +142,7 @@ export default function Home() {
 					>
 						Drop your files. Describe the edit. Get a finished video.
 						<br className="hidden sm:block" />
-						<span className="text-white/50">No timeline. No learning curve. No $50/month software.</span>
+						<span className="text-white/50">No timeline. No learning curve. No complexity.</span>
 					</motion.p>
 
 					{/* CTAs */}
@@ -223,7 +223,7 @@ export default function Home() {
 						{[
 							{ metric: "90%", label: "less time editing", detail: "4 hours \u2192 5 minutes." },
 							{ metric: "5x", label: "more output", detail: "More videos = more reach = more growth." },
-							{ metric: "$0", label: "software cost", detail: "No Premiere. No After Effects. Just credits." },
+							{ metric: "80%", label: "cheaper than Premiere", detail: "No $55/mo Adobe tax. Everything in one tool." },
 						].map((o) => (
 							<StaggerItem key={o.label}>
 								<div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-8 text-center">

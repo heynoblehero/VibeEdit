@@ -14,18 +14,21 @@ import { StaggerChildren, StaggerItem } from "@/components/ui/motion/stagger-chi
 
 const packs = [
 	{
-		id: "starter", name: "Starter", price: 5, period: "/mo", credits: 100, perCredit: "$0.05", popular: false,
-		features: ["100 credits/month", "~100 AI edits", "~20 video exports", "Auto-captions", "All import formats"],
+		id: "starter", name: "Starter", price: 19, period: "/mo", credits: 200, popular: false,
+		desc: "For casual creators",
+		features: ["200 credits/month", "~200 AI edits", "~40 video exports", "Auto-captions", "All import formats"],
 	},
 	{
-		id: "pro", name: "Pro", price: 20, period: "/mo", credits: 500, perCredit: "$0.04", popular: true,
+		id: "pro", name: "Pro", price: 49, period: "/mo", credits: 1000, popular: true,
+		desc: "For serious creators",
 		includesLabel: "Everything in Starter, plus:",
-		features: ["500 credits/month", "~500 AI edits", "~100 video exports", "AI Storyboard", "Priority support"],
+		features: ["1,000 credits/month", "~1,000 AI edits", "~200 video exports", "AI Storyboard", "Priority support"],
 	},
 	{
-		id: "studio", name: "Studio", price: 50, period: "/mo", credits: 1500, perCredit: "$0.033", popular: false,
+		id: "studio", name: "Studio", price: 99, period: "/mo", credits: 3000, popular: false,
+		desc: "For teams & agencies",
 		includesLabel: "Everything in Pro, plus:",
-		features: ["1,500 credits/month", "~1,500 AI edits", "~300 video exports", "Team collaboration", "Custom presets"],
+		features: ["3,000 credits/month", "~3,000 AI edits", "~600 video exports", "Team collaboration", "Custom presets"],
 	},
 ];
 

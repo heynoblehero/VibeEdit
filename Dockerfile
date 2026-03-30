@@ -1,7 +1,7 @@
 FROM oven/bun:1.3 AS base
 WORKDIR /app
 
-# Install ALL dependencies with full workspace context
+# Install dependencies
 FROM base AS deps
 COPY package.json bun.lock turbo.json ./
 COPY apps/web/package.json ./apps/web/
@@ -13,7 +13,6 @@ RUN bun install --frozen-lockfile
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules 2>/dev/null || true
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production

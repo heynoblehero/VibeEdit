@@ -9,18 +9,15 @@ RUN npm install -g bun
 
 COPY . .
 
-# Install with hoisted node_modules (flat layout, no .bun/ symlinks)
-# This is critical: Turbopack can't resolve bun's default symlinked layout
-# Preserve .bin/ symlinks — cp -rL turns them into broken regular files
+# Install deps, then resolve only workspace symlinks (Turbopack can't follow them)
+# We must NOT flatten all of node_modules — cp -rL breaks .bin links and @swc/helpers
 RUN bun install --frozen-lockfile && \
-    mv node_modules/.bin /tmp/bin_backup && \
-    cp -rL node_modules node_modules_flat && \
-    rm -rf node_modules && \
-    mv node_modules_flat node_modules && \
-    rm -rf node_modules/.bin && \
-    mv /tmp/bin_backup node_modules/.bin
+    for link in $(find node_modules -maxdepth 2 -type l -not -path "*/\.bin/*"); do \
+      real=$(readlink -f "$link"); \
+      if [ -d "$real" ]; then rm "$link" && cp -r "$real" "$link"; fi; \
+    done
 
-# Try prebuilt binary first, fall back to compiling from source
+# Rebuild better-sqlite3 native addon (try prebuilt binary first)
 RUN cd node_modules/better-sqlite3 && npx --yes prebuild-install || npm rebuild better-sqlite3
 
 ENV NEXT_TELEMETRY_DISABLED=1

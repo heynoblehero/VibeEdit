@@ -23,6 +23,8 @@ RUN cd node_modules/better-sqlite3 && npx --yes prebuild-install || npm rebuild 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=3072"
+# Bun dedupes packages into .bun/node_modules/ which Node.js can't find
+ENV NODE_PATH="/app/node_modules/.bun/node_modules"
 RUN cd apps/web && npx next build
 
 # --- Production ---

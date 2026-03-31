@@ -16,6 +16,10 @@ import {
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { FAQJsonLd } from "@/components/json-ld";
+import { Mascot } from "@/components/marketing/mascot";
+import { EmojiReaction } from "@/components/marketing/floating-emojis";
+import { SparkleCanvas, useConfetti } from "@/components/marketing/particles";
+import { DoodleStars, DoodleArrow, DoodleWavy, DoodleBang, DoodleSparkle } from "@/components/marketing/doodles";
 
 /*  Mouse glow hook  */
 
@@ -202,11 +206,13 @@ export default function Home() {
 	const heroY = useTransform(scrollYProgress, [0, 1], ["0%", "30%"]);
 	const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
 	const mouse = useMouseGlow();
+	const confetti = useConfetti();
 
 	return (
 		<div className="min-h-screen bg-[#08080c] text-white overflow-x-hidden">
 			<FAQJsonLd items={faqs} />
 			<MarketingNav />
+			<Mascot />
 
 			{/*  HERO  */}
 			<section ref={heroRef} className="relative overflow-hidden">
@@ -225,6 +231,9 @@ export default function Home() {
 						background: `radial-gradient(600px circle at ${mouse.x}px ${mouse.y}px, rgba(139,92,246,0.04), transparent 40%)`,
 					}}
 				/>
+
+				{/* Cursor sparkle trail */}
+				<SparkleCanvas />
 
 				<motion.div className="relative z-10 mx-auto max-w-5xl px-6 pt-32 pb-8 text-center" style={{ y: heroY, opacity: heroOpacity }}>
 					{/* Badge */}
@@ -273,7 +282,7 @@ export default function Home() {
 						className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4"
 						initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.25 }}
 					>
-						<Link href="/register" className="group inline-flex items-center gap-2.5 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-600 px-8 py-4 text-lg font-bold text-white shadow-[0_0_40px_hsl(262_83%_58%/0.35)] hover:shadow-[0_0_60px_hsl(262_83%_58%/0.5)] transition-all duration-300 hover:scale-[1.02]">
+						<Link href="/register" onClick={(e) => confetti(e.clientX, e.clientY)} className="group inline-flex items-center gap-2.5 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-600 px-8 py-4 text-lg font-bold text-white shadow-[0_0_40px_hsl(262_83%_58%/0.35)] hover:shadow-[0_0_60px_hsl(262_83%_58%/0.5)] transition-all duration-300 hover:scale-[1.02]">
 							Get VibeEdit — it&apos;s free
 							<ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
 						</Link>
@@ -305,7 +314,10 @@ export default function Home() {
 					<AnimatedSection className="text-center mb-14">
 						<h2 className="text-4xl sm:text-5xl font-black font-[family-name:var(--font-display)] tracking-tight text-white">
 							Traditional editing is a{" "}
-							<span className="bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">time sink</span>
+							<span className="relative inline-block">
+								<span className="bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">time sink</span>
+								<DoodleWavy className="absolute -bottom-2 left-0 w-full h-3" />
+							</span>
 						</h2>
 						<p className="mt-4 text-lg text-white/60">Here&apos;s where your hours go. Every. Single. Video.</p>
 					</AnimatedSection>
@@ -335,7 +347,8 @@ export default function Home() {
 					{/* The flip */}
 					<AnimatedSection delay={0.3} className="mt-8 text-center">
 						<p className="text-white/40 mb-4 font-medium">With VibeEdit:</p>
-						<div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-6">
+						<div className="relative rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-6">
+							<DoodleArrow className="absolute -top-10 -right-12 w-12 h-10 rotate-[30deg] hidden sm:block" />
 							<div className="text-4xl font-black font-[family-name:var(--font-display)] bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">5 minutes. Done.</div>
 							<p className="text-base text-white/50 mt-1">&ldquo;Add captions, cut the intro, export for TikTok.&rdquo; That&apos;s the whole edit.</p>
 						</div>
@@ -345,7 +358,9 @@ export default function Home() {
 
 			{/*  OUTCOMES  */}
 			<section className="py-20 px-6">
-				<div className="mx-auto max-w-5xl">
+				<div className="mx-auto max-w-5xl relative">
+					<DoodleBang className="absolute -top-4 -left-8 w-6 h-10 hidden lg:block" />
+					<EmojiReaction emojis={[{ emoji: "\ud83d\ude80", delay: 0.3, x: 8, side: "right" }]} className="absolute -top-2 right-0 hidden sm:block" />
 					<StaggerChildren className="grid gap-5 sm:grid-cols-3">
 						{[
 							{ metric: "90%", label: "less time editing", detail: "4 hours \u2192 5 minutes." },
@@ -368,7 +383,10 @@ export default function Home() {
 			<section className="py-28 px-6 border-t border-white/[0.05]">
 				<div className="mx-auto max-w-3xl">
 					<AnimatedSection className="text-center mb-14">
-						<p className="text-violet-400 font-bold uppercase tracking-widest text-sm mb-3">How it works</p>
+						<div className="relative inline-block">
+							<p className="text-violet-400 font-bold uppercase tracking-widest text-sm mb-3">How it works</p>
+							<DoodleStars className="absolute -top-2 -right-16 w-16 h-8 hidden sm:block" />
+						</div>
 						<h2 className="text-4xl sm:text-5xl font-black font-[family-name:var(--font-display)] tracking-tight text-white">
 							Three steps. That&apos;s it.
 						</h2>
@@ -571,12 +589,20 @@ export default function Home() {
 			{/*  TESTIMONIALS  */}
 			<section className="py-28 px-6">
 				<div className="mx-auto max-w-5xl">
-					<AnimatedSection className="text-center mb-14">
+					<AnimatedSection className="text-center mb-14 relative">
 						<p className="text-violet-400 font-bold uppercase tracking-widest text-sm mb-3">Testimonials</p>
-						<h2 className="text-4xl sm:text-5xl font-black font-[family-name:var(--font-display)] tracking-tight text-white">
+						<h2 className="text-4xl sm:text-5xl font-black font-[family-name:var(--font-display)] tracking-tight text-white relative inline-block">
 							Creators love VibeEdit
+							<DoodleSparkle className="absolute -top-4 -right-8 w-6 h-6 hidden sm:block" />
 						</h2>
 						<p className="mt-4 text-lg text-white/60">Don&apos;t take our word for it.</p>
+						<EmojiReaction
+							emojis={[
+								{ emoji: "\ud83d\udd25", delay: 0.2, x: 16, side: "left" },
+								{ emoji: "\u2764\ufe0f", delay: 0.6, x: 16, side: "right" },
+							]}
+							className="absolute inset-0 hidden sm:block"
+						/>
 					</AnimatedSection>
 
 					<StaggerChildren className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -622,7 +648,7 @@ export default function Home() {
 					</h2>
 					<p className="mt-4 text-xl text-white/60 font-medium">10 free credits. No card required. Start in 30 seconds.</p>
 					<div className="mt-8">
-						<Link href="/register" className="group inline-flex items-center gap-2.5 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-600 px-10 py-5 text-lg font-bold text-white shadow-[0_0_40px_hsl(262_83%_58%/0.35)] hover:shadow-[0_0_60px_hsl(262_83%_58%/0.5)] transition-all duration-300 hover:scale-[1.02]">
+						<Link href="/register" onClick={(e) => confetti(e.clientX, e.clientY)} className="group inline-flex items-center gap-2.5 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-600 px-10 py-5 text-lg font-bold text-white shadow-[0_0_40px_hsl(262_83%_58%/0.35)] hover:shadow-[0_0_60px_hsl(262_83%_58%/0.5)] transition-all duration-300 hover:scale-[1.02]">
 							<Zap className="h-5 w-5" />
 							Get VibeEdit — it&apos;s free
 							<ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />

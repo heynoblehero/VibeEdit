@@ -20,6 +20,7 @@ import { Mascot } from "@/components/marketing/mascot";
 import { EmojiReaction } from "@/components/marketing/floating-emojis";
 import { SparkleCanvas, useConfetti } from "@/components/marketing/particles";
 import { DoodleStars, DoodleArrow, DoodleWavy, DoodleBang, DoodleSparkle } from "@/components/marketing/doodles";
+import { EditorComparison } from "@/components/marketing/editor-comparison";
 
 /*  Mouse glow hook  */
 
@@ -281,8 +282,15 @@ export default function Home() {
 				</motion.div>
 			</section>
 
+			{/*  EDITOR COMPARISON — stressed vs chill  */}
+			<section className="py-20 border-t border-white/[0.05]">
+				<AnimatedSection>
+					<EditorComparison />
+				</AnimatedSection>
+			</section>
+
 			{/*  PAIN BREAKDOWN  */}
-			<section className="py-28 px-6 border-t border-white/[0.05]">
+			<section className="py-28 px-6">
 				<div className="mx-auto max-w-3xl">
 					<AnimatedSection className="text-center mb-14">
 						<h2 className="text-4xl sm:text-5xl font-black font-[family-name:var(--font-display)] tracking-tight text-white">

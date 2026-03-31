@@ -41,20 +41,20 @@ export function DoodleStars({ className }: { className?: string }) {
 	);
 }
 
-/** Arrow pointing down-right */
+/** Curved arrow pointing down into something below */
 export function DoodleArrow({ className }: { className?: string }) {
 	const { ref, inView } = useDoodleInView();
 	return (
-		<svg ref={ref} viewBox="0 0 60 50" fill="none" className={`pointer-events-none ${className ?? ""}`} xmlns="http://www.w3.org/2000/svg">
+		<svg ref={ref} viewBox="0 0 50 50" fill="none" className={`pointer-events-none ${className ?? ""}`} xmlns="http://www.w3.org/2000/svg">
 			<motion.path
-				d="M8 8c8 10 18 22 30 30"
-				stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" fill="none"
+				d="M10 6c2 12 8 24 18 32"
+				stroke="#a78bfa" strokeWidth="2.5" strokeLinecap="round" fill="none"
 				variants={draw} initial="hidden" animate={inView ? "visible" : "hidden"}
 				transition={{ duration: 0.7 }}
 			/>
 			<motion.path
-				d="M30 38l10 2-3-10"
-				stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"
+				d="M22 38l8 4-2-9"
+				stroke="#a78bfa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"
 				variants={draw} initial="hidden" animate={inView ? "visible" : "hidden"}
 				transition={{ duration: 0.3, delay: 0.6 }}
 			/>
@@ -62,16 +62,16 @@ export function DoodleArrow({ className }: { className?: string }) {
 	);
 }
 
-/** Wavy underline */
+/** Wavy underline — sits tight under text */
 export function DoodleWavy({ className }: { className?: string }) {
 	const { ref, inView } = useDoodleInView();
 	return (
-		<svg ref={ref} viewBox="0 0 200 12" fill="none" className={`pointer-events-none ${className ?? ""}`} xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+		<svg ref={ref} viewBox="0 0 120 6" fill="none" className={`pointer-events-none ${className ?? ""}`} xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
 			<motion.path
-				d="M2 6c16-6 32 6 48 0s32-6 48 0 32 6 48 0 32-6 50 0"
-				stroke="#f472b6" strokeWidth="2.5" strokeLinecap="round" fill="none"
+				d="M2 3c10-3 20 3 30 0s20-3 30 0 20 3 28 0 20-3 28 0"
+				stroke="#f472b6" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.7"
 				variants={draw} initial="hidden" animate={inView ? "visible" : "hidden"}
-				transition={{ duration: 0.8 }}
+				transition={{ duration: 0.6 }}
 			/>
 		</svg>
 	);

@@ -16,9 +16,10 @@ import {
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { FAQJsonLd } from "@/components/json-ld";
+import { Mascot } from "@/components/marketing/mascot";
 import { EmojiReaction } from "@/components/marketing/floating-emojis";
 import { SparkleCanvas, useConfetti } from "@/components/marketing/particles";
-import { DoodleStars, DoodleBang, DoodleSparkle } from "@/components/marketing/doodles";
+import { DoodleStars, DoodleArrow, DoodleWavy, DoodleBang, DoodleSparkle } from "@/components/marketing/doodles";
 
 /*  Mouse glow hook  */
 
@@ -30,6 +31,30 @@ function useMouseGlow() {
 		return () => window.removeEventListener("mousemove", handler);
 	}, [handler]);
 	return pos;
+}
+
+/*  Hand-drawn underline for hero  */
+
+function ScribbleUnderline() {
+	return (
+		<svg
+			viewBox="0 0 260 8"
+			fill="none"
+			xmlns="http://www.w3.org/2000/svg"
+			className="absolute left-[5%] right-[5%] -bottom-1 sm:-bottom-2 w-[90%] h-2 sm:h-3 pointer-events-none"
+		>
+			<motion.path
+				d="M1 5.5C32 2 64 3 96 4.5c32 1.5 64 2 96 0s40-2.5 66-1"
+				stroke="#a78bfa"
+				strokeWidth="2"
+				strokeLinecap="round"
+				fill="none"
+				initial={{ pathLength: 0, opacity: 0 }}
+				animate={{ pathLength: 1, opacity: 0.6 }}
+				transition={{ duration: 1, delay: 0.8, ease: "easeOut" }}
+			/>
+		</svg>
+	);
 }
 
 /*  Pain list  */
@@ -170,6 +195,7 @@ export default function Home() {
 		<div className="min-h-screen bg-[#08080c] text-white overflow-x-hidden">
 			<FAQJsonLd items={faqs} />
 			<MarketingNav />
+			<Mascot />
 
 			{/*  HERO  */}
 			<section ref={heroRef} className="relative overflow-hidden">
@@ -208,7 +234,10 @@ export default function Home() {
 					>
 						Edit videos
 						<br />
-						<span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">in minutes, not hours</span>
+						<span className="relative inline-block">
+							<span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">in minutes, not hours</span>
+							<ScribbleUnderline />
+						</span>
 					</motion.h1>
 
 					{/* Sub — readable, NOT faded out */}
@@ -258,7 +287,10 @@ export default function Home() {
 					<AnimatedSection className="text-center mb-14">
 						<h2 className="text-4xl sm:text-5xl font-black font-[family-name:var(--font-display)] tracking-tight text-white">
 							Traditional editing is a{" "}
-							<span className="bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">time sink</span>
+							<span className="relative inline-block">
+								<span className="bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">time sink</span>
+								<DoodleWavy className="absolute -bottom-1 left-0 w-full h-2" />
+							</span>
 						</h2>
 						<p className="mt-4 text-lg text-white/60">Here&apos;s where your hours go. Every. Single. Video.</p>
 					</AnimatedSection>
@@ -288,7 +320,8 @@ export default function Home() {
 					{/* The flip */}
 					<AnimatedSection delay={0.3} className="mt-8 text-center">
 						<p className="text-white/40 mb-4 font-medium">With VibeEdit:</p>
-						<div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-6">
+						<div className="relative rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-6">
+							<DoodleArrow className="absolute -top-9 -left-10 w-10 h-10 hidden sm:block" />
 							<div className="text-4xl font-black font-[family-name:var(--font-display)] bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">5 minutes. Done.</div>
 							<p className="text-base text-white/50 mt-1">&ldquo;Add captions, cut the intro, export for TikTok.&rdquo; That&apos;s the whole edit.</p>
 						</div>

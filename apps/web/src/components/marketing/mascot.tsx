@@ -6,8 +6,11 @@ import { useEffect, useState, useCallback } from "react";
 export function Mascot() {
 	const [mouse, setMouse] = useState({ x: 0, y: 0 });
 	const [mood, setMood] = useState<"idle" | "happy" | "sleep">("idle");
+	const [mounted, setMounted] = useState(false);
 	const { scrollYProgress } = useScroll();
 	const bounceY = useMotionValue(0);
+
+	useEffect(() => setMounted(true), []);
 
 	const handler = useCallback((e: MouseEvent) => setMouse({ x: e.clientX, y: e.clientY }), []);
 	useEffect(() => {
@@ -23,11 +26,9 @@ export function Mascot() {
 		});
 	}, [scrollYProgress]);
 
-	// Eye tracking — offset relative to bottom-right corner
-	const anchorX = typeof window !== "undefined" ? window.innerWidth - 40 : 0;
-	const anchorY = typeof window !== "undefined" ? window.innerHeight - 40 : 0;
-	const eyeX = Math.max(-3, Math.min(3, (mouse.x - anchorX) / 100));
-	const eyeY = Math.max(-2.5, Math.min(2.5, (mouse.y - anchorY) / 100));
+	// Eye tracking — only after mount to avoid hydration mismatch
+	const eyeX = mounted ? Math.max(-3, Math.min(3, (mouse.x - (window.innerWidth - 40)) / 100)) : 0;
+	const eyeY = mounted ? Math.max(-2.5, Math.min(2.5, (mouse.y - (window.innerHeight - 40)) / 100)) : 0;
 
 	const bounce = () => {
 		animate(bounceY, [0, -10, 0], { duration: 0.4, ease: "easeOut" });

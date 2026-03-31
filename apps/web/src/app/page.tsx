@@ -61,14 +61,14 @@ function ScribbleUnderline() {
 /*  Pain list  */
 
 const painList = [
-	{ hours: "3 hrs", task: "learning Premiere keyboard shortcuts" },
-	{ hours: "2 hrs", task: "finding the right transition effect" },
-	{ hours: "4 hrs", task: "syncing audio to video manually" },
-	{ hours: "2 hrs", task: "adding captions word by word" },
-	{ hours: "1 hr",  task: "exporting in the right format for TikTok" },
-	{ hours: "3 hrs", task: "color correcting each clip" },
-	{ hours: "2 hrs", task: "figuring out why the render failed" },
-	{ hours: "\u221E hrs", task: "watching YouTube tutorials..." },
+	{ hours: "3 hrs", task: "learning Premiere keyboard shortcuts", fixed: "just talk" },
+	{ hours: "2 hrs", task: "finding the right transition effect", fixed: "AI picks it" },
+	{ hours: "4 hrs", task: "syncing audio to video manually", fixed: "auto-synced" },
+	{ hours: "2 hrs", task: "adding captions word by word", fixed: "1 click" },
+	{ hours: "1 hr",  task: "exporting in the right format for TikTok", fixed: "auto-export" },
+	{ hours: "3 hrs", task: "color correcting each clip", fixed: "AI graded" },
+	{ hours: "2 hrs", task: "figuring out why the render failed", fixed: "it won't" },
+	{ hours: "\u221E hrs", task: "watching YouTube tutorials...", fixed: "not needed" },
 ];
 
 /*  Pricing  */
@@ -306,13 +306,13 @@ export default function Home() {
 					<StaggerChildren className="space-y-2">
 						{painList.map((p) => (
 							<StaggerItem key={p.task}>
-								<div className="group flex items-center gap-4 rounded-xl border border-white/[0.06] bg-white/[0.02] px-5 py-3.5 hover:bg-emerald-500/[0.04] hover:border-emerald-500/15 transition-all cursor-default">
+								<div className="group flex items-center gap-4 rounded-xl border border-white/[0.06] bg-white/[0.02] px-5 py-3.5 hover:scale-[1.03] hover:bg-emerald-500/[0.08] hover:border-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/10 transition-all duration-200 cursor-default">
 									<X className="h-4 w-4 text-red-400 shrink-0 group-hover:hidden" />
 									<Check className="h-4 w-4 text-emerald-400 shrink-0 hidden group-hover:block" />
 									<span className="text-[15px] text-white/80 flex-1 group-hover:line-through group-hover:text-white/40 transition-colors">{p.task}</span>
 									<span className="text-sm font-bold font-mono shrink-0 text-red-400 group-hover:text-emerald-400 transition-colors">
 										<span className="group-hover:hidden">{p.hours}</span>
-										<span className="hidden group-hover:inline">fixed</span>
+										<span className="hidden group-hover:inline">{p.fixed}</span>
 									</span>
 								</div>
 							</StaggerItem>
@@ -328,11 +328,12 @@ export default function Home() {
 					{/* The flip */}
 					<AnimatedSection delay={0.3} className="mt-8 text-center">
 						<p className="text-white/40 mb-4 font-medium">With VibeEdit:</p>
-						<div className="relative rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-6">
+						<a href="#pricing" className="group relative block rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-6 hover:scale-[1.03] hover:bg-emerald-500/[0.12] hover:border-emerald-500/40 hover:shadow-xl hover:shadow-emerald-500/15 transition-all duration-200 cursor-pointer">
 							<DoodleArrow className="absolute -top-9 -left-10 w-10 h-10 hidden sm:block" />
 							<div className="text-4xl font-black font-[family-name:var(--font-display)] bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">5 minutes. Done.</div>
-							<p className="text-base text-white/50 mt-1">&ldquo;Add captions, cut the intro, export for TikTok.&rdquo; That&apos;s the whole edit.</p>
-						</div>
+							<p className="text-base text-white/50 mt-1 group-hover:text-white/70 transition-colors">&ldquo;Add captions, cut the intro, export for TikTok.&rdquo; That&apos;s the whole edit.</p>
+							<span className="inline-block mt-3 px-5 py-2 rounded-full bg-emerald-500/20 text-emerald-400 text-sm font-bold opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">Try VibeEdit free →</span>
+						</a>
 					</AnimatedSection>
 				</div>
 			</section>

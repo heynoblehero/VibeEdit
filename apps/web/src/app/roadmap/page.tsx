@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ReactMarkdownWrapper } from "@/components/ui/react-markdown-wrapper";
 import { cn } from "@/utils/ui";
 
-const LAST_UPDATED = "February 25, 2026";
+const LAST_UPDATED = "March 31, 2026";
 
 type StatusType = "complete" | "pending" | "default" | "info";
 
@@ -22,66 +22,111 @@ interface RoadmapItem {
 
 const roadmapItems: RoadmapItem[] = [
 	{
-		title: "Start",
+		title: "Project launch",
 		description:
-			"This is where it all started. Repository created, initial project structure, and the vision for a free, open-source video editor. [Check out the first tweet](https://x.com/mazeincoding/status/1936706642512388188) to see where it started.",
+			"Repository created, initial project structure, and the vision for an AI-powered video editor that anyone can use.",
 		status: {
 			text: "Completed",
 			type: "complete",
 		},
 	},
 	{
-		title: "Core UI",
+		title: "Core UI & AI chat editor",
 		description:
-			"Build the foundation - main layout, header, sidebar, timeline container, and basic component structure. Not all functionality yet, but the UI framework that everything else builds on.",
+			"Chat-based editing interface, drag-and-drop file upload, real-time video preview, and the AI pipeline that translates plain English into timeline edits.",
 		status: {
 			text: "Completed",
 			type: "complete",
 		},
 	},
 	{
-		title: "Essential functionality",
+		title: "Auto captions & smart cuts",
 		description:
-			"Everything that makes a video editor **useful**. Timeline interactivity, storage, effects, transitions, etc.",
+			"AI-powered caption generation with word-level timing, silence/filler-word detection, and automatic dead-air removal.",
+		status: {
+			text: "Completed",
+			type: "complete",
+		},
+	},
+	{
+		title: "Multi-format export",
+		description:
+			"One-click export presets for YouTube, TikTok, Instagram Reels, and Twitter. Automatic resolution, bitrate, and codec selection.",
+		status: {
+			text: "Completed",
+			type: "complete",
+		},
+	},
+	{
+		title: "Color grading & effects",
+		description:
+			"LUT import, AI color matching (\"make it look cinematic\"), transitions library, and text/graphic overlays.",
 		status: {
 			text: "In progress",
 			type: "pending",
 		},
 	},
 	{
-		title: "Native app (mobile/desktop)",
+		title: "AI storyboard & templates",
 		description:
-			"Native OpenCut apps for Mac, Windows, Linux, and iOS/Android.",
+			"Describe a video concept and get a full storyboard with suggested cuts, transitions, and timing. Save and share reusable templates.",
 		status: {
-			text: "Not started",
+			text: "In progress",
+			type: "pending",
+		},
+	},
+	{
+		title: "Team collaboration",
+		description:
+			"Shared projects, role-based permissions, comment threads on timeline segments, and real-time collaborative editing.",
+		status: {
+			text: "Coming soon",
+			type: "default",
+		},
+	},
+	{
+		title: "Native apps (mobile & desktop)",
+		description:
+			"Native VibeEdit apps for Mac, Windows, and iOS/Android with offline editing and cloud sync.",
+		status: {
+			text: "Planned",
+			type: "default",
+		},
+	},
+	{
+		title: "API & integrations",
+		description:
+			"REST API for programmatic video editing, webhooks, and integrations with YouTube, TikTok, and social media schedulers.",
+		status: {
+			text: "Planned",
 			type: "default",
 		},
 	},
 ];
 
 export const metadata: Metadata = {
-	title: "Roadmap - OpenCut",
+	title: "Roadmap - VibeEdit",
 	description:
-		"See what's coming next for OpenCut - the free, open-source video editor that respects your privacy.",
+		"See what's coming next for VibeEdit - the free, open-source video editor that respects your privacy.",
 	openGraph: {
-		title: "OpenCut Roadmap - What's Coming Next",
+		title: "VibeEdit Roadmap - What's Coming Next",
 		description:
-			"See what's coming next for OpenCut - the free, open-source video editor that respects your privacy.",
+			"See what's coming next for VibeEdit - the free, open-source video editor that respects your privacy.",
 		type: "website",
 		images: [
 			{
 				url: "/open-graph/roadmap.jpg",
 				width: 1200,
 				height: 630,
-				alt: "OpenCut Roadmap",
+				alt: "VibeEdit Roadmap",
 			},
 		],
 	},
 	twitter: {
 		card: "summary_large_image",
-		title: "OpenCut Roadmap - What's Coming Next",
+		title: "VibeEdit Roadmap - What's Coming Next",
 		description:
-			"See what's coming next for OpenCut - the free, open-source video editor that respects your privacy.",
+			"See what's coming next for VibeEdit - the free, open-source video editor that respects your privacy.",
 		images: ["/open-graph/roadmap.jpg"],
 	},
 };
@@ -90,7 +135,7 @@ export default function RoadmapPage() {
 	return (
 		<BasePage
 			title="Roadmap"
-			description={`What's coming next for OpenCut (last updated: ${LAST_UPDATED})`}
+			description={`What's coming next for VibeEdit (last updated: ${LAST_UPDATED})`}
 		>
 			<div className="mx-auto flex max-w-4xl flex-col gap-16">
 				<div className="flex flex-col gap-6">
@@ -100,7 +145,7 @@ export default function RoadmapPage() {
 				</div>
 				<GitHubContributeSection
 					title="Want to help?"
-					description="OpenCut is open source and built by the community. Every contribution,
+					description="VibeEdit is open source and built by the community. Every contribution,
           no matter how small, helps us build the best free video editor
           possible."
 				/>

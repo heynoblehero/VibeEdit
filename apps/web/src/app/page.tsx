@@ -12,6 +12,7 @@ import { motion, useScroll, useTransform } from "motion/react";
 import {
 	Sparkles, Zap, ChevronDown, ArrowRight, Check,
 	Timer, DollarSign, Shield, X, Play,
+	MessageSquare, Captions, Wand2, Palette, Share2, Volume2,
 } from "lucide-react";
 import { useState, useRef } from "react";
 
@@ -71,6 +72,51 @@ const faqs = [
 	{ q: "What formats are supported?", a: "Import: MP4, MOV, WebM, PSD, LUT, SRT, EDL, Premiere XML, and more. Export: YouTube, TikTok, Instagram, Twitter presets built in." },
 	{ q: "How do credits work?", a: "1 credit per AI message, 5 per render. Pick a monthly plan and get fresh credits every month. Unused credits roll over." },
 	{ q: "Can I cancel?", a: "Yes, cancel anytime from your account. You keep your remaining credits until the end of the billing period. No cancellation fees." },
+];
+
+/*  Feature deep-dives  */
+
+const features = [
+	{ icon: MessageSquare, title: "AI Chat Editor", desc: "Describe your edit in plain English. The AI handles cuts, transitions, timing, and effects. Undo with a message.", iconBg: "bg-violet-500/10 border-violet-500/20", iconColor: "text-violet-400" },
+	{ icon: Captions, title: "Auto Captions", desc: "One command generates perfectly timed captions. Style them, move them, translate them — all by asking.", iconBg: "bg-fuchsia-500/10 border-fuchsia-500/20", iconColor: "text-fuchsia-400" },
+	{ icon: Wand2, title: "Smart Cuts", desc: "\"Remove the ums\" — AI detects silence, filler words, and dead air, then cuts them automatically.", iconBg: "bg-pink-500/10 border-pink-500/20", iconColor: "text-pink-400" },
+	{ icon: Palette, title: "Color Grading", desc: "\"Make it look cinematic\" applies film-grade color correction. Import LUTs or let the AI match any style.", iconBg: "bg-cyan-500/10 border-cyan-500/20", iconColor: "text-cyan-400" },
+	{ icon: Volume2, title: "Audio Sync", desc: "Drop in a music track and the AI syncs cuts to the beat. Automatic volume ducking under voiceover.", iconBg: "bg-emerald-500/10 border-emerald-500/20", iconColor: "text-emerald-400" },
+	{ icon: Share2, title: "One-Click Export", desc: "YouTube, TikTok, Instagram, Twitter — each with the right resolution, bitrate, and format. One click.", iconBg: "bg-orange-500/10 border-orange-500/20", iconColor: "text-orange-400" },
+];
+
+/*  Comparison  */
+
+const competitors = [
+	{ feature: "Learning curve", vibe: "None — just type", premiere: "Months", capcut: "Days", davinci: "Months" },
+	{ feature: "AI editing", vibe: "Built-in", premiere: "Limited", capcut: "Basic", davinci: "None" },
+	{ feature: "Auto captions", vibe: "One command", premiere: "Plugin needed", capcut: "Yes", davinci: "Manual" },
+	{ feature: "Time per video", vibe: "~5 min", premiere: "2-4 hrs", capcut: "30-60 min", davinci: "2-4 hrs" },
+	{ feature: "Price", vibe: "From $19/mo", premiere: "$55/mo", capcut: "Free / $8/mo", davinci: "Free / $295" },
+	{ feature: "Export presets", vibe: "All platforms", premiere: "Manual setup", capcut: "Limited", davinci: "Manual setup" },
+	{ feature: "Runs in browser", vibe: "Yes", premiere: "No", capcut: "Yes", davinci: "No" },
+];
+
+/*  Testimonials  */
+
+const testimonials = [
+	{ name: "Sarah K.", role: "YouTube Creator, 240K subs", quote: "I used to spend an entire Sunday editing one video. Now I batch-edit five videos on Monday morning before lunch.", avatar: "SK" },
+	{ name: "Marcus J.", role: "TikTok Agency Owner", quote: "We replaced a $4K/month editor with VibeEdit. Output went from 8 videos/week to 30. Not even close.", avatar: "MJ" },
+	{ name: "Priya M.", role: "Course Creator", quote: "I'm not technical at all. I literally type 'add captions and make it vertical' and it just... does it. Magic.", avatar: "PM" },
+	{ name: "Alex R.", role: "Podcast Host", quote: "Cutting a 2-hour podcast into clips used to take my editor a full day. VibeEdit does it in minutes. Insane.", avatar: "AR" },
+	{ name: "David L.", role: "Real Estate Agent", quote: "Property tour videos used to cost me $200 each from a freelancer. Now I make them myself in 5 minutes.", avatar: "DL" },
+	{ name: "Jenna W.", role: "Social Media Manager", quote: "Managing 6 client accounts means constant content. VibeEdit is the only reason I haven't burned out.", avatar: "JW" },
+];
+
+/*  Showcase  */
+
+const showcaseItems = [
+	{ label: "YouTube Long-form", time: "4 min edit", gradient: "from-red-500 to-orange-500" },
+	{ label: "TikTok Clips", time: "30 sec edit", gradient: "from-cyan-500 to-blue-500" },
+	{ label: "Instagram Reels", time: "2 min edit", gradient: "from-fuchsia-500 to-pink-500" },
+	{ label: "Podcast Highlights", time: "3 min edit", gradient: "from-violet-500 to-purple-500" },
+	{ label: "Course Content", time: "5 min edit", gradient: "from-emerald-500 to-teal-500" },
+	{ label: "Product Demos", time: "3 min edit", gradient: "from-amber-500 to-yellow-500" },
 ];
 
 /*  Marquee  */
@@ -267,6 +313,34 @@ export default function Home() {
 				</div>
 			</section>
 
+			{/*  FEATURE DEEP-DIVES  */}
+			<section className="py-28 px-6">
+				<div className="mx-auto max-w-5xl">
+					<AnimatedSection className="text-center mb-14">
+						<p className="text-violet-400 font-bold uppercase tracking-widest text-sm mb-3">Features</p>
+						<h2 className="text-4xl sm:text-5xl font-black font-[family-name:var(--font-display)] tracking-tight text-white">
+							Everything you need,{" "}
+							<span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">nothing you don&apos;t</span>
+						</h2>
+						<p className="mt-4 text-lg text-white/60 max-w-2xl mx-auto">No plugins. No add-ons. No third-party tools. Every feature works through the same chat interface.</p>
+					</AnimatedSection>
+
+					<StaggerChildren className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+						{features.map((f) => (
+							<StaggerItem key={f.title}>
+								<GlassCard className="p-6 h-full border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.05] transition-colors group">
+									<div className={`flex h-11 w-11 items-center justify-center rounded-xl border ${f.iconBg} mb-4`}>
+										<f.icon className={`h-5 w-5 ${f.iconColor}`} />
+									</div>
+									<h3 className="text-lg font-bold font-[family-name:var(--font-display)] text-white">{f.title}</h3>
+									<p className="text-[15px] text-white/60 mt-2 leading-relaxed">{f.desc}</p>
+								</GlassCard>
+							</StaggerItem>
+						))}
+					</StaggerChildren>
+				</div>
+			</section>
+
 			{/*  WHAT CAN YOU SAY?  */}
 			<section className="py-20 px-6">
 				<div className="mx-auto max-w-4xl">
@@ -286,6 +360,77 @@ export default function Home() {
 							</StaggerItem>
 						))}
 					</StaggerChildren>
+				</div>
+			</section>
+
+			{/*  VIDEO SHOWCASE  */}
+			<section className="py-28 px-6 border-t border-white/[0.05]">
+				<div className="mx-auto max-w-5xl">
+					<AnimatedSection className="text-center mb-14">
+						<p className="text-violet-400 font-bold uppercase tracking-widest text-sm mb-3">Showcase</p>
+						<h2 className="text-4xl sm:text-5xl font-black font-[family-name:var(--font-display)] tracking-tight text-white">
+							Made with VibeEdit
+						</h2>
+						<p className="mt-4 text-lg text-white/60">From raw footage to finished video — in minutes, not hours.</p>
+					</AnimatedSection>
+
+					<StaggerChildren className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+						{showcaseItems.map((item) => (
+							<StaggerItem key={item.label}>
+								<div className="group relative rounded-2xl border border-white/[0.08] bg-white/[0.03] overflow-hidden hover:border-white/[0.15] transition-all cursor-pointer">
+									{/* Video placeholder */}
+									<div className={`aspect-video bg-gradient-to-br ${item.gradient} opacity-10 group-hover:opacity-20 transition-opacity`} />
+									<div className="absolute inset-0 flex items-center justify-center">
+										<div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 backdrop-blur-sm border border-white/20 group-hover:scale-110 transition-transform">
+											<Play className="h-6 w-6 text-white ml-0.5" />
+										</div>
+									</div>
+									<div className="p-4">
+										<h3 className="font-bold font-[family-name:var(--font-display)] text-white">{item.label}</h3>
+										<p className="text-sm text-white/50 mt-0.5">{item.time}</p>
+									</div>
+								</div>
+							</StaggerItem>
+						))}
+					</StaggerChildren>
+				</div>
+			</section>
+
+			{/*  COMPARISON TABLE  */}
+			<section className="py-28 px-6">
+				<div className="mx-auto max-w-4xl">
+					<AnimatedSection className="text-center mb-14">
+						<p className="text-violet-400 font-bold uppercase tracking-widest text-sm mb-3">Compare</p>
+						<h2 className="text-4xl sm:text-5xl font-black font-[family-name:var(--font-display)] tracking-tight text-white">
+							VibeEdit vs the old way
+						</h2>
+						<p className="mt-4 text-lg text-white/60">See how we stack up against traditional editors.</p>
+					</AnimatedSection>
+
+					<AnimatedSection>
+						<div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] overflow-hidden">
+							{/* Header */}
+							<div className="grid grid-cols-5 gap-px bg-white/[0.05] border-b border-white/[0.08]">
+								<div className="p-4" />
+								<div className="p-4 text-center">
+									<span className="text-sm font-bold font-[family-name:var(--font-display)] bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">VibeEdit</span>
+								</div>
+								<div className="p-4 text-center"><span className="text-sm font-bold text-white/50">Premiere</span></div>
+								<div className="p-4 text-center"><span className="text-sm font-bold text-white/50">CapCut</span></div>
+								<div className="p-4 text-center"><span className="text-sm font-bold text-white/50">DaVinci</span></div>
+							</div>
+							{/* Rows */}
+							{competitors.map((row, i) => (
+								<div key={row.feature} className={`grid grid-cols-5 gap-px ${i < competitors.length - 1 ? "border-b border-white/[0.05]" : ""}`}>
+									<div className="p-4 text-sm text-white/70 font-medium">{row.feature}</div>
+									<div className="p-4 text-center text-sm text-emerald-400 font-semibold">{row.vibe}</div>
+									<div className="p-4 text-center text-sm text-white/40">{row.premiere}</div>
+									<div className="p-4 text-center text-sm text-white/40">{row.capcut}</div>
+									<div className="p-4 text-center text-sm text-white/40">{row.davinci}</div>
+								</div>
+							))}
+						</div>
+					</AnimatedSection>
 				</div>
 			</section>
 
@@ -339,6 +484,36 @@ export default function Home() {
 						<span className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400" /> Credits never expire</span>
 						<span className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400" /> Nothing to cancel</span>
 					</div>
+				</div>
+			</section>
+
+			{/*  TESTIMONIALS  */}
+			<section className="py-28 px-6">
+				<div className="mx-auto max-w-5xl">
+					<AnimatedSection className="text-center mb-14">
+						<p className="text-violet-400 font-bold uppercase tracking-widest text-sm mb-3">Testimonials</p>
+						<h2 className="text-4xl sm:text-5xl font-black font-[family-name:var(--font-display)] tracking-tight text-white">
+							Creators love VibeEdit
+						</h2>
+						<p className="mt-4 text-lg text-white/60">Don&apos;t take our word for it.</p>
+					</AnimatedSection>
+
+					<StaggerChildren className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+						{testimonials.map((t) => (
+							<StaggerItem key={t.name}>
+								<GlassCard className="p-6 h-full border-white/[0.08] bg-white/[0.03] flex flex-col">
+									<p className="text-[15px] text-white/70 leading-relaxed flex-1">&ldquo;{t.quote}&rdquo;</p>
+									<div className="flex items-center gap-3 mt-5 pt-5 border-t border-white/[0.06]">
+										<div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 text-xs font-bold text-white">{t.avatar}</div>
+										<div>
+											<p className="text-sm font-bold text-white">{t.name}</p>
+											<p className="text-xs text-white/40">{t.role}</p>
+										</div>
+									</div>
+								</GlassCard>
+							</StaggerItem>
+						))}
+					</StaggerChildren>
 				</div>
 			</section>
 

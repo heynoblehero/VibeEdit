@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { trackEvent } from "@/lib/analytics";
 import Link from "next/link";
-import { MessageSquare, Film, Mic, Captions, Check, Sparkles } from "lucide-react";
+import { MessageSquare, Film, Mic, Captions, Check, Sparkles, ChevronDown } from "lucide-react";
 import { MarketingNav } from "@/components/marketing/nav";
 import { MarketingFooter } from "@/components/marketing/footer";
 import { AnimatedSection } from "@/components/ui/motion/animated-section";
@@ -37,6 +37,15 @@ const creditBreakdown = [
 	{ icon: Film, label: "Video Render (1 min)", cost: "10 credits" },
 	{ icon: Mic, label: "Voice Generation", cost: "5 credits" },
 	{ icon: Captions, label: "Caption Generation", cost: "5 credits" },
+];
+
+const pricingFaqs = [
+	{ q: "Can I try VibeEdit before paying?", a: "Yes! Every account starts with 10 free credits. That's enough for 10 AI edits or 1 full video export. No card required." },
+	{ q: "What happens if I run out of credits?", a: "You can keep using the editor to preview and organize — you just can't run AI commands or export until credits refresh on your next billing date, or you upgrade." },
+	{ q: "Do unused credits roll over?", a: "Yes. Unused credits carry forward to the next month. They never expire as long as your subscription is active." },
+	{ q: "Can I upgrade or downgrade?", a: "Anytime. Upgrades take effect immediately with prorated billing. Downgrades take effect at the next billing cycle." },
+	{ q: "Is there an annual discount?", a: "Coming soon. Annual plans will offer 2 months free." },
+	{ q: "Do you offer refunds?", a: "If you're unsatisfied within the first 14 days, we'll refund your payment in full. No questions asked." },
 ];
 
 export default function PricingPage() {
@@ -166,7 +175,36 @@ export default function PricingPage() {
 				</StaggerChildren>
 			</section>
 
+			{/* Pricing FAQ */}
+			<section className="border-t border-white/[0.05] py-20 px-6">
+				<AnimatedSection className="mx-auto max-w-2xl text-center mb-10">
+					<h2 className="text-2xl font-bold font-[family-name:var(--font-display)]">Pricing questions</h2>
+				</AnimatedSection>
+				<StaggerChildren className="mx-auto max-w-2xl space-y-3">
+					{pricingFaqs.map((f) => (
+						<StaggerItem key={f.q}>
+							<PricingFAQItem q={f.q} a={f.a} />
+						</StaggerItem>
+					))}
+				</StaggerChildren>
+			</section>
+
 			<MarketingFooter />
 		</div>
+	);
+}
+
+function PricingFAQItem({ q, a }: { q: string; a: string }) {
+	const [open, setOpen] = useState(false);
+	return (
+		<button onClick={() => setOpen(v => !v)} className="w-full rounded-2xl border border-white/[0.08] bg-white/[0.03] text-left transition-all hover:bg-white/[0.05]">
+			<div className="flex items-center justify-between p-5">
+				<span className="font-bold font-[family-name:var(--font-display)] text-white text-[15px]">{q}</span>
+				<ChevronDown className={`h-4 w-4 text-white/40 shrink-0 transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
+			</div>
+			<div className="overflow-hidden transition-all duration-300" style={{ maxHeight: open ? "200px" : "0" }}>
+				<p className="px-5 pb-5 text-[15px] text-white/60 leading-relaxed">{a}</p>
+			</div>
+		</button>
 	);
 }

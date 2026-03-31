@@ -31,53 +31,41 @@ function useMouseGlow() {
 
 /*  SVG scribble components  */
 
-function ScribbleCircle({ className }: { className?: string }) {
+function ScribbleUnderline() {
 	return (
-		<svg viewBox="0 0 286 72" fill="none" className={className} xmlns="http://www.w3.org/2000/svg">
+		<svg
+			viewBox="0 0 300 12"
+			fill="none"
+			xmlns="http://www.w3.org/2000/svg"
+			className="absolute -bottom-2 left-0 w-full pointer-events-none"
+			preserveAspectRatio="none"
+		>
 			<motion.path
-				d="M8 38c12-22 52-34 100-35 52-1 108 6 148 18 20 6 28 14 22 22-8 10-38 18-82 22-48 4-110 2-148-8C20 49 6 40 8 38z"
-				stroke="url(#scribbleGrad)"
+				d="M2 8c40-6 90-8 148-6 58 2 108 4 148 2"
+				stroke="url(#underlineGrad)"
 				strokeWidth="3"
 				strokeLinecap="round"
 				fill="none"
 				initial={{ pathLength: 0, opacity: 0 }}
 				animate={{ pathLength: 1, opacity: 1 }}
-				transition={{ duration: 1.2, delay: 0.8, ease: "easeOut" }}
+				transition={{ duration: 0.8, delay: 0.8, ease: "easeOut" }}
+			/>
+			<motion.path
+				d="M8 10c50-8 100-6 150-4 50 2 96 0 138-4"
+				stroke="url(#underlineGrad)"
+				strokeWidth="2"
+				strokeLinecap="round"
+				fill="none"
+				initial={{ pathLength: 0, opacity: 0 }}
+				animate={{ pathLength: 1, opacity: 0.5 }}
+				transition={{ duration: 0.6, delay: 1.2, ease: "easeOut" }}
 			/>
 			<defs>
-				<linearGradient id="scribbleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+				<linearGradient id="underlineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
 					<stop offset="0%" stopColor="#a78bfa" />
 					<stop offset="100%" stopColor="#f472b6" />
 				</linearGradient>
 			</defs>
-		</svg>
-	);
-}
-
-function ScribbleArrow({ className }: { className?: string }) {
-	return (
-		<svg viewBox="0 0 80 60" fill="none" className={className} xmlns="http://www.w3.org/2000/svg">
-			<motion.path
-				d="M6 6c10 14 22 28 38 38 8 5 16 8 24 8"
-				stroke="#a78bfa"
-				strokeWidth="2.5"
-				strokeLinecap="round"
-				fill="none"
-				initial={{ pathLength: 0 }}
-				animate={{ pathLength: 1 }}
-				transition={{ duration: 0.8, delay: 1.5 }}
-			/>
-			<motion.path
-				d="M58 46l12 6-4-14"
-				stroke="#a78bfa"
-				strokeWidth="2.5"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-				fill="none"
-				initial={{ pathLength: 0 }}
-				animate={{ pathLength: 1 }}
-				transition={{ duration: 0.4, delay: 2.2 }}
-			/>
 		</svg>
 	);
 }
@@ -232,9 +220,9 @@ export default function Home() {
 
 				{/* Mouse-tracking glow */}
 				<div
-					className="pointer-events-none fixed inset-0 z-30 transition-opacity duration-300"
+					className="pointer-events-none fixed inset-0 z-0 transition-opacity duration-300"
 					style={{
-						background: `radial-gradient(600px circle at ${mouse.x}px ${mouse.y}px, rgba(139,92,246,0.06), transparent 40%)`,
+						background: `radial-gradient(600px circle at ${mouse.x}px ${mouse.y}px, rgba(139,92,246,0.04), transparent 40%)`,
 					}}
 				/>
 
@@ -256,23 +244,19 @@ export default function Home() {
 						<br />
 						<span className="relative inline-block">
 							<span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">in minutes, not hours</span>
-							{/* Hand-drawn scribble circle */}
-							<ScribbleCircle className="absolute -inset-x-4 -inset-y-2 w-[calc(100%+2rem)] h-[calc(100%+1rem)] pointer-events-none" />
+							<ScribbleUnderline />
 						</span>
 					</motion.h1>
 
-					{/* Handwritten annotation */}
-					<motion.div
-						className="relative hidden sm:block"
-						initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.8 }}
+					{/* Handwritten annotation — positioned relative to the headline */}
+					<motion.p
+						className="hidden sm:block text-violet-300/50 text-sm font-medium italic mt-2 select-none"
+						initial={{ opacity: 0, y: 8 }}
+						animate={{ opacity: 1, y: 0 }}
+						transition={{ delay: 1.6, duration: 0.5 }}
 					>
-						<div className="absolute -right-8 -top-2">
-							<ScribbleArrow className="w-16 h-12 -rotate-[20deg]" />
-							<span className="absolute -right-24 top-6 text-violet-300/60 text-sm font-medium italic rotate-[-8deg] whitespace-nowrap select-none">
-								seriously.
-							</span>
-						</div>
-					</motion.div>
+						^ yes, really. five minutes.
+					</motion.p>
 
 					{/* Sub — readable, NOT faded out */}
 					<motion.p
@@ -333,7 +317,10 @@ export default function Home() {
 									<X className="h-4 w-4 text-red-400 shrink-0 group-hover:hidden" />
 									<Check className="h-4 w-4 text-emerald-400 shrink-0 hidden group-hover:block" />
 									<span className="text-[15px] text-white/80 flex-1 group-hover:line-through group-hover:text-white/40 transition-colors">{p.task}</span>
-									<span className="text-sm font-bold text-red-400 font-mono shrink-0 group-hover:text-emerald-400 group-hover:after:content-['_fixed'] transition-colors">{p.hours}</span>
+									<span className="text-sm font-bold font-mono shrink-0 text-red-400 group-hover:text-emerald-400 transition-colors">
+										<span className="group-hover:hidden">{p.hours}</span>
+										<span className="hidden group-hover:inline">fixed</span>
+									</span>
 								</div>
 							</StaggerItem>
 						))}

@@ -14,8 +14,73 @@ import {
 	Timer, DollarSign, Shield, X, Play,
 	MessageSquare, Captions, Wand2, Palette, Share2, Volume2,
 } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { FAQJsonLd } from "@/components/json-ld";
+
+/*  Mouse glow hook  */
+
+function useMouseGlow() {
+	const [pos, setPos] = useState({ x: 0, y: 0 });
+	const handler = useCallback((e: MouseEvent) => setPos({ x: e.clientX, y: e.clientY }), []);
+	useEffect(() => {
+		window.addEventListener("mousemove", handler);
+		return () => window.removeEventListener("mousemove", handler);
+	}, [handler]);
+	return pos;
+}
+
+/*  SVG scribble components  */
+
+function ScribbleCircle({ className }: { className?: string }) {
+	return (
+		<svg viewBox="0 0 286 72" fill="none" className={className} xmlns="http://www.w3.org/2000/svg">
+			<motion.path
+				d="M8 38c12-22 52-34 100-35 52-1 108 6 148 18 20 6 28 14 22 22-8 10-38 18-82 22-48 4-110 2-148-8C20 49 6 40 8 38z"
+				stroke="url(#scribbleGrad)"
+				strokeWidth="3"
+				strokeLinecap="round"
+				fill="none"
+				initial={{ pathLength: 0, opacity: 0 }}
+				animate={{ pathLength: 1, opacity: 1 }}
+				transition={{ duration: 1.2, delay: 0.8, ease: "easeOut" }}
+			/>
+			<defs>
+				<linearGradient id="scribbleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+					<stop offset="0%" stopColor="#a78bfa" />
+					<stop offset="100%" stopColor="#f472b6" />
+				</linearGradient>
+			</defs>
+		</svg>
+	);
+}
+
+function ScribbleArrow({ className }: { className?: string }) {
+	return (
+		<svg viewBox="0 0 80 60" fill="none" className={className} xmlns="http://www.w3.org/2000/svg">
+			<motion.path
+				d="M6 6c10 14 22 28 38 38 8 5 16 8 24 8"
+				stroke="#a78bfa"
+				strokeWidth="2.5"
+				strokeLinecap="round"
+				fill="none"
+				initial={{ pathLength: 0 }}
+				animate={{ pathLength: 1 }}
+				transition={{ duration: 0.8, delay: 1.5 }}
+			/>
+			<motion.path
+				d="M58 46l12 6-4-14"
+				stroke="#a78bfa"
+				strokeWidth="2.5"
+				strokeLinecap="round"
+				strokeLinejoin="round"
+				fill="none"
+				initial={{ pathLength: 0 }}
+				animate={{ pathLength: 1 }}
+				transition={{ duration: 0.4, delay: 2.2 }}
+			/>
+		</svg>
+	);
+}
 
 /*  Pain list  */
 
@@ -148,6 +213,7 @@ export default function Home() {
 	const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
 	const heroY = useTransform(scrollYProgress, [0, 1], ["0%", "30%"]);
 	const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
+	const mouse = useMouseGlow();
 
 	return (
 		<div className="min-h-screen bg-[#08080c] text-white overflow-x-hidden">
@@ -163,6 +229,14 @@ export default function Home() {
 					<div className="absolute top-[30%] right-[5%] w-[30%] h-[30%] rounded-full bg-cyan-500/10 blur-[80px]" />
 					<div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:60px_60px] [mask-image:radial-gradient(ellipse_at_center,black_20%,transparent_70%)]" />
 				</div>
+
+				{/* Mouse-tracking glow */}
+				<div
+					className="pointer-events-none fixed inset-0 z-30 transition-opacity duration-300"
+					style={{
+						background: `radial-gradient(600px circle at ${mouse.x}px ${mouse.y}px, rgba(139,92,246,0.06), transparent 40%)`,
+					}}
+				/>
 
 				<motion.div className="relative z-10 mx-auto max-w-5xl px-6 pt-32 pb-8 text-center" style={{ y: heroY, opacity: heroOpacity }}>
 					{/* Badge */}
@@ -180,8 +254,25 @@ export default function Home() {
 					>
 						Edit videos
 						<br />
-						<span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">in minutes, not hours</span>
+						<span className="relative inline-block">
+							<span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">in minutes, not hours</span>
+							{/* Hand-drawn scribble circle */}
+							<ScribbleCircle className="absolute -inset-x-4 -inset-y-2 w-[calc(100%+2rem)] h-[calc(100%+1rem)] pointer-events-none" />
+						</span>
 					</motion.h1>
+
+					{/* Handwritten annotation */}
+					<motion.div
+						className="relative hidden sm:block"
+						initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.8 }}
+					>
+						<div className="absolute -right-8 -top-2">
+							<ScribbleArrow className="w-16 h-12 -rotate-[20deg]" />
+							<span className="absolute -right-24 top-6 text-violet-300/60 text-sm font-medium italic rotate-[-8deg] whitespace-nowrap select-none">
+								seriously.
+							</span>
+						</div>
+					</motion.div>
 
 					{/* Sub — readable, NOT faded out */}
 					<motion.p
@@ -238,10 +329,11 @@ export default function Home() {
 					<StaggerChildren className="space-y-2">
 						{painList.map((p) => (
 							<StaggerItem key={p.task}>
-								<div className="flex items-center gap-4 rounded-xl border border-white/[0.06] bg-white/[0.02] px-5 py-3.5 hover:bg-red-500/[0.04] hover:border-red-500/15 transition-colors">
-									<X className="h-4 w-4 text-red-400 shrink-0" />
-									<span className="text-[15px] text-white/80 flex-1">{p.task}</span>
-									<span className="text-sm font-bold text-red-400 font-mono shrink-0">{p.hours}</span>
+								<div className="group flex items-center gap-4 rounded-xl border border-white/[0.06] bg-white/[0.02] px-5 py-3.5 hover:bg-emerald-500/[0.04] hover:border-emerald-500/15 transition-all cursor-default">
+									<X className="h-4 w-4 text-red-400 shrink-0 group-hover:hidden" />
+									<Check className="h-4 w-4 text-emerald-400 shrink-0 hidden group-hover:block" />
+									<span className="text-[15px] text-white/80 flex-1 group-hover:line-through group-hover:text-white/40 transition-colors">{p.task}</span>
+									<span className="text-sm font-bold text-red-400 font-mono shrink-0 group-hover:text-emerald-400 group-hover:after:content-['_fixed'] transition-colors">{p.hours}</span>
 								</div>
 							</StaggerItem>
 						))}
@@ -555,6 +647,18 @@ export default function Home() {
 						<span className="flex items-center gap-2"><DollarSign className="h-4 w-4" /> 10 free credits</span>
 					</div>
 				</AnimatedSection>
+			</section>
+
+			{/*  BUILT BY HUMANS  */}
+			<section className="py-16 px-6 border-t border-white/[0.05]">
+				<div className="mx-auto max-w-md text-center">
+					<p className="text-white/30 text-sm leading-relaxed">
+						Built with too much coffee and not enough sleep by a human who
+						got tired of watching progress bars in Premiere.
+						<br />
+						<span className="text-white/20 italic">No templates were harmed in the making of this page.</span>
+					</p>
+				</div>
 			</section>
 
 			<MarketingFooter />

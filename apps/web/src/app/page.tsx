@@ -16,10 +16,9 @@ import {
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { FAQJsonLd } from "@/components/json-ld";
-import { Mascot } from "@/components/marketing/mascot";
 import { EmojiReaction } from "@/components/marketing/floating-emojis";
 import { SparkleCanvas, useConfetti } from "@/components/marketing/particles";
-import { DoodleStars, DoodleArrow, DoodleWavy, DoodleBang, DoodleSparkle } from "@/components/marketing/doodles";
+import { DoodleStars, DoodleBang, DoodleSparkle } from "@/components/marketing/doodles";
 
 /*  Mouse glow hook  */
 
@@ -31,47 +30,6 @@ function useMouseGlow() {
 		return () => window.removeEventListener("mousemove", handler);
 	}, [handler]);
 	return pos;
-}
-
-/*  SVG scribble components  */
-
-function ScribbleUnderline() {
-	return (
-		<svg
-			viewBox="0 0 300 12"
-			fill="none"
-			xmlns="http://www.w3.org/2000/svg"
-			className="absolute -bottom-2 left-0 w-full pointer-events-none"
-			preserveAspectRatio="none"
-		>
-			<motion.path
-				d="M2 8c40-6 90-8 148-6 58 2 108 4 148 2"
-				stroke="url(#underlineGrad)"
-				strokeWidth="3"
-				strokeLinecap="round"
-				fill="none"
-				initial={{ pathLength: 0, opacity: 0 }}
-				animate={{ pathLength: 1, opacity: 1 }}
-				transition={{ duration: 0.8, delay: 0.8, ease: "easeOut" }}
-			/>
-			<motion.path
-				d="M8 10c50-8 100-6 150-4 50 2 96 0 138-4"
-				stroke="url(#underlineGrad)"
-				strokeWidth="2"
-				strokeLinecap="round"
-				fill="none"
-				initial={{ pathLength: 0, opacity: 0 }}
-				animate={{ pathLength: 1, opacity: 0.5 }}
-				transition={{ duration: 0.6, delay: 1.2, ease: "easeOut" }}
-			/>
-			<defs>
-				<linearGradient id="underlineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-					<stop offset="0%" stopColor="#a78bfa" />
-					<stop offset="100%" stopColor="#f472b6" />
-				</linearGradient>
-			</defs>
-		</svg>
-	);
 }
 
 /*  Pain list  */
@@ -212,7 +170,6 @@ export default function Home() {
 		<div className="min-h-screen bg-[#08080c] text-white overflow-x-hidden">
 			<FAQJsonLd items={faqs} />
 			<MarketingNav />
-			<Mascot />
 
 			{/*  HERO  */}
 			<section ref={heroRef} className="relative overflow-hidden">
@@ -251,21 +208,8 @@ export default function Home() {
 					>
 						Edit videos
 						<br />
-						<span className="relative inline-block">
-							<span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">in minutes, not hours</span>
-							<ScribbleUnderline />
-						</span>
+						<span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">in minutes, not hours</span>
 					</motion.h1>
-
-					{/* Handwritten annotation — positioned relative to the headline */}
-					<motion.p
-						className="hidden sm:block text-violet-300/50 text-sm font-medium italic mt-2 select-none"
-						initial={{ opacity: 0, y: 8 }}
-						animate={{ opacity: 1, y: 0 }}
-						transition={{ delay: 1.6, duration: 0.5 }}
-					>
-						^ yes, really. five minutes.
-					</motion.p>
 
 					{/* Sub — readable, NOT faded out */}
 					<motion.p
@@ -314,10 +258,7 @@ export default function Home() {
 					<AnimatedSection className="text-center mb-14">
 						<h2 className="text-4xl sm:text-5xl font-black font-[family-name:var(--font-display)] tracking-tight text-white">
 							Traditional editing is a{" "}
-							<span className="relative inline-block">
-								<span className="bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">time sink</span>
-								<DoodleWavy className="absolute -bottom-2 left-0 w-full h-3" />
-							</span>
+							<span className="bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">time sink</span>
 						</h2>
 						<p className="mt-4 text-lg text-white/60">Here&apos;s where your hours go. Every. Single. Video.</p>
 					</AnimatedSection>
@@ -347,8 +288,7 @@ export default function Home() {
 					{/* The flip */}
 					<AnimatedSection delay={0.3} className="mt-8 text-center">
 						<p className="text-white/40 mb-4 font-medium">With VibeEdit:</p>
-						<div className="relative rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-6">
-							<DoodleArrow className="absolute -top-10 -right-12 w-12 h-10 rotate-[30deg] hidden sm:block" />
+						<div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-6">
 							<div className="text-4xl font-black font-[family-name:var(--font-display)] bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">5 minutes. Done.</div>
 							<p className="text-base text-white/50 mt-1">&ldquo;Add captions, cut the intro, export for TikTok.&rdquo; That&apos;s the whole edit.</p>
 						</div>

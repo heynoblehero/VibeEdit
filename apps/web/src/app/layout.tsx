@@ -3,11 +3,17 @@ import "./globals.css";
 import { Toaster } from "../components/ui/sonner";
 import { TooltipProvider } from "../components/ui/tooltip";
 import { Analytics } from "@vercel/analytics/next";
+import { OrganizationJsonLd, SoftwareApplicationJsonLd } from "@/components/json-ld";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-jakarta", weight: ["400", "500", "600", "700", "800"] });
+
+export const viewport: Viewport = {
+	width: "device-width",
+	initialScale: 1,
+};
 
 export const metadata: Metadata = {
 	title: {
@@ -39,6 +45,10 @@ export default function RootLayout({
 }>) {
 	return (
 		<html lang="en" suppressHydrationWarning>
+			<head>
+				<OrganizationJsonLd />
+				<SoftwareApplicationJsonLd />
+			</head>
 			<body className={`${inter.variable} ${jakarta.variable} font-sans antialiased`}>
 				<ThemeProvider
 					attribute="class"

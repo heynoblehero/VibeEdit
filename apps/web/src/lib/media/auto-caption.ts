@@ -3,7 +3,7 @@
  * Falls back to a simple "no speech API" error on unsupported browsers.
  *
  * For production, this should use Whisper via @huggingface/transformers
- * (already a dependency in OpenCut). For now, uses the built-in browser API
+ * (already a dependency in VibeEdit). For now, uses the built-in browser API
  * which is free and works offline in Chrome.
  */
 

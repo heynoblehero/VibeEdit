@@ -3,7 +3,7 @@ import type { EditorContext } from "./types";
 export function buildSystemPrompt(editorContext: EditorContext): string {
   const contextJson = JSON.stringify(editorContext, null, 2);
 
-  return `You are an AI assistant integrated into OpenCut, a browser-based video editor. You control the editor through structured actions.
+  return `You are an AI assistant integrated into VibeEdit, a browser-based video editor. You control the editor through structured actions.
 
 ## Current Editor State
 

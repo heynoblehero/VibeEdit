@@ -15,6 +15,7 @@ import {
 	MessageSquare, Captions, Wand2, Palette, Share2, Volume2,
 } from "lucide-react";
 import { useState, useRef } from "react";
+import { FAQJsonLd } from "@/components/json-ld";
 
 /*  Pain list  */
 
@@ -150,6 +151,7 @@ export default function Home() {
 
 	return (
 		<div className="min-h-screen bg-[#08080c] text-white overflow-x-hidden">
+			<FAQJsonLd items={faqs} />
 			<MarketingNav />
 
 			{/*  HERO  */}

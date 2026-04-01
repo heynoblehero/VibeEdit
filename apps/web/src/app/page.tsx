@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { MarketingNav } from "@/components/marketing/nav";
 import { MarketingFooter } from "@/components/marketing/footer";
-import { LiveDemo } from "@/components/marketing/live-demo";
+import dynamic from "next/dynamic";
+const SandboxEditor = dynamic(() => import("@/components/marketing/sandbox-editor").then(m => ({ default: m.SandboxEditor })), { ssr: false, loading: () => <div className="mx-auto max-w-5xl mt-10 h-[420px] rounded-2xl border border-white/[0.08] bg-[#0a0a0f]/90 animate-pulse" /> });
 import { AnimatedSection } from "@/components/ui/motion/animated-section";
 import { GlassCard } from "@/components/ui/motion/glass-card";
 import { StaggerChildren, StaggerItem } from "@/components/ui/motion/stagger-children";
@@ -19,7 +20,7 @@ import { FAQJsonLd } from "@/components/json-ld";
 import { Mascot } from "@/components/marketing/mascot";
 import { EmojiReaction } from "@/components/marketing/floating-emojis";
 import { SparkleCanvas, useConfetti } from "@/components/marketing/particles";
-import { DoodleStars, DoodleArrow, DoodleWavy, DoodleBang, DoodleSparkle } from "@/components/marketing/doodles";
+import { DoodleStars, DoodleArrow, DoodleWavy, DoodleBang, DoodleSparkle, DoodleTryIt } from "@/components/marketing/doodles";
 import { EditorComparison } from "@/components/marketing/editor-comparison";
 
 /*  Mouse glow hook  */
@@ -193,7 +194,7 @@ export default function Home() {
 	const confetti = useConfetti();
 
 	return (
-		<div className="min-h-screen bg-[#08080c] text-white overflow-x-hidden">
+		<div className="min-h-screen bg-[#08080c] text-white overflow-x-hidden cursor-landing [&_a]:cursor-landing-pointer [&_button]:cursor-landing-pointer">
 			<FAQJsonLd items={faqs} />
 			<MarketingNav />
 			<Mascot />
@@ -219,7 +220,8 @@ export default function Home() {
 				{/* Cursor sparkle trail */}
 				<SparkleCanvas />
 
-				<motion.div className="relative z-10 mx-auto max-w-5xl px-6 pt-32 pb-8 text-center" style={{ y: heroY, opacity: heroOpacity }}>
+				{/* Hero text — parallax + fade on scroll */}
+				<motion.div className="relative z-10 mx-auto max-w-5xl px-6 pt-32 pb-4 text-center" style={{ y: heroY, opacity: heroOpacity }}>
 					{/* Badge */}
 					<motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
 						<NeonBadge variant="purple" className="mb-6">
@@ -274,17 +276,24 @@ export default function Home() {
 							<span className="text-sm text-white/25 tracking-[0.2em] mx-10 font-medium">{marqueeText}</span>
 						</div>
 					</motion.div>
-
-					{/* LIVE DEMO — the actual product running */}
-					<div id="demo" className="mt-6">
-						<LiveDemo />
-					</div>
 				</motion.div>
+
+				{/* Interactive editor — NO parallax, stays in place while scrolling */}
+				<div id="demo" className="relative z-10 mx-auto max-w-5xl px-6 pt-6 pb-20">
+					<SandboxEditor />
+				</div>
 			</section>
 
 			{/*  EDITOR COMPARISON — stressed vs chill  */}
-			<section className="py-20 border-t border-white/[0.05]">
-				<AnimatedSection>
+			<section className="py-28 px-6 border-t border-white/[0.05]">
+				<AnimatedSection className="text-center mb-14">
+					<h2 className="text-4xl sm:text-5xl font-black font-[family-name:var(--font-display)] tracking-tight text-white">
+						Them vs{" "}
+						<span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">you</span>
+					</h2>
+					<p className="mt-4 text-lg text-white/50 max-w-xl mx-auto">The old way takes hours of frustration. VibeEdit takes minutes.</p>
+				</AnimatedSection>
+				<AnimatedSection delay={0.15}>
 					<EditorComparison />
 				</AnimatedSection>
 			</section>

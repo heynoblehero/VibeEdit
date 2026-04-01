@@ -43,6 +43,10 @@ export function SparkleCanvas({ className }: { className?: string }) {
 			const rect = canvas.getBoundingClientRect();
 			mouseRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
 
+			// Don't spawn sparkles when hovering over the sandbox editor
+			const target = e.target as HTMLElement;
+			if (target.closest?.("#demo")) return;
+
 			const now = Date.now();
 			if (now - lastSpawn.current > 50 && sparks.current.length < 15) {
 				lastSpawn.current = now;
@@ -57,7 +61,7 @@ export function SparkleCanvas({ className }: { className?: string }) {
 				});
 			}
 		};
-		canvas.addEventListener("mousemove", onMove);
+		window.addEventListener("mousemove", onMove);
 
 		const draw = () => {
 			ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -86,14 +90,14 @@ export function SparkleCanvas({ className }: { className?: string }) {
 		return () => {
 			cancelAnimationFrame(frameRef.current);
 			window.removeEventListener("resize", resize);
-			canvas.removeEventListener("mousemove", onMove);
+			window.removeEventListener("mousemove", onMove);
 		};
 	}, []);
 
 	return (
 		<canvas
 			ref={canvasRef}
-			className={`absolute inset-0 pointer-events-auto z-20 ${className ?? ""}`}
+			className={`absolute inset-0 pointer-events-none z-20 ${className ?? ""}`}
 			style={{ mixBlendMode: "screen" }}
 		/>
 	);

@@ -108,3 +108,37 @@ export function DoodleSparkle({ className }: { className?: string }) {
 		</svg>
 	);
 }
+
+/** "Go on, try it!" label with big curvy arrow pointing left toward the editor */
+export function DoodleTryIt({ className }: { className?: string }) {
+	const ref = useRef<HTMLDivElement>(null);
+	const inView = useInView(ref, { once: true, margin: "-80px" });
+	return (
+		<div ref={ref} className={`pointer-events-none flex flex-col items-center gap-0 ${className ?? ""}`}>
+			<motion.span
+				className="text-lg font-extrabold text-pink-400 italic whitespace-nowrap"
+				initial={{ opacity: 0, y: 8 }}
+				animate={inView ? { opacity: 1, y: 0 } : {}}
+				transition={{ duration: 0.4, delay: 0.8 }}
+			>
+				Go on, try it!
+			</motion.span>
+			<svg viewBox="0 0 80 70" fill="none" className="w-20 h-16 -mt-1" xmlns="http://www.w3.org/2000/svg">
+				{/* Reverse C curve: goes down from top, curves right, then sweeps back left */}
+				<motion.path
+					d="M40 4 C56 12, 68 30, 60 48 C52 62, 30 62, 14 52"
+					stroke="#f472b6" strokeWidth="2.8" strokeLinecap="round" fill="none"
+					variants={draw} initial="hidden" animate={inView ? "visible" : "hidden"}
+					transition={{ duration: 0.6, delay: 1.1 }}
+				/>
+				{/* Arrowhead pointing left */}
+				<motion.path
+					d="M22 60 L14 52 L24 46"
+					stroke="#f472b6" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" fill="none"
+					variants={draw} initial="hidden" animate={inView ? "visible" : "hidden"}
+					transition={{ duration: 0.25, delay: 1.6 }}
+				/>
+			</svg>
+		</div>
+	);
+}

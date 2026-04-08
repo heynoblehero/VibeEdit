@@ -151,17 +151,6 @@ const testimonials = [
 	{ name: "Jenna W.", role: "Social Media Manager", quote: "Managing 6 client accounts means constant content. VibeEdit is the only reason I haven't burned out.", avatar: "JW" },
 ];
 
-/*  Showcase  */
-
-const showcaseItems = [
-	{ label: "YouTube Long-form", time: "4 min edit", gradient: "from-red-500 to-orange-500" },
-	{ label: "TikTok Clips", time: "30 sec edit", gradient: "from-cyan-500 to-blue-500" },
-	{ label: "Instagram Reels", time: "2 min edit", gradient: "from-fuchsia-500 to-pink-500" },
-	{ label: "Podcast Highlights", time: "3 min edit", gradient: "from-violet-500 to-purple-500" },
-	{ label: "Course Content", time: "5 min edit", gradient: "from-emerald-500 to-teal-500" },
-	{ label: "Product Demos", time: "3 min edit", gradient: "from-amber-500 to-yellow-500" },
-];
-
 /*  Marquee  */
 
 const marqueeText = "MP4 \u00B7 MOV \u00B7 WebM \u00B7 PSD \u00B7 LUT \u00B7 SRT \u00B7 EDL \u00B7 XML \u00B7 Lottie \u00B7 ZIP \u00B7 TTF \u00B7 WOFF2";
@@ -453,38 +442,7 @@ export default function Home() {
 				</div>
 			</section>
 
-			{/*  VIDEO SHOWCASE  */}
-			<section className="py-28 px-6 border-t border-white/[0.05]">
-				<div className="mx-auto max-w-5xl">
-					<AnimatedSection className="text-center mb-14">
-						<p className="text-violet-400 font-bold uppercase tracking-widest text-sm mb-3">Showcase</p>
-						<h2 className="text-4xl sm:text-5xl font-black font-[family-name:var(--font-display)] tracking-tight text-white">
-							Made with VibeEdit
-						</h2>
-						<p className="mt-4 text-lg text-white/60">From raw footage to finished video — in minutes, not hours.</p>
-					</AnimatedSection>
-
-					<StaggerChildren className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-						{showcaseItems.map((item) => (
-							<StaggerItem key={item.label}>
-								<div className="group relative rounded-2xl border border-white/[0.08] bg-white/[0.03] overflow-hidden hover:border-white/[0.15] transition-all cursor-pointer">
-									{/* Video placeholder */}
-									<div className={`aspect-video bg-gradient-to-br ${item.gradient} opacity-10 group-hover:opacity-20 transition-opacity`} />
-									<div className="absolute inset-0 flex items-center justify-center">
-										<div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 backdrop-blur-sm border border-white/20 group-hover:scale-110 transition-transform">
-											<Play className="h-6 w-6 text-white ml-0.5" />
-										</div>
-									</div>
-									<div className="p-4">
-										<h3 className="font-bold font-[family-name:var(--font-display)] text-white">{item.label}</h3>
-										<p className="text-sm text-white/50 mt-0.5">{item.time}</p>
-									</div>
-								</div>
-							</StaggerItem>
-						))}
-					</StaggerChildren>
-				</div>
-			</section>
+			{/*  VIDEO SHOWCASE — removed for now  */}
 
 			{/*  COMPARISON TABLE  */}
 			<section className="py-28 px-6">

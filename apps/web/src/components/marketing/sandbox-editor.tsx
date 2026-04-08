@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Sparkles, Send, Check, Play, ArrowRight, X } from "lucide-react";
+import { Sparkles, Send, Check, Play, ArrowRight, X, MessageSquare, Eye } from "lucide-react";
 import { EditorProvider } from "@/components/providers/editor-provider";
 import { DoodleTryIt } from "@/components/marketing/doodles";
 import { PreviewPanel } from "@/components/editor/panels/preview";
@@ -692,6 +692,7 @@ function VideoLoader() {
 function SandboxEditorInner() {
 	const [promptCount, setPromptCount] = useState(0);
 	const [showSignup, setShowSignup] = useState(false);
+	const [mobileView, setMobileView] = useState<"chat" | "preview">("chat");
 
 	const handlePromptUsed = useCallback(() => {
 		setPromptCount((c) => {
@@ -706,14 +707,14 @@ function SandboxEditorInner() {
 	return (
 		<div className="relative rounded-2xl border-[3px] border-pink-500/25 bg-[#0a0a0f]/95 backdrop-blur-2xl shadow-2xl overflow-hidden cursor-default">
 			{/* Browser chrome */}
-			<div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white/[0.04] bg-white/[0.015]">
+			<div className="flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-2 sm:py-2.5 border-b border-white/[0.04] bg-white/[0.015]">
 				<div className="flex gap-1.5">
-					<div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
-					<div className="w-3 h-3 rounded-full bg-[#fdbc40]" />
-					<div className="w-3 h-3 rounded-full bg-[#28c840]" />
+					<div className="w-2.5 sm:w-3 h-2.5 sm:h-3 rounded-full bg-[#ff5f57]" />
+					<div className="w-2.5 sm:w-3 h-2.5 sm:h-3 rounded-full bg-[#fdbc40]" />
+					<div className="w-2.5 sm:w-3 h-2.5 sm:h-3 rounded-full bg-[#28c840]" />
 				</div>
 				<div className="flex-1 flex justify-center">
-					<div className="rounded-lg bg-white/[0.04] px-14 py-1 text-[11px] text-white/30 font-mono tracking-wide">vibeedit.app/editor</div>
+					<div className="rounded-lg bg-white/[0.04] px-6 sm:px-14 py-1 text-[10px] sm:text-[11px] text-white/30 font-mono tracking-wide">vibeedit.app/editor</div>
 				</div>
 				<div className="flex items-center gap-2">
 					<div className="rounded-full bg-emerald-500/15 border border-emerald-500/20 px-2.5 py-0.5 text-[10px] text-emerald-400 font-semibold tracking-wide flex items-center gap-1">
@@ -723,21 +724,47 @@ function SandboxEditorInner() {
 				</div>
 			</div>
 
+			{/* Mobile view toggle */}
+			<div className="flex sm:hidden border-b border-white/[0.04]">
+				<button
+					onClick={() => setMobileView("chat")}
+					className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
+						mobileView === "chat" ? "text-violet-400 border-b-2 border-violet-400" : "text-white/30"
+					}`}
+				>
+					<MessageSquare className="h-3.5 w-3.5" />
+					Chat
+				</button>
+				<button
+					onClick={() => setMobileView("preview")}
+					className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
+						mobileView === "preview" ? "text-violet-400 border-b-2 border-violet-400" : "text-white/30"
+					}`}
+				>
+					<Eye className="h-3.5 w-3.5" />
+					Preview
+				</button>
+			</div>
+
 			{/* Editor layout */}
-			<div className="flex flex-col sm:flex-row" style={{ height: 520 }}>
+			<div className="flex flex-col sm:flex-row h-[420px] sm:h-[520px]">
 				{/* Chat panel */}
-				<div className="w-full sm:w-[45%] border-b sm:border-b-0 sm:border-r border-white/[0.04] flex flex-col overflow-hidden" style={{ minHeight: 260 }}>
+				<div className={`w-full sm:w-[45%] sm:border-r border-white/[0.04] flex flex-col overflow-hidden ${
+					mobileView === "chat" ? "flex-1" : "hidden sm:flex"
+				}`}>
 					<SandboxChatPanel onPromptUsed={handlePromptUsed} />
 				</div>
 
 				{/* Preview + scrubber */}
-				<div className="w-full sm:w-[55%] flex flex-col min-h-0 overflow-hidden bg-[#050508]">
+				<div className={`w-full sm:w-[55%] flex flex-col min-h-0 overflow-hidden bg-[#050508] ${
+					mobileView === "preview" ? "flex-1" : "hidden sm:flex"
+				}`}>
 					{/* Toolbar */}
 					<div className="shrink-0 px-3 py-2 border-b border-white/[0.04] flex justify-between items-center bg-[#0a0a0f]/80">
 						<div className="flex items-center gap-2">
 							<span className="text-[11px] text-white/40 font-medium">Preview</span>
-							<span className="text-[10px] text-white/15">|</span>
-							<span className="text-[10px] text-white/25">1920×1080</span>
+							<span className="text-[10px] text-white/15 hidden sm:inline">|</span>
+							<span className="text-[10px] text-white/25 hidden sm:inline">1920×1080</span>
 						</div>
 						<Link href="/register" className="text-[11px] bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white px-3.5 py-1 rounded-full font-semibold hover:shadow-[0_0_16px_rgba(139,92,246,0.4)] transition-all">
 							Export

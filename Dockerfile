@@ -28,6 +28,10 @@ RUN cd node_modules/better-sqlite3 && npx --yes prebuild-install || npm rebuild 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=3072"
+
+ARG NEXT_PUBLIC_SITE_URL=https://vibevideoedit.com
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+
 RUN cd apps/web && npx next build
 
 # --- Production ---

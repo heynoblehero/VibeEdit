@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 const publicPaths = ["/", "/login", "/register", "/pricing", "/forgot-password", "/reset-password", "/terms", "/privacy", "/api/auth", "/api/webhooks"];
 const authPaths = ["/login", "/register"];
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
 	const { pathname } = request.nextUrl;
 
 	const isPublic = publicPaths.some(

@@ -4,10 +4,11 @@ import { db, schema } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 
 export const auth = betterAuth({
-	baseURL: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3001",
+	baseURL: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
 	trustedOrigins: [
 		"https://vibevideoedit.com",
-		process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3001",
+		"https://www.vibevideoedit.com",
+		process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
 	],
 	secret: process.env.BETTER_AUTH_SECRET || "vibeedit-local-dev-secret-at-least-32-chars-long",
 	database: drizzleAdapter(db, {
@@ -49,9 +50,7 @@ export const auth = betterAuth({
 			});
 		},
 		sendOnSignUp: true,
-	},
-	session: {
-		cookieCache: { enabled: true, maxAge: 60 * 60 },
+		requireEmailVerification: false,
 	},
 });
 

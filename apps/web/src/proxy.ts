@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const publicPaths = ["/", "/login", "/register", "/pricing", "/forgot-password", "/reset-password", "/terms", "/privacy", "/api/auth", "/api/webhooks"];
+const publicPaths = ["/", "/login", "/register", "/pricing", "/forgot-password", "/reset-password", "/terms", "/privacy", "/api/auth", "/api/webhooks", "/api/health"];
 const authPaths = ["/login", "/register"];
 
 export async function proxy(request: NextRequest) {
@@ -10,7 +10,9 @@ export async function proxy(request: NextRequest) {
 		(p) => pathname === p || pathname.startsWith(p + "/"),
 	);
 
-	const sessionCookie = request.cookies.get("better-auth.session_token");
+	const sessionCookie =
+		request.cookies.get("better-auth.session_token") ??
+		request.cookies.get("__Secure-better-auth.session_token");
 	const isLoggedIn = !!sessionCookie;
 
 	if (isLoggedIn && authPaths.some((p) => pathname === p)) {

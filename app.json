@@ -1,0 +1,14 @@
+{
+  "healthchecks": {
+    "web": [
+      {
+        "type": "startup",
+        "name": "web",
+        "description": "Wait for Next.js to be ready before routing traffic",
+        "path": "/api/health",
+        "timeout": 10,
+        "uptime": 20
+      }
+    ]
+  }
+}

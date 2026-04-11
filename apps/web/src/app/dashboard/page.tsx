@@ -96,10 +96,25 @@ function DashboardPage() {
 
 	useEffect(() => {
 		if (session?.user) {
-			fetch("/api/credits").then((r) => r.json()).then((d) => setCreditBalance(d.balance ?? 0)).catch(() => setCreditBalance(0));
-			fetch("/api/projects").then((r) => r.json()).then((d) => setProjects(d.projects || [])).catch(() => setProjects([]));
+			fetch("/api/credits")
+				.then((r) => {
+					if (r.status === 401) { router.push("/login"); return null; }
+					if (!r.ok) throw new Error("credits");
+					return r.json();
+				})
+				.then((d) => d && setCreditBalance(d.balance ?? 0))
+				.catch(() => { setCreditBalance(0); toast.error("Failed to load credits"); });
+
+			fetch("/api/projects")
+				.then((r) => {
+					if (r.status === 401) { router.push("/login"); return null; }
+					if (!r.ok) throw new Error("projects");
+					return r.json();
+				})
+				.then((d) => d && setProjects(d.projects || []))
+				.catch(() => { setProjects([]); toast.error("Failed to load projects"); });
 		}
-	}, [session]);
+	}, [session, router]);
 
 	if (isPending || !session) {
 		return (

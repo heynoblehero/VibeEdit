@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sparkles, Gift } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
+import { toast } from "sonner";
 
 export default function RegisterPage() {
 	const router = useRouter();
@@ -24,20 +25,34 @@ export default function RegisterPage() {
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
 		setError("");
-		if (password !== confirmPassword) { setError("Passwords do not match"); return; }
-		if (password.length < 8) { setError("Password must be at least 8 characters"); return; }
+		if (password !== confirmPassword) {
+			setError("Passwords do not match");
+			toast.error("Passwords do not match");
+			return;
+		}
+		if (password.length < 8) {
+			setError("Password must be at least 8 characters");
+			toast.error("Password must be at least 8 characters");
+			return;
+		}
 		setLoading(true);
 		try {
 			const result = await signUp.email({ email, password, name });
 			if (result.error) {
-				setError(result.error.message || "Registration failed");
+				const message = result.error.message || "Registration failed";
+				setError(message);
+				toast.error(message);
 			} else {
 				await fetch("/api/auth/credits/init", { method: "POST" }).catch(() => {});
 				trackEvent("signup");
+				toast.success("Account created! You got 10 free credits.");
+				router.refresh();
 				router.push("/dashboard");
 			}
 		} catch {
-			setError("Something went wrong. Please try again.");
+			const message = "Something went wrong. Please try again.";
+			setError(message);
+			toast.error(message);
 		} finally {
 			setLoading(false);
 		}

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sparkles } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
+import { toast } from "sonner";
 
 function LoginForm() {
 	const router = useRouter();
@@ -27,13 +28,19 @@ function LoginForm() {
 		try {
 			const result = await signIn.email({ email, password });
 			if (result.error) {
-				setError(result.error.message || "Invalid email or password");
+				const message = result.error.message || "Invalid email or password";
+				setError(message);
+				toast.error(message);
 			} else {
 				trackEvent("login");
+				toast.success("Welcome back!");
+				router.refresh();
 				router.push(redirect);
 			}
 		} catch {
-			setError("Something went wrong. Please try again.");
+			const message = "Something went wrong. Please try again.";
+			setError(message);
+			toast.error(message);
 		} finally {
 			setLoading(false);
 		}

@@ -39,6 +39,9 @@ FROM node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+# Expose at runtime so better-auth server reads the correct baseURL for cookies/CSRF
+ARG NEXT_PUBLIC_SITE_URL=https://vibevideoedit.com
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 
 RUN mkdir -p /data
 

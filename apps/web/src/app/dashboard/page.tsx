@@ -125,9 +125,14 @@ function DashboardPage() {
 				body: JSON.stringify({ id, name: newProjectName.trim() }),
 			});
 			if (resp.ok) {
-					trackEvent("project_created");
-					router.push(`/editor/${id}?name=${encodeURIComponent(newProjectName.trim())}`);
-				}
+				trackEvent("project_created");
+				toast.success("Project created!");
+				router.push(`/editor/${id}?name=${encodeURIComponent(newProjectName.trim())}`);
+			} else {
+				toast.error("Failed to create project");
+			}
+		} catch {
+			toast.error("Failed to create project");
 		} finally {
 			setIsCreating(false);
 		}
@@ -137,6 +142,7 @@ function DashboardPage() {
 		await fetch(`/api/projects/${id}`, { method: "DELETE" });
 		setProjects((prev) => prev.filter((p) => p.id !== id));
 		setDeleteConfirm(null);
+		toast.success("Project deleted");
 	}
 
 	async function handleBackup() {
@@ -149,6 +155,7 @@ function DashboardPage() {
 		a.download = `vibeedit-backup-${new Date().toISOString().slice(0, 10)}.json`;
 		a.click();
 		URL.revokeObjectURL(url);
+		toast.success("Backup downloaded!");
 	}
 
 	function handleImportClick() {
@@ -169,15 +176,16 @@ function DashboardPage() {
 						body: JSON.stringify({ id: project.id || crypto.randomUUID(), name: project.name }),
 					});
 				}
-				// Refresh project list
 				const resp = await fetch("/api/projects");
 				const refreshed = await resp.json();
 				setProjects(refreshed.projects || []);
+				toast.success(`Imported ${data.projects.length} project${data.projects.length === 1 ? "" : "s"}`);
+			} else {
+				toast.error("Invalid backup file format");
 			}
 		} catch {
-			// silently ignore bad files
+			toast.error("Failed to read file");
 		}
-		// Reset input so the same file can be re-imported
 		if (importInputRef.current) importInputRef.current.value = "";
 	}
 

@@ -5,6 +5,10 @@ import { sendEmail } from "@/lib/email";
 
 export const auth = betterAuth({
 	baseURL: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3001",
+	trustedOrigins: [
+		"https://vibevideoedit.com",
+		process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3001",
+	],
 	secret: process.env.BETTER_AUTH_SECRET || "vibeedit-local-dev-secret-at-least-32-chars-long",
 	database: drizzleAdapter(db, {
 		provider: "sqlite",

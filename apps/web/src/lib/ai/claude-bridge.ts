@@ -41,6 +41,7 @@ export async function spawnClaude(
         LANG: process.env.LANG || "",
         XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME || "",
         ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
+        CLAUDE_CODE_OAUTH_TOKEN: process.env.CLAUDE_CODE_OAUTH_TOKEN || "",
       },
     });
 

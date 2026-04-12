@@ -22,7 +22,7 @@ export async function spawnClaude(
 			"--output-format",
 			"json",
 			"--max-turns",
-			"1",
+			"2",
 			"--tools",
 			"",
 			"--system-prompt",

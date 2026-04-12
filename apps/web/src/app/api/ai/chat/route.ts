@@ -89,16 +89,16 @@ export async function POST(request: NextRequest) {
       sessionId
     );
 
-    // Extract actions from either structured_output or parse from result
+    // Extract actions — prefer structured_output (from --json-schema), fall back to parsing result text
     let actions: Array<{ tool: string; params: Record<string, unknown> }> = [];
     let text = cliResult.result || "";
 
     if (cliResult.structured_output) {
       actions = cliResult.structured_output.actions || [];
       text = cliResult.structured_output.message || text;
+      console.log(`[AI] structured_output: ${actions.length} actions`);
     } else {
-      // Try to parse result as JSON (fallback)
-      // Claude may wrap JSON in markdown code blocks
+      console.log(`[AI] No structured_output, parsing result text (${text.length} chars)`);
       let jsonStr = cliResult.result;
       const codeBlockMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
       if (codeBlockMatch) {
@@ -123,9 +123,15 @@ export async function POST(request: NextRequest) {
               .slice(0, 20);
           }
         } catch {
-          // result is plain text, no actions
+          console.warn(`[AI] Failed to parse result as JSON, treating as plain text`);
         }
       }
+    }
+
+    if (actions.length === 0) {
+      console.warn(`[AI] No actions extracted from response for message: "${message.slice(0, 80)}"`);
+    } else {
+      console.log(`[AI] Executing ${actions.length} actions: ${actions.map(a => a.tool).join(", ")}`);
     }
 
     // Deduct credits for the chat message

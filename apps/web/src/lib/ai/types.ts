@@ -25,7 +25,29 @@ export type AIActionTool =
   | "redo"
   | "batch_update"
   | "save_project"
-  | "export_preset";
+  | "export_preset"
+  // Plan mode
+  | "create_plan"
+  // Clip operations
+  | "trim_clip"
+  | "add_transition"
+  | "speed_ramp"
+  | "freeze_frame"
+  // Audio operations
+  | "add_voiceover"
+  | "ducking"
+  | "silence_detection"
+  // Text & graphics
+  | "add_animated_title"
+  | "add_caption_track"
+  | "add_callout"
+  // Color & effects
+  | "add_filter"
+  | "picture_in_picture"
+  | "ken_burns"
+  // Smart operations
+  | "auto_jump_cut"
+  | "smart_reframe";
 
 export interface AIAction {
   tool: AIActionTool;
@@ -116,6 +138,7 @@ export interface ChatMessage {
   actions?: AIAction[];
   actionResults?: AIActionResult[];
   attachments?: ChatMessageAttachment[];
+  plan?: import("@/types/plan").VideoPlan;
   timestamp: number;
   snapshotId?: string;
 }

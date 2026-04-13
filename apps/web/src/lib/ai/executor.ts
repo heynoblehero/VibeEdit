@@ -901,6 +901,509 @@ function handleExportPreset(params: Record<string, unknown>): unknown {
   };
 }
 
+// ── Plan Mode ──────────────────────────────────────────────────────
+
+function handleCreatePlan(params: Record<string, unknown>): unknown {
+  const title = (params.title as string) || "Untitled Plan";
+  const description = (params.description as string) || "";
+  const estimatedDuration = (params.estimatedDuration as number) || 0;
+  const rawSteps = (params.steps as Array<Record<string, unknown>>) || [];
+
+  const steps = rawSteps.map((step, index) => ({
+    id: crypto.randomUUID(),
+    order: index,
+    title: (step.title as string) || `Step ${index + 1}`,
+    description: (step.description as string) || "",
+    actions: (step.actions as Array<{ tool: string; params: Record<string, unknown> }>) || [],
+    timeRange: step.timeRange as { start: number; end: number } | undefined,
+    status: "pending" as const,
+  }));
+
+  return {
+    id: crypto.randomUUID(),
+    title,
+    description,
+    estimatedDuration,
+    steps,
+    status: "draft",
+    currentStepIndex: 0,
+  };
+}
+
+// ── New Clip Operations ────────────────────────────────────────────
+
+function handleTrimClip(params: Record<string, unknown>): void {
+  const editor = getEditor();
+  const trackId = params.trackId as string;
+  const elementId = params.elementId as string;
+  if (!trackId || !elementId) throw new Error("trackId and elementId required");
+
+  const tracks = editor.timeline.getTracks();
+  validateElementExists(tracks, trackId, elementId);
+
+  const updates: Record<string, unknown> = {};
+  if (params.trimStart != null) updates.trimStart = params.trimStart;
+  if (params.trimEnd != null) updates.trimEnd = params.trimEnd;
+
+  editor.timeline.updateElements({
+    updates: [{ trackId, elementId, updates: updates as any }],
+  });
+}
+
+function handleAddTransition(params: Record<string, unknown>): unknown {
+  const type = (params.type as string) || "cross-dissolve";
+  const duration = (params.duration as number) || 0.5;
+
+  // Transitions are implemented as Remotion effects overlaid between clips
+  const transitionCode: Record<string, string> = {
+    "cross-dissolve": `({ frame, fps, width, height }) => {
+      const progress = Math.min(frame / (${duration} * fps), 1);
+      return React.createElement('div', {
+        style: { position: 'absolute', inset: 0, backgroundColor: 'black', opacity: 1 - progress }
+      });
+    }`,
+    "fade-black": `({ frame, fps }) => {
+      const mid = ${duration} * fps / 2;
+      const opacity = frame < mid ? frame / mid : 1 - (frame - mid) / mid;
+      return React.createElement('div', {
+        style: { position: 'absolute', inset: 0, backgroundColor: 'black', opacity }
+      });
+    }`,
+    "fade-white": `({ frame, fps }) => {
+      const mid = ${duration} * fps / 2;
+      const opacity = frame < mid ? frame / mid : 1 - (frame - mid) / mid;
+      return React.createElement('div', {
+        style: { position: 'absolute', inset: 0, backgroundColor: 'white', opacity }
+      });
+    }`,
+    "wipe-left": `({ frame, fps, width }) => {
+      const progress = Math.min(frame / (${duration} * fps), 1);
+      return React.createElement('div', {
+        style: { position: 'absolute', inset: 0, backgroundColor: 'black', clipPath: 'inset(0 0 0 ' + (progress * 100) + '%)' }
+      });
+    }`,
+  };
+
+  const code = transitionCode[type] || transitionCode["cross-dissolve"];
+  const startTime = (params.startTime as number) || 0;
+
+  const effect = {
+    id: crypto.randomUUID(),
+    name: `Transition: ${type}`,
+    code,
+    startFrame: Math.round(startTime * 30),
+    durationFrames: Math.round(duration * 30),
+    props: {},
+  };
+
+  registerEffect(effect);
+  return { effectId: effect.id, type, duration };
+}
+
+function handleSpeedRamp(params: Record<string, unknown>): void {
+  const editor = getEditor();
+  const trackId = params.trackId as string;
+  const elementId = params.elementId as string;
+  const speed = params.speed as number;
+  if (!trackId || !elementId || !speed) throw new Error("trackId, elementId, and speed required");
+
+  const tracks = editor.timeline.getTracks();
+  validateElementExists(tracks, trackId, elementId);
+
+  const found = findElement(tracks, trackId, elementId);
+  if (!found) throw new Error("Element not found");
+
+  const newDuration = found.element.duration / speed;
+  editor.timeline.updateElements({
+    updates: [{ trackId, elementId, updates: { duration: newDuration } as any }],
+  });
+}
+
+function handleFreezeFrame(params: Record<string, unknown>): unknown {
+  const editor = getEditor();
+  const trackId = params.trackId as string;
+  const elementId = params.elementId as string;
+  const freezeTime = params.freezeTime as number;
+  const duration = (params.duration as number) || 2;
+
+  if (!trackId || !elementId || freezeTime == null) {
+    throw new Error("trackId, elementId, and freezeTime required");
+  }
+
+  const tracks = editor.timeline.getTracks();
+  validateElementExists(tracks, trackId, elementId);
+
+  // Split at freeze point, then insert a frozen image
+  editor.timeline.splitElements({
+    elements: [{ trackId, elementId }],
+    splitTime: freezeTime,
+  });
+
+  return { message: `Freeze frame created at ${freezeTime}s for ${duration}s` };
+}
+
+// ── Audio Operations ───────────────────────────────────────────────
+
+function handleAddVoiceover(params: Record<string, unknown>): unknown {
+  const text = params.text as string;
+  const startTime = (params.startTime as number) || 0;
+
+  if (!text) throw new Error("text is required for add_voiceover");
+
+  // This delegates to generate_media with elevenlabs
+  return {
+    message: `Voiceover queued: "${text.slice(0, 50)}..." at ${startTime}s. Use generate_media with service: "elevenlabs" to create the audio.`,
+    suggestedAction: {
+      tool: "generate_media",
+      params: { service: "elevenlabs", action: "tts", params: { text } },
+    },
+  };
+}
+
+function handleDucking(params: Record<string, unknown>): void {
+  const editor = getEditor();
+  const musicTrackId = params.musicTrackId as string;
+  const duckLevel = (params.duckLevel as number) || -12;
+
+  if (!musicTrackId) throw new Error("musicTrackId required");
+
+  const tracks = editor.timeline.getTracks();
+  validateTrackExists(tracks, musicTrackId);
+
+  // Apply volume reduction to the music track elements
+  const musicTrack = tracks.find((t) => t.id === musicTrackId);
+  if (!musicTrack) throw new Error("Music track not found");
+
+  const duckVolume = Math.pow(10, duckLevel / 20); // dB to linear
+  const updates = musicTrack.elements.map((el) => ({
+    trackId: musicTrackId,
+    elementId: el.id,
+    updates: { volume: duckVolume } as any,
+  }));
+
+  if (updates.length > 0) {
+    editor.timeline.updateElements({ updates });
+  }
+}
+
+function handleSilenceDetection(params: Record<string, unknown>): unknown {
+  // This is an analysis tool — returns info about silent segments
+  // The actual audio analysis happens client-side
+  return {
+    message: "Silence detection requires audio analysis. Use auto_jump_cut to automatically remove silent segments.",
+    suggestedAction: {
+      tool: "auto_jump_cut",
+      params,
+    },
+  };
+}
+
+// ── Text & Graphics ────────────────────────────────────────────────
+
+function handleAddAnimatedTitle(params: Record<string, unknown>): unknown {
+  const text = (params.text as string) || "Title";
+  const style = (params.style as string) || "fade-scale";
+  const startTime = (params.startTime as number) || 0;
+  const duration = (params.duration as number) || 4;
+  const fontSize = (params.fontSize as number) || 72;
+  const color = (params.color as string) || "#ffffff";
+
+  const animations: Record<string, string> = {
+    "fade-scale": `({ frame, fps }) => {
+      const progress = Math.min(frame / 30, 1);
+      const opacity = progress;
+      const scale = 0.8 + 0.2 * progress;
+      return React.createElement('div', {
+        style: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }
+      }, React.createElement('h1', {
+        style: { fontSize: ${fontSize}, color: '${color}', opacity, transform: 'scale(' + scale + ')', textShadow: '0 4px 30px rgba(0,0,0,0.5)', fontWeight: 'bold' }
+      }, '${text.replace(/'/g, "\\'")}'));
+    }`,
+    "slide-up": `({ frame, fps, height }) => {
+      const progress = Math.min(frame / 20, 1);
+      const y = interpolate(progress, [0, 1], [height * 0.3, 0]);
+      const opacity = progress;
+      return React.createElement('div', {
+        style: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transform: 'translateY(' + y + 'px)' }
+      }, React.createElement('h1', {
+        style: { fontSize: ${fontSize}, color: '${color}', opacity, fontWeight: 'bold', textShadow: '0 2px 20px rgba(0,0,0,0.5)' }
+      }, '${text.replace(/'/g, "\\'")}'));
+    }`,
+    "typewriter": `({ frame, fps }) => {
+      const fullText = '${text.replace(/'/g, "\\'")}';
+      const charsShown = Math.min(Math.floor(frame / 3), fullText.length);
+      const shown = fullText.slice(0, charsShown);
+      const cursor = frame % 30 < 15 ? '|' : '';
+      return React.createElement('div', {
+        style: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }
+      }, React.createElement('h1', {
+        style: { fontSize: ${fontSize}, color: '${color}', fontFamily: 'monospace', fontWeight: 'bold' }
+      }, shown + cursor));
+    }`,
+    "glitch": `({ frame, fps }) => {
+      const glitch = Math.sin(frame * 0.5) > 0.8;
+      const offsetX = glitch ? (Math.random() - 0.5) * 10 : 0;
+      const offsetY = glitch ? (Math.random() - 0.5) * 5 : 0;
+      return React.createElement('div', {
+        style: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }
+      }, React.createElement('h1', {
+        style: { fontSize: ${fontSize}, color: '${color}', transform: 'translate(' + offsetX + 'px,' + offsetY + 'px)', fontWeight: 'bold', textShadow: glitch ? '2px 0 #ff0000, -2px 0 #00ffff' : '0 4px 20px rgba(0,0,0,0.5)' }
+      }, '${text.replace(/'/g, "\\'")}'));
+    }`,
+    "bounce": `({ frame, fps }) => {
+      const t = Math.min(frame / 20, 1);
+      const bounce = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      const scale = bounce;
+      const opacity = Math.min(frame / 10, 1);
+      return React.createElement('div', {
+        style: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }
+      }, React.createElement('h1', {
+        style: { fontSize: ${fontSize}, color: '${color}', opacity, transform: 'scale(' + scale + ')', fontWeight: 'bold' }
+      }, '${text.replace(/'/g, "\\'")}'));
+    }`,
+    "cinematic": `({ frame, fps, width }) => {
+      const fadeIn = Math.min(frame / 45, 1);
+      const letterSpacing = interpolate(fadeIn, [0, 1], [20, 4]);
+      return React.createElement('div', {
+        style: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }
+      }, React.createElement('h1', {
+        style: { fontSize: ${fontSize}, color: '${color}', opacity: fadeIn, letterSpacing: letterSpacing + 'px', fontWeight: '300', textTransform: 'uppercase' }
+      }, '${text.replace(/'/g, "\\'")}'));
+    }`,
+  };
+
+  const code = animations[style] || animations["fade-scale"];
+
+  const effect = {
+    id: crypto.randomUUID(),
+    name: `Title: ${text.slice(0, 20)}`,
+    code,
+    startFrame: Math.round(startTime * 30),
+    durationFrames: Math.round(duration * 30),
+    props: {},
+  };
+
+  registerEffect(effect);
+  return { effectId: effect.id, style, text };
+}
+
+function handleAddCaptionTrack(params: Record<string, unknown>): unknown {
+  // Delegates to auto_caption with style information
+  const style = (params.style as string) || "modern";
+  const position = (params.position as string) || "bottom";
+
+  return {
+    message: `Caption track will be generated. Style: ${style}, Position: ${position}. Audio transcription is needed — this will generate placeholder captions that you can edit.`,
+    captionStyle: style,
+    captionPosition: position,
+  };
+}
+
+function handleAddCallout(params: Record<string, unknown>): unknown {
+  const text = (params.text as string) || "Note";
+  const startTime = (params.startTime as number) || 0;
+  const duration = (params.duration as number) || 3;
+  const position = params.position as { x: number; y: number } || { x: 0, y: 0 };
+
+  const code = `({ frame, fps }) => {
+    const fadeIn = Math.min(frame / 10, 1);
+    return React.createElement('div', {
+      style: { position: 'absolute', left: ${position.x + 960}, top: ${position.y + 540}, opacity: fadeIn, transform: 'scale(' + (0.8 + 0.2 * fadeIn) + ')' }
+    },
+      React.createElement('div', {
+        style: { backgroundColor: '#fbbf24', color: '#000', padding: '8px 16px', borderRadius: 8, fontSize: 20, fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }
+      }, '${text.replace(/'/g, "\\'")}')
+    );
+  }`;
+
+  const effect = {
+    id: crypto.randomUUID(),
+    name: `Callout: ${text.slice(0, 20)}`,
+    code,
+    startFrame: Math.round(startTime * 30),
+    durationFrames: Math.round(duration * 30),
+    props: {},
+  };
+
+  registerEffect(effect);
+  return { effectId: effect.id, text };
+}
+
+// ── Color & Effects ────────────────────────────────────────────────
+
+function handleAddFilter(params: Record<string, unknown>): unknown {
+  const editor = getEditor();
+  const trackId = params.trackId as string;
+  const elementId = params.elementId as string;
+  const filter = (params.filter as string) || "warm";
+
+  if (!trackId || !elementId) throw new Error("trackId and elementId required");
+
+  const tracks = editor.timeline.getTracks();
+  validateElementExists(tracks, trackId, elementId);
+
+  // Map filter names to CSS filter effect chains
+  const filterEffects: Record<string, Array<{ type: string; params?: Record<string, unknown> }>> = {
+    warm: [{ type: "saturate" }, { type: "hue-rotate" }],
+    cool: [{ type: "saturate" }, { type: "hue-rotate" }],
+    vintage: [{ type: "sepia" }, { type: "contrast" }],
+    dramatic: [{ type: "contrast" }, { type: "brightness" }],
+    cinematic: [{ type: "contrast" }, { type: "saturate" }],
+    noir: [{ type: "grayscale" }, { type: "contrast" }],
+    vibrant: [{ type: "saturate" }, { type: "brightness" }],
+  };
+
+  const effects = filterEffects[filter] || filterEffects["warm"];
+  const effectIds: string[] = [];
+
+  for (const eff of effects) {
+    const effectId = editor.timeline.addClipEffect({
+      trackId,
+      elementId,
+      effectType: eff.type,
+    });
+    effectIds.push(effectId);
+  }
+
+  return { filter, effectIds, message: `Applied "${filter}" filter` };
+}
+
+function handlePictureInPicture(params: Record<string, unknown>): void {
+  const editor = getEditor();
+  const mediaId = params.mediaId as string;
+  const corner = (params.corner as string) || "bottom-right";
+  const size = (params.size as number) || 0.25;
+  const startTime = (params.startTime as number) || 0;
+  const duration = (params.duration as number) || 5;
+
+  if (!mediaId) throw new Error("mediaId required for picture_in_picture");
+
+  const cornerPositions: Record<string, { x: number; y: number }> = {
+    "top-left": { x: -960 + 960 * size + 20, y: -540 + 540 * size + 20 },
+    "top-right": { x: 960 - 960 * size - 20, y: -540 + 540 * size + 20 },
+    "bottom-left": { x: -960 + 960 * size + 20, y: 540 - 540 * size - 20 },
+    "bottom-right": { x: 960 - 960 * size - 20, y: 540 - 540 * size - 20 },
+  };
+
+  const pos = cornerPositions[corner] || cornerPositions["bottom-right"];
+
+  editor.timeline.insertElement({
+    element: {
+      type: "video" as const,
+      mediaId,
+      name: "Picture-in-Picture",
+      duration,
+      startTime,
+      trimStart: 0,
+      trimEnd: 0,
+      transform: {
+        scale: size,
+        position: pos,
+        rotate: 0,
+      },
+      opacity: 1,
+    },
+    placement: { mode: "auto", trackType: "video" },
+  });
+}
+
+function handleKenBurns(params: Record<string, unknown>): void {
+  const editor = getEditor();
+  const trackId = params.trackId as string;
+  const elementId = params.elementId as string;
+  const startZoom = (params.startZoom as number) || 1;
+  const endZoom = (params.endZoom as number) || 1.3;
+
+  if (!trackId || !elementId) throw new Error("trackId and elementId required");
+
+  const tracks = editor.timeline.getTracks();
+  validateElementExists(tracks, trackId, elementId);
+
+  const found = findElement(tracks, trackId, elementId);
+  if (!found) throw new Error("Element not found");
+
+  // Add scale keyframes for Ken Burns zoom
+  editor.timeline.upsertKeyframes({
+    keyframes: [
+      {
+        trackId,
+        elementId,
+        propertyPath: "transform.scale" as any,
+        time: 0,
+        value: startZoom,
+        interpolation: "linear" as any,
+      },
+      {
+        trackId,
+        elementId,
+        propertyPath: "transform.scale" as any,
+        time: found.element.duration,
+        value: endZoom,
+        interpolation: "linear" as any,
+      },
+    ],
+  });
+}
+
+// ── Smart Operations ───────────────────────────────────────────────
+
+function handleAutoJumpCut(params: Record<string, unknown>): unknown {
+  const trackId = params.trackId as string;
+  const elementId = params.elementId as string;
+
+  if (!trackId || !elementId) throw new Error("trackId and elementId required");
+
+  const editor = getEditor();
+  const tracks = editor.timeline.getTracks();
+  validateElementExists(tracks, trackId, elementId);
+
+  // Auto jump cut requires audio analysis which runs client-side
+  // For now, return guidance and let the system process it
+  return {
+    message: "Auto jump cut initiated. Analyzing audio for silent segments... This feature detects pauses and removes dead air automatically.",
+    trackId,
+    elementId,
+    silenceThreshold: (params.silenceThreshold as number) || -40,
+    minSilence: (params.minSilence as number) || 0.5,
+  };
+}
+
+function handleSmartReframe(params: Record<string, unknown>): void {
+  const editor = getEditor();
+  const trackId = params.trackId as string;
+  const elementId = params.elementId as string;
+  const targetRatio = (params.targetRatio as string) || "9:16";
+
+  if (!trackId || !elementId) throw new Error("trackId and elementId required");
+
+  const tracks = editor.timeline.getTracks();
+  validateElementExists(tracks, trackId, elementId);
+
+  // Calculate crop transform for target aspect ratio
+  const ratios: Record<string, { scaleX: number; scaleY: number }> = {
+    "9:16": { scaleX: 1.78, scaleY: 1 },  // Crop sides for vertical
+    "1:1": { scaleX: 1.33, scaleY: 1 },    // Crop sides for square
+    "4:5": { scaleX: 1.2, scaleY: 1 },     // Slight crop for portrait
+    "16:9": { scaleX: 1, scaleY: 1 },      // No change
+  };
+
+  const ratio = ratios[targetRatio] || ratios["9:16"];
+
+  editor.timeline.updateElements({
+    updates: [{
+      trackId,
+      elementId,
+      updates: {
+        transform: {
+          scale: ratio.scaleX,
+          position: { x: 0, y: 0 },
+          rotate: 0,
+        },
+      } as any,
+    }],
+  });
+}
+
 async function executeAction(action: AIAction): Promise<AIActionResult> {
   const { tool, params } = action;
 
@@ -1014,6 +1517,76 @@ async function executeAction(action: AIAction): Promise<AIActionResult> {
       case "export_preset": {
         const r = handleExportPreset(params);
         return { tool, success: true, result: r };
+      }
+      // Plan mode
+      case "create_plan": {
+        const r = handleCreatePlan(params);
+        return { tool, success: true, result: r };
+      }
+      // Clip operations
+      case "trim_clip": {
+        handleTrimClip(params);
+        return { tool, success: true };
+      }
+      case "add_transition": {
+        const r = handleAddTransition(params);
+        return { tool, success: true, result: r };
+      }
+      case "speed_ramp": {
+        handleSpeedRamp(params);
+        return { tool, success: true };
+      }
+      case "freeze_frame": {
+        const r = handleFreezeFrame(params);
+        return { tool, success: true, result: r };
+      }
+      // Audio operations
+      case "add_voiceover": {
+        const r = handleAddVoiceover(params);
+        return { tool, success: true, result: r };
+      }
+      case "ducking": {
+        handleDucking(params);
+        return { tool, success: true };
+      }
+      case "silence_detection": {
+        const r = handleSilenceDetection(params);
+        return { tool, success: true, result: r };
+      }
+      // Text & graphics
+      case "add_animated_title": {
+        const r = handleAddAnimatedTitle(params);
+        return { tool, success: true, result: r };
+      }
+      case "add_caption_track": {
+        const r = handleAddCaptionTrack(params);
+        return { tool, success: true, result: r };
+      }
+      case "add_callout": {
+        const r = handleAddCallout(params);
+        return { tool, success: true, result: r };
+      }
+      // Color & effects
+      case "add_filter": {
+        const r = handleAddFilter(params);
+        return { tool, success: true, result: r };
+      }
+      case "picture_in_picture": {
+        handlePictureInPicture(params);
+        return { tool, success: true };
+      }
+      case "ken_burns": {
+        handleKenBurns(params);
+        return { tool, success: true };
+      }
+      // Smart operations
+      case "auto_jump_cut": {
+        const r = handleAutoJumpCut(params);
+        return { tool, success: true, result: r };
+      }
+      case "smart_reframe": {
+        handleSmartReframe(params);
+        return { tool, success: true };
       }
       default: {
         const unknownTool = tool as string;

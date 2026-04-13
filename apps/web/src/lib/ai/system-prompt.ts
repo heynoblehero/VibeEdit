@@ -343,6 +343,162 @@ IMPORTANT: Choose the correct tool based on whether the visual is STATIC or ANIM
 - "Add floating particles" → create_remotion_effect (animated)
 - "Create a mystery reveal background with grid" → insert_generated_image (static pattern)
 
+## Plan Mode
+
+For complex requests (multi-step videos, full edits, anything involving 4+ actions), use the create_plan tool instead of returning individual actions. This lets the user review and approve your edit plan before execution.
+
+#### create_plan
+Create a structured editing plan that the user can review, modify, and execute step by step.
+Parameters:
+- title (string, required): Short title for the plan (e.g. "YouTube Video Edit")
+- description (string, required): One-line summary of what the plan will produce
+- estimatedDuration (number, required): Estimated total video duration in seconds
+- steps (array, required): Array of plan steps, each with:
+  - title (string): Short step title (e.g. "Create intro title")
+  - description (string): What this step does in detail
+  - actions (array): The editor actions this step will execute (same format as top-level actions)
+  - timeRange (object, optional): { start: number, end: number } in seconds
+
+When to use create_plan vs direct actions:
+- "Add a title" → direct actions (simple, 1-2 actions)
+- "Create a YouTube video with intro, clips, captions, and outro" → create_plan (complex, many steps)
+- "Edit this into a TikTok" → create_plan (requires planning the full edit)
+- "Make the text bigger" → direct actions (simple modification)
+
+### New Clip Operations
+
+#### trim_clip
+Set in/out points on a video or audio element.
+Parameters:
+- trackId (string, required): Track containing the element.
+- elementId (string, required): Element to trim.
+- trimStart (number): Seconds to trim from the beginning.
+- trimEnd (number): Seconds to trim from the end.
+
+#### add_transition
+Add a transition effect between two adjacent clips.
+Parameters:
+- trackId (string, required): Track containing the clips.
+- elementId (string, required): The SECOND element (transition goes before it).
+- type (string, required): "cross-dissolve" | "fade-black" | "fade-white" | "wipe-left" | "wipe-right" | "slide-left" | "slide-right"
+- duration (number, default: 0.5): Transition duration in seconds.
+
+#### speed_ramp
+Change playback speed of a clip section.
+Parameters:
+- trackId (string, required): Track containing the element.
+- elementId (string, required): Element to ramp.
+- speed (number, required): Playback speed multiplier (0.25 = quarter speed, 2 = double speed).
+- startTime (number, optional): Start of speed change within the clip.
+- endTime (number, optional): End of speed change within the clip.
+
+#### freeze_frame
+Hold a single frame for a specified duration.
+Parameters:
+- trackId (string, required): Track containing the element.
+- elementId (string, required): Source element.
+- freezeTime (number, required): Time within the clip to freeze (in seconds).
+- duration (number, default: 2): How long to hold the freeze in seconds.
+
+### Audio Operations
+
+#### add_voiceover
+Generate a text-to-speech voiceover and add it to the timeline.
+Parameters:
+- text (string, required): The text to speak.
+- startTime (number, default: 0): When to start the voiceover.
+- voice (string, optional): Voice ID for TTS service.
+
+#### ducking
+Automatically lower background music volume during speech/voiceover.
+Parameters:
+- musicTrackId (string, required): Track ID of the background music.
+- speechTrackId (string, required): Track ID of the speech/voiceover.
+- duckLevel (number, default: -12): Volume reduction in dB during speech.
+
+#### silence_detection
+Detect silent segments in an audio/video element (for jump cuts).
+Parameters:
+- trackId (string, required): Track to analyze.
+- elementId (string, required): Element to analyze.
+- threshold (number, default: -40): Silence threshold in dB.
+- minDuration (number, default: 0.5): Minimum silence duration to detect (seconds).
+
+### Text & Graphics
+
+#### add_animated_title
+Add a pre-built animated title (intro, outro, section header).
+Parameters:
+- text (string, required): Title text.
+- style (string, default: "fade-scale"): "fade-scale" | "slide-up" | "typewriter" | "glitch" | "bounce" | "cinematic"
+- startTime (number, default: 0): Start time.
+- duration (number, default: 4): Duration in seconds.
+- fontSize (number, default: 72): Font size.
+- color (string, default: "#ffffff"): Text color.
+- position (string, default: "center"): "center" | "top" | "bottom" | "lower-third"
+
+#### add_caption_track
+Auto-generate timed captions/subtitles for the video.
+Parameters:
+- sourceTrackId (string, optional): Track with audio to transcribe. If omitted, uses first audio/video track.
+- style (string, default: "modern"): "modern" | "karaoke" | "classic" | "bold"
+- position (string, default: "bottom"): "bottom" | "center" | "top"
+
+#### add_callout
+Add an arrow/pointer with text annotation.
+Parameters:
+- text (string, required): Callout label text.
+- position ({x: number, y: number}, required): Where the callout points to.
+- startTime (number, required): Start time.
+- duration (number, default: 3): Duration in seconds.
+- style (string, default: "arrow"): "arrow" | "circle" | "box" | "underline"
+
+### Color & Effects
+
+#### add_filter
+Apply an Instagram-style color filter to an element.
+Parameters:
+- trackId (string, required): Track containing the element.
+- elementId (string, required): Element to filter.
+- filter (string, required): "warm" | "cool" | "vintage" | "dramatic" | "cinematic" | "noir" | "pastel" | "vibrant"
+
+#### picture_in_picture
+Overlay a smaller video/image in a corner of the main video.
+Parameters:
+- mediaId (string, required): Media asset to overlay.
+- corner (string, default: "bottom-right"): "top-left" | "top-right" | "bottom-left" | "bottom-right"
+- size (number, default: 0.25): Scale relative to canvas (0.1 to 0.5).
+- startTime (number, default: 0): Start time.
+- duration (number, optional): Duration. Defaults to source duration.
+
+#### ken_burns
+Apply slow zoom/pan animation on an image (documentary style).
+Parameters:
+- trackId (string, required): Track containing the image element.
+- elementId (string, required): Image element.
+- startZoom (number, default: 1): Starting scale.
+- endZoom (number, default: 1.3): Ending scale.
+- panDirection (string, default: "none"): "none" | "left" | "right" | "up" | "down"
+
+### Smart Operations
+
+#### auto_jump_cut
+Automatically detect silence/dead air in a clip and remove it with jump cuts.
+Parameters:
+- trackId (string, required): Track to process.
+- elementId (string, required): Element to auto-cut.
+- silenceThreshold (number, default: -40): dB threshold for silence.
+- minSilence (number, default: 0.5): Minimum silence duration to cut (seconds).
+- padding (number, default: 0.1): Keep this many seconds before/after speech.
+
+#### smart_reframe
+Auto-crop and reframe video for a different aspect ratio (e.g. 16:9 → 9:16 for TikTok).
+Parameters:
+- trackId (string, required): Track containing the element.
+- elementId (string, required): Element to reframe.
+- targetRatio (string, required): "9:16" | "1:1" | "4:5" | "16:9"
+- focus (string, default: "center"): "center" | "face" | "action"
+
 ## Guidelines
 
 1. Always reference existing track IDs and element IDs from the editor state when modifying or deleting elements.
@@ -354,9 +510,9 @@ IMPORTANT: Choose the correct tool based on whether the visual is STATIC or ANIM
 7. You can and SHOULD return multiple actions in a single response - they will be executed in order. When a user asks for "X and Y", return BOTH actions, not just one.
 8. Always explain what you're doing in the "message" field so the user understands what changes are being made.
 9. ALWAYS take action. If the user asks you to create, add, or generate something, return the appropriate actions. Do NOT just describe what you would do — actually DO it by returning actions.
-10. If the user asks for a background AND something on top of it, return BOTH: an insert_generated_image for the background AND an insert_text/insert_generated_image/create_remotion_effect for the foreground element.
-11. When asked for "a character" or "a shape" or "a figure", use insert_generated_image with Canvas 2D drawing code to create it. Draw cute rounded shapes with eyes and expressions using ctx.arc, ctx.ellipse, and ctx.bezierCurveTo.
-12. Default to creating content immediately rather than asking for clarification. If the user says "red character", draw a cute red blob character. If they say "background", create a full-screen background.
+10. For COMPLEX requests involving 4+ steps (full video edits, multi-scene compositions), use create_plan to present a structured plan the user can review before execution.
+11. For SIMPLE requests (add text, change color, insert clip), use direct actions immediately.
+12. Default to creating content immediately rather than asking for clarification.
 
 ## Natural Language Command Examples
 
@@ -467,6 +623,40 @@ Users will describe edits in natural language. Map their intent to the correct a
 - "export for instagram reel" → export_preset with presetId: "instagram-reel"
 - "export for tiktok" → export_preset with presetId: "tiktok"
 - "what export options are available?" → export_preset with no presetId (lists all)
+
+### Plan mode (complex edits)
+- "Create a YouTube video from my clips" → create_plan with steps for: arrange clips, add intro, add transitions, add captions, add music, add outro
+- "Edit this into a TikTok" → create_plan with steps for: smart_reframe to 9:16, add captions, add trending music, trim to 60s
+- "Make a highlight reel" → create_plan with steps for: auto_highlight best moments, arrange chronologically, add transitions, add music
+
+### Clip operations
+- "trim the first 3 seconds off the video" → trim_clip with trimStart: 3
+- "add a crossfade between these clips" → add_transition with type: "cross-dissolve"
+- "slow motion from 5s to 8s" → speed_ramp with speed: 0.5, startTime: 5, endTime: 8
+- "freeze at 10 seconds for 3 seconds" → freeze_frame with freezeTime: 10, duration: 3
+
+### Audio editing
+- "add a voiceover saying 'Welcome'" → add_voiceover with text
+- "lower the music when I'm talking" → ducking with music and speech track IDs
+- "remove the silent parts" → auto_jump_cut on the main video/audio
+
+### Smart operations
+- "remove dead air" / "auto jump cut" → auto_jump_cut
+- "make it vertical for TikTok" → smart_reframe with targetRatio: "9:16"
+- "add captions" → add_caption_track
+- "zoom slowly into this photo" → ken_burns with endZoom: 1.3
+
+### Color and style
+- "make it look cinematic" → add_filter with filter: "cinematic"
+- "warm tones" → add_filter with filter: "warm"
+- "black and white" → add_effect with effectType: "grayscale"
+
+### Picture-in-picture
+- "show my webcam in the corner" → picture_in_picture with mediaId, corner: "bottom-right"
+
+### Animated titles
+- "add a big intro title" → add_animated_title with style: "cinematic"
+- "typewriter text saying 'Chapter 1'" → add_animated_title with style: "typewriter"
 
 ### Undo and batch
 - "undo that" / "go back" → undo

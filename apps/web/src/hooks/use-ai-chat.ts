@@ -7,6 +7,7 @@ import { processMediaAssets } from "@/lib/media/processing";
 import { storageService } from "@/services/storage/service";
 import { restoreProjectFromSnapshot } from "@/lib/ai/snapshot-restore";
 import type { AIAction, AIActionResult, ChatMessage } from "@/lib/ai/types";
+import type { VideoPlan } from "@/types/plan";
 
 interface AIChatState {
   messages: ChatMessage[];
@@ -126,8 +127,23 @@ export function useAIChat() {
 
       // Execute actions client-side
       let actionResults: AIActionResult[] = [];
+      let plan: VideoPlan | undefined;
+
       if (data.actions && data.actions.length > 0) {
-        actionResults = await executeAIActions(data.actions);
+        // Check if this is a plan action
+        const planAction = data.actions.find((a: AIAction) => a.tool === "create_plan");
+        if (planAction) {
+          // Execute the create_plan action to get the plan structure
+          const planResults = await executeAIActions([planAction]);
+          const planResult = planResults[0];
+          if (planResult?.success && planResult.result) {
+            plan = planResult.result as VideoPlan;
+          }
+          // Don't execute the remaining actions — they're inside the plan steps
+          actionResults = planResults;
+        } else {
+          actionResults = await executeAIActions(data.actions);
+        }
       }
 
       const assistantMsg: ChatMessage = {
@@ -136,6 +152,7 @@ export function useAIChat() {
         content: data.text || "Done.",
         actions: data.actions,
         actionResults,
+        plan,
         timestamp: Date.now(),
       };
 

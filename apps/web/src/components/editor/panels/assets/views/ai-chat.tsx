@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useAIChat } from "@/hooks/use-ai-chat";
 import { PanelView } from "./base-view";
+import { PlanView } from "./plan-view";
 import { Button } from "@/components/ui/button";
 import type { ChatMessage as ChatMessageType } from "@/lib/ai/types";
 
@@ -16,7 +17,12 @@ function ChatMessageBubble({ message }: { message: ChatMessageType }) {
           : "bg-muted text-foreground"
       }`}>
         <p className="whitespace-pre-wrap">{message.content}</p>
-        {message.actions && message.actions.length > 0 && (
+        {message.plan && (
+          <div className="mt-2">
+            <PlanView plan={message.plan} />
+          </div>
+        )}
+        {message.actions && message.actions.length > 0 && !message.plan && (
           <div className="mt-2 flex flex-wrap gap-1">
             {message.actions.map((action, i) => {
               const result = message.actionResults?.[i];

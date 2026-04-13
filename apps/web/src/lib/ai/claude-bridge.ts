@@ -27,6 +27,7 @@ export async function spawnClaude(
 			"sonnet",
 			"--tools",
 			"",
+			"--no-session-persistence",
 			"--system-prompt",
 			systemPrompt,
 			"--json-schema",
@@ -39,19 +40,7 @@ export async function spawnClaude(
 
 		const proc = spawn("claude", args, {
 			stdio: ["pipe", "pipe", "pipe"],
-			env: {
-				PATH: process.env.PATH || "",
-				HOME: process.env.HOME || "",
-				USER: process.env.USER || "",
-				SHELL: process.env.SHELL || "",
-				TERM: process.env.TERM || "",
-				NODE_ENV: process.env.NODE_ENV || "",
-				LANG: process.env.LANG || "",
-				XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME || "",
-				ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
-				CLAUDE_CODE_OAUTH_TOKEN:
-					process.env.CLAUDE_CODE_OAUTH_TOKEN || "",
-			},
+			env: { ...process.env, HOME: process.env.HOME || "/tmp" },
 		});
 
 		let stdout = "";
@@ -156,6 +145,7 @@ Rules:
 			"haiku",
 			"--tools",
 			"",
+			"--no-session-persistence",
 			"--system-prompt",
 			systemPrompt,
 			"--json-schema",
@@ -164,19 +154,7 @@ Rules:
 
 		const proc = spawn("claude", args, {
 			stdio: ["pipe", "pipe", "pipe"],
-			env: {
-				PATH: process.env.PATH || "",
-				HOME: process.env.HOME || "",
-				USER: process.env.USER || "",
-				SHELL: process.env.SHELL || "",
-				TERM: process.env.TERM || "",
-				NODE_ENV: process.env.NODE_ENV || "",
-				LANG: process.env.LANG || "",
-				XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME || "",
-				ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
-				CLAUDE_CODE_OAUTH_TOKEN:
-					process.env.CLAUDE_CODE_OAUTH_TOKEN || "",
-			},
+			env: { ...process.env, HOME: process.env.HOME || "/tmp" },
 		});
 
 		let stdout = "";

@@ -9,6 +9,7 @@ import { EditorProvider } from "@/components/providers/editor-provider";
 import { Onboarding } from "@/components/editor/onboarding";
 import { OnboardingTour } from "@/components/editor/onboarding-tour";
 import { ShortcutsModal } from "@/components/editor/shortcuts-modal";
+import { CommandPalette } from "@/components/editor/command-palette";
 import { MigrationDialog } from "@/components/editor/dialogs/migration-dialog";
 import { usePasteMedia } from "@/hooks/use-paste-media";
 import { ExportButton } from "@/components/editor/export-button";
@@ -31,6 +32,7 @@ export default function Editor() {
 			<MigrationDialog />
 			<OnboardingTour />
 			<ShortcutsModal />
+			<CommandPalette />
 		</EditorProvider>
 	);
 }

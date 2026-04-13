@@ -4,12 +4,24 @@ const getClient = (() => {
 	let client: Anthropic | null = null;
 	return () => {
 		if (!client) {
-			const apiKey =
-				process.env.ANTHROPIC_API_KEY ||
-				process.env.CLAUDE_CODE_OAUTH_TOKEN ||
-				"";
-			if (!apiKey) throw new Error("No API key or OAuth token configured");
-			client = new Anthropic({ apiKey });
+			const apiKey = process.env.ANTHROPIC_API_KEY || "";
+			const oauthToken = process.env.CLAUDE_CODE_OAUTH_TOKEN || "";
+
+			if (!apiKey && !oauthToken) {
+				throw new Error("No API key or OAuth token configured");
+			}
+
+			if (apiKey && !apiKey.startsWith("sk-ant-oat")) {
+				// Regular API key — use standard auth
+				client = new Anthropic({ apiKey });
+			} else {
+				// OAuth token — use Bearer auth via header override
+				const token = apiKey || oauthToken;
+				client = new Anthropic({
+					apiKey: "placeholder",
+					defaultHeaders: { Authorization: `Bearer ${token}` },
+				});
+			}
 		}
 		return client;
 	};

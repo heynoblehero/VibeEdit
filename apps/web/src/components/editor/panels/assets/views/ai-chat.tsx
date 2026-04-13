@@ -7,16 +7,42 @@ import { PlanView } from "./plan-view";
 import { Button } from "@/components/ui/button";
 import type { ChatMessage as ChatMessageType } from "@/lib/ai/types";
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <button
+      onClick={copy}
+      className="ml-1 inline-flex items-center rounded p-0.5 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+      title="Copy message"
+    >
+      {copied ? (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>
+      ) : (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="14" height="14" x="8" y="8" rx="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>
+      )}
+    </button>
+  );
+}
+
 function ChatMessageBubble({ message }: { message: ChatMessageType }) {
   const isUser = message.role === "user";
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-3`}>
+    <div className={`group flex ${isUser ? "justify-end" : "justify-start"} mb-3`}>
       <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
         isUser
           ? "bg-primary text-primary-foreground"
           : "bg-muted text-foreground"
       }`}>
-        <p className="whitespace-pre-wrap">{message.content}</p>
+        <div className="flex items-start gap-1">
+          <p className="whitespace-pre-wrap flex-1">{message.content}</p>
+          <CopyButton text={message.content} />
+        </div>
         {message.plan && (
           <div className="mt-2">
             <PlanView plan={message.plan} />
@@ -39,6 +65,61 @@ function ChatMessageBubble({ message }: { message: ChatMessageType }) {
         )}
       </div>
     </div>
+  );
+}
+
+function VoiceButton({ onTranscript, disabled }: { onTranscript: (text: string) => void; disabled: boolean }) {
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const toggle = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event: any) => {
+      const text = event.results[0]?.[0]?.transcript;
+      if (text) onTranscript(text);
+      setIsListening(false);
+    };
+
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  };
+
+  // Check if speech recognition is available
+  const available = typeof window !== "undefined" && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+  if (!available) return null;
+
+  return (
+    <Button
+      onClick={toggle}
+      disabled={disabled}
+      size="sm"
+      variant={isListening ? "destructive" : "outline"}
+      className="shrink-0 w-9 p-0"
+      title={isListening ? "Stop listening" : "Voice input"}
+    >
+      {isListening ? (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+      ) : (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+      )}
+    </Button>
   );
 }
 
@@ -108,11 +189,12 @@ export function AIChatView() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Tell me what to edit..."
+              placeholder="Tell me what to edit... (or click mic)"
               disabled={isLoading}
               rows={1}
               className="flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
             />
+            <VoiceButton onTranscript={(text) => { setInput((prev) => prev ? prev + " " + text : text); }} disabled={isLoading} />
             <Button
               onClick={handleSend}
               disabled={!input.trim() || isLoading}

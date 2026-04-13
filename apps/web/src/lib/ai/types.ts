@@ -47,7 +47,8 @@ export type AIActionTool =
   | "ken_burns"
   // Smart operations
   | "auto_jump_cut"
-  | "smart_reframe";
+  | "smart_reframe"
+  | "search_stock_media";
 
 export interface AIAction {
   tool: AIActionTool;

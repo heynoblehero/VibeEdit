@@ -78,6 +78,8 @@ export const AI_RESPONSE_SCHEMA = {
               // Smart operations
               "auto_jump_cut",
               "smart_reframe",
+              // Stock media
+              "search_stock_media",
             ],
           },
           params: {

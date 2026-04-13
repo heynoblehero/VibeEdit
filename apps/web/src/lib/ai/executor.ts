@@ -1404,6 +1404,26 @@ function handleSmartReframe(params: Record<string, unknown>): void {
   });
 }
 
+async function handleSearchStockMedia(params: Record<string, unknown>): Promise<unknown> {
+  const query = params.query as string;
+  const type = (params.type as string) || "video";
+
+  if (!query) throw new Error("query is required for search_stock_media");
+
+  const response = await fetch(`/api/stock-media?q=${encodeURIComponent(query)}&type=${type}&per_page=5`);
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: "Search failed" }));
+    throw new Error(err.error || `Stock media search failed (${response.status})`);
+  }
+
+  const data = await response.json();
+  return {
+    results: data.results,
+    type: data.type,
+    message: `Found ${data.results?.length || 0} ${type} results for "${query}". Use insert_video or insert_image with the URL to add them to your project.`,
+  };
+}
+
 async function executeAction(action: AIAction): Promise<AIActionResult> {
   const { tool, params } = action;
 
@@ -1587,6 +1607,10 @@ async function executeAction(action: AIAction): Promise<AIActionResult> {
       case "smart_reframe": {
         handleSmartReframe(params);
         return { tool, success: true };
+      }
+      case "search_stock_media": {
+        const r = await handleSearchStockMedia(params);
+        return { tool, success: true, result: r };
       }
       default: {
         const unknownTool = tool as string;

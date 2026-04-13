@@ -491,6 +491,13 @@ Parameters:
 - minSilence (number, default: 0.5): Minimum silence duration to cut (seconds).
 - padding (number, default: 0.1): Keep this many seconds before/after speech.
 
+#### search_stock_media
+Search for royalty-free stock videos or images from Pexels.
+Parameters:
+- query (string, required): Search query (e.g. "sunset", "office meeting", "nature aerial").
+- type (string, default: "video"): "video" | "image"
+Returns a list of results with URLs. Use insert_video or insert_image to add them to the timeline.
+
 #### smart_reframe
 Auto-crop and reframe video for a different aspect ratio (e.g. 16:9 → 9:16 for TikTok).
 Parameters:
@@ -623,6 +630,24 @@ Users will describe edits in natural language. Map their intent to the correct a
 - "export for instagram reel" → export_preset with presetId: "instagram-reel"
 - "export for tiktok" → export_preset with presetId: "tiktok"
 - "what export options are available?" → export_preset with no presetId (lists all)
+
+### Stock media
+- "add B-roll of a sunset" → search_stock_media with query: "sunset", type: "video" → then insert_video
+- "find a background image of an office" → search_stock_media with query: "office", type: "image"
+- "I need footage of nature" → search_stock_media with query: "nature aerial", type: "video"
+
+### Edit-by-example
+- When a user says "make it look like [reference]" or "match this style", analyze the style description and apply matching: filters, transitions, text styles, pacing
+- "make it cinematic" → add_filter cinematic + slow transitions + cinematic title style
+- "make it like a vlog" → fast jump cuts + casual captions + upbeat music + talking head framing
+
+### Batch hints
+- "apply this to all my clips" → use batch_update to apply changes to all matching elements
+- "make all clips the same style" → iterate through clips applying the same filter/effect
+
+### Smart B-roll suggestions
+- When the user has talking-head footage, suggest where B-roll would help
+- "suggest B-roll" → analyze the timeline, find long single-camera segments, suggest stock media searches for relevant topics
 
 ### Plan mode (complex edits)
 - "Create a YouTube video from my clips" → create_plan with steps for: arrange clips, add intro, add transitions, add captions, add music, add outro

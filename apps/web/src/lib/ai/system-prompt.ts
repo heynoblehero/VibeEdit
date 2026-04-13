@@ -93,15 +93,22 @@ Radial vignette on black:
   color: "#000000",
   code: "var g = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, width*0.7); g.addColorStop(0, 'rgba(255,255,255,0.1)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, width, height);"
 
-Cute blob character (red):
-  code: "var cx = width/2; var cy = height/2; ctx.fillStyle = '#ff0000'; ctx.beginPath(); ctx.ellipse(cx, cy, 120, 140, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(cx-35, cy-30, 22, 28, 0, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(cx+35, cy-30, 22, 28, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#000000'; ctx.beginPath(); ctx.arc(cx-35, cy-25, 10, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(cx+35, cy-25, 10, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(cx-33, cy-28, 4, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(cx+37, cy-28, 4, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#cc0000'; ctx.beginPath(); ctx.ellipse(cx, cy+30, 25, 12, 0, 0, Math.PI); ctx.fill();"
+Cute blob character (red) — HIGH QUALITY EXAMPLE:
+  code: "var cx = width/2; var cy = height/2; ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 15; ctx.fillStyle = '#ff3333'; ctx.beginPath(); ctx.moveTo(cx-100, cy+60); ctx.bezierCurveTo(cx-130, cy-40, cx-80, cy-140, cx, cy-120); ctx.bezierCurveTo(cx+80, cy-140, cx+130, cy-40, cx+100, cy+60); ctx.bezierCurveTo(cx+80, cy+120, cx-80, cy+120, cx-100, cy+60); ctx.fill(); ctx.restore(); ctx.fillStyle = '#ff6666'; ctx.beginPath(); ctx.ellipse(cx-20, cy-40, 40, 30, -0.2, Math.PI, 0); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(cx-30, cy-30, 24, 30, 0, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(cx+30, cy-30, 24, 30, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#222222'; ctx.beginPath(); ctx.arc(cx-28, cy-22, 12, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(cx+32, cy-22, 12, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(cx-24, cy-28, 5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(cx+36, cy-28, 5, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#cc0000'; ctx.beginPath(); ctx.moveTo(cx-20, cy+15); ctx.quadraticCurveTo(cx, cy+45, cx+20, cy+15); ctx.fill(); ctx.fillStyle = '#ff3333'; ctx.beginPath(); ctx.ellipse(cx-70, cy+20, 15, 25, 0.3, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(cx+70, cy+20, 15, 25, -0.3, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#ff8888'; ctx.beginPath(); ctx.arc(cx-55, cy+5, 12, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(cx+55, cy+5, 12, 0, Math.PI*2); ctx.fill();"
 
-Star shape (yellow):
-  code: "var cx = width/2; var cy = height/2; var r = 100; ctx.fillStyle = '#ffd700'; ctx.beginPath(); for (var i = 0; i < 5; i++) { var a = (i * 4 * Math.PI / 5) - Math.PI/2; ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a)); } ctx.closePath(); ctx.fill();"
+Golden star with glow — HIGH QUALITY EXAMPLE:
+  code: "var cx = width/2; var cy = height/2; var outerR = 120; var innerR = 50; ctx.save(); ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 40; ctx.fillStyle = '#ffd700'; ctx.beginPath(); for (var i = 0; i < 10; i++) { var r = i % 2 === 0 ? outerR : innerR; var a = (i * Math.PI / 5) - Math.PI/2; ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a)); } ctx.closePath(); ctx.fill(); ctx.restore(); var g = ctx.createRadialGradient(cx-20, cy-30, 10, cx, cy, outerR); g.addColorStop(0, 'rgba(255,255,200,0.6)'); g.addColorStop(1, 'rgba(255,215,0,0)'); ctx.fillStyle = g; ctx.beginPath(); for (var i = 0; i < 10; i++) { var r = i % 2 === 0 ? outerR-5 : innerR-5; var a = (i * Math.PI / 5) - Math.PI/2; ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a)); } ctx.closePath(); ctx.fill();"
+
+Smooth radial vignette — HIGH QUALITY EXAMPLE:
+  color: "#000000",
+  code: "var g = ctx.createRadialGradient(width/2, height/2, width*0.15, width/2, height/2, width*0.8); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, 'rgba(0,0,0,0.15)'); g.addColorStop(0.8, 'rgba(0,0,0,0.5)'); g.addColorStop(1, 'rgba(0,0,0,0.85)'); ctx.fillStyle = g; ctx.fillRect(0, 0, width, height);"
 
 IMPORTANT: Code uses Canvas 2D API (ctx.fillRect, ctx.strokeStyle, etc.), NOT React/JSX.
 IMPORTANT: For simple solid colors, just use the color parameter without code.
-IMPORTANT: For characters, creatures, or mascots, use Canvas 2D drawing with circles, ellipses, and arcs to create cute rounded shapes with eyes and expressions.
+IMPORTANT: For characters/creatures: use bezierCurveTo for smooth body shapes, add eyes with pupils AND white highlight dots, add a mouth/smile, include drop shadows (ctx.shadowBlur), add small arms/limbs, add blush circles on cheeks. Make them CUTE and DETAILED.
+IMPORTANT: For shapes: use glow effects (ctx.shadowBlur + ctx.shadowColor), layer gradients for depth, use inner/outer radius for stars.
+IMPORTANT: For vignettes: use multi-stop radial gradients with 3+ color stops for smooth transitions.
+IMPORTANT: Your canvas code quality will be automatically refined through a self-critique loop. Aim for detailed, visually polished output on the first attempt.
 
 #### insert_audio
 Insert an audio element from the media library onto a new audio track.

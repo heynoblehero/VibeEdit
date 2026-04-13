@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { spawnClaude } from "@/lib/ai/claude-bridge";
 import { buildSystemPrompt } from "@/lib/ai/system-prompt";
 import { AI_RESPONSE_SCHEMA } from "@/lib/ai/schema";
+import { refineActions } from "@/lib/ai/refine";
 import type { AIRequest } from "@/lib/ai/types";
 import { logSecurity } from "@/lib/ai/security-log";
 import { deductCredits, hasEnoughCredits } from "@/lib/credits";
@@ -132,6 +133,15 @@ export async function POST(request: NextRequest) {
       console.warn(`[AI] No actions extracted from response for message: "${message.slice(0, 80)}"`);
     } else {
       console.log(`[AI] Executing ${actions.length} actions: ${actions.map(a => a.tool).join(", ")}`);
+    }
+
+    // Refinement loop: improve canvas code quality through self-critique
+    const hasCanvasActions = actions.some(
+      (a) => a.tool === "insert_generated_image" && typeof a.params.code === "string"
+    );
+    if (hasCanvasActions) {
+      console.log(`[AI] Running refinement loop on canvas actions...`);
+      actions = await refineActions(actions, message);
     }
 
     // Deduct credits for the chat message

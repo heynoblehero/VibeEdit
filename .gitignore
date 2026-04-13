@@ -24,3 +24,7 @@ bun.lockb
 # Twiggy
 .cursor/rules/file-structure.mdc
 .github/workflows/
+
+# Autoresearch
+autoresearch/results.tsv
+autoresearch/.renders/

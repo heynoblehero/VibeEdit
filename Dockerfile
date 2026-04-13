@@ -43,10 +43,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_SITE_URL=https://vibevideoedit.com
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 
-# Claude Code CLI — spawned by /api/ai/chat and /api/storyboard/generate
-# Requires ANTHROPIC_API_KEY at runtime (set via `dokku config:set`)
-RUN npm install -g @anthropic-ai/claude-code && claude --version
-
 RUN mkdir -p /data
 
 COPY --from=builder /app/apps/web/.next/standalone ./

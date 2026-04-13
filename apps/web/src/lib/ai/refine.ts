@@ -10,7 +10,7 @@ import { spawnClaudeRefine } from "./claude-bridge";
 import { validateUserCode } from "./code-validator";
 
 const QUALITY_THRESHOLD = 8;
-const MAX_REFINEMENT_ITERATIONS = 2;
+const MAX_REFINEMENT_ITERATIONS = 1;
 
 interface RefinableAction {
 	tool: string;

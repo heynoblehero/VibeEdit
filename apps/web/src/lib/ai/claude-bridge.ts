@@ -153,7 +153,7 @@ Rules:
 			"--max-turns",
 			"2",
 			"--model",
-			"sonnet",
+			"haiku",
 			"--tools",
 			"",
 			"--system-prompt",
@@ -186,7 +186,7 @@ Rules:
 			timedOut = true;
 			proc.kill();
 			resolve(null);
-		}, 60000);
+		}, 45000);
 
 		proc.stdout.on("data", (chunk: Buffer) => {
 			stdout += chunk.toString();

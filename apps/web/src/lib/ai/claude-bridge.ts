@@ -23,6 +23,8 @@ export async function spawnClaude(
 			"json",
 			"--max-turns",
 			"2",
+			"--model",
+			"sonnet",
 			"--tools",
 			"",
 			"--system-prompt",
@@ -59,8 +61,8 @@ export async function spawnClaude(
 		const timer = setTimeout(() => {
 			timedOut = true;
 			proc.kill();
-			reject(new Error("Claude CLI timed out after 120 seconds"));
-		}, 120000);
+			reject(new Error("Claude CLI timed out after 160 seconds"));
+		}, 160000);
 
 		proc.stdout.on("data", (chunk: Buffer) => {
 			stdout += chunk.toString();

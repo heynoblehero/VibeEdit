@@ -724,30 +724,47 @@ function MessageBubble({
         <div className="text-white whitespace-pre-wrap">{message.content}</div>
       ) : (
         <>
-          {toolCount > 0 && (
-            <button
-              onClick={() => setToolsExpanded((v) => !v)}
-              className="flex items-start gap-1 text-[10px] text-neutral-500 hover:text-neutral-300 text-left"
-            >
-              {toolsExpanded ? (
-                <ChevronDown className="h-3 w-3 shrink-0 mt-0.5" />
-              ) : (
-                <ChevronRight className="h-3 w-3 shrink-0 mt-0.5" />
-              )}
-              {toolsExpanded ? (
-                <span>{toolCount} tool call{toolCount === 1 ? "" : "s"}</span>
-              ) : (
-                <span className="flex-1 font-mono truncate">
-                  {message
-                    .toolCalls!.map(
-                      (c) =>
-                        `${c.ok == null ? "…" : c.ok ? "✓" : "✗"} ${c.name}`,
-                    )
-                    .join(" · ")}
-                </span>
-              )}
-            </button>
-          )}
+          {toolCount > 0 && (() => {
+            const okCount = message.toolCalls!.filter((c) => c.ok === true).length;
+            const failCount = message.toolCalls!.filter((c) => c.ok === false).length;
+            const pendingCount = toolCount - okCount - failCount;
+            return (
+              <button
+                onClick={() => setToolsExpanded((v) => !v)}
+                className="flex items-start gap-1 text-[10px] text-neutral-500 hover:text-neutral-300 text-left"
+              >
+                {toolsExpanded ? (
+                  <ChevronDown className="h-3 w-3 shrink-0 mt-0.5" />
+                ) : (
+                  <ChevronRight className="h-3 w-3 shrink-0 mt-0.5" />
+                )}
+                {toolsExpanded ? (
+                  <span>
+                    {toolCount} tool call{toolCount === 1 ? "" : "s"}
+                    {failCount > 0 && (
+                      <span className="ml-1 text-red-400 font-medium">
+                        · {failCount} failed
+                      </span>
+                    )}
+                    {pendingCount > 0 && (
+                      <span className="ml-1 text-amber-400">
+                        · {pendingCount} in-flight
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="flex-1 font-mono truncate">
+                    {message
+                      .toolCalls!.map(
+                        (c) =>
+                          `${c.ok == null ? "…" : c.ok ? "✓" : "✗"} ${c.name}`,
+                      )
+                      .join(" · ")}
+                  </span>
+                )}
+              </button>
+            );
+          })()}
           {toolsExpanded && toolCount > 0 && (
             <div className="flex flex-col gap-0.5 pl-1 border-l border-neutral-800">
               {message.toolCalls!.map((c) => (

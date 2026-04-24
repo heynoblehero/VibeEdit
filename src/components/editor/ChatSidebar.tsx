@@ -540,6 +540,13 @@ export function ChatSidebar({
       <div
         ref={scrollRef}
         onScroll={onScroll}
+        onClick={(e) => {
+          // Clicking the background (not a button/link/text inside) jumps
+          // focus into the input. Cuts down extra clicks.
+          if ((e.target as HTMLElement).tagName === "DIV") {
+            inputRef.current?.focus();
+          }
+        }}
         className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3 relative"
       >
         {showEmptyState && (

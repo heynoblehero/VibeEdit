@@ -160,10 +160,18 @@ export function ChatSidebar({
         toast("Nothing to undo");
         return;
       }
+      if (cmd === "save") {
+        // Force a fresh JSON snapshot into localStorage by bumping a trivial
+        // state field. Zustand's persist middleware will flush within 300ms.
+        useProjectStore.setState({});
+        useChatStore.setState({});
+        toast("Saving…", { duration: 800 });
+        return;
+      }
       if (cmd === "help") {
         toast("Slash commands", {
           description:
-            "/new — new project\n/reset — clear scenes\n/render — render now\n/undo — undo last turn\n/voice <id>\n/preset <id>\n/export — open export pack\n/tips — workflow tips\n/help — this menu",
+            "/new — new project\n/reset — clear scenes\n/render — render now\n/undo — undo last turn\n/save — flush state to localStorage\n/voice <id>\n/preset <id>\n/export — open export pack\n/tips — workflow tips\n/help — this menu",
           duration: 8000,
         });
         return;

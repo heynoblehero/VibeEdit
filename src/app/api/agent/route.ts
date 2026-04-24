@@ -41,11 +41,16 @@ function workflowContext(project: Project): string {
   const catalogLine = WORKFLOWS.map(
     (w) => `- ${w.id}${w.enabled ? "" : " (coming soon)"}: ${w.name} — ${w.tagline}`,
   ).join("\n");
-  if (!project.workflowId) {
+  if (!project.workflowId || project.workflowId === "blank") {
     return [
-      `The project has no active workflow yet. If the user's intent is unclear, offer one of these by name or by asking what kind of video they want to make. Call switchWorkflow to set one.`,
-      `Available workflows:\n${catalogLine}`,
-    ].join("\n\n");
+      `Project has no specific template ('blank' workflow). Act on what the user asks directly — don't push them toward a template unless they explicitly want one. Templates exist as library data for switchWorkflow if useful, but blank is the default and stays fine for most sessions.`,
+      project.systemPrompt
+        ? `The user's project-specific instructions are above in another system block; honour those over generic defaults.`
+        : "",
+      `Available templates (only switch if the user asks):\n${catalogLine}`,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
   }
   const slots = wf.slots
     .map(

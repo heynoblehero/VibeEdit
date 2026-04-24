@@ -25,11 +25,31 @@ export async function GET() {
   // "via Claude Max" when the upstream isn't api.anthropic.com — lets the UI
   // show the user the proxy is being used.
   const isProxied = !!baseUrl && !/api\.anthropic\.com/i.test(baseUrl);
+
+  // When proxied, probe the upstream so the UI can show "proxy unreachable"
+  // instead of silently failing on the next agent call. Quick 1.5s timeout.
+  let upstreamReachable: boolean | null = null;
+  if (isProxied && baseUrl) {
+    try {
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 1500);
+      const res = await fetch(`${baseUrl.replace(/\/$/, "")}/v1/models`, {
+        method: "GET",
+        signal: ctrl.signal,
+      });
+      clearTimeout(to);
+      upstreamReachable = res.ok || res.status === 401;
+    } catch {
+      upstreamReachable = false;
+    }
+  }
+
   return Response.json({
     bridge,
     hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
     baseUrl: baseUrl ?? null,
     isProxied,
+    upstreamReachable,
     pending,
     done,
     errors,

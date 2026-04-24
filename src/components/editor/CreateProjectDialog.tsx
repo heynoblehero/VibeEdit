@@ -141,6 +141,13 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+            e.preventDefault();
+            void submit();
+          }
+          if (e.key === "Escape") onClose();
+        }}
         onDragOver={(e) => {
           e.preventDefault();
           setDragOver(true);
@@ -272,6 +279,7 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
           <button
             onClick={submit}
             disabled={creating}
+            title="Create (Cmd/Ctrl+Enter)"
             className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black font-semibold px-4 py-2 rounded transition-colors"
           >
             {creating && <Loader2 className="h-4 w-4 animate-spin" />}

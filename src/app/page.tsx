@@ -247,8 +247,16 @@ export default function Home() {
           </div>
         )}
 
-        {/* Center: preview */}
-        <div className="flex-1 flex flex-col p-4 min-w-0">
+        {/* Center: preview. Click the padding area (not the player) to
+            deselect the current scene and go back to the full-video view. */}
+        <div
+          className="flex-1 flex flex-col p-4 min-w-0"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              useProjectStore.getState().clearSelection();
+            }
+          }}
+        >
           <div className="flex-1 min-h-0">
             <Preview />
           </div>

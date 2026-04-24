@@ -147,10 +147,23 @@ export function ChatSidebar({
         toast("Stopped");
         return;
       }
+      if (cmd === "undo") {
+        // Undo the most recent assistant turn that has a snapshot.
+        const msgs = useChatStore.getState().messages;
+        for (let i = msgs.length - 1; i >= 0; i--) {
+          if (msgs[i].role === "assistant" && msgs[i].projectBefore) {
+            handleUndo(msgs[i].id);
+            toast("Undid last turn", { duration: 800 });
+            return;
+          }
+        }
+        toast("Nothing to undo");
+        return;
+      }
       if (cmd === "help") {
         toast("Slash commands", {
           description:
-            "/new — new project\n/reset — clear scenes\n/render — render now\n/voice <id>\n/preset <id>\n/export — open export pack\n/tips — workflow tips\n/help — this menu",
+            "/new — new project\n/reset — clear scenes\n/render — render now\n/undo — undo last turn\n/voice <id>\n/preset <id>\n/export — open export pack\n/tips — workflow tips\n/help — this menu",
           duration: 8000,
         });
         return;

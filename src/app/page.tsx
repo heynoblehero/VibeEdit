@@ -10,6 +10,7 @@ import { DevBadge } from "@/components/editor/DevBadge";
 import { ProjectHome } from "@/components/editor/ProjectHome";
 import { BulkActionsBar } from "@/components/editor/BulkActionsBar";
 import { ChatSidebar } from "@/components/editor/ChatSidebar";
+import { CreateProjectDialog } from "@/components/editor/CreateProjectDialog";
 import { ConfigTabs } from "@/components/editor/ConfigTabs";
 import { ExportPackButton } from "@/components/editor/ExportPackButton";
 import { HeaderOverflow } from "@/components/editor/HeaderOverflow";
@@ -73,6 +74,17 @@ export default function Home() {
     window.addEventListener("vibeedit:open-template-picker", handler);
     return () =>
       window.removeEventListener("vibeedit:open-template-picker", handler);
+  }, []);
+  const [createOpen, setCreateOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        setCreateOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
   // Layout: users can collapse the scene list / editor panels for focused work.
   const [leftCollapsed, setLeftCollapsed] = useState(false);
@@ -310,6 +322,14 @@ export default function Home() {
       <WorkflowPicker
         open={templatePickerOpen}
         onClose={() => setTemplatePickerOpen(false)}
+      />
+      <CreateProjectDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => {
+          setCreateOpen(false);
+          setHomeDismissed(true);
+        }}
       />
     </div>
   );

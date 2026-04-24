@@ -18,6 +18,7 @@ const SHORTCUTS: Array<{ keys: string; label: string; scope: string }> = [
   { keys: "Right-click scene", label: "Context menu (edit / dup / copy / delete)", scope: "Scenes" },
   { keys: "Escape", label: "Clear selection (or cancel agent turn)", scope: "Scenes" },
   { keys: "Cmd/Ctrl + K", label: "Focus the vibe chat", scope: "Editor" },
+  { keys: "Cmd/Ctrl + Shift + N", label: "Create project dialog", scope: "Editor" },
   { keys: "Cmd/Ctrl + R", label: "Ask the agent to try again differently", scope: "Editor" },
   { keys: "Cmd/Ctrl + Enter", label: "Generate scenes from script/topic", scope: "Editor" },
   { keys: "↑ / ↓", label: "Navigate scene selection", scope: "Scenes" },

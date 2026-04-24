@@ -64,7 +64,22 @@ export default function Home() {
   const [scheduleOpen, setScheduleOpen] = useState(false);
   // Always start `true` so SSR and first client render agree. A post-mount
   // effect collapses the sidebar on narrow screens — avoids hydration mismatch.
-  const [chatOpen, setChatOpen] = useState(true);
+  const [chatOpen, setChatOpenState] = useState(true);
+  const setChatOpen = (v: boolean | ((prev: boolean) => boolean)) => {
+    setChatOpenState((prev) => {
+      const next = typeof v === "function" ? v(prev) : v;
+      try {
+        window.localStorage.setItem("vibeedit:chat-open", String(next));
+      } catch {}
+      return next;
+    });
+  };
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("vibeedit:chat-open");
+      if (saved === "false") setChatOpenState(false);
+    } catch {}
+  }, []);
   // First-run landing: show ProjectHome instead of the editor when the user
   // hasn't engaged yet (current project is empty + never dismissed).
   const [homeDismissed, setHomeDismissed] = useState(false);

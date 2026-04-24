@@ -22,6 +22,7 @@ import { RenderButton } from "@/components/editor/RenderButton";
 import { SaveIndicator } from "@/components/editor/SaveIndicator";
 import { RenderQueuePanel } from "@/components/editor/RenderQueuePanel";
 import { ReviewPanel } from "@/components/editor/ReviewPanel";
+import { ThemeToggle } from "@/components/editor/ThemeToggle";
 import { ThumbnailExporter } from "@/components/editor/ThumbnailExporter";
 import { SceneEditor } from "@/components/editor/SceneEditor";
 import { SceneList } from "@/components/editor/SceneList";
@@ -189,6 +190,7 @@ export default function Home() {
           <BridgeIndicator />
           <SaveIndicator />
           <HeaderOverflow>
+            <ThemeToggle />
             <AuthBar />
             <ProjectIO />
             <ThumbnailExporter />

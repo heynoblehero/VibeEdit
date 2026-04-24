@@ -6,8 +6,6 @@ import {
   Mic2,
   Music,
   Palette,
-  Settings,
-  Sparkles,
   Wrench,
 } from "lucide-react";
 import { useState } from "react";

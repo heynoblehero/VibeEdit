@@ -177,7 +177,13 @@ export function RenderButton() {
         ) : (
           <Download className="h-4 w-4" />
         )}
-        {isBusy ? (pct > 0 ? `Rendering ${pct}%` : "Rendering...") : `Render · ${presetId}`}
+        {isBusy
+          ? pct > 0
+            ? `Rendering ${pct}%`
+            : "Rendering..."
+          : project.scenes.length > 0
+            ? `Render · ${dur.toFixed(1)}s`
+            : "Render"}
       </button>
       <button
         onClick={() => setMenuOpen((v) => !v)}

@@ -19,6 +19,34 @@ export function ProjectHome({
   const createProject = useProjectStore((s) => s.createProject);
   const switchProject = useProjectStore((s) => s.switchProject);
   const deleteProject = useProjectStore((s) => s.deleteProject);
+  const setProject = useProjectStore((s) => s.setProject);
+
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleFileDrop = async (files: FileList) => {
+    const file = Array.from(files).find(
+      (f) => /\.(json|vibeedit)$/i.test(f.name) || f.type === "application/json",
+    );
+    if (!file) {
+      toast.error("Drop a .vibeedit or .json project file");
+      return;
+    }
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as { project?: unknown };
+      const p = parsed.project as { scenes?: unknown } | undefined;
+      if (!p || !Array.isArray(p.scenes)) {
+        throw new Error("Not a VibeEdit project file");
+      }
+      setProject(p as Parameters<typeof setProject>[0]);
+      onStart();
+      toast.success("Project imported");
+    } catch (err) {
+      toast.error("Import failed", {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
 
   const [query, setQuery] = useState("");
 
@@ -49,7 +77,20 @@ export function ProjectHome({
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full overflow-y-auto px-8 py-12 gap-8">
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        if (e.dataTransfer.files.length > 0) void handleFileDrop(e.dataTransfer.files);
+      }}
+      className={`flex flex-col items-center justify-center h-full overflow-y-auto px-8 py-12 gap-8 ${
+        dragOver ? "ring-2 ring-inset ring-emerald-400/60" : ""
+      }`}
       <div className="flex flex-col items-center gap-2 max-w-lg text-center">
         <Sparkles className="h-8 w-8 text-emerald-400" />
         <h1 className="text-2xl font-semibold text-white">VibeEdit</h1>

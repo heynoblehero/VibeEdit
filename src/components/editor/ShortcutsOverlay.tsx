@@ -7,6 +7,8 @@ const SHORTCUTS: Array<{ keys: string; label: string; scope: string }> = [
   { keys: "Cmd/Ctrl + Z", label: "Undo", scope: "Global" },
   { keys: "Shift + Cmd/Ctrl + Z", label: "Redo", scope: "Global" },
   { keys: "Cmd/Ctrl + Y", label: "Redo (alt)", scope: "Global" },
+  { keys: "N", label: "New blank scene at end", scope: "Scenes" },
+  { keys: ", / .", label: "Prev / next scene", scope: "Scenes" },
   { keys: "Cmd/Ctrl + A", label: "Select all scenes", scope: "Scenes" },
   { keys: "Cmd/Ctrl + D", label: "Duplicate selected scene", scope: "Scenes" },
   { keys: "Cmd/Ctrl + Shift + C", label: "Copy selected scene's text", scope: "Scenes" },

@@ -7,6 +7,7 @@ import { AuthBar } from "@/components/editor/AuthBar";
 import { BatchVariantsButton } from "@/components/editor/BatchVariantsButton";
 import { BridgeIndicator } from "@/components/editor/BridgeIndicator";
 import { DevBadge } from "@/components/editor/DevBadge";
+import { ProjectHome } from "@/components/editor/ProjectHome";
 import { BulkActionsBar } from "@/components/editor/BulkActionsBar";
 import { ChatSidebar } from "@/components/editor/ChatSidebar";
 import { ClipTrimPanel } from "@/components/editor/ClipTrimPanel";
@@ -67,7 +68,16 @@ export default function Home() {
   // effect collapses the sidebar on narrow screens — avoids hydration mismatch.
   const [chatOpen, setChatOpen] = useState(true);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  // First-run landing: show ProjectHome instead of the editor when the user
+  // hasn't engaged yet (current project is empty + never dismissed).
+  const [homeDismissed, setHomeDismissed] = useState(false);
+  const chatHasMessages = useChatStore((s) => s.messages.length > 0);
   const agentStreaming = useChatStore((s) => s.isStreaming);
+  const showHome =
+    !homeDismissed &&
+    project.scenes.length === 0 &&
+    !project.script &&
+    !chatHasMessages;
 
   useEffect(() => {
     // One-shot post-hydration sync — eslint's cascading-renders warning
@@ -189,7 +199,15 @@ export default function Home() {
         </div>
       </header>
 
+      {/* First-run landing: project picker instead of empty editor. */}
+      {showHome && (
+        <div className="flex-1 min-h-0">
+          <ProjectHome onStart={() => setHomeDismissed(true)} />
+        </div>
+      )}
+
       {/* Main layout */}
+      {!showHome && (
       <div className="flex flex-1 min-h-0">
         <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
         {/* Left: scene list + tools — hidden until scenes exist so the empty
@@ -239,6 +257,7 @@ export default function Home() {
           </div>
         )}
       </div>
+      )}
 
       <ImageEditor />
       <RenderQueuePanel />

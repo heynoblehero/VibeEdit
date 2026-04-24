@@ -98,16 +98,15 @@ export function ProjectHome({
         setDragOver(false);
         if (e.dataTransfer.files.length > 0) void handleFileDrop(e.dataTransfer.files);
       }}
-      className={`flex flex-col items-center justify-center h-full overflow-y-auto px-8 py-12 gap-8 ${
+      className={`flex flex-col items-center justify-start h-full overflow-y-auto px-8 py-10 gap-6 ${
         dragOver ? "ring-2 ring-inset ring-emerald-400/60" : ""
       }`}
     >
-      <div className="flex flex-col items-center gap-2 max-w-lg text-center">
-        <Sparkles className="h-8 w-8 text-emerald-400" />
-        <h1 className="text-2xl font-semibold text-white">VibeEdit</h1>
-        <p className="text-sm text-neutral-400">
-          AI video editor where you dictate and the agent does the editing.
-          Start a new project or pick one up.
+      <div className="flex flex-col items-center gap-1 max-w-lg text-center">
+        <Sparkles className="h-6 w-6 text-emerald-400" />
+        <h1 className="text-xl font-semibold text-white">VibeEdit</h1>
+        <p className="text-xs text-neutral-500">
+          AI video editor. Describe it, the agent builds it.
         </p>
       </div>
 

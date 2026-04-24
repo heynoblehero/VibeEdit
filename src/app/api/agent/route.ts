@@ -139,14 +139,26 @@ export async function POST(request: NextRequest) {
         for (let round = 0; round < 16; round++) {
           let data;
           try {
+            const systemBlocks: Array<{
+              type: "text";
+              text: string;
+              cache_control?: { type: "ephemeral" };
+            }> = [
+              { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+              { type: "text", text: workflowContext(project) },
+            ];
+            // Per-project override appended at the end so it takes priority.
+            if (project.systemPrompt?.trim()) {
+              systemBlocks.push({
+                type: "text",
+                text: `User's project-specific instructions (honour these):\n${project.systemPrompt.trim()}`,
+              });
+            }
             data = await callClaude(
               {
                 model: "claude-sonnet-4-5",
                 max_tokens: 8192,
-                system: [
-                  { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
-                  { type: "text", text: workflowContext(project) },
-                ],
+                system: systemBlocks,
                 tools,
                 messages: conversation,
               },

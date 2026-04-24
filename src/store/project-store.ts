@@ -62,6 +62,7 @@ interface ProjectStore {
   setStylePack: (pack: StylePack | undefined) => void;
   setWorkflowId: (workflowId: string) => void;
   setWorkflowInputs: (patch: Record<string, unknown>) => void;
+  setSystemPrompt: (prompt: string) => void;
   applyStylePreset: (presetId: string) => void;
   setGenerating: (v: boolean) => void;
   setRendering: (v: boolean) => void;
@@ -88,6 +89,7 @@ function blankProject(name = "Draft"): Project {
     fps: 30,
     width: 1920,
     height: 1080,
+    workflowId: "blank",
   };
 }
 
@@ -489,6 +491,17 @@ export const useProjectStore = create<ProjectStore>()(
           const updated = {
             ...s.project,
             workflowInputs: { ...current, ...patch },
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+          };
+        }),
+      setSystemPrompt: (prompt) =>
+        set((s) => {
+          const updated = {
+            ...s.project,
+            systemPrompt: prompt.trim() || undefined,
           };
           return {
             project: updated,

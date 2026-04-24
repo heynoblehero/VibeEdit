@@ -167,6 +167,30 @@ export function ChatSidebar({
         toast("Saving…", { duration: 800 });
         return;
       }
+      if (cmd === "prompt") {
+        // `/prompt` — show current project system prompt + offer to edit.
+        // `/prompt <text>` sets it directly. `/prompt -` clears it.
+        const currentPrompt = useProjectStore.getState().project.systemPrompt;
+        if (!arg) {
+          const fresh = window.prompt(
+            "Project-specific system prompt (empty to clear):",
+            currentPrompt ?? "",
+          );
+          if (fresh !== null) {
+            useProjectStore.getState().setSystemPrompt(fresh);
+            toast(fresh.trim() ? "System prompt set" : "System prompt cleared", {
+              duration: 800,
+            });
+          }
+        } else if (arg === "-") {
+          useProjectStore.getState().setSystemPrompt("");
+          toast("System prompt cleared", { duration: 800 });
+        } else {
+          useProjectStore.getState().setSystemPrompt(arg);
+          toast("System prompt set", { duration: 800 });
+        }
+        return;
+      }
       if (cmd === "status") {
         fetch("/api/bridge/status", { cache: "no-store" })
           .then((r) => r.json())
@@ -189,7 +213,7 @@ export function ChatSidebar({
       if (cmd === "help") {
         toast("Slash commands", {
           description:
-            "/new — new project\n/reset — clear scenes\n/render — render now\n/undo — undo last turn\n/save — flush state to localStorage\n/status — show AI backend info\n/voice <id>\n/preset <id>\n/export — open export pack\n/tips — workflow tips\n/help — this menu",
+            "/new — new project\n/reset — clear scenes\n/render — render now\n/undo — undo last turn\n/save — flush state to localStorage\n/status — show AI backend info\n/prompt — set a project-specific system prompt\n/voice <id>\n/preset <id>\n/export — open export pack\n/tips — workflow tips\n/help — this menu",
           duration: 8000,
         });
         return;

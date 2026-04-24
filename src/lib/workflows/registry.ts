@@ -1,3 +1,4 @@
+import { blankWorkflow } from "./definitions/blank";
 import { comicDubWorkflow } from "./definitions/comic-dub";
 import { commentaryWorkflow } from "./definitions/commentary";
 import { facelessWorkflow } from "./definitions/faceless";
@@ -11,6 +12,7 @@ import { trueCrimeWorkflow } from "./definitions/true-crime";
 import type { WorkflowDefinition } from "./types";
 
 export const WORKFLOWS: WorkflowDefinition[] = [
+  blankWorkflow,
   facelessWorkflow,
   slideshowWorkflow,
   commentaryWorkflow,
@@ -23,6 +25,10 @@ export const WORKFLOWS: WorkflowDefinition[] = [
   gamingWorkflow,
 ];
 
+// New projects default to "blank" — no template forced. Agent + chat drive
+// everything from there.
+export const DEFAULT_WORKFLOW_ID = "blank";
+
 export function getWorkflow(id: string | undefined): WorkflowDefinition {
-  return WORKFLOWS.find((w) => w.id === id) ?? facelessWorkflow;
+  return WORKFLOWS.find((w) => w.id === id) ?? blankWorkflow;
 }

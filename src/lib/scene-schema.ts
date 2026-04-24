@@ -212,10 +212,15 @@ export interface Project {
   music?: MusicBed;
   captionStyle?: CaptionStyle;
   stylePack?: StylePack;
-  /** Which workflow this project belongs to. Default: "faceless". */
+  /** Which workflow this project belongs to. Default: "blank". */
   workflowId?: string;
   /** Per-project workflow slot values (keyed by slot id). */
   workflowInputs?: Record<string, unknown>;
+  /**
+   * Optional user-written system prompt. Appended to the agent's built-in
+   * prompt so the user can steer the conversation without a template.
+   */
+  systemPrompt?: string;
 }
 
 export function getOrientation(p: { width: number; height: number }): Orientation {

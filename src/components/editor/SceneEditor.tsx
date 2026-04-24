@@ -227,6 +227,22 @@ function TextPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>
           <input type="color" value={scene.emphasisGlow ?? "#ffffff00"} onChange={(e) => update({ emphasisGlow: e.target.value })} className="h-8 w-full rounded cursor-pointer bg-transparent border border-neutral-700" />
         </Field>
       </div>
+      {/* Quick-pick accent palette — matches the defaults the generator uses. */}
+      <div className="flex flex-wrap gap-1">
+        {[
+          "#ef4444", "#f59e0b", "#10b981", "#38bdf8",
+          "#818cf8", "#a78bfa", "#fb923c", "#ec4899",
+          "#ffffff", "#aaaaaa",
+        ].map((c) => (
+          <button
+            key={c}
+            onClick={() => update({ emphasisColor: c })}
+            className={`h-5 w-5 rounded-full border-2 ${scene.emphasisColor === c ? "border-white" : "border-neutral-700"}`}
+            style={{ backgroundColor: c }}
+            title={c}
+          />
+        ))}
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Size">
           <input type="range" min={24} max={200} step={4} value={scene.emphasisSize ?? 80} onChange={(e) => update({ emphasisSize: Number(e.target.value) })} className="w-full accent-blue-500 h-1.5" />

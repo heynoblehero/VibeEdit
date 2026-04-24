@@ -1,5 +1,48 @@
 # Changelog
 
+## Unreleased — polish pass #5
+
+Live-in-production sweep. vibevideoedit.com now runs on dokku with a
+sidecar `cliproxy` dokku app routing Claude traffic through a Claude
+Code Max OAuth session (zero per-token API spend).
+
+### Backend plumbing
+- `ANTHROPIC_BASE_URL` env support in `claude-bridge.ts` — points every
+  Claude call at a custom endpoint (e.g. CLIProxyAPI).
+- `/api/bridge/status` reports the active backend (`bridge` / `proxied` /
+  direct API) + base URL + key presence.
+- New `docker/cliproxy/` folder with Dockerfile, config.yaml, deploy.sh,
+  and README — replaces the throwaway `/tmp/cliproxy-wrapper`.
+- `scripts/deploy.sh` — one-shot GitHub + dokku push; `--with-proxy`
+  also redeploys cliproxy.
+
+### Header
+- `DEV` pill when viewing over localhost / LAN.
+- `BridgeIndicator` dot turns sky-blue and reads "via Claude Max" when
+  `ANTHROPIC_BASE_URL` is set. Click copies full status JSON.
+- `WorkflowBadge` shows an amber `PRO` pill for paid workflows.
+
+### Chat
+- Copy-conversation-to-Markdown button in header.
+- Hover copy button on long (140+ char) assistant messages.
+- Tool-call rows fade in, hover shows `fn(args)` JSON tooltip.
+- Expanded tool summary shows `N failed` / `N in-flight` breakdown.
+- Slash commands: `/undo`, `/save`, `/status`, `/tips`.
+- Relative timestamps (`2m ago`) on each turn.
+- Bridge/proxy timeout errors include inline remediation hints.
+
+### Editor & shortcuts
+- `,` / `.` navigate prev/next scene (no modifier).
+- Scene card hover shows full text + type + duration in tooltip.
+- Scene editor: char counts + amber "may wrap" warning on text fields.
+- Scene list total-duration color-coded to hint short-form sweet spot
+  (red < 10s, green 10-90s, amber > 90s).
+- Render button label shows total seconds instead of preset id.
+
+### Tooling
+- `bun run typecheck` / `bun run check` aliases.
+- README "How it's deployed" walkthrough.
+
 ## Unreleased — mobile
 
 - Added Capacitor (`@capacitor/core` + `@capacitor/cli` + `ios` + `android`).

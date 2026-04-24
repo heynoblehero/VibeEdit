@@ -167,6 +167,11 @@ export function ChatSidebar({
         toast("Saving…", { duration: 800 });
         return;
       }
+      if (cmd === "template" || cmd === "workflow") {
+        // Power-user escape hatch: opens the legacy workflow picker.
+        window.dispatchEvent(new CustomEvent("vibeedit:open-template-picker"));
+        return;
+      }
       if (cmd === "prompt") {
         // `/prompt` — show current project system prompt + offer to edit.
         // `/prompt <text>` sets it directly. `/prompt -` clears it.

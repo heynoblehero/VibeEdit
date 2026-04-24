@@ -24,6 +24,7 @@ import { ReviewPanel } from "@/components/editor/ReviewPanel";
 import { ThemeToggle } from "@/components/editor/ThemeToggle";
 import { ThumbnailExporter } from "@/components/editor/ThumbnailExporter";
 import { SceneEditor } from "@/components/editor/SceneEditor";
+import { WorkflowPicker } from "@/components/editor/WorkflowPicker";
 import { SceneList } from "@/components/editor/SceneList";
 import { ShortcutsOverlay } from "@/components/editor/ShortcutsOverlay";
 import { ScheduleRenderDialog } from "@/components/editor/ScheduleRenderDialog";
@@ -66,6 +67,13 @@ export default function Home() {
   // First-run landing: show ProjectHome instead of the editor when the user
   // hasn't engaged yet (current project is empty + never dismissed).
   const [homeDismissed, setHomeDismissed] = useState(false);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  useEffect(() => {
+    const handler = () => setTemplatePickerOpen(true);
+    window.addEventListener("vibeedit:open-template-picker", handler);
+    return () =>
+      window.removeEventListener("vibeedit:open-template-picker", handler);
+  }, []);
   // Layout: users can collapse the scene list / editor panels for focused work.
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
@@ -299,6 +307,10 @@ export default function Home() {
       <BulkActionsBar />
       <ScheduleRenderDialog open={scheduleOpen} onClose={() => setScheduleOpen(false)} />
       <ShortcutsOverlay />
+      <WorkflowPicker
+        open={templatePickerOpen}
+        onClose={() => setTemplatePickerOpen(false)}
+      />
     </div>
   );
 }

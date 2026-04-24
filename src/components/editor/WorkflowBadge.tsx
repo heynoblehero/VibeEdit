@@ -17,16 +17,14 @@ export function WorkflowBadge() {
     <>
       <button
         onClick={() => setOpen(true)}
-        title="Change workflow"
-        className="flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-md border transition-colors"
-        style={{
-          backgroundColor: `${wf.accentColor}18`,
-          color: wf.accentColor,
-          borderColor: `${wf.accentColor}40`,
-        }}
+        title={`Video type: ${wf.name} — click to change`}
+        className="flex items-center gap-1 text-[11px] text-neutral-400 hover:text-white px-1.5 py-0.5 rounded transition-colors"
       >
-        <Sparkles className={`h-3 w-3 ${agentStreaming ? "animate-pulse" : ""}`} />
-        {wf.name}
+        <Sparkles
+          className={`h-3 w-3 ${agentStreaming ? "animate-pulse" : ""}`}
+          style={{ color: wf.accentColor }}
+        />
+        <span>{wf.name}</span>
         {wf.paid && (
           <span className="text-[8px] font-bold px-1 rounded bg-amber-500/30 text-amber-200 border border-amber-500/40">
             PRO

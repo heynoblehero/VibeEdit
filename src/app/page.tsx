@@ -31,7 +31,6 @@ import { SceneToolsPanel } from "@/components/editor/SceneToolsPanel";
 import { useChatStore } from "@/store/chat-store";
 import { useProjectStore } from "@/store/project-store";
 import { useRenderQueueStore } from "@/store/render-queue-store";
-import { totalDurationSeconds } from "@/lib/scene-schema";
 
 const Preview = dynamic(
   () => import("@/components/editor/Preview").then((m) => m.Preview),
@@ -56,7 +55,6 @@ export default function Home() {
   const selectedSceneId = useProjectStore((s) => s.selectedSceneId);
   const queueCount = useRenderQueueStore((s) => s.items.length);
   const toggleQueue = useRenderQueueStore((s) => s.togglePanel);
-  const dur = totalDurationSeconds(project.scenes);
 
   // Chat-first: the modal picker no longer auto-opens. The chat sidebar's
   // empty state shows workflow cards inline. The picker is still reachable
@@ -177,9 +175,6 @@ export default function Home() {
               </span>
             )}
           </button>
-          <span className="text-xs text-neutral-500">
-            {project.scenes.length} scenes &middot; {dur.toFixed(1)}s
-          </span>
           <BridgeIndicator />
           <SaveIndicator />
           <AuthBar />

@@ -126,7 +126,11 @@ async function callClaudeViaApi(
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
   const { stream: _stream, ...bodyNoStream } = body as { stream?: unknown } & Record<string, unknown>;
   void _stream;
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  // ANTHROPIC_BASE_URL lets us point at a local Claude-Code-subscription
+  // proxy (e.g. CLIProxyAPI) without code changes. Strip a trailing slash so
+  // both "http://host:8317" and "http://host:8317/" work.
+  const base = (process.env.ANTHROPIC_BASE_URL ?? "https://api.anthropic.com").replace(/\/$/, "");
+  const res = await fetch(`${base}/v1/messages`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

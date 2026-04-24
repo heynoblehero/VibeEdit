@@ -538,6 +538,9 @@ export function ChatSidebar({
               <Wand2 className="h-3 w-3" />
               browse all 10 video types →
             </button>
+            <span className="text-[9px] text-neutral-700 text-center pt-4">
+              Built on Claude + Remotion · Type / for commands · ? for shortcuts
+            </span>
           </div>
         )}
         {messages.map((m, i) => (

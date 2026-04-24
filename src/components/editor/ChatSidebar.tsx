@@ -420,11 +420,40 @@ export function ChatSidebar({
     }
   };
 
+  // Persisted sidebar width (px). Drag the right edge to resize.
+  const [width, setWidth] = useState<number>(() => {
+    if (typeof window === "undefined") return 320;
+    const raw = window.localStorage.getItem("vibeedit:chat-width");
+    const n = raw ? Number(raw) : 0;
+    return n >= 240 && n <= 720 ? n : 320;
+  });
+  const resizingRef = useRef(false);
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!resizingRef.current) return;
+      const next = Math.min(720, Math.max(240, e.clientX));
+      setWidth(next);
+    };
+    const onUp = () => {
+      if (!resizingRef.current) return;
+      resizingRef.current = false;
+      document.body.style.cursor = "";
+      window.localStorage.setItem("vibeedit:chat-width", String(width));
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [width]);
+
   if (!open) return null;
 
   return (
     <aside
-      className={`w-80 flex flex-col border-r border-neutral-800 bg-neutral-950 shrink-0 ${
+      style={{ width }}
+      className={`flex flex-col border-r border-neutral-800 bg-neutral-950 shrink-0 relative ${
         dragOver ? "ring-2 ring-inset ring-emerald-400/60" : ""
       }`}
       onDragOver={(e) => {
@@ -720,6 +749,15 @@ export function ChatSidebar({
           </button>
         )}
       </form>
+      {/* Right-edge resize handle. Drag to widen/narrow the chat. */}
+      <div
+        onMouseDown={() => {
+          resizingRef.current = true;
+          document.body.style.cursor = "ew-resize";
+        }}
+        title="Drag to resize chat"
+        className="absolute top-0 right-0 h-full w-1 cursor-ew-resize hover:bg-emerald-500/40"
+      />
     </aside>
   );
 }

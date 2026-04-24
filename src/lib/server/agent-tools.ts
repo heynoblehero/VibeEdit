@@ -674,6 +674,60 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  webSearch: {
+    schema: {
+      name: "webSearch",
+      description:
+        "Search the web for fresh links. Returns up to `limit` results: title + url + snippet. Use this when you need current info, external references, or image / video source URLs.",
+      input_schema: {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          limit: { type: "number", description: "1-10, default 5" },
+        },
+        required: ["query"],
+      },
+    },
+    async execute(args, ctx) {
+      const query = String(args.query ?? "").trim();
+      if (!query) return { ok: false, message: "query required" };
+      const limit = Math.max(1, Math.min(10, Number(args.limit ?? 5)));
+      try {
+        const res = await fetch(`${ctx.origin}/api/search`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, limit }),
+        });
+        const data = (await res.json()) as {
+          provider?: string;
+          results?: Array<{ title: string; url: string; snippet: string }>;
+          error?: string;
+        };
+        if (!res.ok)
+          return {
+            ok: false,
+            message: data.error ?? `search failed (${res.status})`,
+          };
+        const results = data.results ?? [];
+        const summary = results
+          .map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}\n   ${r.snippet}`)
+          .join("\n\n");
+        return {
+          ok: true,
+          message:
+            results.length > 0
+              ? `${results.length} results via ${data.provider}:\n\n${summary}`
+              : "no results",
+        };
+      } catch (e) {
+        return {
+          ok: false,
+          message: `search failed: ${e instanceof Error ? e.message : String(e)}`,
+        };
+      }
+    },
+  },
+
   renderProject: {
     schema: {
       name: "renderProject",

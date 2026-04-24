@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { AuthBar } from "@/components/editor/AuthBar";
 import { BatchVariantsButton } from "@/components/editor/BatchVariantsButton";
 import { BridgeIndicator } from "@/components/editor/BridgeIndicator";
+import { DevBadge } from "@/components/editor/DevBadge";
 import { BulkActionsBar } from "@/components/editor/BulkActionsBar";
 import { ChatSidebar } from "@/components/editor/ChatSidebar";
 import { ClipTrimPanel } from "@/components/editor/ClipTrimPanel";
@@ -111,6 +112,7 @@ export default function Home() {
           >
             <Film className="h-5 w-5 text-emerald-400" aria-label="VibeEdit" />
           </button>
+          <DevBadge />
           <ProjectSwitcher />
           <WorkflowBadge />
           <button

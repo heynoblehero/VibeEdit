@@ -1,6 +1,7 @@
 "use client";
 
-import { FolderPlus, Sparkles, Trash2 } from "lucide-react";
+import { FolderPlus, Search, Sparkles, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { totalDurationSeconds } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
@@ -19,12 +20,15 @@ export function ProjectHome({
   const switchProject = useProjectStore((s) => s.switchProject);
   const deleteProject = useProjectStore((s) => s.deleteProject);
 
+  const [query, setQuery] = useState("");
+
   const list = Object.values(projects)
     .map((p) => ({
       ...p,
       scenes: p.scenes.length,
       duration: totalDurationSeconds(p.scenes),
     }))
+    .filter((p) => (query ? p.name.toLowerCase().includes(query.toLowerCase()) : true))
     .sort((a, b) => (a.name === "Draft" ? 1 : b.name === "Draft" ? -1 : 0));
 
   const handleNew = () => {
@@ -63,11 +67,24 @@ export function ProjectHome({
         Start a new video
       </button>
 
-      {list.length > 0 && (
+      {(list.length > 0 || query) && (
         <div className="w-full max-w-lg flex flex-col gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-neutral-500">
-            Your projects
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-neutral-500">
+              Your projects
+            </span>
+            {Object.keys(projects).length >= 5 && (
+              <div className="flex-1 relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-neutral-600" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="filter…"
+                  className="w-full bg-neutral-900 border border-neutral-800 rounded pl-7 pr-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            )}
+          </div>
           {list.map((p) => (
             <div
               key={p.id}

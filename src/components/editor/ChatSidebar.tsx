@@ -813,12 +813,15 @@ function MessageBubble({
               )}
             </div>
           )}
-          {message.streaming && (
-            <div className="flex items-center gap-1 text-[10px] text-neutral-500">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              thinking...
-            </div>
-          )}
+          {message.streaming && (() => {
+            const active = message.toolCalls?.find((c) => c.ok === null);
+            return (
+              <div className="flex items-center gap-1 text-[10px] text-neutral-500">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {active ? `running ${active.name}...` : "thinking..."}
+              </div>
+            );
+          })()}
           {asksQuestion && (
             <div className="flex items-center gap-1 pt-1">
               <button

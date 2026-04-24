@@ -9,7 +9,6 @@ import {
   Paperclip,
   Send,
   Undo2,
-  Wand2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -571,17 +570,6 @@ export function ChatSidebar({
                 </button>
               ))}
             </div>
-            <button
-              onClick={() => {
-                document
-                  .querySelector<HTMLButtonElement>('button[title="Change workflow"]')
-                  ?.click();
-              }}
-              className="flex items-center gap-1 text-[10px] text-neutral-600 hover:text-neutral-300 pt-1"
-            >
-              <Wand2 className="h-3 w-3" />
-              browse all 10 video types →
-            </button>
             <span className="text-[9px] text-neutral-700 text-center pt-4">
               Built on Claude + Remotion · Type / for commands · ? for shortcuts
             </span>

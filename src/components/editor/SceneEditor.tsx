@@ -237,9 +237,13 @@ function TextPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>
           <button
             key={c}
             onClick={() => update({ emphasisColor: c })}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              navigator.clipboard?.writeText(c).catch(() => {});
+            }}
             className={`h-5 w-5 rounded-full border-2 ${scene.emphasisColor === c ? "border-white" : "border-neutral-700"}`}
             style={{ backgroundColor: c }}
-            title={c}
+            title={`${c} — click to apply, right-click to copy`}
           />
         ))}
         <button

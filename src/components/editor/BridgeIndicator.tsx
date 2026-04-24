@@ -8,6 +8,7 @@ interface Status {
   pending: number;
   isProxied?: boolean;
   baseUrl?: string | null;
+  upstreamReachable?: boolean | null;
 }
 
 // Polls /api/bridge/status every 2s. Shows a tiny dot in the header:
@@ -42,21 +43,27 @@ export function BridgeIndicator() {
   const bridge = s.bridge;
   const pending = s.pending;
   const proxied = !bridge && !!s.isProxied;
-  const color = bridge
-    ? pending > 0
-      ? "bg-amber-400"
-      : "bg-amber-500/70"
-    : proxied
-      ? "bg-sky-500"
-      : "bg-emerald-500";
-  const pulse = bridge && pending > 0 ? "animate-pulse" : "";
-  const label = bridge
-    ? pending > 0
-      ? `Bridge · ${pending} pending`
-      : "Bridge · idle"
-    : proxied
-      ? "via Claude Max"
-      : "Anthropic API";
+  const proxyDown = proxied && s.upstreamReachable === false;
+  const color = proxyDown
+    ? "bg-red-500"
+    : bridge
+      ? pending > 0
+        ? "bg-amber-400"
+        : "bg-amber-500/70"
+      : proxied
+        ? "bg-sky-500"
+        : "bg-emerald-500";
+  const pulse =
+    (bridge && pending > 0) || proxyDown ? "animate-pulse" : "";
+  const label = proxyDown
+    ? "proxy unreachable"
+    : bridge
+      ? pending > 0
+        ? `Bridge · ${pending} pending`
+        : "Bridge · idle"
+      : proxied
+        ? "via Claude Max"
+        : "Anthropic API";
   return (
     <button
       onClick={() => {

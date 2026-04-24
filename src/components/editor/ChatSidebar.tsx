@@ -600,6 +600,17 @@ export function ChatSidebar({
   );
 }
 
+function formatRelativeTime(d: Date): string {
+  const diffSec = Math.max(0, Math.round((Date.now() - d.getTime()) / 1000));
+  if (diffSec < 10) return "just now";
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return d.toLocaleDateString();
+}
+
 function MessageBubble({
   message,
   onUndo,
@@ -726,6 +737,9 @@ function MessageBubble({
                 <Undo2 className="h-3 w-3" />
                 undo this turn
               </button>
+              <span className="text-[10px] text-neutral-700 font-mono">
+                {formatRelativeTime(timestamp)}
+              </span>
               <button
                 onClick={onDelete}
                 className="text-[10px] text-neutral-600 hover:text-red-400 ml-auto"

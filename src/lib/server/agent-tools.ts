@@ -600,6 +600,80 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  generateAvatarForScene: {
+    schema: {
+      name: "generateAvatarForScene",
+      description:
+        "Generate a talking-head avatar video for a scene using its voiceover audio and a portrait image. Attaches the result as the scene's background video. Requires AVATAR_PROVIDER + FAL_API_KEY (or equivalent) on the server.",
+      input_schema: {
+        type: "object",
+        properties: {
+          sceneId: { type: "string" },
+          imageUrl: {
+            type: "string",
+            description:
+              "Public URL of the portrait image. Falls back to AVATAR_DEFAULT_PORTRAIT_URL env if omitted.",
+          },
+          prompt: {
+            type: "string",
+            description: "Optional style/expression hint for the generation.",
+          },
+        },
+        required: ["sceneId"],
+      },
+    },
+    async execute(args, ctx) {
+      const sceneId = String(args.sceneId);
+      const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
+      if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
+      const scene = ctx.project.scenes[idx];
+      const audioUrl = scene.voiceover?.audioUrl;
+      if (!audioUrl) {
+        return {
+          ok: false,
+          message:
+            "scene has no voiceover — run narrateScene first so there's audio to drive the avatar",
+        };
+      }
+      const imageUrl =
+        (args.imageUrl as string | undefined) ??
+        process.env.AVATAR_DEFAULT_PORTRAIT_URL;
+      if (!imageUrl) {
+        return {
+          ok: false,
+          message:
+            "no imageUrl provided and AVATAR_DEFAULT_PORTRAIT_URL not set — give the tool a portrait URL",
+        };
+      }
+      try {
+        const res = await fetch(`${ctx.origin}/api/generate-avatar`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            imageUrl,
+            audioUrl,
+            prompt: args.prompt,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? `avatar gen failed (${res.status})`);
+        const videoUrl = data.videoUrl;
+        if (!videoUrl) throw new Error("provider returned no video URL");
+        scene.background = { ...scene.background, videoUrl };
+        ctx.project.scenes = ctx.project.scenes.map((s, i) => (i === idx ? scene : s));
+        return {
+          ok: true,
+          message: `avatar video attached to scene ${sceneId} (via ${data.provider})`,
+        };
+      } catch (e) {
+        return {
+          ok: false,
+          message: `avatar gen failed: ${e instanceof Error ? e.message : String(e)}`,
+        };
+      }
+    },
+  },
+
   renderProject: {
     schema: {
       name: "renderProject",

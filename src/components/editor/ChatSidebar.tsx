@@ -734,6 +734,11 @@ function MessageBubble({
               {message.toolCalls!.map((c) => (
                 <div
                   key={c.id}
+                  title={
+                    c.args
+                      ? `${c.name}(${JSON.stringify(c.args, null, 0).slice(0, 300)})`
+                      : c.name
+                  }
                   className="flex items-start gap-1.5 text-[10px] leading-tight animate-[fadeIn_150ms_ease-out]"
                 >
                   <span

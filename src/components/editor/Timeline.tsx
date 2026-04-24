@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { PlayerRef } from "@remotion/player";
 import { sceneDurationFrames, totalDurationFrames } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
@@ -15,6 +15,9 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
   const project = useProjectStore((s) => s.project);
   const selectScene = useProjectStore((s) => s.selectScene);
   const updateScene = useProjectStore((s) => s.updateScene);
+  const moveScene = useProjectStore((s) => s.moveScene);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const total = useMemo(
     () => Math.max(1, totalDurationFrames(project.scenes, project.fps)),
@@ -124,14 +127,39 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
           const width = (m.frames / total) * 100;
           const scene = project.scenes[i];
           const selected = scene.id === m.id;
+          const isHoverTarget = hoverIndex === i && dragIndex !== null && dragIndex !== i;
           return (
             <div
               key={m.id}
               style={{ left: `${left}%`, width: `${width}%` }}
-              className={`absolute top-0 bottom-0 border-l border-neutral-800/70 ${
+              draggable
+              onDragStart={(e) => {
+                setDragIndex(i);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setHoverIndex(i);
+                e.dataTransfer.dropEffect = "move";
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragIndex !== null && dragIndex !== i) {
+                  moveScene(dragIndex, i);
+                }
+                setDragIndex(null);
+                setHoverIndex(null);
+              }}
+              onDragEnd={() => {
+                setDragIndex(null);
+                setHoverIndex(null);
+              }}
+              className={`absolute top-0 bottom-0 border-l border-neutral-800/70 cursor-grab active:cursor-grabbing ${
                 selected ? "bg-emerald-500/25" : "hover:bg-neutral-800/60"
+              } ${isHoverTarget ? "ring-2 ring-sky-400 ring-inset" : ""} ${
+                dragIndex === i ? "opacity-50" : ""
               }`}
-              title={`Scene ${i + 1} · ${(m.frames / project.fps).toFixed(1)}s — drag right edge to resize`}
+              title={`Scene ${i + 1} · ${(m.frames / project.fps).toFixed(1)}s — drag body to reorder, drag right edge to resize`}
             >
               <span className="absolute left-1 top-0 text-[9px] font-mono text-neutral-500 pointer-events-none">
                 {i + 1}

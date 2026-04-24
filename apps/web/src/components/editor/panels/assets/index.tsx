@@ -3,6 +3,7 @@
 import { Separator } from "@/components/ui/separator";
 import { type Tab, useAssetsPanelStore } from "@/stores/assets-panel-store";
 import { TabBar } from "./tabbar";
+import { BrollView } from "./views/broll";
 import { Captions } from "./views/captions";
 import { MediaView } from "./views/assets";
 import { SettingsView } from "./views/settings";
@@ -18,6 +19,7 @@ export function AssetsPanel() {
 	const viewMap: Record<Tab, React.ReactNode> = {
 		ai: <AIChatView />,
 		media: <MediaView />,
+		broll: <BrollView />,
 		sounds: <SoundsView />,
 		text: <TextView />,
 		stickers: <StickersView />,

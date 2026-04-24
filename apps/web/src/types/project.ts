@@ -15,6 +15,11 @@ export interface TCanvasSize {
 	height: number;
 }
 
+export interface TCanvasPreset extends TCanvasSize {
+	label: string;
+	platform: string;
+}
+
 export interface TProjectMetadata {
 	id: string;
 	name: string;

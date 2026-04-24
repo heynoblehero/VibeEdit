@@ -1,11 +1,11 @@
 import { create } from "zustand";
 import { DEFAULT_CANVAS_PRESETS } from "@/constants/project-constants";
-import type { TCanvasSize } from "@/types/project";
+import type { TCanvasPreset } from "@/types/project";
 
 interface EditorState {
 	isInitializing: boolean;
 	isPanelsReady: boolean;
-	canvasPresets: TCanvasSize[];
+	canvasPresets: TCanvasPreset[];
 	setInitializing: (loading: boolean) => void;
 	setPanelsReady: (ready: boolean) => void;
 	initializeApp: () => Promise<void>;

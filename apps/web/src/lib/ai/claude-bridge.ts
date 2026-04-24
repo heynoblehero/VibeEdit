@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import Anthropic from "@anthropic-ai/sdk";
 
 export interface ClaudeResult {
 	result: string;
@@ -9,62 +9,14 @@ export interface ClaudeResult {
 	session_id: string;
 }
 
-function spawnClaudeCli(
-	args: string[],
-	stdin: string,
-	timeout: number,
-): Promise<Record<string, unknown>> {
-	return new Promise((resolve, reject) => {
-		const proc = spawn("claude", args, {
-			stdio: ["pipe", "pipe", "pipe"],
-			env: {
-				...process.env,
-				HOME: process.env.HOME || "/root",
-				NODE_ENV: process.env.NODE_ENV || "production",
-			},
-		});
-
-		let stdout = "";
-		let stderr = "";
-		let timedOut = false;
-
-		const timer = setTimeout(() => {
-			timedOut = true;
-			proc.kill("SIGKILL");
-			reject(new Error(`Claude CLI timed out after ${timeout / 1000}s. stderr: ${stderr.slice(0, 200)}`));
-		}, timeout);
-
-		proc.stdout.on("data", (chunk: Buffer) => {
-			stdout += chunk.toString();
-		});
-		proc.stderr.on("data", (chunk: Buffer) => {
-			stderr += chunk.toString();
-		});
-
-		proc.on("error", (err: Error) => {
-			clearTimeout(timer);
-			reject(new Error(`Failed to spawn claude CLI: ${err.message}`));
-		});
-
-		proc.on("close", (code: number | null) => {
-			clearTimeout(timer);
-			if (timedOut) return;
-
-			if (!stdout.trim()) {
-				reject(new Error(`Claude CLI returned empty output (code ${code}). stderr: ${stderr.slice(0, 500)}`));
-				return;
-			}
-
-			try {
-				resolve(JSON.parse(stdout));
-			} catch {
-				reject(new Error(`Failed to parse CLI output (code ${code}): ${stdout.slice(0, 300)}`));
-			}
-		});
-
-		proc.stdin.write(stdin);
-		proc.stdin.end();
-	});
+function getClient(): Anthropic {
+	const apiKey = process.env.ANTHROPIC_API_KEY;
+	if (!apiKey) {
+		throw new Error(
+			"ANTHROPIC_API_KEY is not set. Add it to your .env.local file or Dokku config.",
+		);
+	}
+	return new Anthropic({ apiKey });
 }
 
 export async function spawnClaude(
@@ -73,27 +25,51 @@ export async function spawnClaude(
 	schemaJson: string,
 	_sessionId?: string,
 ): Promise<ClaudeResult> {
-	const result = await spawnClaudeCli(
-		[
-			"-p",
-			"--output-format", "json",
-			"--max-turns", "2",
-			"--model", "sonnet",
-			"--tools", "",
-			"--no-session-persistence",
-			"--system-prompt", systemPrompt,
-			"--json-schema", schemaJson,
-		],
-		userMessage,
-		160000,
-	);
+	const client = getClient();
 
-	const parsed = result as any;
+	const schema = JSON.parse(schemaJson);
+
+	const response = await client.messages.create({
+		model: "claude-sonnet-4-20250514",
+		max_tokens: 4096,
+		system: systemPrompt,
+		messages: [{ role: "user", content: userMessage }],
+		tools: [
+			{
+				name: "editor_response",
+				description:
+					"Return the structured response with a message and editor actions.",
+				input_schema: schema,
+			},
+		],
+		tool_choice: { type: "tool", name: "editor_response" },
+	});
+
+	// Extract the tool use block
+	const toolBlock = response.content.find((block) => block.type === "tool_use");
+	if (toolBlock && toolBlock.type === "tool_use") {
+		const input = toolBlock.input as {
+			message?: string;
+			actions?: Array<{ tool: string; params: Record<string, unknown> }>;
+		};
+		return {
+			result: input.message || "",
+			structured_output: {
+				message: input.message || "",
+				actions: input.actions || [],
+			},
+			session_id: "",
+		};
+	}
+
+	// Fallback: extract text from response
+	const textBlock = response.content.find((block) => block.type === "text");
+	const text =
+		textBlock && textBlock.type === "text" ? textBlock.text : "No response";
 
 	return {
-		result: parsed.result || "",
-		structured_output: parsed.structured_output || undefined,
-		session_id: parsed.session_id || "",
+		result: text,
+		session_id: "",
 	};
 }
 
@@ -113,39 +89,50 @@ Rules:
 - Keep code under 3000 chars
 - Respond with ONLY a JSON object: {"score": N, "improved_code": "...", "explanation": "..."}`;
 
-const REFINE_SCHEMA = JSON.stringify({
-	type: "object",
+const REFINE_SCHEMA = {
+	type: "object" as const,
 	properties: {
-		score: { type: "number" },
-		improved_code: { type: "string" },
-		explanation: { type: "string" },
+		score: { type: "number" as const, description: "Quality score 1-10" },
+		improved_code: {
+			type: "string" as const,
+			description: "Improved Canvas 2D code",
+		},
+		explanation: {
+			type: "string" as const,
+			description: "What was improved",
+		},
 	},
 	required: ["score", "improved_code", "explanation"],
-});
+};
 
 export async function spawnClaudeRefine(
 	userMessage: string,
 ): Promise<RefineResult | null> {
 	try {
-		const result = await spawnClaudeCli(
-			[
-				"-p",
-				"--output-format", "json",
-				"--max-turns", "2",
-				"--model", "haiku",
-				"--tools", "",
-				"--no-session-persistence",
-				"--system-prompt", REFINE_SYSTEM,
-				"--json-schema", REFINE_SCHEMA,
-			],
-			userMessage,
-			45000,
-		);
+		const client = getClient();
 
-		const parsed = result as any;
-		if (parsed.structured_output) {
-			return parsed.structured_output as RefineResult;
+		const response = await client.messages.create({
+			model: "claude-haiku-4-5-20251001",
+			max_tokens: 4096,
+			system: REFINE_SYSTEM,
+			messages: [{ role: "user", content: userMessage }],
+			tools: [
+				{
+					name: "refine_result",
+					description: "Return the refinement result.",
+					input_schema: REFINE_SCHEMA,
+				},
+			],
+			tool_choice: { type: "tool", name: "refine_result" },
+		});
+
+		const toolBlock = response.content.find(
+			(block) => block.type === "tool_use",
+		);
+		if (toolBlock && toolBlock.type === "tool_use") {
+			return toolBlock.input as RefineResult;
 		}
+
 		return null;
 	} catch {
 		return null;

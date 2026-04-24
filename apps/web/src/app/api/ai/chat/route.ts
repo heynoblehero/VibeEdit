@@ -166,11 +166,11 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("AI chat error:", message);
 
-    if (message.includes("Failed to spawn")) {
+    if (message.includes("ANTHROPIC_API_KEY")) {
       return NextResponse.json(
         {
           error:
-            "Claude CLI not found. Make sure 'claude' is installed and in PATH.",
+            "AI not configured. Set ANTHROPIC_API_KEY in your environment.",
           text: "",
           actions: [],
           sessionId: "",

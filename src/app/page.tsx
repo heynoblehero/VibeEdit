@@ -93,13 +93,17 @@ export default function Home() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setChatOpen(true);
-        setTimeout(() => {
-          const input = document.querySelector<HTMLTextAreaElement>(
-            'aside textarea',
-          );
-          input?.focus();
-        }, 50);
+        setChatOpen((prev) => {
+          const next = !prev;
+          if (next) {
+            setTimeout(() => {
+              document
+                .querySelector<HTMLTextAreaElement>("aside textarea")
+                ?.focus();
+            }, 50);
+          }
+          return next;
+        });
       }
     };
     window.addEventListener("keydown", onKey);

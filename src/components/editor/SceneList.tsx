@@ -23,6 +23,7 @@ import { SceneContextMenu } from "./SceneContextMenu";
 
 export function SceneList() {
   const { project, addScene, moveScene } = useProjectStore();
+  const selectAllScenes = useProjectStore((s) => s.selectAllScenes);
   const isGenerating = useProjectStore((s) => s.isGenerating);
   const totalSec = totalDurationSeconds(project.scenes);
   const [ctxMenu, setCtxMenu] = useState<{
@@ -88,8 +89,9 @@ export function SceneList() {
   return (
     <div className="flex flex-col gap-1 p-2">
       <div className="flex items-center justify-between mb-1.5">
-        <span
-          className="text-[10px] font-mono"
+        <button
+          onClick={() => project.scenes.length > 0 && selectAllScenes()}
+          className="text-[10px] font-mono hover:underline"
           style={{
             // Short-form sweet spot is 15-60s. Color-hint when we're outside.
             color:
@@ -112,7 +114,7 @@ export function SceneList() {
           {project.scenes.length > 0
             ? `${project.scenes.length} · ${totalSec.toFixed(1)}s`
             : "scenes"}
-        </span>
+        </button>
         <button
           onClick={handleAdd}
           title="Add blank scene"

@@ -29,7 +29,6 @@ import { SceneList } from "@/components/editor/SceneList";
 import { ShortcutsOverlay } from "@/components/editor/ShortcutsOverlay";
 import { ScheduleRenderDialog } from "@/components/editor/ScheduleRenderDialog";
 import { SceneToolsPanel } from "@/components/editor/SceneToolsPanel";
-import { WorkflowBadge } from "@/components/editor/WorkflowBadge";
 import { WorkflowInputs } from "@/components/editor/WorkflowInputs";
 import { useChatStore } from "@/store/chat-store";
 import { useProjectStore } from "@/store/project-store";
@@ -135,7 +134,6 @@ export default function Home() {
           </button>
           <DevBadge />
           <ProjectSwitcher />
-          <WorkflowBadge />
           <button
             onClick={() => setChatOpen((v) => !v)}
             title="Toggle vibe chat (Cmd/Ctrl+K)"

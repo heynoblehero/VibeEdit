@@ -158,10 +158,15 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
           setDragOver(false);
           if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
         }}
-        className={`w-full max-w-xl bg-neutral-950 border border-neutral-800 rounded-xl p-5 flex flex-col gap-4 shadow-2xl ${
+        className={`w-full max-w-xl bg-neutral-950 border border-neutral-800 rounded-xl p-5 flex flex-col gap-4 shadow-2xl relative ${
           dragOver ? "ring-2 ring-emerald-400/60" : ""
         }`}
       >
+        {dragOver && (
+          <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center rounded-xl bg-emerald-500/10">
+            <span className="text-sm font-semibold text-emerald-300">Drop to attach</span>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">Create a new project</h2>
           <button

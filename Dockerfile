@@ -1,58 +1,38 @@
-FROM node:22-slim AS builder
+# VibeEdit Studio — flat Next.js 16 + Remotion + Claude Code bridge.
+#
+# Built for dokku deploys. Single-stage for simplicity; we can slim later
+# once the prod surface stabilizes.
+
+FROM node:22-slim
 WORKDIR /app
 
-# Build tools for native modules (better-sqlite3)
-RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+# System deps: build tools for native modules, ffmpeg for Remotion's audio
+# pipeline, plus the runtime libs Remotion's headless Chrome shell needs.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl git python3 make g++ \
+      ffmpeg \
+      libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+      libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+      libgbm1 libasound2 libpangocairo-1.0-0 libpango-1.0-0 libcairo2 \
+      fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install bun for workspace:* protocol support
+# Bun for install + run (lockfile is bun.lock).
 RUN npm install -g bun
 
+# Install deps first so this layer caches.
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+
+# App source.
 COPY . .
 
-# Install with bun, then fix the layout for Node.js + Turbopack:
-#   1. Backup .bin symlinks (cp -rL would turn them into broken files)
-#   2. Flatten all symlinks (resolves workspace + .bun/ symlinks)
-#   3. Hoist deduped packages from .bun/node_modules/ into root node_modules/
-#   4. Remove .bun/ dir (Turbopack can't resolve its internal structure)
-RUN bun install --frozen-lockfile && \
-    mv node_modules/.bin /tmp/bin_backup && \
-    cp -rL node_modules node_modules_flat && \
-    rm -rf node_modules && mv node_modules_flat node_modules && \
-    rm -rf node_modules/.bin && mv /tmp/bin_backup node_modules/.bin && \
-    cp -rn node_modules/.bun/node_modules/. node_modules/ 2>/dev/null || true && \
-    rm -rf node_modules/.bun
-
-# Rebuild better-sqlite3 native addon (try prebuilt binary first)
-RUN cd node_modules/better-sqlite3 && npx --yes prebuild-install || npm rebuild better-sqlite3
-
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
-ENV NODE_OPTIONS="--max-old-space-size=3072"
-
-ARG NEXT_PUBLIC_SITE_URL=https://vibevideoedit.com
-ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
-
-RUN cd apps/web && npx next build
-
-# --- Production ---
-FROM node:22-slim AS runner
-WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-# Expose at runtime so better-auth server reads the correct baseURL for cookies/CSRF
-ARG NEXT_PUBLIC_SITE_URL=https://vibevideoedit.com
-ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+# Next.js defaults to PORT=3000; dokku will override via $PORT.
+ENV PORT=3000
 
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
-RUN mkdir -p /data
-
-COPY --from=builder /app/apps/web/.next/standalone ./
-COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder /app/apps/web/public ./apps/web/public
+RUN bun run build
 
 EXPOSE 3000
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-ENV DATABASE_PATH="/data/vibeedit.db"
-
-CMD ["node", "apps/web/server.js"]
+CMD ["bun", "run", "start"]

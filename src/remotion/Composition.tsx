@@ -1,0 +1,100 @@
+import React from "react";
+import { AbsoluteFill, Audio, Sequence } from "remotion";
+import type { CaptionStyle, MusicBed, Scene } from "@/lib/scene-schema";
+import { sceneDurationFrames } from "@/lib/scene-schema";
+import { SceneRenderer } from "./SceneRenderer";
+
+interface CompositionProps {
+  scenes: Scene[];
+  fps: number;
+  characters: Record<string, string>;
+  sfx: Record<string, string>;
+  music?: MusicBed;
+  captionStyle?: CaptionStyle;
+}
+
+interface DuckingRange {
+  from: number;
+  duration: number;
+}
+
+function buildDuckingRanges(
+  scenes: Scene[],
+  fps: number,
+): DuckingRange[] {
+  const ranges: DuckingRange[] = [];
+  let frameOffset = 0;
+  for (const s of scenes) {
+    const sceneDur = sceneDurationFrames(s, fps);
+    if (s.voiceover?.audioUrl) {
+      const vo = Math.round((s.voiceover.audioDurationSec ?? s.duration) * fps);
+      ranges.push({
+        from: frameOffset,
+        duration: Math.min(sceneDur, vo),
+      });
+    }
+    frameOffset += sceneDur;
+  }
+  return ranges;
+}
+
+export const VideoComposition: React.FC<CompositionProps> = ({
+  scenes,
+  fps,
+  characters,
+  sfx,
+  music,
+  captionStyle,
+}) => {
+  let frameOffset = 0;
+  const totalFrames = scenes.reduce(
+    (sum, s) => sum + sceneDurationFrames(s, fps),
+    0,
+  );
+  const duckRanges = music ? buildDuckingRanges(scenes, fps) : [];
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: "#000" }}>
+      {scenes.map((scene) => {
+        const dur = sceneDurationFrames(scene, fps);
+        const el = (
+          <Sequence key={scene.id} from={frameOffset} durationInFrames={dur}>
+            <SceneRenderer
+              scene={scene}
+              characters={characters}
+              sfx={sfx}
+              captionStyle={captionStyle}
+            />
+          </Sequence>
+        );
+        frameOffset += dur;
+        return el;
+      })}
+
+      {music?.url && totalFrames > 0 && (
+        <Audio
+          src={music.url}
+          startFrom={0}
+          loop
+          volume={(frame) => {
+            const ducked = duckRanges.some(
+              (r) => frame >= r.from && frame < r.from + r.duration,
+            );
+            return ducked
+              ? music.duckedVolume ?? 0.18
+              : music.volume ?? 0.55;
+          }}
+        />
+      )}
+
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.25) 100%)",
+          pointerEvents: "none",
+        }}
+      />
+    </AbsoluteFill>
+  );
+};

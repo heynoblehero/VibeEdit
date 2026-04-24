@@ -1,0 +1,112 @@
+import type { Scene, StylePreset } from "./scene-schema";
+
+export const STYLE_PRESETS: StylePreset[] = [
+  {
+    id: "faceless",
+    name: "Faceless",
+    description: "Bold text, heavy beat flashes, b-roll driven",
+    accentColors: ["#ef4444", "#f59e0b", "#10b981", "#38bdf8"],
+    textColor: "#9ca3af",
+    emphasisColor: "#ffffff",
+    backgroundColor: "#0a0a0a",
+    vignette: 0.55,
+    transition: "beat_flash_colored",
+    zoomPunch: 1.18,
+    shakeIntensity: 6,
+    captionStyle: "words",
+  },
+  {
+    id: "vlog",
+    name: "Vlog",
+    description: "Soft, warm, friendly pacing",
+    accentColors: ["#fb923c", "#fbbf24", "#f472b6", "#a78bfa"],
+    textColor: "#d4d4d4",
+    emphasisColor: "#fef3c7",
+    backgroundColor: "#1c1917",
+    vignette: 0.3,
+    transition: "none",
+    zoomPunch: 1.05,
+    shakeIntensity: 0,
+    captionStyle: "line",
+  },
+  {
+    id: "documentary",
+    name: "Documentary",
+    description: "Muted palette, slow reveals, clean type",
+    accentColors: ["#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0"],
+    textColor: "#94a3b8",
+    emphasisColor: "#f1f5f9",
+    backgroundColor: "#0f172a",
+    vignette: 0.4,
+    transition: "none",
+    zoomPunch: 0,
+    shakeIntensity: 0,
+    captionStyle: "line",
+  },
+  {
+    id: "meme",
+    name: "Meme",
+    description: "Max chaos, neon, memes everywhere",
+    accentColors: ["#ec4899", "#a855f7", "#22d3ee", "#facc15", "#f97316"],
+    textColor: "#ffffff",
+    emphasisColor: "#facc15",
+    backgroundColor: "#000000",
+    vignette: 0.6,
+    transition: "beat_flash_colored",
+    zoomPunch: 1.25,
+    shakeIntensity: 10,
+    captionStyle: "words",
+  },
+  {
+    id: "cinematic",
+    name: "Cinematic",
+    description: "Teal & orange, letterbox feel, low motion",
+    accentColors: ["#f97316", "#fb923c", "#0ea5e9", "#06b6d4"],
+    textColor: "#e2e8f0",
+    emphasisColor: "#fde68a",
+    backgroundColor: "#020617",
+    vignette: 0.65,
+    transition: "none",
+    zoomPunch: 1.08,
+    shakeIntensity: 0,
+    captionStyle: "line",
+  },
+  {
+    id: "minimal",
+    name: "Minimal",
+    description: "White bg, black type, no effects",
+    accentColors: ["#000000", "#171717", "#404040"],
+    textColor: "#525252",
+    emphasisColor: "#000000",
+    backgroundColor: "#fafafa",
+    vignette: 0,
+    transition: "none",
+    zoomPunch: 0,
+    shakeIntensity: 0,
+    captionStyle: "off",
+  },
+];
+
+export function applyPresetToScene(scene: Scene, preset: StylePreset, index: number): Scene {
+  const accent = preset.accentColors[index % preset.accentColors.length];
+  return {
+    ...scene,
+    textColor: preset.textColor,
+    emphasisColor: preset.emphasisColor,
+    emphasisGlow: preset.id === "minimal" ? undefined : `${accent}66`,
+    numberColor: accent,
+    transition: preset.transition,
+    transitionColor: accent,
+    zoomPunch: preset.zoomPunch || scene.zoomPunch,
+    shakeIntensity: preset.shakeIntensity,
+    background: {
+      ...scene.background,
+      color: preset.backgroundColor,
+      vignette: preset.vignette,
+    },
+  };
+}
+
+export function getPreset(id: string): StylePreset | undefined {
+  return STYLE_PRESETS.find((p) => p.id === id);
+}

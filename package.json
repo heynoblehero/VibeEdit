@@ -1,49 +1,57 @@
 {
-  "name": "vibeedit",
-  "packageManager": "bun@1.2.18",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "name": "vibeedit-studio",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
-    "dev:web": "turbo run dev --filter=@opencut/web",
-    "build:web": "turbo run build --filter=@opencut/web",
-    "dev:tools": "turbo run dev --filter=@opencut/tools",
-    "build:tools": "turbo run build --filter=@opencut/tools",
-    "start:tools": "turbo run start --filter=@opencut/tools",
-    "lint:web": "biome lint apps/web/src --max-diagnostics=1000",
-    "lint:web:fix": "biome lint apps/web/src --write --max-diagnostics=1000",
-    "format:web": "biome format apps/web/src/services/renderer --write --max-diagnostics=1000",
-    "test": "bun test",
-    "generate:fonts": "npx tsx apps/web/scripts/generate-font-sprites.ts"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "cap:add:android": "cap add android",
+    "cap:add:ios": "cap add ios",
+    "cap:sync": "cap sync",
+    "cap:open:android": "cap open android",
+    "cap:open:ios": "cap open ios",
+    "cap:run:android": "cap run android",
+    "cap:run:ios": "cap run ios"
   },
   "dependencies": {
-    "@polar-sh/sdk": "^0.46.7",
-    "@remotion/player": "^4.0.441",
-    "@types/react": "^19.2.10",
-    "@types/react-dom": "^19.2.3",
-    "ag-psd": "^30.1.0",
-    "better-auth": "^1.4.15",
-    "better-sqlite3": "^12.8.0",
-    "drizzle-orm": "^0.45.1",
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/ios": "^8.3.1",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@remotion/cli": "4.0.370",
+    "@remotion/player": "4.0.370",
+    "@remotion/renderer": "4.0.370",
     "jszip": "^3.10.1",
-    "lottie-web": "^5.13.0",
-    "next": "^16.1.3",
+    "lucide-react": "^1.8.0",
+    "next": "16.2.4",
     "react": "19.2.4",
-    "remotion": "^4.0.441",
-    "resend": "^6.9.4"
+    "react-dom": "19.2.4",
+    "remotion": "4.0.370",
+    "sonner": "^2.0.7",
+    "stripe": "^22.0.2",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "4.2.1",
-    "@tailwindcss/typography": "0.5.19",
-    "@types/better-sqlite3": "^7.6.13",
-    "drizzle-kit": "^0.31.10",
-    "tailwindcss": "4.2.1",
-    "tailwindcss-animate": "1.0.7",
-    "turbo": "^2.7.5",
-    "typescript": "5.8.3"
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   },
+  "ignoreScripts": [
+    "sharp",
+    "unrs-resolver"
+  ],
   "trustedDependencies": [
-    "@tailwindcss/oxide"
+    "sharp",
+    "unrs-resolver"
   ]
 }

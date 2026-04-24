@@ -52,8 +52,10 @@ export default function Home() {
   const project = useProjectStore((s) => s.project);
   const undo = useProjectStore((s) => s.undo);
   const redo = useProjectStore((s) => s.redo);
-  const canUndo = useProjectStore((s) => s.history.length > 0);
-  const canRedo = useProjectStore((s) => s.future.length > 0);
+  const historyLen = useProjectStore((s) => s.history.length);
+  const futureLen = useProjectStore((s) => s.future.length);
+  const canUndo = historyLen > 0;
+  const canRedo = futureLen > 0;
   const selectedSceneId = useProjectStore((s) => s.selectedSceneId);
   const queueCount = useRenderQueueStore((s) => s.items.length);
   const toggleQueue = useRenderQueueStore((s) => s.togglePanel);
@@ -146,7 +148,7 @@ export default function Home() {
             <button
               onClick={undo}
               disabled={!canUndo}
-              title="Undo (Cmd/Ctrl+Z)"
+              title={`Undo (Cmd/Ctrl+Z) — ${historyLen} step${historyLen === 1 ? "" : "s"}`}
               className="p-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
             >
               <Undo2 className="h-4 w-4" />
@@ -154,7 +156,7 @@ export default function Home() {
             <button
               onClick={redo}
               disabled={!canRedo}
-              title="Redo (Shift+Cmd/Ctrl+Z)"
+              title={`Redo (Shift+Cmd/Ctrl+Z) — ${futureLen} step${futureLen === 1 ? "" : "s"}`}
               className="p-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
             >
               <Redo2 className="h-4 w-4" />

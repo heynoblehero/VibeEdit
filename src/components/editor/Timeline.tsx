@@ -14,11 +14,54 @@ interface TimelineProps {
 export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelineProps) {
   const project = useProjectStore((s) => s.project);
   const selectScene = useProjectStore((s) => s.selectScene);
+  const updateScene = useProjectStore((s) => s.updateScene);
 
   const total = useMemo(
     () => Math.max(1, totalDurationFrames(project.scenes, project.fps)),
     [project.scenes, project.fps],
   );
+
+  // Drag-to-resize state. When set, pointermove adjusts the scene's duration.
+  const resizeRef = useRef<{
+    sceneId: string;
+    startX: number;
+    startDuration: number;
+    pxPerSec: number;
+  } | null>(null);
+
+  const onResizeDown = useCallback(
+    (e: React.PointerEvent, sceneId: string, startDuration: number) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const trackWidth = trackRef.current?.clientWidth ?? 0;
+      const totalSec = total / project.fps;
+      resizeRef.current = {
+        sceneId,
+        startX: e.clientX,
+        startDuration,
+        pxPerSec: trackWidth / Math.max(1, totalSec),
+      };
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    },
+    [total, project.fps],
+  );
+  const onResizeMove = useCallback(
+    (e: React.PointerEvent) => {
+      const st = resizeRef.current;
+      if (!st) return;
+      const dx = e.clientX - st.startX;
+      const next = Math.max(
+        0.5,
+        Math.min(10, +(st.startDuration + dx / st.pxPerSec).toFixed(1)),
+      );
+      updateScene(st.sceneId, { duration: next });
+    },
+    [updateScene],
+  );
+  const onResizeUp = useCallback((e: React.PointerEvent) => {
+    resizeRef.current = null;
+    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+  }, []);
 
   // Precompute scene boundaries in frames for tick positions and click lookup.
   const markers = useMemo(() => {
@@ -79,7 +122,8 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
         {markers.map((m, i) => {
           const left = (m.start / total) * 100;
           const width = (m.frames / total) * 100;
-          const selected = project.scenes[i].id === m.id;
+          const scene = project.scenes[i];
+          const selected = scene.id === m.id;
           return (
             <div
               key={m.id}
@@ -87,11 +131,20 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
               className={`absolute top-0 bottom-0 border-l border-neutral-800/70 ${
                 selected ? "bg-emerald-500/25" : "hover:bg-neutral-800/60"
               }`}
-              title={`Scene ${i + 1} · ${(m.frames / project.fps).toFixed(1)}s`}
+              title={`Scene ${i + 1} · ${(m.frames / project.fps).toFixed(1)}s — drag right edge to resize`}
             >
               <span className="absolute left-1 top-0 text-[9px] font-mono text-neutral-500 pointer-events-none">
                 {i + 1}
               </span>
+              {/* Resize handle on the right edge — widens on hover for easier grab. */}
+              <span
+                onPointerDown={(e) => onResizeDown(e, m.id, scene.duration)}
+                onPointerMove={onResizeMove}
+                onPointerUp={onResizeUp}
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 top-0 bottom-0 w-1 hover:w-1.5 hover:bg-emerald-400/70 cursor-ew-resize"
+                aria-label="Resize scene duration"
+              />
             </div>
           );
         })}

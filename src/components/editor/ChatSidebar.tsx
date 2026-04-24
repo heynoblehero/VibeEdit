@@ -289,7 +289,12 @@ export function ChatSidebar({
             setProject(evt.project as Project);
           } else if (evt.type === "error") {
             errored = true;
-            appendText(msgId, `\n⚠️ ${String(evt.error ?? "agent error")}`);
+            const raw = String(evt.error ?? "agent error");
+            // Friendlier copy when the bridge / proxy path timed out.
+            const friendly = /didn't respond|timed out|timeout/i.test(raw)
+              ? `${raw}\n\n→ If you're using cliproxy, check that its OAuth file still exists at /root/.cli-proxy-api/ on the server. If you're using the file-queue bridge, make sure a Claude Code session is watching .ai-bridge/pending/.`
+              : raw;
+            appendText(msgId, `\n⚠️ ${friendly}`);
           }
         }
       }

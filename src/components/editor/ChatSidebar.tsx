@@ -743,8 +743,20 @@ function MessageBubble({
             </div>
           )}
           {message.content && (
-            <div className="text-neutral-200 whitespace-pre-wrap leading-snug">
+            <div className="relative group text-neutral-200 whitespace-pre-wrap leading-snug">
               {message.content}
+              {message.content.length > 140 && (
+                <button
+                  onClick={() => {
+                    navigator.clipboard?.writeText(message.content).catch(() => {});
+                    toast("Copied", { duration: 600 });
+                  }}
+                  className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 p-1 text-neutral-500 hover:text-emerald-400 transition-opacity bg-neutral-900/80 rounded"
+                  title="Copy message"
+                >
+                  <ClipboardCopy className="h-3 w-3" />
+                </button>
+              )}
             </div>
           )}
           {message.streaming && (

@@ -9,6 +9,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "check": "bun run typecheck && bun run lint",
+    "deploy": "./scripts/deploy.sh",
+    "deploy:proxy": "./scripts/deploy.sh --with-proxy",
     "cap:add:android": "cap add android",
     "cap:add:ios": "cap add ios",
     "cap:sync": "cap sync",

@@ -51,6 +51,14 @@ export function KeyboardShortcuts() {
         return;
       }
 
+      if (e.key.toLowerCase() === "n" && !mod && !e.shiftKey && !isTextInput(e.target)) {
+        e.preventDefault();
+        document
+          .querySelector<HTMLButtonElement>('button[title="Add blank scene"]')
+          ?.click();
+        return;
+      }
+
       if (mod && e.key.toLowerCase() === "a" && !isTextInput(e.target)) {
         if (scenes.length === 0) return;
         e.preventDefault();

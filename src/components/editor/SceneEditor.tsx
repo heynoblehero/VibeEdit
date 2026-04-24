@@ -311,22 +311,127 @@ function EffectsPanel({ scene, update, sfx }: { scene: Scene; update: (p: Partia
 }
 
 function BackgroundPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>) => void }) {
+  // Derived "mode" of the background so the UI is tab-like instead of
+  // three separate fields you have to figure out.
+  const mode: "color" | "image" | "video" = scene.background.videoUrl
+    ? "video"
+    : scene.background.imageUrl
+      ? "image"
+      : "color";
+
+  const setMode = (next: "color" | "image" | "video") => {
+    if (next === "color")
+      update({ background: { ...scene.background, imageUrl: undefined, videoUrl: undefined } });
+    if (next === "image")
+      update({ background: { ...scene.background, videoUrl: undefined } });
+    if (next === "video")
+      update({ background: { ...scene.background, imageUrl: undefined } });
+  };
+
   return (
     <>
-      <Field label="Background color">
-        <input type="color" value={scene.background.color} onChange={(e) => update({ background: { ...scene.background, color: e.target.value } })} className="h-10 w-full rounded cursor-pointer bg-transparent border border-neutral-700" />
-      </Field>
-      <Field label="Gradient graphic">
-        <select value={scene.background.graphic ?? ""} onChange={(e) => update({ background: { ...scene.background, graphic: e.target.value || undefined } })} className="input-field w-full text-xs">
-          <option value="">None</option>
-          <option value="gradient1">Blue swoosh</option>
-          <option value="gradient3">Gradient 3</option>
-          <option value="gradient5">Gradient 5</option>
-          <option value="gradient6">Gradient 6</option>
-          <option value="rect1">Rectangle</option>
-          <option value="swoosh1">Swoosh</option>
-        </select>
-      </Field>
+      <div className="flex gap-1 p-0.5 rounded-md bg-neutral-900 border border-neutral-800">
+        {(["color", "image", "video"] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={`flex-1 text-[11px] px-2 py-1 rounded capitalize transition-colors ${
+              mode === m ? "bg-emerald-500/20 text-emerald-300" : "text-neutral-500 hover:text-white"
+            }`}
+          >
+            {m}
+          </button>
+        ))}
+      </div>
+
+      {mode === "color" && (
+        <>
+          <Field label="Background color">
+            <input type="color" value={scene.background.color} onChange={(e) => update({ background: { ...scene.background, color: e.target.value } })} className="h-10 w-full rounded cursor-pointer bg-transparent border border-neutral-700" />
+          </Field>
+          {/* Dark-mode BG palette for fast picks. */}
+          <div className="flex flex-wrap gap-1">
+            {["#0a0a0a", "#111118", "#1a1a2e", "#0f172a", "#1e1b4b", "#164e63", "#042f2e", "#7c2d12", "#581c87", "#831843", "#fafafa"].map((c) => (
+              <button
+                key={c}
+                onClick={() => update({ background: { ...scene.background, color: c } })}
+                className={`h-5 w-5 rounded border-2 ${scene.background.color === c ? "border-white" : "border-neutral-700"}`}
+                style={{ backgroundColor: c }}
+                title={c}
+              />
+            ))}
+          </div>
+          <Field label="Gradient graphic">
+            <select value={scene.background.graphic ?? ""} onChange={(e) => update({ background: { ...scene.background, graphic: e.target.value || undefined } })} className="input-field w-full text-xs">
+              <option value="">None</option>
+              <option value="gradient1">Blue swoosh</option>
+              <option value="gradient3">Gradient 3</option>
+              <option value="gradient5">Gradient 5</option>
+              <option value="gradient6">Gradient 6</option>
+              <option value="rect1">Rectangle</option>
+              <option value="swoosh1">Swoosh</option>
+            </select>
+          </Field>
+        </>
+      )}
+
+      {mode === "image" && (
+        <>
+          <Field label="Image URL">
+            <input
+              type="text"
+              value={scene.background.imageUrl ?? ""}
+              onChange={(e) => update({ background: { ...scene.background, imageUrl: e.target.value || undefined } })}
+              placeholder="https://..."
+              className="input-field w-full text-xs"
+            />
+          </Field>
+          {scene.background.imageUrl && (
+            <img
+              src={scene.background.imageUrl}
+              alt="background preview"
+              className="w-full h-20 object-cover rounded border border-neutral-800"
+            />
+          )}
+          <label className="flex items-center gap-2 text-[11px] text-neutral-400">
+            <input
+              type="checkbox"
+              checked={!!scene.background.kenBurns}
+              onChange={(e) => update({ background: { ...scene.background, kenBurns: e.target.checked } })}
+            />
+            Ken Burns (slow zoom)
+          </label>
+          <span className="text-[10px] text-neutral-600">
+            Tip: ask the agent &ldquo;generate an AI image for this scene&rdquo; to fill this automatically.
+          </span>
+        </>
+      )}
+
+      {mode === "video" && (
+        <>
+          <Field label="Video URL">
+            <input
+              type="text"
+              value={scene.background.videoUrl ?? ""}
+              onChange={(e) => update({ background: { ...scene.background, videoUrl: e.target.value || undefined } })}
+              placeholder="https://... or /uploads/..."
+              className="input-field w-full text-xs"
+            />
+          </Field>
+          {scene.background.videoUrl && (
+            <video
+              src={scene.background.videoUrl}
+              muted
+              playsInline
+              className="w-full h-20 object-cover rounded border border-neutral-800"
+            />
+          )}
+          <span className="text-[10px] text-neutral-600">
+            Drag a video file into chat to upload, or run the avatar tool to fill this.
+          </span>
+        </>
+      )}
+
       <Field label="Vignette">
         <input type="range" min={0} max={0.8} step={0.05} value={scene.background.vignette ?? 0.5} onChange={(e) => update({ background: { ...scene.background, vignette: Number(e.target.value) } })} className="w-full accent-purple-500 h-1.5" />
         <span className="text-[10px] text-neutral-500">{((scene.background.vignette ?? 0.5) * 100).toFixed(0)}%</span>

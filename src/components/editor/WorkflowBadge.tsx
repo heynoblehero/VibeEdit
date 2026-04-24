@@ -27,6 +27,11 @@ export function WorkflowBadge() {
       >
         <Sparkles className={`h-3 w-3 ${agentStreaming ? "animate-pulse" : ""}`} />
         {wf.name}
+        {wf.paid && (
+          <span className="text-[8px] font-bold px-1 rounded bg-amber-500/30 text-amber-200 border border-amber-500/40">
+            PRO
+          </span>
+        )}
         <ChevronDown className="h-3 w-3 opacity-60" />
       </button>
       <WorkflowPicker open={open} onClose={() => setOpen(false)} />

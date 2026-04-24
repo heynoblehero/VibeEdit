@@ -59,13 +59,34 @@ export function ProjectHome({
         </p>
       </div>
 
-      <button
-        onClick={handleNew}
-        className="flex items-center justify-center gap-2 w-full max-w-sm bg-emerald-500 hover:bg-emerald-400 text-black font-semibold px-6 py-3 rounded-lg transition-colors"
-      >
-        <FolderPlus className="h-5 w-5" />
-        Start a new video
-      </button>
+      <div className="flex flex-col items-center gap-2 w-full max-w-sm">
+        <button
+          onClick={handleNew}
+          className="flex items-center justify-center gap-2 w-full bg-emerald-500 hover:bg-emerald-400 text-black font-semibold px-6 py-3 rounded-lg transition-colors"
+        >
+          <FolderPlus className="h-5 w-5" />
+          Start a new video
+        </button>
+        <button
+          onClick={async () => {
+            createProject();
+            onStart();
+            // Give page.tsx time to swap to editor before firing the chat send.
+            setTimeout(async () => {
+              const { useChatStore } = await import("@/store/chat-store");
+              useChatStore
+                .getState()
+                .addUserMessage(
+                  "Surprise me. Pick a fun workflow and make a fully-narrated 60s demo video.",
+                );
+              document.querySelector<HTMLFormElement>("aside form")?.requestSubmit();
+            }, 50);
+          }}
+          className="flex items-center justify-center gap-2 w-full text-xs text-neutral-500 hover:text-white transition-colors"
+        >
+          🎲 or surprise me
+        </button>
+      </div>
 
       {(list.length > 0 || query) && (
         <div className="w-full max-w-lg flex flex-col gap-2">

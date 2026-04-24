@@ -66,6 +66,13 @@ export function SceneEditor() {
             {scene.id}
           </button>
           <span className="text-[10px] text-neutral-500">— click to edit</span>
+          <button
+            onClick={() => useProjectStore.getState().clearSelection()}
+            title="Close (Esc)"
+            className="ml-auto text-neutral-500 hover:text-white px-1 text-sm leading-none"
+          >
+            ×
+          </button>
         </div>
         {workflow.sceneActions && workflow.sceneActions.length > 0 && (
           <SceneActionsRow workflowId={workflow.id} scene={scene} actions={workflow.sceneActions} />

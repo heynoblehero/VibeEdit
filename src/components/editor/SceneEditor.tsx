@@ -228,7 +228,7 @@ function TextPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>
         </Field>
       </div>
       {/* Quick-pick accent palette — matches the defaults the generator uses. */}
-      <div className="flex flex-wrap gap-1">
+      <div className="flex items-center flex-wrap gap-1">
         {[
           "#ef4444", "#f59e0b", "#10b981", "#38bdf8",
           "#818cf8", "#a78bfa", "#fb923c", "#ec4899",
@@ -242,6 +242,19 @@ function TextPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>
             title={c}
           />
         ))}
+        <button
+          onClick={() => {
+            const project = useProjectStore.getState().project;
+            const patch = { emphasisColor: scene.emphasisColor };
+            for (const s of project.scenes) {
+              if (s.id !== scene.id) useProjectStore.getState().updateScene(s.id, patch);
+            }
+          }}
+          className="ml-auto text-[9px] text-neutral-500 hover:text-emerald-400 underline"
+          title="Apply this accent color to every scene"
+        >
+          apply to all
+        </button>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Size">

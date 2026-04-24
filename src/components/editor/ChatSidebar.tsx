@@ -639,7 +639,13 @@ export function ChatSidebar({
               );
             }
           }}
-          placeholder={isStreaming ? "working..." : "what should I do? (try / for commands)"}
+          placeholder={
+            isStreaming
+              ? "working..."
+              : messages.length === 0
+                ? "Make a 60s TikTok about… (try / for commands)"
+                : "What next? (try / for commands)"
+          }
           disabled={isStreaming}
           rows={input.includes("\n") ? 3 : 1}
           className="flex-1 bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-[13px] text-white resize-none focus:outline-none focus:border-emerald-500 placeholder:text-neutral-600"

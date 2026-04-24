@@ -3,6 +3,7 @@
 import {
   ChevronDown,
   ChevronRight,
+  ClipboardCopy,
   Loader2,
   MessageCircle,
   Send,
@@ -380,18 +381,45 @@ export function ChatSidebar({
           {activeVoice.kind === "elevenlabs" ? "cloned" : activeVoice.id}
         </span>
         {messages.length > 0 && (
-          <button
-            onClick={() => {
-              if (window.confirm("Clear chat history?")) {
-                useChatStore.getState().clear();
-                toast("Cleared");
-              }
-            }}
-            className="ml-auto mr-1 text-[10px] text-neutral-600 hover:text-red-400"
-            title="Clear chat history"
-          >
-            clear
-          </button>
+          <>
+            <button
+              onClick={() => {
+                const md = messages
+                  .map((m) => {
+                    const role = m.role === "user" ? "### You" : "### Agent";
+                    const tools = m.toolCalls?.length
+                      ? "\n" +
+                        m.toolCalls
+                          .map(
+                            (c) =>
+                              `- ${c.ok ? "✓" : c.ok == null ? "…" : "✗"} ${c.name}${c.message ? ` — ${c.message}` : ""}`,
+                          )
+                          .join("\n")
+                      : "";
+                    return `${role}\n${m.content || ""}${tools}`.trim();
+                  })
+                  .join("\n\n---\n\n");
+                navigator.clipboard?.writeText(md).catch(() => {});
+                toast(`Copied ${messages.length} messages`, { duration: 900 });
+              }}
+              className="ml-auto text-[10px] text-neutral-600 hover:text-emerald-400 p-1"
+              title="Copy conversation as Markdown"
+            >
+              <ClipboardCopy className="h-3 w-3" />
+            </button>
+            <button
+              onClick={() => {
+                if (window.confirm("Clear chat history?")) {
+                  useChatStore.getState().clear();
+                  toast("Cleared");
+                }
+              }}
+              className="text-[10px] text-neutral-600 hover:text-red-400"
+              title="Clear chat history"
+            >
+              clear
+            </button>
+          </>
         )}
         <button
           onClick={onClose}

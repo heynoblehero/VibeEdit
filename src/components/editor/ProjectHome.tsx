@@ -52,13 +52,19 @@ export function ProjectHome({
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
 
-  const list = Object.values(projects)
-    .map((p) => ({
-      ...p,
-      scenes: p.scenes.length,
-      duration: totalDurationSeconds(p.scenes),
-    }))
-    .filter((p) => (query ? p.name.toLowerCase().includes(query.toLowerCase()) : true))
+  const raw = Object.values(projects).map((p) => ({
+    ...p,
+    scenes: p.scenes.length,
+    duration: totalDurationSeconds(p.scenes),
+  }));
+  // Hide the auto-created 'Draft' shell when it's empty AND the user has
+  // real projects. Keeps the list focused on actual work.
+  const hasNonDraft = raw.some((p) => p.name !== "Draft" || p.scenes > 0);
+  const list = raw
+    .filter((p) => {
+      if (hasNonDraft && p.name === "Draft" && p.scenes === 0) return false;
+      return query ? p.name.toLowerCase().includes(query.toLowerCase()) : true;
+    })
     .sort((a, b) => (a.name === "Draft" ? 1 : b.name === "Draft" ? -1 : 0));
 
   const handleNew = () => setCreateOpen(true);

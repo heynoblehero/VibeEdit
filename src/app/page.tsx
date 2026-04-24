@@ -192,29 +192,35 @@ export default function Home() {
       {/* Main layout */}
       <div className="flex flex-1 min-h-0">
         <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
-        {/* Left: workflow inputs + assets + scenes — compacted when chat is primary */}
-        <div className="w-80 flex flex-col border-r border-neutral-800 shrink-0 overflow-hidden">
-          <div className="overflow-y-auto">
-            <button
-              onClick={() => setAdvancedOpen((v) => !v)}
-              className="flex items-center justify-between w-full px-4 py-2 text-[11px] uppercase tracking-wider text-neutral-500 hover:text-neutral-300 border-b border-neutral-800"
-            >
-              <span>Advanced inputs</span>
-              <span className="text-neutral-700">{advancedOpen ? "▲" : "▼"}</span>
-            </button>
-            {advancedOpen && (
-              <>
-                <WorkflowInputs workflow={workflow} />
-                {workflow.id === "commentary" && <ClipTrimPanel slotId="clips" />}
-              </>
-            )}
-            <SceneToolsPanel />
-            <ConfigTabs />
+        {/* Left: scene list + tools — hidden until scenes exist so the empty
+            state is just chat + preview (way less busy). */}
+        {project.scenes.length > 0 && (
+          <div className="w-80 flex flex-col border-r border-neutral-800 shrink-0 overflow-hidden">
+            <div className="flex-1 overflow-y-auto">
+              <SceneList />
+            </div>
+            <details className="border-t border-neutral-800 overflow-y-auto max-h-[45vh]">
+              <summary className="px-4 py-2 text-[11px] uppercase tracking-wider text-neutral-500 hover:text-neutral-300 cursor-pointer list-none flex items-center justify-between">
+                <span>Tools & config</span>
+                <span className="text-neutral-700">▾</span>
+              </summary>
+              <SceneToolsPanel />
+              <ConfigTabs />
+              {advancedOpen && (
+                <div className="border-t border-neutral-800">
+                  <WorkflowInputs workflow={workflow} />
+                  {workflow.id === "commentary" && <ClipTrimPanel slotId="clips" />}
+                </div>
+              )}
+              <button
+                onClick={() => setAdvancedOpen((v) => !v)}
+                className="w-full px-4 py-1.5 text-[10px] text-neutral-600 hover:text-neutral-300 border-t border-neutral-800 text-left"
+              >
+                {advancedOpen ? "Hide" : "Show"} workflow inputs
+              </button>
+            </details>
           </div>
-          <div className="flex-1 overflow-y-auto border-t border-neutral-800">
-            <SceneList />
-          </div>
-        </div>
+        )}
 
         {/* Center: preview */}
         <div className="flex-1 flex flex-col p-4 min-w-0">

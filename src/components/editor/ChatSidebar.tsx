@@ -6,6 +6,7 @@ import {
   ClipboardCopy,
   Loader2,
   MessageCircle,
+  Paperclip,
   Send,
   Undo2,
   Wand2,
@@ -677,6 +678,29 @@ export function ChatSidebar({
           rows={Math.min(8, Math.max(1, input.split("\n").length))}
           className="flex-1 bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-[13px] text-white resize-none focus:outline-none focus:border-emerald-500 placeholder:text-neutral-600"
         />
+        {!isStreaming && (
+          <>
+            <input
+              type="file"
+              multiple
+              className="hidden"
+              id="chat-upload-input"
+              onChange={async (e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                  await handleDroppedFiles(e.target.files);
+                  e.target.value = "";
+                }
+              }}
+            />
+            <label
+              htmlFor="chat-upload-input"
+              title="Attach files (or drag & drop into the chat)"
+              className="flex items-center justify-center h-8 w-8 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white cursor-pointer transition-colors"
+            >
+              <Paperclip className="h-4 w-4" />
+            </label>
+          </>
+        )}
         {isStreaming ? (
           <button
             type="button"

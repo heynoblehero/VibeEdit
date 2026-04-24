@@ -1,5 +1,54 @@
 # Changelog
 
+## Unreleased — polish pass #7 — templates banished
+
+The template dropdown is off the primary surface entirely. Projects
+default to a "blank" workflow so the agent does whatever you ask,
+guided by the (optional) project-level system prompt you wrote in the
+Create Project dialog.
+
+### Templates
+- Removed WorkflowBadge from the header.
+- Removed WorkflowInputs / ClipTrimPanel / 'Advanced inputs' toggle
+  from the left column.
+- Blank workflow is the default for new projects.
+- Agent prompt updated: "don't evangelize templates".
+- `/template` (alias `/workflow`) slash command still opens the picker
+  for power users who want a structured format.
+
+### Create flow
+- ProjectSwitcher "New project" opens the CreateProjectDialog (name,
+  format, instructions, asset upload) instead of silent-create.
+- Dialog auto-fills project name from first 6 words of the goal if
+  blank. Cmd/Ctrl+Enter submits; Esc closes. 'Drop to attach' overlay
+  when dragging files over.
+- Cmd/Ctrl+Shift+N opens the dialog from anywhere.
+- Auto-created empty 'Draft' project hidden from ProjectHome list.
+
+### Testing mode
+- Inline script in <head> clears vibeedit-project / vibeedit-chat /
+  vibeedit-broll / vibeedit-render-queue on every page load. UI prefs
+  (theme, chat-width, chat-open) are preserved.
+- Flip the ENABLE constant in layout.tsx's script to turn persistence
+  back on.
+
+### Layout memory
+- Chat sidebar open/closed state persists.
+- Left / right panel collapsed state persists.
+
+### Auth
+- AuthBar promoted out of overflow menu — now always visible in the
+  main header.
+- auth.ts + scheduler.ts read VIBEEDIT_DATA_DIR env, set to /data on
+  the dokku app so users/sessions survive container restarts.
+
+### Misc
+- Chat: click sidebar body to focus input.
+- Chat empty state: dropped the 'browse all 10 video types' link.
+- Header: dropped redundant 'N scenes · Xs' count.
+- Favicon: emerald sparkle.
+- bun run deploy / deploy:proxy aliases.
+
 ## Unreleased — polish pass #6
 
 Simplification + shortcuts sweep. ProjectHome, timeline drag-resize/reorder,

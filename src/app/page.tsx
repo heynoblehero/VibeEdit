@@ -113,13 +113,14 @@ export default function Home() {
       <header className="flex items-center justify-between px-4 py-2 border-b border-neutral-800 bg-neutral-950/80 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <button
-            onClick={() => {
-              // Synthesize a "?" keydown to open the shortcuts overlay.
+            onClick={() => setHomeDismissed(false)}
+            onDoubleClick={() => {
+              // Double-click the logo opens the shortcuts overlay.
               window.dispatchEvent(
                 new KeyboardEvent("keydown", { key: "?" }),
               );
             }}
-            title="Keyboard shortcuts"
+            title="Home (double-click for shortcuts)"
             className="shrink-0"
           >
             <Film className="h-5 w-5 text-emerald-400" aria-label="VibeEdit" />

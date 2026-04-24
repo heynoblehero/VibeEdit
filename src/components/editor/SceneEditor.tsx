@@ -196,13 +196,25 @@ function CharacterPanel({ scene, update, characters }: { scene: Scene; update: (
 }
 
 function TextPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>) => void }) {
+  const textLen = (scene.text ?? "").length;
+  const emphasisLen = (scene.emphasisText ?? "").length;
   return (
     <>
-      <Field label="Main text (secondary)">
-        <textarea value={scene.text ?? ""} onChange={(e) => update({ text: e.target.value })} className="input-field w-full text-xs h-16 resize-none" placeholder="smaller grey text..." />
+      <Field label={`Main text (secondary) · ${textLen}${textLen > 80 ? " — long, may wrap" : ""}`}>
+        <textarea
+          value={scene.text ?? ""}
+          onChange={(e) => update({ text: e.target.value })}
+          className={`input-field w-full text-xs h-16 resize-none ${textLen > 80 ? "border-amber-500/60" : ""}`}
+          placeholder="smaller grey text..."
+        />
       </Field>
-      <Field label="Emphasis text (primary)">
-        <textarea value={scene.emphasisText ?? ""} onChange={(e) => update({ emphasisText: e.target.value })} className="input-field w-full text-xs h-16 resize-none" placeholder="THE BIG MESSAGE" />
+      <Field label={`Emphasis text (primary) · ${emphasisLen}${emphasisLen > 40 ? " — long, may wrap" : ""}`}>
+        <textarea
+          value={scene.emphasisText ?? ""}
+          onChange={(e) => update({ emphasisText: e.target.value })}
+          className={`input-field w-full text-xs h-16 resize-none ${emphasisLen > 40 ? "border-amber-500/60" : ""}`}
+          placeholder="THE BIG MESSAGE"
+        />
       </Field>
       <Field label="Subtitle">
         <input type="text" value={scene.subtitleText ?? ""} onChange={(e) => update({ subtitleText: e.target.value })} className="input-field w-full text-xs" placeholder="small text below..." />

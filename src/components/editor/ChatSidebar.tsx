@@ -13,7 +13,6 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Project } from "@/lib/scene-schema";
-import { WORKFLOWS } from "@/lib/workflows/registry";
 import { useAssetStore } from "@/store/asset-store";
 import { useChatStore, type ChatMessage } from "@/store/chat-store";
 import { useProjectStore } from "@/store/project-store";
@@ -486,10 +485,14 @@ export function ChatSidebar({
         className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3 relative"
       >
         {showEmptyState && (
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-1 text-emerald-400 text-[11px]">
-              <Wand2 className="h-3 w-3" />
-              <span className="font-semibold">Make a…</span>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1 pt-2">
+              <span className="text-lg font-semibold text-white leading-tight">
+                What do you want to make?
+              </span>
+              <span className="text-[11px] text-neutral-500">
+                Describe it. The agent picks the right workflow and does the editing.
+              </span>
             </div>
             <button
               onClick={() =>
@@ -502,37 +505,17 @@ export function ChatSidebar({
             >
               🎲 Surprise me
             </button>
-            <div className="grid grid-cols-2 gap-1.5">
-              {WORKFLOWS.filter((w) => w.enabled).map((wf) => (
-                <button
-                  key={wf.id}
-                  onClick={() =>
-                    send(
-                      `I want to make a ${wf.name.toLowerCase()} video. Set the workflow to ${wf.id} and then ask me for details.`,
-                    )
-                  }
-                  disabled={isStreaming}
-                  className="flex flex-col items-start gap-0.5 p-2 rounded border border-neutral-800 bg-neutral-900 hover:border-neutral-600 hover:bg-neutral-800/60 text-left transition-colors disabled:opacity-50"
-                  style={{ borderLeftColor: wf.accentColor, borderLeftWidth: 2 }}
-                >
-                  <span className="text-[11px] font-semibold text-white leading-tight">
-                    {wf.name}
-                  </span>
-                  <span className="text-[9px] text-neutral-500 leading-tight line-clamp-2">
-                    {wf.tagline}
-                  </span>
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-col gap-1 pt-1">
+            <div className="flex flex-col gap-1">
               <span className="text-[10px] uppercase tracking-wider text-neutral-600">
                 Or try one of these
               </span>
               {[
                 "Make a 60s TikTok about morning routines for coders",
-                "Write me a faceless video: 5 startup mistakes I made",
-                "Comic dub my uploaded panels — punchy, sarcastic",
+                "A faceless video: 5 startup mistakes I made",
                 "Review the last movie I watched in 45 seconds",
+                "A 3-step recipe reel for quick chocolate mug cake",
+                "Comic dub my uploaded panels — punchy, sarcastic",
+                "Gaming highlights reel from my clips — hype paced",
               ].map((prompt) => (
                 <button
                   key={prompt}
@@ -544,6 +527,17 @@ export function ChatSidebar({
                 </button>
               ))}
             </div>
+            <button
+              onClick={() => {
+                document
+                  .querySelector<HTMLButtonElement>('button[title="Change workflow"]')
+                  ?.click();
+              }}
+              className="flex items-center gap-1 text-[10px] text-neutral-600 hover:text-neutral-300 pt-1"
+            >
+              <Wand2 className="h-3 w-3" />
+              browse all 10 video types →
+            </button>
           </div>
         )}
         {messages.map((m, i) => (

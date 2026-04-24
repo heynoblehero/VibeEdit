@@ -18,7 +18,11 @@ interface Session {
   expiresAt: number;
 }
 
-const DATA_DIR = path.join(process.cwd(), ".data");
+// Persistent data dir. Override with VIBEEDIT_DATA_DIR=/data in prod so
+// the auth files survive container restarts on dokku (where /data is a
+// mounted volume).
+const DATA_DIR =
+  process.env.VIBEEDIT_DATA_DIR || path.join(process.cwd(), ".data");
 const USERS_PATH = path.join(DATA_DIR, "users.json");
 const SESSIONS_PATH = path.join(DATA_DIR, "sessions.json");
 

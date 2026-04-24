@@ -189,9 +189,9 @@ export default function Home() {
           </span>
           <BridgeIndicator />
           <SaveIndicator />
+          <AuthBar />
           <HeaderOverflow>
             <ThemeToggle />
-            <AuthBar />
             <ProjectIO />
             <ThumbnailExporter />
             <ExportPackButton />

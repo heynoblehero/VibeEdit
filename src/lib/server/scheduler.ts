@@ -4,7 +4,10 @@ import { randomUUID } from "node:crypto";
 import { startRenderJob } from "./render-jobs";
 import type { Project, RenderPresetId } from "@/lib/scene-schema";
 
-const STORE_PATH = path.join(process.cwd(), ".data", "scheduled-renders.json");
+const STORE_PATH = path.join(
+  process.env.VIBEEDIT_DATA_DIR || path.join(process.cwd(), ".data"),
+  "scheduled-renders.json",
+);
 try {
   fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
 } catch {

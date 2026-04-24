@@ -58,12 +58,17 @@ export function BridgeIndicator() {
       ? "via Claude Max"
       : "Anthropic API";
   return (
-    <span
-      title={label}
-      className="flex items-center gap-1 text-[10px] font-mono text-neutral-500"
+    <button
+      onClick={() => {
+        navigator.clipboard
+          ?.writeText(JSON.stringify(s, null, 2))
+          .catch(() => {});
+      }}
+      title={`${label} — click to copy full status JSON`}
+      className="flex items-center gap-1 text-[10px] font-mono text-neutral-500 hover:text-neutral-200 transition-colors"
     >
       <span className={`h-1.5 w-1.5 rounded-full ${color} ${pulse}`} />
       <span className="hidden md:inline">{label}</span>
-    </span>
+    </button>
   );
 }

@@ -64,6 +64,11 @@ export function SceneCard({ scene, index }: SceneCardProps) {
       style={style}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
+      title={
+        scene.emphasisText || scene.text
+          ? `${scene.type} · ${scene.duration}s\n${scene.emphasisText ?? ""}${scene.emphasisText && scene.text ? "\n" : ""}${scene.text ?? ""}`
+          : `${scene.type} · ${scene.duration}s`
+      }
       className={`group flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors border ${
         isActive
           ? "border-emerald-500 bg-emerald-500/10"

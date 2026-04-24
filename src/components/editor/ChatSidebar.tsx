@@ -168,10 +168,29 @@ export function ChatSidebar({
         toast("Saving…", { duration: 800 });
         return;
       }
+      if (cmd === "status") {
+        fetch("/api/bridge/status", { cache: "no-store" })
+          .then((r) => r.json())
+          .then((st) => {
+            const mode = st.bridge
+              ? `file-bridge (${st.pending} pending)`
+              : st.isProxied
+                ? `proxy → ${st.baseUrl}`
+                : "direct Anthropic API";
+            toast(`Backend: ${mode}`, {
+              description: st.hasAnthropicKey
+                ? "API key is configured."
+                : "⚠ no ANTHROPIC_API_KEY set.",
+              duration: 6000,
+            });
+          })
+          .catch(() => toast.error("Could not reach /api/bridge/status"));
+        return;
+      }
       if (cmd === "help") {
         toast("Slash commands", {
           description:
-            "/new — new project\n/reset — clear scenes\n/render — render now\n/undo — undo last turn\n/save — flush state to localStorage\n/voice <id>\n/preset <id>\n/export — open export pack\n/tips — workflow tips\n/help — this menu",
+            "/new — new project\n/reset — clear scenes\n/render — render now\n/undo — undo last turn\n/save — flush state to localStorage\n/status — show AI backend info\n/voice <id>\n/preset <id>\n/export — open export pack\n/tips — workflow tips\n/help — this menu",
           duration: 8000,
         });
         return;

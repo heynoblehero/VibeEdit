@@ -124,15 +124,15 @@ export function KeyboardShortcuts() {
         input?.focus();
       }
 
-      // Up/Down arrow navigates scene selection when not in an input.
+      // Up/Down arrow and `,` / `.` navigate scene selection when not in an input.
       // Shift+Arrow extends the multi-selection in that direction.
-      if (
-        (e.key === "ArrowDown" || e.key === "ArrowUp") &&
-        !isTextInput(e.target) &&
-        scenes.length > 0
-      ) {
+      const isNavKey =
+        e.key === "ArrowDown" ||
+        e.key === "ArrowUp" ||
+        (!mod && !e.shiftKey && (e.key === "," || e.key === "."));
+      if (isNavKey && !isTextInput(e.target) && scenes.length > 0) {
         e.preventDefault();
-        const dir = e.key === "ArrowDown" ? 1 : -1;
+        const dir = e.key === "ArrowDown" || e.key === "." ? 1 : -1;
         const currentIdx = selectedSceneId
           ? scenes.findIndex((s) => s.id === selectedSceneId)
           : -1;

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { totalDurationSeconds } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
+import { CreateProjectDialog } from "./CreateProjectDialog";
 
 export function ProjectSwitcher() {
   const project = useProjectStore((s) => s.project);
@@ -16,6 +17,7 @@ export function ProjectSwitcher() {
   const deleteProject = useProjectStore((s) => s.deleteProject);
 
   const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(project.name);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -44,9 +46,8 @@ export function ProjectSwitcher() {
   };
 
   const handleNew = () => {
-    createProject();
     setOpen(false);
-    toast.success("New project created");
+    setCreateOpen(true);
   };
 
   const handleDuplicateStyle = () => {
@@ -180,6 +181,11 @@ export function ProjectSwitcher() {
           </div>
         </div>
       )}
+      <CreateProjectDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => setCreateOpen(false)}
+      />
     </div>
   );
 }

@@ -10,7 +10,6 @@ import { DevBadge } from "@/components/editor/DevBadge";
 import { ProjectHome } from "@/components/editor/ProjectHome";
 import { BulkActionsBar } from "@/components/editor/BulkActionsBar";
 import { ChatSidebar } from "@/components/editor/ChatSidebar";
-import { ClipTrimPanel } from "@/components/editor/ClipTrimPanel";
 import { ConfigTabs } from "@/components/editor/ConfigTabs";
 import { ExportPackButton } from "@/components/editor/ExportPackButton";
 import { HeaderOverflow } from "@/components/editor/HeaderOverflow";
@@ -29,12 +28,10 @@ import { SceneList } from "@/components/editor/SceneList";
 import { ShortcutsOverlay } from "@/components/editor/ShortcutsOverlay";
 import { ScheduleRenderDialog } from "@/components/editor/ScheduleRenderDialog";
 import { SceneToolsPanel } from "@/components/editor/SceneToolsPanel";
-import { WorkflowInputs } from "@/components/editor/WorkflowInputs";
 import { useChatStore } from "@/store/chat-store";
 import { useProjectStore } from "@/store/project-store";
 import { useRenderQueueStore } from "@/store/render-queue-store";
 import { totalDurationSeconds } from "@/lib/scene-schema";
-import { getWorkflow } from "@/lib/workflows/registry";
 
 const Preview = dynamic(
   () => import("@/components/editor/Preview").then((m) => m.Preview),
@@ -60,7 +57,6 @@ export default function Home() {
   const queueCount = useRenderQueueStore((s) => s.items.length);
   const toggleQueue = useRenderQueueStore((s) => s.togglePanel);
   const dur = totalDurationSeconds(project.scenes);
-  const workflow = getWorkflow(project.workflowId);
 
   // Chat-first: the modal picker no longer auto-opens. The chat sidebar's
   // empty state shows workflow cards inline. The picker is still reachable
@@ -69,7 +65,6 @@ export default function Home() {
   // Always start `true` so SSR and first client render agree. A post-mount
   // effect collapses the sidebar on narrow screens — avoids hydration mismatch.
   const [chatOpen, setChatOpen] = useState(true);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   // First-run landing: show ProjectHome instead of the editor when the user
   // hasn't engaged yet (current project is empty + never dismissed).
   const [homeDismissed, setHomeDismissed] = useState(false);
@@ -241,18 +236,6 @@ export default function Home() {
               </summary>
               <SceneToolsPanel />
               <ConfigTabs />
-              {advancedOpen && (
-                <div className="border-t border-neutral-800">
-                  <WorkflowInputs workflow={workflow} />
-                  {workflow.id === "commentary" && <ClipTrimPanel slotId="clips" />}
-                </div>
-              )}
-              <button
-                onClick={() => setAdvancedOpen((v) => !v)}
-                className="w-full px-4 py-1.5 text-[10px] text-neutral-600 hover:text-neutral-300 border-t border-neutral-800 text-left"
-              >
-                {advancedOpen ? "Hide" : "Show"} workflow inputs
-              </button>
             </details>
           </div>
         )}

@@ -174,7 +174,7 @@ export function ChatSidebar({
             const mode = st.bridge
               ? `file-bridge (${st.pending} pending)`
               : st.isProxied
-                ? `proxy → ${st.baseUrl}`
+                ? `proxy → ${st.baseUrl}${st.upstreamReachable === false ? " (UNREACHABLE)" : ""}`
                 : "direct Anthropic API";
             toast(`Backend: ${mode}`, {
               description: st.hasAnthropicKey

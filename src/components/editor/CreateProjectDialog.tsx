@@ -73,7 +73,16 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
     try {
       // 1. Create the project + apply name/orientation/prompt.
       const id = createProject();
-      if (name.trim()) renameProject(name.trim());
+      const finalName =
+        name.trim() ||
+        goal
+          .trim()
+          .split(/\s+/)
+          .slice(0, 6)
+          .join(" ")
+          .replace(/[,.?!]+$/, "")
+          .slice(0, 60);
+      if (finalName) renameProject(finalName);
       if (orientation !== "landscape") setOrientation(orientation);
       if (goal.trim()) setSystemPrompt(goal.trim());
       void id;

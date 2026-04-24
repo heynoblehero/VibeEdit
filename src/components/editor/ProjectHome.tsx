@@ -153,7 +153,7 @@ export function ProjectHome({
         <div className="w-full max-w-lg flex flex-col gap-2">
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase tracking-wider text-neutral-500">
-              Your projects
+              Your projects · {list.length}
             </span>
             {Object.keys(projects).length >= 5 && (
               <div className="flex-1 relative">

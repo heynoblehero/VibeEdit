@@ -6,10 +6,13 @@ interface Status {
   bridge: boolean;
   hasAnthropicKey: boolean;
   pending: number;
+  isProxied?: boolean;
+  baseUrl?: string | null;
 }
 
 // Polls /api/bridge/status every 2s. Shows a tiny dot in the header:
 //   green steady   → real API mode, key set
+//   sky steady     → via Claude Max / custom proxy (ANTHROPIC_BASE_URL set)
 //   amber steady   → bridge mode, queue empty
 //   amber pulse    → bridge mode, N requests pending
 //   red steady     → bridge mode, no key — misconfigured
@@ -38,13 +41,22 @@ export function BridgeIndicator() {
   if (!s) return null;
   const bridge = s.bridge;
   const pending = s.pending;
-  const color = bridge ? (pending > 0 ? "bg-amber-400" : "bg-amber-500/70") : "bg-emerald-500";
+  const proxied = !bridge && !!s.isProxied;
+  const color = bridge
+    ? pending > 0
+      ? "bg-amber-400"
+      : "bg-amber-500/70"
+    : proxied
+      ? "bg-sky-500"
+      : "bg-emerald-500";
   const pulse = bridge && pending > 0 ? "animate-pulse" : "";
   const label = bridge
     ? pending > 0
       ? `Bridge · ${pending} pending`
       : "Bridge · idle"
-    : "Anthropic API";
+    : proxied
+      ? "via Claude Max"
+      : "Anthropic API";
   return (
     <span
       title={label}

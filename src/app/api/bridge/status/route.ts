@@ -21,9 +21,15 @@ export async function GET() {
     countFiles(path.join(root, "done")),
     countFiles(path.join(root, "error")),
   ]);
+  const baseUrl = process.env.ANTHROPIC_BASE_URL;
+  // "via Claude Max" when the upstream isn't api.anthropic.com — lets the UI
+  // show the user the proxy is being used.
+  const isProxied = !!baseUrl && !/api\.anthropic\.com/i.test(baseUrl);
   return Response.json({
     bridge,
     hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+    baseUrl: baseUrl ?? null,
+    isProxied,
     pending,
     done,
     errors,

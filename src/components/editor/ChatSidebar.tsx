@@ -647,7 +647,7 @@ export function ChatSidebar({
                 : "What next? (try / for commands)"
           }
           disabled={isStreaming}
-          rows={input.includes("\n") ? 3 : 1}
+          rows={Math.min(8, Math.max(1, input.split("\n").length))}
           className="flex-1 bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-[13px] text-white resize-none focus:outline-none focus:border-emerald-500 placeholder:text-neutral-600"
         />
         {isStreaming ? (

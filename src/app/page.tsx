@@ -73,6 +73,9 @@ export default function Home() {
   // First-run landing: show ProjectHome instead of the editor when the user
   // hasn't engaged yet (current project is empty + never dismissed).
   const [homeDismissed, setHomeDismissed] = useState(false);
+  // Layout: users can collapse the scene list / editor panels for focused work.
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
   const chatHasMessages = useChatStore((s) => s.messages.length > 0);
   const agentStreaming = useChatStore((s) => s.isStreaming);
   const showHome =
@@ -219,8 +222,15 @@ export default function Home() {
         <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
         {/* Left: scene list + tools — hidden until scenes exist so the empty
             state is just chat + preview (way less busy). */}
-        {project.scenes.length > 0 && (
-          <div className="w-80 flex flex-col border-r border-neutral-800 shrink-0 overflow-hidden">
+        {project.scenes.length > 0 && !leftCollapsed && (
+          <div className="w-80 flex flex-col border-r border-neutral-800 shrink-0 overflow-hidden relative">
+            <button
+              onClick={() => setLeftCollapsed(true)}
+              title="Collapse scene list"
+              className="absolute top-1 right-1 z-10 text-[10px] text-neutral-600 hover:text-white px-1"
+            >
+              ‹
+            </button>
             <div className="flex-1 overflow-y-auto">
               <SceneList />
             </div>
@@ -247,6 +257,17 @@ export default function Home() {
           </div>
         )}
 
+        {/* A tiny "show scene list" tab when the left column is collapsed. */}
+        {project.scenes.length > 0 && leftCollapsed && (
+          <button
+            onClick={() => setLeftCollapsed(false)}
+            title="Show scene list"
+            className="shrink-0 px-1 border-r border-neutral-800 text-neutral-500 hover:text-white hover:bg-neutral-900 text-xs"
+          >
+            ›
+          </button>
+        )}
+
         {/* Center: preview. Click the padding area (not the player) to
             deselect the current scene and go back to the full-video view. */}
         <div
@@ -263,14 +284,35 @@ export default function Home() {
         </div>
 
         {/* Right: scene editor — only when a scene is selected */}
-        {selectedSceneId && project.scenes.some((s) => s.id === selectedSceneId) && (
-          <div
-            data-scene-editor
-            className="w-72 border-l border-neutral-800 shrink-0 overflow-y-auto"
-          >
-            <SceneEditor />
-          </div>
-        )}
+        {selectedSceneId &&
+          project.scenes.some((s) => s.id === selectedSceneId) &&
+          !rightCollapsed && (
+            <div
+              data-scene-editor
+              className="w-72 border-l border-neutral-800 shrink-0 overflow-y-auto relative"
+            >
+              <button
+                onClick={() => setRightCollapsed(true)}
+                title="Collapse scene editor"
+                className="absolute top-1 left-1 z-10 text-[10px] text-neutral-600 hover:text-white px-1"
+              >
+                ›
+              </button>
+              <SceneEditor />
+            </div>
+          )}
+        {/* Tab to restore the scene editor when it was manually collapsed. */}
+        {selectedSceneId &&
+          project.scenes.some((s) => s.id === selectedSceneId) &&
+          rightCollapsed && (
+            <button
+              onClick={() => setRightCollapsed(false)}
+              title="Show scene editor"
+              className="shrink-0 px-1 border-l border-neutral-800 text-neutral-500 hover:text-white hover:bg-neutral-900 text-xs"
+            >
+              ‹
+            </button>
+          )}
       </div>
       )}
 

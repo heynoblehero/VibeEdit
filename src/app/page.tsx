@@ -101,9 +101,30 @@ export default function Home() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  // Layout: users can collapse the scene list / editor panels for focused work.
-  const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(false);
+  // Layout: users can collapse the scene list / editor panels for focused
+  // work. Persisted to localStorage so preference survives reloads.
+  const [leftCollapsed, setLeftCollapsedState] = useState(false);
+  const [rightCollapsed, setRightCollapsedState] = useState(false);
+  const setLeftCollapsed = (v: boolean) => {
+    setLeftCollapsedState(v);
+    try {
+      window.localStorage.setItem("vibeedit:left-collapsed", String(v));
+    } catch {}
+  };
+  const setRightCollapsed = (v: boolean) => {
+    setRightCollapsedState(v);
+    try {
+      window.localStorage.setItem("vibeedit:right-collapsed", String(v));
+    } catch {}
+  };
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("vibeedit:left-collapsed") === "true")
+        setLeftCollapsedState(true);
+      if (window.localStorage.getItem("vibeedit:right-collapsed") === "true")
+        setRightCollapsedState(true);
+    } catch {}
+  }, []);
   const chatHasMessages = useChatStore((s) => s.messages.length > 0);
   const agentStreaming = useChatStore((s) => s.isStreaming);
   const showHome =

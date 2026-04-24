@@ -51,6 +51,17 @@ export function KeyboardShortcuts() {
         return;
       }
 
+      if (e.key === "g" && !mod && !isTextInput(e.target) && scenes.length > 0) {
+        e.preventDefault();
+        selectScene(scenes[0].id);
+        return;
+      }
+      if (e.key === "G" && !isTextInput(e.target) && scenes.length > 0) {
+        e.preventDefault();
+        selectScene(scenes[scenes.length - 1].id);
+        return;
+      }
+
       if (e.key.toLowerCase() === "n" && !mod && !e.shiftKey && !isTextInput(e.target)) {
         e.preventDefault();
         document

@@ -113,6 +113,29 @@ server, including the Claude-Code bridge.
 `ios/` and `android/` dirs are gitignored while scaffolding; commit them
 once you're ready to ship to the stores.
 
+## How it's deployed
+
+Production runs on **dokku** on a Linode box at `172.104.41.101`, fronted
+by nginx + HTTPS. Two dokku apps:
+
+| App | Role | URL |
+|---|---|---|
+| `vibeedit` | the Next.js app — this repo | https://vibevideoedit.com |
+| `cliproxy` | a CLIProxyAPI container that talks to Claude via OAuth | http://cliproxy.172.104.41.101.sslip.io |
+
+VibeEdit's `ANTHROPIC_BASE_URL` points at the cliproxy URL, so all Claude
+traffic is routed through a single Claude Code OAuth session on the
+server — zero per-token API spend in dev.
+
+**One-liner deploys:**
+
+```bash
+./scripts/deploy.sh               # pushes master → GitHub + dokku
+./scripts/deploy.sh --with-proxy  # also redeploys cliproxy from docker/cliproxy/
+```
+
+See `docker/cliproxy/README.md` for the OAuth bootstrap steps.
+
 ## Architecture
 
 - `src/app/api/*` — route handlers (agent, render queue, TTS, Whisper, image gen, Stripe, auth)

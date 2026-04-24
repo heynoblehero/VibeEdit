@@ -545,23 +545,13 @@ export function ChatSidebar({
                 What do you want to make?
               </span>
               <span className="text-[11px] text-neutral-500">
-                Describe it. The agent picks the right workflow and does the editing.
+                Type below. Or use the Create Project dialog on the home page
+                if you want to upload assets and set instructions first.
               </span>
             </div>
-            <button
-              onClick={() =>
-                send(
-                  "Surprise me. Pick a fun workflow and make a fully-narrated 60s demo video.",
-                )
-              }
-              disabled={isStreaming}
-              className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-amber-500 to-pink-500 hover:from-amber-400 hover:to-pink-400 text-white text-xs font-semibold py-2 rounded transition-colors disabled:opacity-50"
-            >
-              🎲 Surprise me
-            </button>
             <div className="flex flex-col gap-1">
               <span className="text-[10px] uppercase tracking-wider text-neutral-600">
-                Or try one of these
+                Example prompts
               </span>
               {[
                 "Make a 60s TikTok about morning routines for coders",

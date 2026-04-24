@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { totalDurationSeconds } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
+import { CreateProjectDialog } from "./CreateProjectDialog";
 
 // Shown when the user has no content in the current project AND there's
 // either only one empty project or no meaningful work yet. Replaces the
@@ -49,6 +50,7 @@ export function ProjectHome({
   };
 
   const [query, setQuery] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
 
   const list = Object.values(projects)
     .map((p) => ({
@@ -59,7 +61,9 @@ export function ProjectHome({
     .filter((p) => (query ? p.name.toLowerCase().includes(query.toLowerCase()) : true))
     .sort((a, b) => (a.name === "Draft" ? 1 : b.name === "Draft" ? -1 : 0));
 
-  const handleNew = () => {
+  const handleNew = () => setCreateOpen(true);
+
+  const handleQuickNew = () => {
     createProject();
     onStart();
     toast.success("New project", { duration: 800 });
@@ -107,27 +111,36 @@ export function ProjectHome({
           className="flex items-center justify-center gap-2 w-full bg-emerald-500 hover:bg-emerald-400 text-black font-semibold px-6 py-3 rounded-lg transition-colors"
         >
           <FolderPlus className="h-5 w-5" />
-          Start a new video
+          Create a new project
         </button>
-        <button
-          onClick={async () => {
-            createProject();
-            onStart();
-            // Give page.tsx time to swap to editor before firing the chat send.
-            setTimeout(async () => {
-              const { useChatStore } = await import("@/store/chat-store");
-              useChatStore
-                .getState()
-                .addUserMessage(
-                  "Surprise me. Pick a fun workflow and make a fully-narrated 60s demo video.",
-                );
-              document.querySelector<HTMLFormElement>("aside form")?.requestSubmit();
-            }, 50);
-          }}
-          className="flex items-center justify-center gap-2 w-full text-xs text-neutral-500 hover:text-white transition-colors"
-        >
-          🎲 or surprise me
-        </button>
+        <div className="flex items-center gap-3 text-[11px] text-neutral-600">
+          <button
+            onClick={handleQuickNew}
+            className="hover:text-neutral-300 underline decoration-dotted underline-offset-2"
+          >
+            or skip the setup (blank project)
+          </button>
+          <span className="text-neutral-800">·</span>
+          <button
+            onClick={async () => {
+              createProject();
+              onStart();
+              setTimeout(async () => {
+                const { useChatStore } = await import("@/store/chat-store");
+                useChatStore
+                  .getState()
+                  .addUserMessage(
+                    "Surprise me. Pick a fun workflow and make a fully-narrated 60s demo video.",
+                  );
+                document.querySelector<HTMLFormElement>("aside form")?.requestSubmit();
+              }, 50);
+            }}
+            className="hover:text-neutral-300"
+            title="Random demo video"
+          >
+            🎲 surprise me
+          </button>
+        </div>
       </div>
 
       {(list.length > 0 || query) && (
@@ -185,6 +198,15 @@ export function ProjectHome({
           ))}
         </div>
       )}
+
+      <CreateProjectDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => {
+          setCreateOpen(false);
+          onStart();
+        }}
+      />
     </div>
   );
 }

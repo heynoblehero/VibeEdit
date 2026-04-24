@@ -89,7 +89,27 @@ export function SceneList() {
   return (
     <div className="flex flex-col gap-1 p-2">
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[10px] text-neutral-500 font-mono">
+        <span
+          className="text-[10px] font-mono"
+          style={{
+            // Short-form sweet spot is 15-60s. Color-hint when we're outside.
+            color:
+              project.scenes.length === 0
+                ? "#525252"
+                : totalSec < 10
+                  ? "#f87171"
+                  : totalSec > 90
+                    ? "#fbbf24"
+                    : "#10b981",
+          }}
+          title={
+            totalSec < 10
+              ? "Very short — may feel abrupt"
+              : totalSec > 90
+                ? "Long for short-form — consider trimming"
+                : "Good short-form runtime"
+          }
+        >
           {project.scenes.length > 0
             ? `${project.scenes.length} · ${totalSec.toFixed(1)}s`
             : "scenes"}

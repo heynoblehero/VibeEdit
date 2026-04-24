@@ -110,6 +110,19 @@ export function SceneCard({ scene, index }: SceneCardProps) {
           <span className="text-xs font-medium text-white truncate">
             {scene.emphasisText || scene.text || scene.type}
           </span>
+          {scene.voiceover?.audioUrl && (
+            <span
+              className="text-[9px]"
+              title="Has voiceover"
+            >
+              🎙
+            </span>
+          )}
+          {scene.background?.videoUrl && (
+            <span className="text-[9px]" title="Has video background">
+              🎬
+            </span>
+          )}
         </div>
       </div>
       <span

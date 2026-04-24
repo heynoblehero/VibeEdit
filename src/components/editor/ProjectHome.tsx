@@ -91,6 +91,7 @@ export function ProjectHome({
       className={`flex flex-col items-center justify-center h-full overflow-y-auto px-8 py-12 gap-8 ${
         dragOver ? "ring-2 ring-inset ring-emerald-400/60" : ""
       }`}
+    >
       <div className="flex flex-col items-center gap-2 max-w-lg text-center">
         <Sparkles className="h-8 w-8 text-emerald-400" />
         <h1 className="text-2xl font-semibold text-white">VibeEdit</h1>

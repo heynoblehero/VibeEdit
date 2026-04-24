@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased — polish pass #6
+
+Simplification + shortcuts sweep. ProjectHome, timeline drag-resize/reorder,
+avatar scaffold landed earlier in the session; this pass is UX debt.
+
+- ProjectHome: 🎲 surprise me, drop a .vibeedit file to import, filter box
+  after 5+ projects.
+- Cmd/Ctrl+K now toggles the chat (was open-only). Click the VibeEdit logo
+  to go back to ProjectHome; double-click for shortcuts.
+- Shortcuts: `N` = new blank scene, `g` / `Shift+G` = first / last scene.
+- Chat: empty-state footer hint, streaming indicator names the running
+  tool, textarea grows 1-8 rows to match input.
+- Scene editor: quick-pick accent palette + "apply to all" + right-click
+  swatch to copy hex + × close button.
+- Scene cards: 🎙 / 🎬 pills when voiceover / video bg is attached.
+- SceneList: click the count header to select all.
+- Bridge: /api/bridge/status probes the upstream (1.5s) so the header
+  indicator turns red+pulsing when the proxy is unreachable. /status
+  command flags it inline.
+- Undo/Redo tooltips report step count.
+
 ## Unreleased — polish pass #5
 
 Live-in-production sweep. vibevideoedit.com now runs on dokku with a

@@ -13,10 +13,24 @@ interface PunchTextProps {
   fontWeight?: number;
 }
 
+// Rough overflow-aware sizing. Frame ~1080px wide on portrait, 1920 on
+// landscape; we don't know orientation here, so target a safe ~960px
+// effective text-area and shrink fontSize when char-count would push
+// the longest word past it. Measures characters at ~0.55 × fontSize per
+// char (decent for system-ui condensed weight 800+).
+function clampFontSize(text: string, requested: number, frameWidth: number): number {
+  const longest = Math.max(...text.split(/\s+/).map((w) => w.length));
+  if (longest === 0) return requested;
+  const safeWidth = frameWidth * 0.88;
+  const px = longest * requested * 0.55;
+  if (px <= safeWidth) return requested;
+  return Math.max(28, Math.floor((safeWidth / (longest * 0.55))));
+}
+
 export const PunchText: React.FC<PunchTextProps> = ({
   text,
   startFrame = 0,
-  fontSize = 72,
+  fontSize: requestedFontSize = 72,
   color = "white",
   glowColor,
   x = "center",
@@ -25,7 +39,8 @@ export const PunchText: React.FC<PunchTextProps> = ({
   fontWeight = 800,
 }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width } = useVideoConfig();
+  const fontSize = clampFontSize(text, requestedFontSize, width);
   const words = text.split(" ");
 
   return (

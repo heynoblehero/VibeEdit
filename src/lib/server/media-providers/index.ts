@@ -74,14 +74,20 @@ export async function generateImage(req: ImageRequest): Promise<MediaResult> {
 
   if (model.provider === "pollinations") {
     // Free, keyless. URL-based: GET /prompt/<encoded>?width=&height=&nologo=true
+    // Native render res (1920x1080 / 1080x1920 / 1024x1024) — match the
+    // canvas so we don't upscale a thumbnail. Use Flux model on
+    // Pollinations for quality (it's the best free option they expose).
+    // Random seed per call so the same prompt across scenes diversifies.
     const w =
       req.aspectRatio === "9:16"
-        ? 768
+        ? 1080
         : req.aspectRatio === "1:1"
           ? 1024
-          : 1280;
-    const h = req.aspectRatio === "9:16" ? 1280 : req.aspectRatio === "1:1" ? 1024 : 720;
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(req.prompt)}?width=${w}&height=${h}&nologo=true`;
+          : 1920;
+    const h =
+      req.aspectRatio === "9:16" ? 1920 : req.aspectRatio === "1:1" ? 1024 : 1080;
+    const seed = Math.floor(Math.random() * 1_000_000);
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(req.prompt)}?width=${w}&height=${h}&nologo=true&model=flux&seed=${seed}&enhance=true`;
     // Pollinations supports HEAD-style verification but most clients just
     // hand the URL out — the renderer will fetch it on demand. We do a
     // single GET so we know it's reachable + cached server-side.

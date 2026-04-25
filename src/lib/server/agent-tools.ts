@@ -753,7 +753,13 @@ const TOOLS: Record<string, AgentTool> = {
       const id = String(args.id);
       const list = ctx.project.taskList ?? [];
       const t = list.find((x) => x.id === id);
-      if (!t) return { ok: false, message: `no task ${id}` };
+      if (!t) {
+        const known = list.map((x) => x.id).join(", ") || "(empty)";
+        return {
+          ok: false,
+          message: `no task '${id}'. Known ids: ${known}. Use the t-prefixed id from taskCreate.`,
+        };
+      }
       if (args.status) t.status = String(args.status) as VideoTask["status"];
       if (typeof args.notes === "string") t.notes = String(args.notes);
       ctx.project.taskList = list;

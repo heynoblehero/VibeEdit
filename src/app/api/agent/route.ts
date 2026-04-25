@@ -201,7 +201,13 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "project required" }, { status: 400 });
   }
 
-  const origin = request.nextUrl.origin;
+  // Self-loopback: when an agent tool calls /api/foo via fetch(`${origin}/api/foo`),
+  // we MUST hit ourselves on localhost — going out to the public hostname
+  // and back through nginx fails inside dokku containers. Production logs
+  // showed every generateImageForScene + narrateScene returning
+  // "fetch failed" because of this.
+  const port = process.env.PORT ?? "3000";
+  const origin = `http://localhost:${port}`;
   // Deep-copy the project so we can mutate safely per-request.
   const project: Project = JSON.parse(JSON.stringify(body.project));
 

@@ -439,14 +439,15 @@ const TOOLS: Record<string, AgentTool> = {
     schema: {
       name: "narrateScene",
       description:
-        "Generate a voiceover for a single scene using the project's active voice. Requires OPENAI_API_KEY on the server. Non-blocking — attaches voiceover metadata and extends scene duration to fit.",
+        "Generate a voiceover for a single scene. Pick a voice from the catalog by id (e.g. openai-onyx for deep male, 11labs-rachel for premium female narrative). Omit voiceId for the default (openai-nova). Extends scene duration to fit the audio.",
       input_schema: {
         type: "object",
         properties: {
           sceneId: { type: "string" },
-          voice: {
+          voiceId: {
             type: "string",
-            description: "Optional OpenAI voice name override (alloy/echo/fable/onyx/nova/shimmer).",
+            description:
+              "Voice id from the catalog. Examples: openai-nova, openai-onyx, openai-shimmer, openai-fable, 11labs-rachel, 11labs-adam.",
           },
         },
         required: ["sceneId"],
@@ -462,25 +463,37 @@ const TOOLS: Record<string, AgentTool> = {
         .join(" ")
         .trim();
       if (!text) return { ok: false, message: `scene ${sceneId} has no text to narrate` };
-      const voice = String(args.voice ?? "alloy");
+      const { getVoice, defaultVoiceId } = await import(
+        "@/lib/server/voice-providers/models"
+      );
+      const voiceId = String(args.voiceId ?? args.voice ?? defaultVoiceId());
+      const v = getVoice(voiceId);
+      if (!v) return { ok: false, message: `unknown voice id: ${voiceId}` };
       try {
         const res = await fetch(`${ctx.origin}/api/voiceover`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, voice }),
+          body: JSON.stringify(
+            v.provider === "elevenlabs"
+              ? { text, elevenLabsVoiceId: v.voiceParam }
+              : { text, voice: v.voiceParam },
+          ),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? `voiceover failed (${res.status})`);
         scene.voiceover = {
           audioUrl: data.audioUrl,
           audioDurationSec: data.audioDurationSec,
-          provider: "openai",
-          voice,
+          provider: v.provider === "elevenlabs" ? "elevenlabs" : "openai",
+          voice: v.voiceParam,
           text,
         };
         scene.duration = Math.max(scene.duration, data.audioDurationSec + 0.3);
         ctx.project.scenes = ctx.project.scenes.map((s, i) => (i === idx ? scene : s));
-        return { ok: true, message: `narrated scene ${sceneId} (${data.audioDurationSec.toFixed(1)}s)` };
+        return {
+          ok: true,
+          message: `narrated scene ${sceneId} with ${v.name} (${data.audioDurationSec.toFixed(1)}s)`,
+        };
       } catch (e) {
         return {
           ok: false,

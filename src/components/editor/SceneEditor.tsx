@@ -9,6 +9,7 @@ import { useProjectStore } from "@/store/project-store";
 import type { EnterDirection, Scene } from "@/lib/scene-schema";
 import { getWorkflow } from "@/lib/workflows/registry";
 import { BRollPanel } from "./BRollPanel";
+import { MediaModelPicker } from "./MediaModelPicker";
 
 const DIRECTIONS: EnterDirection[] = ["left", "right", "bottom", "scale"];
 
@@ -377,6 +378,7 @@ function BackgroundPanel({ scene, update }: { scene: Scene; update: (p: Partial<
 
       {mode === "image" && (
         <>
+          <MediaModelPicker sceneId={scene.id} kind="image" />
           <Field label="Image URL">
             <input
               type="text"
@@ -409,6 +411,7 @@ function BackgroundPanel({ scene, update }: { scene: Scene; update: (p: Partial<
 
       {mode === "video" && (
         <>
+          <MediaModelPicker sceneId={scene.id} kind="video" />
           <Field label="Video URL">
             <input
               type="text"

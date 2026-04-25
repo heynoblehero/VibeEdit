@@ -16,17 +16,50 @@
 
 import path from "node:path";
 import fs from "node:fs";
+import crypto from "node:crypto";
 
 function dataDir(): string {
   return process.env.VIBEEDIT_DATA_DIR || path.join(process.cwd(), "public");
 }
 
-export function storageDir(subdir: "uploads" | "voiceovers" | "ai-images" | "music"): string {
+// Per-subdir health cache so we don't write the canary on every call.
+const verified = new Set<string>();
+
+/**
+ * Returns the absolute path to a storage subdir. The first call per
+ * subdir per process verifies the directory is actually writable AND
+ * readable by writing a tiny canary file and reading it back. If that
+ * round-trip fails (volume not mounted, permissions wrong, disk full),
+ * we throw immediately with a clear message — better than the previous
+ * silent-success-then-files-missing failure mode.
+ */
+export function storageDir(
+  subdir: "uploads" | "voiceovers" | "ai-images" | "music",
+): string {
   const dir = path.join(dataDir(), subdir);
   try {
     fs.mkdirSync(dir, { recursive: true });
   } catch {
     // exists
+  }
+  if (!verified.has(dir)) {
+    const canaryName = `.canary-${crypto.randomBytes(4).toString("hex")}`;
+    const canaryPath = path.join(dir, canaryName);
+    try {
+      fs.writeFileSync(canaryPath, "ok");
+      const back = fs.readFileSync(canaryPath, "utf8");
+      if (back !== "ok") {
+        throw new Error(`canary mismatch in ${dir}`);
+      }
+      fs.unlinkSync(canaryPath);
+      verified.add(dir);
+    } catch (e) {
+      throw new Error(
+        `Storage dir ${dir} is not writable+readable: ${
+          e instanceof Error ? e.message : String(e)
+        }. Check VIBEEDIT_DATA_DIR + dokku storage mount.`,
+      );
+    }
   }
   return dir;
 }

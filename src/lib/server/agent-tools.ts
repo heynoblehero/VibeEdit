@@ -1210,6 +1210,57 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  scoreHook: {
+    schema: {
+      name: "scoreHook",
+      description:
+        "Heuristic 0-100 score for how strong scene 1 is as a hook. Checks: opens with question/contrarian/promise/numbered/POV/shock/story/quote/stat words, has a real visual asset, has zoomPunch on, and runs 3-4 seconds. Use after creating scene 1 — if score < 60, rewrite the hook before continuing.",
+      input_schema: { type: "object", properties: {} },
+    },
+    async execute(_args, ctx) {
+      const first = ctx.project.scenes[0];
+      if (!first) return { ok: false, message: "no scenes yet" };
+      const text = (first.text ?? first.emphasisText ?? first.voiceover?.text ?? "").trim();
+      let score = 0;
+      const reasons: string[] = [];
+      const lower = text.toLowerCase();
+      const hookPatterns: Array<{ name: string; rx: RegExp }> = [
+        { name: "question", rx: /^(what|why|how|who|where|when|did|do|are|is|can|could)\b/i },
+        { name: "contrarian", rx: /\b(everyone|most people|nobody)\b.*\b(wrong|miss|don't|doesn't)\b/i },
+        { name: "promise", rx: /\b(by the end|i'll show|you'll learn|in \d+\s*(min|sec))\b/i },
+        { name: "numbered", rx: /^\d+\s+(things|ways|reasons|tips|signs)/i },
+        { name: "POV", rx: /^(you('re|'ve| are)|imagine|picture)\b/i },
+        { name: "shock", rx: /\b(\$\d|\d+%|\d+x)\b/ },
+        { name: "story", rx: /^(last|yesterday|when i|the day|three years ago)/i },
+        { name: "quote", rx: /^['"\u2018\u201c]/ },
+        { name: "stat", rx: /^\d{2,}/ },
+      ];
+      const matched = hookPatterns.filter((p) => p.rx.test(lower));
+      if (matched.length > 0) {
+        score += 35;
+        reasons.push(`hook pattern: ${matched.map((m) => m.name).join("/")}`);
+      } else {
+        reasons.push("no recognized hook pattern in opening text");
+      }
+      if (first.background?.imageUrl || first.background?.videoUrl) {
+        score += 25;
+      } else {
+        reasons.push("scene 1 has no real visual asset");
+      }
+      if (first.zoomPunch && first.zoomPunch >= 1.1) score += 15;
+      else reasons.push("no zoomPunch — feels flat");
+      if (first.duration >= 3 && first.duration <= 4) score += 15;
+      else reasons.push(`duration ${first.duration}s out of 3-4s sweet spot`);
+      if (text.length > 0 && text.length <= 80) score += 10;
+      else reasons.push(`hook text length ${text.length} chars (target ≤80)`);
+      const verdict = score >= 80 ? "✓ strong hook" : score >= 60 ? "⚠ usable but could be sharper" : "✗ weak hook — rewrite";
+      return {
+        ok: true,
+        message: `hook score ${score}/100 — ${verdict}\n${reasons.map((r) => `  · ${r}`).join("\n")}`,
+      };
+    },
+  },
+
   lintScript: {
     schema: {
       name: "lintScript",

@@ -1,5 +1,5 @@
 import React from "react";
-import { AbsoluteFill, Audio, Sequence } from "remotion";
+import { AbsoluteFill, Audio, Sequence, useCurrentFrame } from "remotion";
 import type { CaptionStyle, MusicBed, Scene } from "@/lib/scene-schema";
 import { sceneDurationFrames } from "@/lib/scene-schema";
 import { SceneRenderer } from "./SceneRenderer";
@@ -11,7 +11,40 @@ interface CompositionProps {
   sfx: Record<string, string>;
   music?: MusicBed;
   captionStyle?: CaptionStyle;
+  /** Subtle filmic grain overlay. Defaults on. */
+  filmGrain?: boolean;
 }
+
+const FilmGrain: React.FC = () => {
+  // Slowly shift the noise seed so the grain animates instead of looking
+  // like a static texture stuck to the lens.
+  const frame = useCurrentFrame();
+  const seed = Math.floor(frame / 2) % 1000;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        pointerEvents: "none",
+        mixBlendMode: "overlay",
+        opacity: 0.18,
+      }}
+    >
+      <svg width="100%" height="100%">
+        <filter id="grain">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.9"
+            numOctaves="2"
+            seed={seed}
+          />
+          <feColorMatrix type="saturate" values="0" />
+        </filter>
+        <rect width="100%" height="100%" filter="url(#grain)" />
+      </svg>
+    </div>
+  );
+};
 
 interface DuckingRange {
   from: number;
@@ -45,6 +78,7 @@ export const VideoComposition: React.FC<CompositionProps> = ({
   sfx,
   music,
   captionStyle,
+  filmGrain = true,
 }) => {
   let frameOffset = 0;
   const totalFrames = scenes.reduce(
@@ -103,6 +137,7 @@ export const VideoComposition: React.FC<CompositionProps> = ({
           pointerEvents: "none",
         }}
       />
+      {filmGrain && <FilmGrain />}
     </AbsoluteFill>
   );
 };

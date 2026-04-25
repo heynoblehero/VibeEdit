@@ -103,7 +103,8 @@ export function ProjectIO() {
     const a = document.createElement("a");
     a.href = url;
     const safeName = (project.name || "vibeedit").replace(/[^\w-]+/g, "_");
-    a.download = `${safeName}.vibeedit.json`;
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+    a.download = `${safeName}_${stamp}.vibeedit.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();

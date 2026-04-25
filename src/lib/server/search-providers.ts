@@ -9,6 +9,8 @@
  *   SERPER_API_KEY=...              # https://serper.dev
  */
 
+import { applyStoredKeys } from "./runtime-keys";
+
 export interface SearchResult {
   title: string;
   url: string;
@@ -85,6 +87,7 @@ class SerperProvider implements SearchProvider {
 }
 
 export function getSearchProvider(): SearchProvider {
+  applyStoredKeys();
   const id = (process.env.SEARCH_PROVIDER ?? "none").toLowerCase();
   switch (id) {
     case "tavily":

@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import crypto from "node:crypto";
 import type { NextRequest } from "next/server";
+import { applyStoredKeys } from "@/lib/server/runtime-keys";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -46,6 +47,7 @@ function estimateDurationSec(text: string, speed: number): number {
 }
 
 export async function POST(request: NextRequest) {
+  applyStoredKeys();
   const body = (await request.json()) as VoiceoverRequest;
   if (!body.text?.trim()) {
     return Response.json({ error: "text required" }, { status: 400 });

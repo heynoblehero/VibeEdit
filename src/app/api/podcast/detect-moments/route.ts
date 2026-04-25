@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import type { NextRequest } from "next/server";
 import { callClaude } from "@/lib/server/claude-bridge";
+import { applyStoredKeys } from "@/lib/server/runtime-keys";
 
 export const runtime = "nodejs";
 export const maxDuration = 600;
@@ -31,6 +32,7 @@ Pick moments with:
 Return candidates ranked by viral potential — best first. Emit via the emit_moments tool.`;
 
 export async function POST(request: NextRequest) {
+  applyStoredKeys();
   const openaiKey = process.env.OPENAI_API_KEY;
   if (!openaiKey) {
     return Response.json(

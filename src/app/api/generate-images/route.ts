@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import crypto from "node:crypto";
 import type { NextRequest } from "next/server";
+import { applyStoredKeys } from "@/lib/server/runtime-keys";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -29,6 +30,7 @@ function keyFor(prompt: string, size: string, style: string): string {
 }
 
 export async function POST(request: NextRequest) {
+  applyStoredKeys();
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return Response.json(

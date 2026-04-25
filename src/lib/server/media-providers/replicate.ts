@@ -3,6 +3,8 @@
  * returns the output URL(s). One env var: REPLICATE_API_TOKEN.
  */
 
+import { applyStoredKeys } from "../runtime-keys";
+
 interface Prediction {
   id: string;
   status: "starting" | "processing" | "succeeded" | "failed" | "canceled";
@@ -15,6 +17,7 @@ const POLL_INTERVAL_MS = 1500;
 const POLL_TIMEOUT_MS = 5 * 60 * 1000;
 
 async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
+  applyStoredKeys();
   const token = process.env.REPLICATE_API_TOKEN;
   if (!token) throw new Error("REPLICATE_API_TOKEN not set");
   const res = await fetch(url, {

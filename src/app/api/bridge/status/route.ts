@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { isBridgeMode } from "@/lib/server/claude-bridge";
+import { applyStoredKeys } from "@/lib/server/runtime-keys";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,7 @@ async function countFiles(dir: string): Promise<number> {
 }
 
 export async function GET() {
+  applyStoredKeys();
   const bridge = isBridgeMode();
   const root = path.join(process.cwd(), ".ai-bridge");
   const [pending, done, errors] = await Promise.all([

@@ -12,6 +12,8 @@
  *   AVATAR_DEFAULT_PORTRAIT_URL=   # fallback face when no image is uploaded
  */
 
+import { applyStoredKeys } from "./runtime-keys";
+
 export interface AvatarGenerationRequest {
   /** Public URL of the source portrait image. */
   imageUrl: string;
@@ -73,6 +75,7 @@ class FalProvider implements AvatarProvider {
 }
 
 export function getAvatarProvider(): AvatarProvider {
+  applyStoredKeys();
   const id = (process.env.AVATAR_PROVIDER ?? "none").toLowerCase();
   switch (id) {
     case "fal":

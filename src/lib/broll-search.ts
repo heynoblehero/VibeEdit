@@ -144,6 +144,11 @@ export interface SearchBundle {
 }
 
 export async function searchAllSources(query: string): Promise<SearchBundle> {
+  // applyStoredKeys lives in src/lib/server/runtime-keys.ts but broll-search
+  // can be imported from server-only routes — we do the dynamic import so
+  // client bundles don't drag in node:fs.
+  const { applyStoredKeys } = await import("./server/runtime-keys");
+  applyStoredKeys();
   const pexKey = process.env.PEXELS_API_KEY;
   const pixKey = process.env.PIXABAY_API_KEY;
   const tenKey = process.env.TENOR_API_KEY;

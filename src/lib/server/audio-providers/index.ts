@@ -7,6 +7,7 @@ import path from "node:path";
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { replicatePredict } from "../media-providers/replicate";
+import { applyStoredKeys } from "../runtime-keys";
 import { getAudioModel, defaultAudioModelId, type AudioKind } from "./models";
 
 export interface AudioRequest {
@@ -111,6 +112,7 @@ export async function generateAudio(
   kind: AudioKind,
   req: AudioRequest,
 ): Promise<AudioResult> {
+  applyStoredKeys();
   const id = req.modelId ?? defaultAudioModelId(kind);
   const model = getAudioModel(id);
   if (!model || model.kind !== kind) {

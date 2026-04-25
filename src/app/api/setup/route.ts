@@ -2,6 +2,8 @@
 // chat /setup command can tell the user exactly what to configure on
 // dokku (or in .env.local).
 
+import { applyStoredKeys } from "@/lib/server/runtime-keys";
+
 export const runtime = "nodejs";
 
 interface ProviderCheck {
@@ -12,6 +14,7 @@ interface ProviderCheck {
 }
 
 export async function GET() {
+  applyStoredKeys();
   const checks: ProviderCheck[] = [];
 
   // Anthropic / claude (always required for the agent itself).

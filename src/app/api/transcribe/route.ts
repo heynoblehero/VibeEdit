@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import type { NextRequest } from "next/server";
 import type { CaptionWord } from "@/lib/scene-schema";
+import { applyStoredKeys } from "@/lib/server/runtime-keys";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -17,6 +18,7 @@ interface WhisperWord {
 }
 
 export async function POST(request: NextRequest) {
+  applyStoredKeys();
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return Response.json(

@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import type { NextRequest } from "next/server";
+import { applyStoredKeys } from "@/lib/server/runtime-keys";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -38,6 +39,7 @@ export async function GET() {
 // Creates a cloned voice in ElevenLabs from an uploaded audio sample.
 // Multipart: file + name.
 export async function POST(request: NextRequest) {
+  applyStoredKeys();
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
     return Response.json(
@@ -89,6 +91,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  applyStoredKeys();
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
   if (!id) return Response.json({ error: "id required" }, { status: 400 });

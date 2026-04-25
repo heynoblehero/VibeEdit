@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { buildCinematicShortBrief } from "@/lib/agent-briefs";
 import type { Project } from "@/lib/scene-schema";
 import { useAssetStore } from "@/store/asset-store";
 import { useChatStore, type ChatMessage } from "@/store/chat-store";
@@ -173,21 +174,9 @@ export function ChatSidebar({
         // plan → research → assets → render → watch → score loop.
         const topic = arg.trim() || window.prompt("What's the video about? (1-2 sentences)") || "";
         if (!topic) return;
-        const brief =
-          `Make a cinematic ${useProjectStore.getState().project.height > useProjectStore.getState().project.width ? "9:16 short" : "16:9 piece"} about: ${topic}\n\n` +
-          `Run this loop autonomously, in order:\n` +
-          `1. writeNarrativeSpine(promise, stakes, reveal)\n` +
-          `2. researchTopic for the subject (visual references)\n` +
-          `3. planVideo with explicit shot list (mix ≥4 shotTypes, three-act distribution)\n` +
-          `4. For each shot: routeAsset → use upload OR stockSearch OR generateImageForScene\n` +
-          `5. narrateAllScenes\n` +
-          `6. generateMusicForProject\n` +
-          `7. Add 1-2 SFX beats\n` +
-          `8. selfCritique → fix top issues → videoQualityScore → loop until ≥75\n` +
-          `9. renderProject 1080p\n` +
-          `10. watchRenderedVideo + report any audio/visual issues\n` +
-          `Don't ask questions — pick defaults and ship.`;
-        const { useChatStore } = await import("@/store/chat-store");
+        const proj = useProjectStore.getState().project;
+        const orientation = proj.height > proj.width ? "portrait" : "landscape";
+        const brief = buildCinematicShortBrief({ topic, orientation });
         useChatStore.getState().addUserMessage(brief);
         toast("Cinematic short queued — agent running the full loop", { duration: 4000 });
         // Submit the chat form so the agent picks it up immediately.

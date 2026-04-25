@@ -4,6 +4,7 @@ import { Loader2, Paperclip, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useProjectStore } from "@/store/project-store";
+import { buildCinematicShortBrief, buildExpressBrief } from "@/lib/agent-briefs";
 
 interface Props {
   open: boolean;
@@ -36,6 +37,9 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
   const [assets, setAssets] = useState<PendingAsset[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [creating, setCreating] = useState(false);
+  // Default ON: kicks the autonomous spine→plan→render→watch loop. Toggle
+  // OFF for "express mode" where the agent just runs the raw goal text.
+  const [cinematicMode, setCinematicMode] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
   const goalRef = useRef<HTMLTextAreaElement>(null);
 
@@ -119,17 +123,19 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
       //    start acting immediately after we land on the editor.
       const { useChatStore } = await import("@/store/chat-store");
       const chat = useChatStore.getState();
-      const lines: string[] = [];
-      if (goal.trim()) lines.push(goal.trim());
-      if (uploaded.length > 0) {
-        lines.push("\nI've uploaded these assets:");
-        for (const u of uploaded) {
-          lines.push(`- ${u.name} (${u.type || "file"}) at ${u.url}`);
-        }
-        lines.push("Use them in the right places.");
-      }
-      if (lines.length > 0) {
-        chat.addUserMessage(lines.join("\n"));
+      const trimmedGoal = goal.trim();
+      if (trimmedGoal) {
+        const brief = cinematicMode
+          ? buildCinematicShortBrief({
+              topic: trimmedGoal,
+              orientation,
+              uploads: uploaded,
+            })
+          : buildExpressBrief({ topic: trimmedGoal, uploads: uploaded });
+        chat.addUserMessage(brief);
+      } else if (uploaded.length > 0) {
+        // Goal-less project but with assets — at least surface them.
+        chat.addUserMessage(buildExpressBrief({ topic: "", uploads: uploaded }));
       }
 
       onCreated();
@@ -284,6 +290,21 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
           )}
         </div>
 
+        <div className="flex items-center gap-2 px-1 -mb-1">
+          <label className="flex items-center gap-2 cursor-pointer text-[11px] text-neutral-400 hover:text-white select-none">
+            <input
+              type="checkbox"
+              checked={cinematicMode}
+              onChange={(e) => setCinematicMode(e.target.checked)}
+              className="accent-emerald-500"
+            />
+            <span>
+              <span className="text-emerald-400 font-semibold">Cinematic mode</span>
+              <span className="text-neutral-500"> — autonomous spine → plan → research → render → watch loop. Off = express (just run the goal).</span>
+            </span>
+          </label>
+        </div>
+
         <div className="flex items-center gap-2 pt-1">
           <button
             onClick={onClose}
@@ -298,7 +319,7 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
             className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black font-semibold px-4 py-2 rounded transition-colors"
           >
             {creating && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create project
+            {cinematicMode ? "Create + auto-build video" : "Create project"}
           </button>
         </div>
       </div>

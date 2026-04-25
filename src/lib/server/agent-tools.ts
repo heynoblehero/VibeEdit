@@ -1210,6 +1210,48 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  extractBRollKeywords: {
+    schema: {
+      name: "extractBRollKeywords",
+      description:
+        "For each scene that has narration/text, extract 1-3 visual nouns that would make good B-roll search queries (people, places, objects, actions). Returns a per-scene mapping. Use BEFORE stockSearch / generateImageForScene to ground prompts in the scene's actual content instead of asking generically.",
+      input_schema: { type: "object", properties: {} },
+    },
+    async execute(_args, ctx) {
+      const STOPWORDS = new Set([
+        "the", "a", "an", "this", "that", "these", "those", "and", "or", "but",
+        "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
+        "do", "does", "did", "will", "would", "could", "should", "may", "might",
+        "you", "your", "i", "me", "my", "we", "our", "they", "them", "their",
+        "it", "its", "what", "which", "who", "when", "where", "how", "why",
+        "of", "in", "on", "at", "to", "for", "with", "from", "about", "by",
+        "so", "if", "then", "than", "as", "very", "really", "just", "also",
+      ]);
+      const out: Array<{ sceneId: string; keywords: string[] }> = [];
+      for (const s of ctx.project.scenes) {
+        const text = (s.voiceover?.text ?? s.text ?? s.emphasisText ?? "").trim();
+        if (!text) continue;
+        // Pull capitalized proper nouns first (they survive any lower-casing).
+        const proper = [...text.matchAll(/\b[A-Z][a-zA-Z]{2,}/g)]
+          .map((m) => m[0])
+          .filter((w, i, arr) => arr.indexOf(w) === i);
+        // Then non-stopword multi-letter tokens, ranked by length (longer = more concrete).
+        const tokens = text
+          .toLowerCase()
+          .split(/[^a-z]+/)
+          .filter((t) => t.length > 4 && !STOPWORDS.has(t));
+        const ranked = [...new Set(tokens)].sort((a, b) => b.length - a.length);
+        const keywords = [...proper, ...ranked].slice(0, 3);
+        if (keywords.length > 0) out.push({ sceneId: s.id, keywords });
+      }
+      if (out.length === 0) return { ok: true, message: "no narration/text to extract from" };
+      return {
+        ok: true,
+        message: out.map((o) => `${o.sceneId}: ${o.keywords.join(", ")}`).join("\n"),
+      };
+    },
+  },
+
   scoreHook: {
     schema: {
       name: "scoreHook",

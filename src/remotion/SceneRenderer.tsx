@@ -17,6 +17,7 @@ import { BarWipe, CornerBrackets, RevealBox } from "./components/graphics";
 import { BulletList } from "./components/BulletList";
 import { LowerThird } from "./components/LowerThird";
 import { QuoteBlock } from "./components/QuoteBlock";
+import { SlideTransition, ZoomBlur } from "./components/SlideTransition";
 import { GRAPHIC_MAP } from "./assets";
 import { bob } from "@/lib/anim";
 
@@ -281,6 +282,13 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       {s.transition === "beat_flash_colored" && (
         <BeatFlash hitFrame={0} color={s.transitionColor ?? "#10b981"} peakOpacity={0.25} />
       )}
+      {s.transition === "slide_left" && (
+        <SlideTransition direction="left" color={s.transitionColor} />
+      )}
+      {s.transition === "slide_right" && (
+        <SlideTransition direction="right" color={s.transitionColor} />
+      )}
+      {s.transition === "zoom_blur" && <ZoomBlur />}
 
       {sfxSrc && <Audio src={sfxSrc} startFrom={0} volume={0.7} />}
       {s.voiceover?.audioUrl && (

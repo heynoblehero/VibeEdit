@@ -177,7 +177,7 @@ export interface Scene {
   sfxId?: string;
   /** AI-generated SFX clip URL — overrides sfxId when present. */
   sceneSfxUrl?: string;
-  transition?: "beat_flash" | "beat_flash_colored" | "none";
+  transition?: "beat_flash" | "beat_flash_colored" | "none" | "slide_left" | "slide_right" | "zoom_blur";
   transitionColor?: string;
   shakeIntensity?: number;
   zoomPunch?: number;
@@ -258,7 +258,7 @@ export interface StylePack {
   emphasisColor: string;
   backgroundColor: string;
   vignette?: number;
-  transition?: "beat_flash" | "beat_flash_colored" | "none";
+  transition?: "beat_flash" | "beat_flash_colored" | "none" | "slide_left" | "slide_right" | "zoom_blur";
   zoomPunch?: number;
   shakeIntensity?: number;
   captionStyle?: Partial<CaptionStyle>;

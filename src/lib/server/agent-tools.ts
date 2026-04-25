@@ -579,7 +579,17 @@ const TOOLS: Record<string, AgentTool> = {
       const { getVoice, defaultVoiceId } = await import(
         "@/lib/server/voice-providers/models"
       );
-      const voiceId = String(args.voiceId ?? args.voice ?? defaultVoiceId());
+      // Workflow-aware voice default: when caller didn't pin one, pick a
+      // voice that matches the project's tone instead of the global default.
+      const wfVoiceMap: Record<string, string> = {
+        commentary: "openai-onyx",
+        review: "openai-nova",
+        faceless: "openai-fable",
+        shorts: "openai-shimmer",
+        "ai-animated": "openai-alloy",
+      };
+      const wf = ctx.project.workflowId ?? "blank";
+      const voiceId = String(args.voiceId ?? args.voice ?? wfVoiceMap[wf] ?? defaultVoiceId());
       const v = getVoice(voiceId);
       if (!v) return { ok: false, message: `unknown voice id: ${voiceId}` };
       try {

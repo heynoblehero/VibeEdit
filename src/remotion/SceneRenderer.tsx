@@ -11,6 +11,7 @@ import { ZoomPunch } from "./components/ZoomPunch";
 import { Captions } from "./components/Captions";
 import { LensFlare } from "./components/LensFlare";
 import { Montage } from "./components/Montage";
+import { StatBlock } from "./components/StatBlock";
 import { GRAPHIC_MAP } from "./assets";
 import { bob } from "@/lib/anim";
 
@@ -87,6 +88,9 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
     >
       {s.type === "montage" && s.montageUrls && s.montageUrls.length > 0 && (
         <Montage urls={s.montageUrls} />
+      )}
+      {s.type === "stat" && s.statValue && (
+        <StatBlock value={s.statValue} label={s.statLabel} color={s.statColor} />
       )}
       {s.type === "split" && (s.splitLeftUrl || s.splitRightUrl) && (
         <div style={{ position: "absolute", inset: 0, display: "flex" }}>

@@ -110,9 +110,12 @@ const TOOLS: Record<string, AgentTool> = {
         properties: {
           type: {
             type: "string",
-            enum: ["character_text", "text_only", "big_number", "character_pop", "montage", "split"],
-            description: "montage = 3-5 quick image cuts. split = side-by-side compare. Others as before.",
+            enum: ["character_text", "text_only", "big_number", "character_pop", "montage", "split", "stat"],
+            description: "montage = 3-5 quick image cuts. split = side-by-side compare. stat = hero number + small label (e.g. '73%' / 'of viewers drop in 3 seconds'). Others as before.",
           },
+          statValue: { type: "string", description: "For type=stat: the big hero number/percentage." },
+          statLabel: { type: "string", description: "For type=stat: small label below the number." },
+          statColor: { type: "string" },
           montageUrls: {
             type: "array",
             items: { type: "string" },
@@ -190,6 +193,9 @@ const TOOLS: Record<string, AgentTool> = {
         splitDivider: args.splitDivider as string | undefined,
         lensFlare: args.lensFlare as boolean | undefined,
         lensFlareColor: args.lensFlareColor as string | undefined,
+        statValue: args.statValue as string | undefined,
+        statLabel: args.statLabel as string | undefined,
+        statColor: args.statColor as string | undefined,
         text: args.text as string | undefined,
         emphasisText: args.emphasisText as string | undefined,
         emphasisColor: args.emphasisColor as string | undefined,

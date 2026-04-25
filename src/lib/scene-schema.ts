@@ -112,7 +112,7 @@ export interface Voiceover {
 
 export interface Scene {
   id: string;
-  type: "character_text" | "text_only" | "big_number" | "character_pop" | "montage" | "split";
+  type: "character_text" | "text_only" | "big_number" | "character_pop" | "montage" | "split" | "stat";
   duration: number;
   /**
    * For type=montage: 3-5 image URLs cut at ~0.5s each. Plays through them
@@ -125,6 +125,13 @@ export interface Scene {
   splitLeftUrl?: string;
   splitRightUrl?: string;
   splitDivider?: string;
+  /**
+   * For type=stat: a hero number/percentage and a small label below.
+   * e.g. statValue="73%", statLabel="of viewers drop in 3 seconds".
+   */
+  statValue?: string;
+  statLabel?: string;
+  statColor?: string;
 
   voiceover?: Voiceover;
   showCaptions?: boolean;

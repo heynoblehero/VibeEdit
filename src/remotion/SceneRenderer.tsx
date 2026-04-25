@@ -195,7 +195,19 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
 
       {sfxSrc && <Audio src={sfxSrc} startFrom={0} volume={0.7} />}
       {s.voiceover?.audioUrl && (
-        <Audio src={s.voiceover.audioUrl} startFrom={0} volume={1} />
+        <Audio
+          src={s.voiceover.audioUrl}
+          startFrom={0}
+          // Tiny 3-frame fade in / out on every voiceover so consecutive
+          // scenes don't audibly hard-cut between narrators / intonation.
+          volume={(f) => {
+            const fade = 3;
+            const total = Math.round((s.voiceover?.audioDurationSec ?? s.duration) * fps);
+            if (f < fade) return f / fade;
+            if (f > total - fade) return Math.max(0, (total - f) / fade);
+            return 1;
+          }}
+        />
       )}
       {s.showCaptions !== false && s.voiceover?.captions && (
         <Captions

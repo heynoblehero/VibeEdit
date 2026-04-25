@@ -1173,6 +1173,98 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  videoQualityScore: {
+    schema: {
+      name: "videoQualityScore",
+      description:
+        "Compute a single 0-100 score for the current project. Combines: shot variety, audio coverage, pacing variance, hook strength, asset relevance, structural completeness, narrative spine adherence. Use as a hard gate — if score < 75, keep iterating with selfCritique → fixes. Idempotent / read-only.",
+      input_schema: { type: "object", properties: {} },
+    },
+    async execute(_args, ctx) {
+      const scenes = ctx.project.scenes;
+      if (scenes.length === 0) {
+        ctx.project.qualityScore = 0;
+        return { ok: true, message: "score: 0 / 100 (empty project)" };
+      }
+
+      const totalSec = scenes.reduce((acc, s) => acc + (s.duration ?? 2), 0);
+      // Component 1: structural completeness (30 pts)
+      const haveVisuals = scenes.filter(
+        (s) => s.background?.imageUrl || s.background?.videoUrl,
+      ).length;
+      const haveNarration = scenes.filter((s) => s.voiceover?.audioUrl).length;
+      const visualsRatio = haveVisuals / scenes.length;
+      const narrRatio = haveNarration / scenes.length;
+      const hasMusic = ctx.project.music ? 1 : 0;
+      const structural =
+        Math.round(visualsRatio * 12) +
+        Math.round(narrRatio * 12) +
+        hasMusic * 6;
+
+      // Component 2: pacing variance (15 pts) — std-dev of durations
+      const mean = totalSec / scenes.length;
+      const variance =
+        scenes.reduce((a, s) => a + ((s.duration ?? 2) - mean) ** 2, 0) /
+        scenes.length;
+      const stddev = Math.sqrt(variance);
+      const pacing = Math.min(15, Math.round(stddev * 8));
+
+      // Component 3: scene density (10 pts) — ≥1 cut per 3.5s
+      const idealCount = Math.max(6, Math.floor(totalSec / 3.5));
+      const density = Math.min(10, Math.round((scenes.length / idealCount) * 10));
+
+      // Component 4: shot-type variety (10 pts) — count unique shotTypes from shotList
+      const types = new Set((ctx.project.shotList ?? []).map((s) => s.shotType));
+      const variety = Math.min(10, types.size * 2);
+
+      // Component 5: hook quality (10 pts) — first scene must have visual + short text or zoomPunch
+      const first = scenes[0];
+      let hook = 0;
+      if (first) {
+        if (first.background?.imageUrl || first.background?.videoUrl) hook += 4;
+        if (first.zoomPunch && first.zoomPunch >= 1.1) hook += 3;
+        if (first.duration <= 4 && (first.text?.length ?? 0) <= 60) hook += 3;
+      }
+
+      // Component 6: SFX presence (5 pts)
+      const sfx = scenes.some((s) => s.sfxId || s.sceneSfxUrl) ? 5 : 0;
+
+      // Component 7: spine commitment (10 pts)
+      const spine = ctx.project.spine ? 10 : 0;
+
+      // Component 8: caption coverage (10 pts) — narrated scenes with captions
+      const captioned = scenes.filter(
+        (s) => s.voiceover?.captions && s.voiceover.captions.length > 0,
+      ).length;
+      const cap = Math.round((captioned / Math.max(1, scenes.length)) * 10);
+
+      const score = Math.min(
+        100,
+        structural + pacing + density + variety + hook + sfx + spine + cap,
+      );
+      ctx.project.qualityScore = score;
+      const breakdown = [
+        `structural=${structural}/30`,
+        `pacing=${pacing}/15`,
+        `density=${density}/10`,
+        `shot-variety=${variety}/10`,
+        `hook=${hook}/10`,
+        `sfx=${sfx}/5`,
+        `spine=${spine}/10`,
+        `captions=${cap}/10`,
+      ].join(" · ");
+      const verdict =
+        score >= 85
+          ? "✓ ship-quality"
+          : score >= 75
+            ? "✓ acceptable — minor polish welcome"
+            : score >= 60
+              ? "⚠ keep iterating — call selfCritique + fix top issues"
+              : "✗ structural gaps — focus on visuals/narration/music first";
+      return { ok: true, message: `score: ${score}/100 — ${verdict}\n${breakdown}` };
+    },
+  },
+
   listAvailableModels: {
     schema: {
       name: "listAvailableModels",

@@ -484,9 +484,15 @@ export function ChatSidebar({
 
   if (!open) return null;
 
+  // On phones the chat takes the full viewport so the editor isn't a
+  // 60-pixel sliver. The persisted desktop width still applies on ≥640px.
+  const aside_style: React.CSSProperties =
+    typeof window !== "undefined" && window.innerWidth < 640
+      ? { width: "100vw", maxWidth: "100vw" }
+      : { width };
   return (
     <aside
-      style={{ width }}
+      style={aside_style}
       className={`flex flex-col border-r border-neutral-800 bg-neutral-950 shrink-0 relative ${
         dragOver ? "ring-2 ring-inset ring-emerald-400/60" : ""
       }`}

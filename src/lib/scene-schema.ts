@@ -112,7 +112,7 @@ export interface Voiceover {
 
 export interface Scene {
   id: string;
-  type: "character_text" | "text_only" | "big_number" | "character_pop" | "montage" | "split" | "stat";
+  type: "character_text" | "text_only" | "big_number" | "character_pop" | "montage" | "split" | "stat" | "bullet_list" | "quote";
   duration: number;
   /**
    * For type=montage: 3-5 image URLs cut at ~0.5s each. Plays through them
@@ -132,6 +132,12 @@ export interface Scene {
   statValue?: string;
   statLabel?: string;
   statColor?: string;
+  /** For type=bullet_list: lines that animate in with stagger + checkmark. */
+  bulletItems?: string[];
+  bulletColor?: string;
+  /** For type=quote: pull-quote text + attribution. */
+  quoteText?: string;
+  quoteAttribution?: string;
   /**
    * Tag the scene with its planned shot type. Lets the qualityScore +
    * gate count distinct shotTypes per project rather than guessing.

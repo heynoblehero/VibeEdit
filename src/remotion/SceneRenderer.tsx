@@ -14,6 +14,8 @@ import { Montage } from "./components/Montage";
 import { StatBlock } from "./components/StatBlock";
 import { CirclePing, RadialPulse, ScanLine } from "./components/effects";
 import { BarWipe, CornerBrackets, RevealBox } from "./components/graphics";
+import { BulletList } from "./components/BulletList";
+import { QuoteBlock } from "./components/QuoteBlock";
 import { GRAPHIC_MAP } from "./assets";
 import { bob } from "@/lib/anim";
 
@@ -97,6 +99,16 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       )}
       {s.type === "stat" && s.statValue && (
         <StatBlock value={s.statValue} label={s.statLabel} color={s.statColor} />
+      )}
+      {s.type === "bullet_list" && s.bulletItems && s.bulletItems.length > 0 && (
+        <BulletList items={s.bulletItems} color={s.bulletColor} />
+      )}
+      {s.type === "quote" && s.quoteText && (
+        <QuoteBlock
+          text={s.quoteText}
+          attribution={s.quoteAttribution}
+          color={s.bulletColor}
+        />
       )}
       {s.type === "split" && (s.splitLeftUrl || s.splitRightUrl) && (
         <div style={{ position: "absolute", inset: 0, display: "flex" }}>

@@ -83,13 +83,21 @@ export const Captions: React.FC<CaptionsProps> = ({ words, style, characterY }) 
   const chunk = chunks[active];
   const highlightColor = style?.highlightColor;
 
-  const stroke = `${Math.max(2, fontSize * 0.06)}px`;
+  const sw = Math.max(2, fontSize * 0.07);
+  const s = `${sw}px`;
+  const sd = `${sw * 0.71}px`;
+  // 8-direction stroke (4 cardinal + 4 diagonals) for clean readable edges,
+  // plus a wide soft drop shadow so captions never get lost on bright BGs.
   const textShadow = [
-    `-${stroke} -${stroke} 0 ${strokeColor}`,
-    `${stroke} -${stroke} 0 ${strokeColor}`,
-    `-${stroke} ${stroke} 0 ${strokeColor}`,
-    `${stroke} ${stroke} 0 ${strokeColor}`,
-    `0 6px 20px rgba(0,0,0,0.7)`,
+    `-${s} 0 0 ${strokeColor}`,
+    `${s} 0 0 ${strokeColor}`,
+    `0 -${s} 0 ${strokeColor}`,
+    `0 ${s} 0 ${strokeColor}`,
+    `-${sd} -${sd} 0 ${strokeColor}`,
+    `${sd} -${sd} 0 ${strokeColor}`,
+    `-${sd} ${sd} 0 ${strokeColor}`,
+    `${sd} ${sd} 0 ${strokeColor}`,
+    `0 8px 28px rgba(0,0,0,0.85)`,
   ].join(", ");
 
   return (
@@ -126,7 +134,11 @@ export const Captions: React.FC<CaptionsProps> = ({ words, style, characterY }) 
           return (
             <span
               key={i}
-              style={{ color: isHighlight ? highlightColor : color }}
+              style={{
+                color: isHighlight ? highlightColor : color,
+                transform: isHighlight ? "scale(1.08)" : undefined,
+                display: "inline-block",
+              }}
             >
               {display}
             </span>

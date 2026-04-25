@@ -1561,6 +1561,52 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  scoreAssetForScene: {
+    schema: {
+      name: "scoreAssetForScene",
+      description:
+        "Quick heuristic relevance score (0-1) for whether a given asset URL or filename fits a scene description. Returns the score plus a one-line rationale. Use BEFORE attaching uploaded assets to scenes — only attach if score ≥ 0.6, otherwise generate fresh. Heuristic-only (token overlap + image-extension check). Cheap, deterministic, runs in <1ms.",
+      input_schema: {
+        type: "object",
+        properties: {
+          assetUrl: { type: "string" },
+          assetName: { type: "string", description: "Filename or display name." },
+          sceneDescription: { type: "string" },
+        },
+        required: ["sceneDescription"],
+      },
+    },
+    async execute(args) {
+      const desc = String(args.sceneDescription ?? "").toLowerCase();
+      const url = String(args.assetUrl ?? "").toLowerCase();
+      const name = String(args.assetName ?? "").toLowerCase();
+      const haystack = `${url} ${name}`;
+      if (!desc) return { ok: false, message: "sceneDescription required" };
+      const tokens = desc
+        .split(/\s+/)
+        .map((t) => t.replace(/[^a-z0-9]/g, ""))
+        .filter((t) => t.length > 3);
+      if (tokens.length === 0) return { ok: true, message: "score=0.5 — description too short to evaluate" };
+      const hits = tokens.filter((t) => haystack.includes(t)).length;
+      const ratio = hits / tokens.length;
+      const isImage = /\.(jpg|jpeg|png|webp|gif|avif)(\?|$)/.test(haystack);
+      const isVideo = /\.(mp4|webm|mov)(\?|$)/.test(haystack);
+      let score = ratio;
+      if (!isImage && !isVideo) score *= 0.7;
+      score = Math.max(0, Math.min(1, Number(score.toFixed(2))));
+      const verdict =
+        score >= 0.6
+          ? "use it"
+          : score >= 0.3
+            ? "maybe — also generate a fresh fallback"
+            : "skip — generate fresh";
+      return {
+        ok: true,
+        message: `score=${score} (${hits}/${tokens.length} tokens hit) — ${verdict}`,
+      };
+    },
+  },
+
   stockSearch: {
     schema: {
       name: "stockSearch",

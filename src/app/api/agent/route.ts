@@ -261,9 +261,22 @@ export async function POST(request: NextRequest) {
       );
 
       const tools = listToolSchemas();
+      // Filter out the bundled Isaac/Odd1sOut characters when this project
+      // isn't on the faceless workflow — the agent kept reaching for
+      // 'isaac-celebrate' on a Pokemon project just because they were in
+      // ctx.characters. Built-in characters live in /public/characters/
+      // and have ids 'watch', 'point', 'celebrate', 'frustrated', etc.
+      const FACELESS_BUILTIN_IDS = new Set([
+        "watch", "point", "celebrate", "frustrated",
+        "tablet", "shrug", "hero", "wide", "closeup",
+      ]);
+      const isFaceless = project.workflowId === "faceless";
+      const filteredCharacters = (body.characters ?? []).filter(
+        (c) => isFaceless || !FACELESS_BUILTIN_IDS.has(c.id),
+      );
       const ctx = {
         project,
-        characters: body.characters ?? [],
+        characters: filteredCharacters,
         sfx: body.sfx ?? [],
         origin,
       };

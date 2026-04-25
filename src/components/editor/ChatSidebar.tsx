@@ -172,22 +172,6 @@ export function ChatSidebar({
         window.dispatchEvent(new CustomEvent("vibeedit:open-template-picker"));
         return;
       }
-      if (cmd === "objective" || cmd === "goal") {
-        // /objective <text> — set the project's goal AND kick off an
-        // autonomous run that loops analyze → act → critique → fix.
-        if (!arg) {
-          toast("Usage: /objective <what you want made>");
-          return;
-        }
-        useProjectStore.getState().setSystemPrompt(arg);
-        toast("Objective set — starting autonomous run", { duration: 1500 });
-        setTimeout(() => {
-          void send(
-            `OBJECTIVE: ${arg}\n\nRun the full loop: analyzeAssets → act → selfCritique → fix → selfCritique → repeat until findings are minor or 5 critique passes done. Then report concisely.`,
-          );
-        }, 50);
-        return;
-      }
       if (cmd === "prompt") {
         // `/prompt` — show current project system prompt + offer to edit.
         // `/prompt <text>` sets it directly. `/prompt -` clears it.
@@ -234,7 +218,7 @@ export function ChatSidebar({
       if (cmd === "help") {
         toast("Slash commands", {
           description:
-            "/new — new project\n/reset — clear scenes\n/render — render now\n/undo — undo last turn\n/save — flush state to localStorage\n/status — show AI backend info\n/objective <text> — autonomous run: analyze → act → critique → fix\n/prompt — set a project-specific system prompt\n/template — pick a structured workflow template\n/models — list available AI models / voices\n/voice <id>\n/preset <id>\n/export — open export pack\n/tips — workflow tips\n/help — this menu",
+            "/new — new project\n/reset — clear scenes\n/render — render now\n/undo — undo last turn\n/save — flush state to localStorage\n/status — show AI backend info\n/prompt — set a project-specific system prompt\n/template — pick a structured workflow template\n/models — list available AI models / voices\n/voice <id>\n/preset <id>\n/export — open export pack\n/tips — workflow tips\n/help — this menu",
           duration: 8000,
         });
         return;

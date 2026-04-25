@@ -9,6 +9,7 @@ import { PunchText } from "./components/PunchText";
 import { ScreenShake } from "./components/ScreenShake";
 import { ZoomPunch } from "./components/ZoomPunch";
 import { Captions } from "./components/Captions";
+import { Montage } from "./components/Montage";
 import { GRAPHIC_MAP } from "./assets";
 import { bob } from "@/lib/anim";
 
@@ -81,6 +82,39 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       videoStartSec={s.background.videoStartSec}
       videoMuted={s.background.videoMuted}
     >
+      {s.type === "montage" && s.montageUrls && s.montageUrls.length > 0 && (
+        <Montage urls={s.montageUrls} />
+      )}
+      {s.type === "split" && (s.splitLeftUrl || s.splitRightUrl) && (
+        <div style={{ position: "absolute", inset: 0, display: "flex" }}>
+          {s.splitLeftUrl && (
+            <img
+              src={s.splitLeftUrl}
+              alt=""
+              style={{ width: "50%", height: "100%", objectFit: "cover" }}
+            />
+          )}
+          {s.splitRightUrl && (
+            <img
+              src={s.splitRightUrl}
+              alt=""
+              style={{ width: "50%", height: "100%", objectFit: "cover" }}
+            />
+          )}
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: "50%",
+              width: 6,
+              transform: "translateX(-3px)",
+              background: s.splitDivider ?? "#10b981",
+              boxShadow: "0 0 18px rgba(0,0,0,0.6)",
+            }}
+          />
+        </div>
+      )}
       <BRollLayer brolls={s.broll} />
       <ZoomPunch hitFrame={s.zoomPunch ? 0 : 9999} intensity={s.zoomPunch ?? 1.15}>
         <ScreenShake hitFrame={s.shakeIntensity ? 5 : 9999} intensity={s.shakeIntensity ?? 0} duration={12}>

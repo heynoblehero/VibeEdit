@@ -100,8 +100,19 @@ export interface Voiceover {
 
 export interface Scene {
   id: string;
-  type: "character_text" | "text_only" | "big_number" | "character_pop";
+  type: "character_text" | "text_only" | "big_number" | "character_pop" | "montage" | "split";
   duration: number;
+  /**
+   * For type=montage: 3-5 image URLs cut at ~0.5s each. Plays through them
+   * in order, looping if the scene is longer than the strip.
+   */
+  montageUrls?: string[];
+  /**
+   * For type=split: left + right halves. Optional VS divider color.
+   */
+  splitLeftUrl?: string;
+  splitRightUrl?: string;
+  splitDivider?: string;
 
   voiceover?: Voiceover;
   showCaptions?: boolean;

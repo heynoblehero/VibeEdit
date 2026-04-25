@@ -845,6 +845,13 @@ const TOOLS: Record<string, AgentTool> = {
     },
     async execute(args, ctx) {
       const prompt = String(args.prompt ?? "");
+      // Auto-fit the music length to the video unless caller specified.
+      // Cap at 47s (model max). Min 15s — short clips loop awkwardly.
+      const totalSec = ctx.project.scenes.reduce(
+        (acc, s) => acc + (s.duration ?? 2),
+        0,
+      );
+      const autoDuration = Math.max(15, Math.min(47, Math.ceil(totalSec)));
       try {
         const res = await fetch(`${ctx.origin}/api/media/music`, {
           method: "POST",
@@ -852,7 +859,7 @@ const TOOLS: Record<string, AgentTool> = {
           body: JSON.stringify({
             prompt,
             modelId: args.model ? String(args.model) : undefined,
-            durationSec: args.durationSec ? Number(args.durationSec) : 30,
+            durationSec: args.durationSec ? Number(args.durationSec) : autoDuration,
           }),
         });
         const data = await res.json();

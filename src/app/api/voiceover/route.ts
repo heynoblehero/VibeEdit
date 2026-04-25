@@ -117,7 +117,8 @@ export async function POST(request: NextRequest) {
   }
 
   const voice = body.voice ?? "nova";
-  const speed = body.speed ?? 1.05;
+  // 1.0 default — 1.05 made narrators sound rushed for storytelling.
+  const speed = body.speed ?? 1.0;
   const key = keyFor(body.text, voice, speed);
   const filename = `${key}.mp3`;
   const audioUrl = `/voiceovers/${filename}`;

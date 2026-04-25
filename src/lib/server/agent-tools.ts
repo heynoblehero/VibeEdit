@@ -1514,9 +1514,23 @@ const TOOLS: Record<string, AgentTool> = {
       ).length;
       const cap = Math.round((captioned / Math.max(1, scenes.length)) * 10);
 
+      // Component 9: graphical richness bonus (up to 10 pts). Counts
+      // non-text_only scene types AND effect-stack usage. Up to 5 pts each.
+      const richTypes = new Set<string>();
+      let effectsUsed = 0;
+      for (const sc of scenes) {
+        if (sc.type !== "text_only" && sc.type !== "character_text") {
+          richTypes.add(sc.type);
+        }
+        if (sc.effects && sc.effects.length > 0) effectsUsed++;
+      }
+      const richBonus =
+        Math.min(5, richTypes.size) +
+        Math.min(5, Math.round((effectsUsed / Math.max(1, scenes.length)) * 5));
+
       const score = Math.min(
         100,
-        structural + pacing + density + variety + hook + sfx + spine + cap,
+        structural + pacing + density + variety + hook + sfx + spine + cap + richBonus,
       );
       ctx.project.qualityScore = score;
       const breakdown = [
@@ -1528,6 +1542,7 @@ const TOOLS: Record<string, AgentTool> = {
         `sfx=${sfx}/5`,
         `spine=${spine}/10`,
         `captions=${cap}/10`,
+        `graphics=${richBonus}/10`,
       ].join(" · ");
       const verdict =
         score >= 85

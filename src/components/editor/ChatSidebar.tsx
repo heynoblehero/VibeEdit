@@ -167,6 +167,35 @@ export function ChatSidebar({
         toast("Saving…", { duration: 800 });
         return;
       }
+      if (cmd === "cinematic-short" || cmd === "short" || cmd === "oneshot") {
+        // Packaged "do the whole thing autonomously" command. Pre-loads the
+        // chat with the structured brief so the agent runs the spine →
+        // plan → research → assets → render → watch → score loop.
+        const topic = arg.trim() || window.prompt("What's the video about? (1-2 sentences)") || "";
+        if (!topic) return;
+        const brief =
+          `Make a cinematic ${useProjectStore.getState().project.height > useProjectStore.getState().project.width ? "9:16 short" : "16:9 piece"} about: ${topic}\n\n` +
+          `Run this loop autonomously, in order:\n` +
+          `1. writeNarrativeSpine(promise, stakes, reveal)\n` +
+          `2. researchTopic for the subject (visual references)\n` +
+          `3. planVideo with explicit shot list (mix ≥4 shotTypes, three-act distribution)\n` +
+          `4. For each shot: routeAsset → use upload OR stockSearch OR generateImageForScene\n` +
+          `5. narrateAllScenes\n` +
+          `6. generateMusicForProject\n` +
+          `7. Add 1-2 SFX beats\n` +
+          `8. selfCritique → fix top issues → videoQualityScore → loop until ≥75\n` +
+          `9. renderProject 1080p\n` +
+          `10. watchRenderedVideo + report any audio/visual issues\n` +
+          `Don't ask questions — pick defaults and ship.`;
+        const { useChatStore } = await import("@/store/chat-store");
+        useChatStore.getState().addUserMessage(brief);
+        toast("Cinematic short queued — agent running the full loop", { duration: 4000 });
+        // Submit the chat form so the agent picks it up immediately.
+        setTimeout(() => {
+          document.querySelector<HTMLFormElement>("aside form")?.requestSubmit();
+        }, 80);
+        return;
+      }
       if (cmd === "template" || cmd === "workflow") {
         // Power-user escape hatch: opens the legacy workflow picker.
         window.dispatchEvent(new CustomEvent("vibeedit:open-template-picker"));
@@ -237,7 +266,7 @@ export function ChatSidebar({
       if (cmd === "help") {
         toast("Slash commands", {
           description:
-            "/new — new project\n/reset — clear scenes\n/render — render now\n/undo — undo last turn\n/save — flush state to localStorage\n/status — show AI backend info\n/setup — check which provider keys are set\n/prompt — set a project-specific system prompt\n/template — pick a structured workflow template\n/models — list available AI models / voices\n/voice <id>\n/preset <id>\n/export — open export pack\n/tips — workflow tips\n/help — this menu",
+            "/cinematic-short <topic> — autonomous one-shot loop\n/new — new project\n/reset — clear scenes\n/render — render now\n/undo — undo last turn\n/save — flush state to localStorage\n/status — show AI backend info\n/setup — check which provider keys are set\n/prompt — set a project-specific system prompt\n/template — pick a structured workflow template\n/models — list available AI models / voices\n/voice <id>\n/preset <id>\n/export — open export pack\n/tips — workflow tips\n/help — this menu",
           duration: 8000,
         });
         return;

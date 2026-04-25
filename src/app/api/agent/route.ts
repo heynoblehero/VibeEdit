@@ -154,6 +154,14 @@ export async function POST(request: NextRequest) {
               cache_control?: { type: "ephemeral" };
             }> = [
               { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+              ...(process.env.SEARCH_PROVIDER && process.env.SEARCH_PROVIDER !== "none"
+                ? [
+                    {
+                      type: "text" as const,
+                      text: `webSearch tool is wired (provider: ${process.env.SEARCH_PROVIDER}). Use it when the user asks for current info, links, references, or external context.`,
+                    },
+                  ]
+                : []),
               { type: "text", text: modelCatalogSystemBlock() },
               { type: "text", text: voiceCatalogSystemBlock() },
               { type: "text", text: audioCatalogSystemBlock() },

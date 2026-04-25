@@ -789,6 +789,137 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  analyzeAssets: {
+    schema: {
+      name: "analyzeAssets",
+      description:
+        "Inventory everything currently attached to the project: characters, SFX, library uploads (images / clips / audio / docs), workflow inputs, music, and per-scene voiceover/background. Call this at the start of any non-trivial objective so you know what raw material you have before generating new media.",
+      input_schema: { type: "object", properties: {} },
+    },
+    async execute(_args, ctx) {
+      const lines: string[] = [];
+      lines.push(
+        `Project: "${ctx.project.name}" — ${ctx.project.scenes.length} scenes, ${ctx.project.width}x${ctx.project.height}, workflow=${ctx.project.workflowId ?? "blank"}`,
+      );
+      if (ctx.project.systemPrompt) {
+        lines.push(`User instructions: ${ctx.project.systemPrompt.slice(0, 400)}`);
+      }
+      lines.push(
+        `Music: ${ctx.project.music ? `attached (${ctx.project.music.name})` : "none"}`,
+      );
+      lines.push(
+        `Characters available: ${ctx.characters.length === 0 ? "(none)" : ctx.characters.map((c) => c.id).join(", ")}`,
+      );
+      lines.push(
+        `SFX available: ${ctx.sfx.length === 0 ? "(none)" : ctx.sfx.map((s) => s.id).join(", ")}`,
+      );
+      // Per-scene roll-up: who has voiceover, video bg, image bg, sfx.
+      let withVoice = 0;
+      let withImage = 0;
+      let withVideo = 0;
+      let withSfx = 0;
+      for (const s of ctx.project.scenes) {
+        if (s.voiceover?.audioUrl) withVoice++;
+        if (s.background?.imageUrl) withImage++;
+        if (s.background?.videoUrl) withVideo++;
+        if (s.sceneSfxUrl || s.sfxId) withSfx++;
+      }
+      lines.push(
+        `Scene coverage: ${withVoice}/${ctx.project.scenes.length} narrated, ${withImage} have image bg, ${withVideo} have video bg, ${withSfx} have SFX.`,
+      );
+      // Workflow input slots (e.g. uploaded comic panels, podcast files).
+      const wi = ctx.project.workflowInputs ?? {};
+      const filledSlots = Object.entries(wi)
+        .filter(([, v]) => v != null && (Array.isArray(v) ? v.length > 0 : v !== ""))
+        .map(([k]) => k);
+      if (filledSlots.length > 0) {
+        lines.push(`Workflow inputs filled: ${filledSlots.join(", ")}`);
+      }
+      return { ok: true, message: lines.join("\n") };
+    },
+  },
+
+  selfCritique: {
+    schema: {
+      name: "selfCritique",
+      description:
+        "Critique the current project against the user's objective. Returns a ranked list of issues (sceneId, severity, what's wrong, suggested fix). Use this after substantial edits, then apply the high+medium findings, then call selfCritique again. Stop when only low findings remain or after 5 critique passes.",
+      input_schema: {
+        type: "object",
+        properties: {
+          focus: {
+            type: "string",
+            description:
+              "Optional dimension to focus on: pacing, color variety, audio coverage, narrative flow, polish, etc.",
+          },
+        },
+      },
+    },
+    async execute(args, ctx) {
+      if (ctx.project.scenes.length === 0) {
+        return { ok: true, message: "no scenes yet — nothing to critique" };
+      }
+      const focus = args.focus ? String(args.focus) : "overall quality";
+      try {
+        const res = await fetch(`${ctx.origin}/api/review`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scenes: ctx.project.scenes,
+            orientation:
+              ctx.project.height > ctx.project.width ? "portrait" : "landscape",
+            workflowId: ctx.project.workflowId,
+            workflowCriteria: `Critique focus: ${focus}.${
+              ctx.project.systemPrompt
+                ? ` User's stated objective: ${ctx.project.systemPrompt}`
+                : ""
+            }`,
+          }),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`review ${res.status}: ${text.slice(0, 200)}`);
+        }
+        // The /api/review route streams findings as SSE — collect them all.
+        const text = await res.text();
+        const findings: Array<{
+          sceneId: string;
+          severity: string;
+          issue: string;
+          suggestion: string;
+        }> = [];
+        for (const line of text.split("\n")) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const evt = JSON.parse(line.slice(6));
+            if (evt.type === "finding" && evt.finding) findings.push(evt.finding);
+          } catch {}
+        }
+        if (findings.length === 0) {
+          return {
+            ok: true,
+            message: "✓ self-critique pass clean — no issues found.",
+          };
+        }
+        const summary = findings
+          .map(
+            (f, i) =>
+              `${i + 1}. [${f.severity}] scene ${f.sceneId}: ${f.issue} → ${f.suggestion}`,
+          )
+          .join("\n");
+        return {
+          ok: true,
+          message: `${findings.length} findings:\n${summary}`,
+        };
+      } catch (e) {
+        return {
+          ok: false,
+          message: `critique failed: ${e instanceof Error ? e.message : String(e)}`,
+        };
+      }
+    },
+  },
+
   listAvailableModels: {
     schema: {
       name: "listAvailableModels",

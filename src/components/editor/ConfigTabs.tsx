@@ -8,7 +8,7 @@ import {
   Palette,
   Wrench,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AssetLibraryPanel } from "./AssetLibraryPanel";
 import { AssetPanel } from "./AssetPanel";
 import { CaptionStylePanel } from "./CaptionStylePanel";
@@ -50,8 +50,23 @@ const TABS: Tab[] = [
   { id: "assets", label: "Assets", icon: Wrench, render: () => <AssetPanel /> },
 ];
 
+const KEY = "vibeedit:config-tab";
+
 export function ConfigTabs() {
-  const [active, setActive] = useState<TabId | null>(null);
+  const [active, setActiveState] = useState<TabId | null>(null);
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(KEY) as TabId | null;
+      if (saved && TABS.some((t) => t.id === saved)) setActiveState(saved);
+    } catch {}
+  }, []);
+  const setActive = (id: TabId | null) => {
+    setActiveState(id);
+    try {
+      if (id) window.localStorage.setItem(KEY, id);
+      else window.localStorage.removeItem(KEY);
+    } catch {}
+  };
 
   if (active === null) {
     return (

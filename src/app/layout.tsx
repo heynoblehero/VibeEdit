@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -14,8 +14,43 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VibeEdit Studio",
-  description: "AI video editor for faceless short-form videos",
+  title: {
+    default: "VibeEdit — AI video editor",
+    template: "%s · VibeEdit",
+  },
+  description:
+    "Describe your video. The agent edits it. Faceless animation, comic dub, podcast clips, recipe reels — all from one chat.",
+  applicationName: "VibeEdit",
+  appleWebApp: {
+    capable: true,
+    title: "VibeEdit",
+    statusBarStyle: "black-translucent",
+  },
+  openGraph: {
+    title: "VibeEdit — AI video editor",
+    description:
+      "Describe your video. The agent edits it. Chat-first video editor on Claude + Remotion.",
+    url: "https://vibevideoedit.com",
+    siteName: "VibeEdit",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "VibeEdit — AI video editor",
+    description: "Describe your video. The agent edits it.",
+  },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
+};
+
+// Mobile viewport: full-width, allow zoom (a11y), respect notch / safe-area.
+export const viewport: Viewport = {
+  themeColor: "#0a0a0a",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

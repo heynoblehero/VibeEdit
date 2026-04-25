@@ -166,7 +166,7 @@ export default function Home() {
     <div className="flex flex-col h-screen bg-neutral-950 text-neutral-100">
       <KeyboardShortcuts />
       {/* Top bar */}
-      <header className="flex items-center justify-between px-4 py-2 border-b border-neutral-800 bg-neutral-950/80 backdrop-blur-sm shrink-0">
+      <header className="flex items-center justify-between px-2 sm:px-4 py-2 gap-2 border-b border-neutral-800 bg-neutral-950/80 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() => setHomeDismissed(false)}
@@ -194,13 +194,13 @@ export default function Home() {
             }`}
           >
             <MessageCircle className="h-4 w-4" />
-            <span className="text-[10px] font-mono text-neutral-500">⌘K</span>
+            <span className="hidden sm:inline text-[10px] font-mono text-neutral-500">⌘K</span>
             {agentStreaming && (
               <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
             )}
           </button>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1 sm:gap-3">
           <div className="flex items-center gap-1">
             <button
               onClick={undo}

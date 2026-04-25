@@ -1561,6 +1561,93 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  routeAsset: {
+    schema: {
+      name: "routeAsset",
+      description:
+        "Decide where the visual for a given scene should come from. Returns a single decision: user_upload (use a file the user already gave us), ai_generated (call generateImageForScene), stock (call stockSearch), research_url (use a URL from researchNotes). Call this BEFORE you start generating images so we don't burn API budget when the user already uploaded the right asset. Does NOT mutate scenes — just decides.",
+      input_schema: {
+        type: "object",
+        properties: {
+          sceneDescription: {
+            type: "string",
+            description: "What this scene is about — semantically, not visually. e.g. 'pikachu using thunderbolt' or 'modern coffee shop interior'.",
+          },
+          preferUserUpload: {
+            type: "boolean",
+            description: "If true and the user has uploaded matching content, prefer it. Default true.",
+          },
+        },
+        required: ["sceneDescription"],
+      },
+    },
+    async execute(args, ctx) {
+      const desc = String(args.sceneDescription ?? "").trim().toLowerCase();
+      if (!desc) return { ok: false, message: "sceneDescription required" };
+      const prefer = args.preferUserUpload !== false;
+
+      // 1. Check uploaded characters/sfx-style assets that the route filtered.
+      const uploadHits: string[] = [];
+      for (const c of ctx.characters) {
+        const haystack = `${c.id} ${c.name ?? ""}`.toLowerCase();
+        if (
+          desc
+            .split(/\s+/)
+            .filter((t) => t.length > 3)
+            .some((tok) => haystack.includes(tok))
+        ) {
+          uploadHits.push(`${c.id} (${c.name ?? "?"})`);
+        }
+      }
+
+      // 2. Check researchNotes for URL hits.
+      const notes = ctx.project.researchNotes ?? "";
+      const urlMatches: string[] = [];
+      const urlRe = /https?:\/\/[^\s)]+/g;
+      const allUrls = notes.match(urlRe) ?? [];
+      // Cheap relevance: any URL whose surrounding 80 chars contains a desc keyword.
+      const tokens = desc.split(/\s+/).filter((t) => t.length > 3);
+      for (const u of allUrls) {
+        const i = notes.indexOf(u);
+        const window = notes.slice(Math.max(0, i - 80), i + u.length + 80).toLowerCase();
+        if (tokens.some((t) => window.includes(t))) urlMatches.push(u);
+      }
+
+      let decision: AssetSource;
+      let target = "";
+      let reason = "";
+      if (prefer && uploadHits.length > 0) {
+        decision = "user_upload";
+        target = uploadHits[0];
+        reason = `matched user-uploaded asset on token overlap`;
+      } else if (urlMatches.length > 0) {
+        decision = "research_url";
+        target = urlMatches[0];
+        reason = `found relevant URL in researchNotes`;
+      } else {
+        decision = "ai_generated";
+        target = `cinematic ${desc}, dramatic lighting, sharp focus, high detail, 4k`;
+        reason = `no matching upload or research URL — generate fresh`;
+      }
+
+      // Log the decision so future debugging can trace why a scene picked X.
+      const exp: ExperimentRecord = {
+        ts: Date.now(),
+        kind: "asset_route",
+        decision,
+        prompt: target,
+        kept: true,
+        note: reason,
+      };
+      ctx.project.experiments = [...(ctx.project.experiments ?? []), exp];
+
+      return {
+        ok: true,
+        message: `decision: ${decision}\ntarget: ${target}\nreason: ${reason}`,
+      };
+    },
+  },
+
   researchTopic: {
     schema: {
       name: "researchTopic",

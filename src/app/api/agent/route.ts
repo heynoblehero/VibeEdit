@@ -524,6 +524,36 @@ export async function POST(request: NextRequest) {
             const args = (tu.input ?? {}) as Record<string, unknown>;
             send({ type: "tool_start", id: tu.id, name: tu.name, args });
             const toolName = tu.name ?? "";
+
+            // PLAN-MODE GATE: block expensive media tools until the agent
+            // has committed to a spine + a plan. Forces the autoresearch/
+            // claude-code phase separation: think first, spend later.
+            const expensiveMediaTools = new Set([
+              "generateImageForScene",
+              "generateVideoForScene",
+              "generateMusicForProject",
+              "generateSfxForScene",
+              "generateAvatarForScene",
+            ]);
+            const planExists = !!ctx.project.spine && (ctx.project.shotList?.length ?? 0) > 0;
+            if (expensiveMediaTools.has(toolName) && !planExists) {
+              const synthetic = `[plan-mode] ${toolName} blocked — call writeNarrativeSpine + planVideo FIRST so we know what we're building. No money spent on media until the plan exists.`;
+              send({
+                type: "tool_result",
+                id: tu.id,
+                name: toolName,
+                ok: false,
+                message: synthetic,
+              });
+              toolResultBlocks.push({
+                type: "tool_result",
+                tool_use_id: tu.id ?? "",
+                content: [{ type: "text", text: synthetic }],
+                is_error: true,
+              });
+              continue;
+            }
+
             const cap = budgets[toolName as keyof typeof budgets];
             if (cap !== undefined) {
               used[toolName] = (used[toolName] ?? 0) + 1;

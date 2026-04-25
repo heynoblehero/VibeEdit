@@ -19,6 +19,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Capacitor CLI needs Node 22+; bun's bundled Node isn't picked up
+      # by `bunx cap …`, so we set up Node explicitly.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - uses: oven-sh/setup-bun@v2
 
       - uses: actions/setup-java@v4

@@ -149,6 +149,25 @@ function computeStructuralGaps(project: Project): string[] {
     gaps.push(`- No backing music. Call generateMusicForProject.`);
   }
 
+  // Scene-density guardrail: shorts platforms reward fast cuts. A 30s
+  // video with only 4 scenes feels like a slideshow. Require ~1 cut per
+  // 3-3.5s of runtime.
+  const totalSec = project.scenes.reduce((acc, s) => acc + (s.duration ?? 2), 0);
+  const targetMinScenes = Math.max(6, Math.floor(totalSec / 3.5));
+  if (project.scenes.length < targetMinScenes && totalSec >= 18) {
+    gaps.push(
+      `- Only ${project.scenes.length} scenes for ${totalSec.toFixed(0)}s of runtime — too few cuts. Add more scenes (target ≥ ${targetMinScenes}). Break long beats into hook/setup/payoff.`,
+    );
+  }
+
+  // SFX presence: sells the editing. Skip if total runtime is tiny.
+  const hasAnySfx = project.scenes.some((s) => s.sfxId || s.sceneSfxUrl);
+  if (!hasAnySfx && project.scenes.length >= 6) {
+    gaps.push(
+      `- No sound effects anywhere. Add 1-2 SFX beats (whoosh on a transition, impact on a reveal). Set scene.sfxId or call generateSfxForScene.`,
+    );
+  }
+
   return gaps;
 }
 

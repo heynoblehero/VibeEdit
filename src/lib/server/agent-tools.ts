@@ -844,7 +844,19 @@ const TOOLS: Record<string, AgentTool> = {
       },
     },
     async execute(args, ctx) {
-      const prompt = String(args.prompt ?? "");
+      let prompt = String(args.prompt ?? "");
+      // Workflow-aware genre bias: if the agent passed a generic prompt
+      // ("background music"), nudge it toward a sound that actually fits
+      // the workflow instead of defaulting to a stock orchestra hit.
+      const wf = ctx.project.workflowId;
+      const looksGeneric = /^\s*(background|backing|music|ambient)\s*$/i.test(prompt) || prompt.length < 8;
+      if (looksGeneric) {
+        if (wf === "commentary") prompt = "minimal modern lo-fi beats, mellow piano, no drums spike";
+        else if (wf === "review") prompt = "uplifting cinematic synth, optimistic build, clean modern";
+        else if (wf === "faceless") prompt = "tense cinematic underscore, low pulsing synth, drama";
+        else if (wf === "shorts" || wf === "ai-animated") prompt = "punchy upbeat electronic, hype, modern pop";
+        else prompt = "modern cinematic underscore, subtle, mood-neutral";
+      }
       // Auto-fit the music length to the video unless caller specified.
       // Cap at 47s (model max). Min 15s — short clips loop awkwardly.
       const totalSec = ctx.project.scenes.reduce(

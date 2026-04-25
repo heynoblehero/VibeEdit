@@ -1,5 +1,5 @@
 import React from "react";
-import { Audio, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Audio, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import type { CaptionStyle, Scene } from "@/lib/scene-schema";
 import { BeatFlash } from "./components/BeatFlash";
 import { BRollLayer } from "./components/BRoll";
@@ -39,8 +39,15 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
   const charProgress = spring({
     frame: Math.max(0, frame - enterDelay),
     fps,
-    config: { damping: 12, mass: 0.8, stiffness: 140 },
-    durationInFrames: 25,
+    // Slightly under-damped so characters arrive with a soft overshoot —
+    // feels intentional, not robotic linear lerp.
+    config: { damping: 10, mass: 0.7, stiffness: 170 },
+    durationInFrames: 22,
+  });
+
+  // Soft 4-frame opacity ramp on scene entry so cuts breathe instead of pop.
+  const sceneOpacity = interpolate(frame, [0, 4], [0, 1], {
+    extrapolateRight: "clamp",
   });
 
   let charTx = 0;
@@ -59,6 +66,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
   const charY = s.characterY ?? 900;
 
   return (
+    <AbsoluteFill style={{ opacity: sceneOpacity }}>
     <GradientBg
       color={s.background.color}
       graphic={graphicSrc}
@@ -161,5 +169,6 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
         />
       )}
     </GradientBg>
+    </AbsoluteFill>
   );
 };

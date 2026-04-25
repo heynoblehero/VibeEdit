@@ -121,7 +121,17 @@ export async function POST(request: NextRequest) {
   const voice = body.voice ?? "nova";
   // 1.0 default — 1.05 made narrators sound rushed for storytelling.
   const speed = body.speed ?? 1.0;
-  const key = keyFor(body.text, voice, speed);
+  // Inject SSML-style breath pauses by replacing punctuation with em-dashes
+  // and ellipses that gpt-4o-mini-tts respects as micro-pauses. Commas keep
+  // 0.15s, periods → ~0.4s, semicolons → 0.3s. Don't double-process if
+  // the caller already has em-dashes.
+  const polishedText = body.text
+    .replace(/,(?!\s*\u2014)/g, ", ")
+    .replace(/\.(?!\s*\u2014)(?=\s|$)/g, ". ")
+    .replace(/;(?!\s*\u2014)/g, "; ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  const key = keyFor(polishedText, voice, speed);
   const filename = `${key}.mp3`;
   const audioUrl = `/voiceovers/${filename}`;
   const outPath = path.join(VOICEOVER_DIR, filename);
@@ -129,7 +139,7 @@ export async function POST(request: NextRequest) {
   let durationSec: number;
   if (fs.existsSync(outPath)) {
     const stat = await fs.promises.stat(outPath);
-    durationSec = estimateDurationSec(body.text, speed);
+    durationSec = estimateDurationSec(polishedText, speed);
     return Response.json({
       audioUrl,
       audioDurationSec: durationSec,
@@ -147,7 +157,7 @@ export async function POST(request: NextRequest) {
     body: JSON.stringify({
       model: "gpt-4o-mini-tts",
       voice,
-      input: body.text,
+      input: polishedText,
       response_format: "mp3",
       speed,
     }),
@@ -163,7 +173,7 @@ export async function POST(request: NextRequest) {
 
   const buffer = Buffer.from(await res.arrayBuffer());
   await fs.promises.writeFile(outPath, buffer);
-  durationSec = estimateDurationSec(body.text, speed);
+  durationSec = estimateDurationSec(polishedText, speed);
 
   return Response.json({
     audioUrl,

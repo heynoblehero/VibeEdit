@@ -1360,6 +1360,28 @@ const TOOLS: Record<string, AgentTool> = {
       input_schema: { type: "object", properties: {} },
     },
     async execute(_args, ctx) {
+      // Project-level cadence: long-short-long sentence variance reads
+      // as professional copy. Compute std-dev of sentence lengths across
+      // ALL narration combined and warn if it's too monotone.
+      const allSentences: number[] = [];
+      for (const s of ctx.project.scenes) {
+        const text = (s.voiceover?.text ?? s.text ?? "").trim();
+        if (!text) continue;
+        for (const sen of text.split(/[.!?]+/).filter((x) => x.trim())) {
+          allSentences.push(sen.split(/\s+/).filter(Boolean).length);
+        }
+      }
+      const projectFindings: string[] = [];
+      if (allSentences.length >= 4) {
+        const mean = allSentences.reduce((a, b) => a + b, 0) / allSentences.length;
+        const variance = allSentences.reduce((a, n) => a + (n - mean) ** 2, 0) / allSentences.length;
+        const stddev = Math.sqrt(variance);
+        if (stddev < 3) {
+          projectFindings.push(
+            `cadence: every sentence is ~${mean.toFixed(0)} words (std-dev ${stddev.toFixed(1)}). Mix in some 4-6 word punches.`,
+          );
+        }
+      }
       const FILLER = ["really", "very", "just", "kind of", "sort of", "basically", "actually", "literally", "honestly", "you know", "i mean"];
       const WEAK_VERBS = ["got", "get", "make", "do", "have", "be", "go", "come"];
       const findings: string[] = [];
@@ -1380,8 +1402,9 @@ const TOOLS: Record<string, AgentTool> = {
         if (wordCount === 0 && s.duration > 1.5) issues.push(`silent ${s.duration}s — add narration or shorten`);
         if (issues.length > 0) findings.push(`${s.id}: ${issues.join("; ")}`);
       }
-      if (findings.length === 0) return { ok: true, message: "✓ script lint clean — no filler / weak verbs / run-ons." };
-      return { ok: true, message: `${findings.length} script issues:\n${findings.map((f, i) => `${i + 1}. ${f}`).join("\n")}` };
+      const all = [...projectFindings, ...findings];
+      if (all.length === 0) return { ok: true, message: "✓ script lint clean — no filler / weak verbs / run-ons / monotone cadence." };
+      return { ok: true, message: `${all.length} script issues:\n${all.map((f, i) => `${i + 1}. ${f}`).join("\n")}` };
     },
   },
 

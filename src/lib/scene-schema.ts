@@ -179,6 +179,13 @@ export interface Scene {
   lensFlare?: boolean;
   /** Hex color override for the lens flare. */
   lensFlareColor?: string;
+  /**
+   * Stack of overlay effects + framed graphics rendered on top of the
+   * scene content. Order = render order. Each carries a startFrame so
+   * the agent can sequence beats inside one scene without inventing more
+   * scenes.
+   */
+  effects?: SceneEffect[];
 
   broll?: BRoll[];
 
@@ -327,6 +334,31 @@ export interface ShotPlan {
   assetDecision: AssetSource;
   assetTarget?: string;
   text?: string;
+}
+
+export type SceneEffectKind =
+  | "circle_ping"
+  | "radial_pulse"
+  | "scan_line"
+  | "bar_wipe"
+  | "corner_brackets"
+  | "reveal_box";
+
+export interface SceneEffect {
+  kind: SceneEffectKind;
+  /** Start frame within the scene. Defaults to 0. */
+  startFrame?: number;
+  color?: string;
+  /** Optional secondary text payload (used by bar_wipe). */
+  text?: string;
+  /** Generic position fields — interpretation depends on `kind`. */
+  x?: number | string;
+  y?: number | string;
+  w?: number | string;
+  h?: number | string;
+  /** Generic numeric param — size for circle_ping, thickness for boxes/brackets. */
+  size?: number;
+  thickness?: number;
 }
 
 export interface ExperimentRecord {

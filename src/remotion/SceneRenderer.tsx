@@ -12,6 +12,8 @@ import { Captions } from "./components/Captions";
 import { LensFlare } from "./components/LensFlare";
 import { Montage } from "./components/Montage";
 import { StatBlock } from "./components/StatBlock";
+import { CirclePing, RadialPulse, ScanLine } from "./components/effects";
+import { BarWipe, CornerBrackets, RevealBox } from "./components/graphics";
 import { GRAPHIC_MAP } from "./assets";
 import { bob } from "@/lib/anim";
 
@@ -199,6 +201,59 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       </ZoomPunch>
 
       {s.lensFlare && <LensFlare hitFrame={0} color={s.lensFlareColor} />}
+      {s.effects?.map((e, i) => {
+        const start = e.startFrame ?? 0;
+        switch (e.kind) {
+          case "circle_ping":
+            return (
+              <CirclePing
+                key={i}
+                hitFrame={start}
+                color={e.color}
+                size={e.size}
+                x={typeof e.x === "number" ? e.x : undefined}
+                y={typeof e.y === "number" ? e.y : undefined}
+              />
+            );
+          case "radial_pulse":
+            return <RadialPulse key={i} hitFrame={start} color={e.color} />;
+          case "scan_line":
+            return <ScanLine key={i} hitFrame={start} color={e.color} />;
+          case "bar_wipe":
+            return (
+              <BarWipe
+                key={i}
+                startFrame={start}
+                text={e.text}
+                color={e.color}
+                y={e.y}
+                height={e.size}
+              />
+            );
+          case "corner_brackets":
+            return (
+              <CornerBrackets
+                key={i}
+                startFrame={start}
+                color={e.color}
+                thickness={e.thickness}
+              />
+            );
+          case "reveal_box":
+            return (
+              <RevealBox
+                key={i}
+                startFrame={start}
+                color={e.color}
+                thickness={e.thickness}
+                x={e.x}
+                y={e.y}
+                w={e.w}
+                h={e.h}
+              />
+            );
+        }
+      })}
       {s.transition === "beat_flash" && <BeatFlash hitFrame={0} />}
       {s.transition === "beat_flash_colored" && (
         <BeatFlash hitFrame={0} color={s.transitionColor ?? "#10b981"} peakOpacity={0.25} />

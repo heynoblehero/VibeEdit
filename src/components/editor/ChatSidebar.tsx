@@ -85,7 +85,7 @@ export function ChatSidebar({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         abortRef.current?.abort();
-        toast("Stopped", { duration: 800 });
+        toast("Stopped agent", { description: "ESC any time to cancel.", duration: 1200 });
       }
     };
     window.addEventListener("keydown", onKey);

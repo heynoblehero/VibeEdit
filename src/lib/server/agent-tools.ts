@@ -181,7 +181,23 @@ const TOOLS: Record<string, AgentTool> = {
             ctx.project.scenes.length % 3
           ],
         transitionColor: args.transitionColor as string | undefined,
-        zoomPunch: args.zoomPunch as number | undefined,
+        // Auto-zoomPunch on text_only scenes that read as emphasis beats —
+        // ALL-CAPS short text or scenes flagged by emphasisText. Agent often
+        // forgets to set zoomPunch even when the scene clearly wants one.
+        zoomPunch: (() => {
+          const explicit = args.zoomPunch as number | undefined;
+          if (typeof explicit === "number") return explicit;
+          const t = args.type as string | undefined;
+          const text = (args.text as string | undefined) ?? "";
+          const looksLikePunch =
+            t === "text_only" &&
+            text.length > 0 &&
+            text.length <= 24 &&
+            text === text.toUpperCase();
+          if (looksLikePunch) return 1.15;
+          if (args.emphasisText) return 1.12;
+          return undefined;
+        })(),
         shakeIntensity: args.shakeIntensity as number | undefined,
         numberFrom: args.numberFrom as number | undefined,
         numberTo: args.numberTo as number | undefined,

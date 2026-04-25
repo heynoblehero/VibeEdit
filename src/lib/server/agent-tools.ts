@@ -789,6 +789,48 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  listAvailableModels: {
+    schema: {
+      name: "listAvailableModels",
+      description:
+        "List the catalog of image / video / voice / music / sfx models. Use when the user asks 'what models can you use' or you want to suggest a swap.",
+      input_schema: {
+        type: "object",
+        properties: {
+          kind: {
+            type: "string",
+            enum: ["image", "video", "voice", "music", "sfx", "all"],
+          },
+        },
+      },
+    },
+    async execute(args) {
+      const kind = String(args.kind ?? "all");
+      const { listMediaModels } = await import(
+        "@/lib/server/media-providers/models"
+      );
+      const { VOICES } = await import("@/lib/server/voice-providers/models");
+      const { AUDIO_MODELS } = await import("@/lib/server/audio-providers/models");
+      const lines: string[] = [];
+      for (const m of listMediaModels()) {
+        if (kind === "all" || m.kind === kind) {
+          lines.push(`${m.id} [${m.kind}] $${m.estimatedCostUsd} — ${m.tags.join(",")}`);
+        }
+      }
+      if (kind === "all" || kind === "voice") {
+        for (const v of VOICES) {
+          lines.push(`${v.id} [voice] $${v.costPer1kChars}/1k — ${v.tags.join(",")}`);
+        }
+      }
+      for (const a of AUDIO_MODELS) {
+        if (kind === "all" || a.kind === kind) {
+          lines.push(`${a.id} [${a.kind}] $${a.estimatedCostUsd} — ${a.tags.join(",")}`);
+        }
+      }
+      return { ok: true, message: lines.join("\n") };
+    },
+  },
+
   generateAvatarForScene: {
     schema: {
       name: "generateAvatarForScene",

@@ -223,6 +223,19 @@ export interface Project {
    * prompt so the user can steer the conversation without a template.
    */
   systemPrompt?: string;
+  /**
+   * Agent's video-production task list. Modeled on Claude Code's TodoWrite —
+   * the agent plans the work, marks tasks in_progress/completed, and the
+   * route refuses to let it terminate while items are open.
+   */
+  taskList?: VideoTask[];
+}
+
+export interface VideoTask {
+  id: string;
+  title: string;
+  status: "pending" | "in_progress" | "completed";
+  notes?: string;
 }
 
 export function getOrientation(p: { width: number; height: number }): Orientation {

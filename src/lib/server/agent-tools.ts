@@ -2,6 +2,7 @@ import {
   type CaptionStyle,
   type Project,
   type Scene,
+  type VideoTask,
   DEFAULT_CAPTION_STYLE,
   DIMENSIONS,
   createId,
@@ -686,6 +687,110 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  taskCreate: {
+    schema: {
+      name: "taskCreate",
+      description:
+        "Plan the work. Adds 1 or more tasks to the project's task list. Call this FIRST on any non-trivial objective. Each task is one concrete deliverable (e.g. 'Write 18-line script', 'Generate Pikachu image for scene 5', 'Narrate all scenes'). Mark in_progress before doing the work, completed when done. The agent CANNOT terminate the turn while tasks are still pending or in_progress.",
+      input_schema: {
+        type: "object",
+        properties: {
+          tasks: {
+            type: "array",
+            minItems: 1,
+            items: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+                notes: { type: "string" },
+              },
+              required: ["title"],
+            },
+          },
+        },
+        required: ["tasks"],
+      },
+    },
+    async execute(args, ctx) {
+      const tasksIn = (args.tasks ?? []) as Array<{ title: string; notes?: string }>;
+      const list = ctx.project.taskList ?? [];
+      let nextId = list.length + 1;
+      for (const t of tasksIn) {
+        list.push({
+          id: `t${nextId++}`,
+          title: t.title,
+          status: "pending",
+          notes: t.notes,
+        });
+      }
+      ctx.project.taskList = list;
+      return {
+        ok: true,
+        message: `Added ${tasksIn.length} task${tasksIn.length === 1 ? "" : "s"}. Now: ${list.length} total (${list.filter((t) => t.status === "pending").length} pending, ${list.filter((t) => t.status === "in_progress").length} in_progress, ${list.filter((t) => t.status === "completed").length} done).`,
+      };
+    },
+  },
+
+  taskUpdate: {
+    schema: {
+      name: "taskUpdate",
+      description:
+        "Update a task's status / notes. Status flow: pending → in_progress → completed. Mark in_progress just before doing the work. Mark completed only when the deliverable actually exists (scenes created, images attached, narration generated, etc.).",
+      input_schema: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          status: {
+            type: "string",
+            enum: ["pending", "in_progress", "completed"],
+          },
+          notes: { type: "string" },
+        },
+        required: ["id"],
+      },
+    },
+    async execute(args, ctx) {
+      const id = String(args.id);
+      const list = ctx.project.taskList ?? [];
+      const t = list.find((x) => x.id === id);
+      if (!t) return { ok: false, message: `no task ${id}` };
+      if (args.status) t.status = String(args.status) as VideoTask["status"];
+      if (typeof args.notes === "string") t.notes = String(args.notes);
+      ctx.project.taskList = list;
+      const open = list.filter(
+        (x) => x.status === "pending" || x.status === "in_progress",
+      ).length;
+      return {
+        ok: true,
+        message: `${id} → ${t.status}. ${open} open / ${list.length} total.`,
+      };
+    },
+  },
+
+  taskList: {
+    schema: {
+      name: "taskList",
+      description:
+        "List the current task plan. Pending + in_progress tasks block turn termination — the route forces another round if any remain.",
+      input_schema: { type: "object", properties: {} },
+    },
+    async execute(_args, ctx) {
+      const list = ctx.project.taskList ?? [];
+      if (list.length === 0)
+        return {
+          ok: true,
+          message:
+            "Task list is empty. Call taskCreate to plan the work before acting.",
+        };
+      const lines = list.map((t) => {
+        const icon =
+          t.status === "completed" ? "✓" : t.status === "in_progress" ? "→" : "·";
+        return `${icon} ${t.id}: ${t.title}${t.notes ? ` — ${t.notes}` : ""}`;
+      });
+      return { ok: true, message: lines.join("\n") };
+    },
+  },
+
   generateMusicForProject: {
     schema: {
       name: "generateMusicForProject",
@@ -906,40 +1011,30 @@ const TOOLS: Record<string, AgentTool> = {
       }
 
       try {
-        const res = await fetch(`${ctx.origin}/api/review`, {
+        // Sub-agent route — separate context budget, dedicated critic
+        // prompt, no editing tools available to it. Returns clean JSON.
+        const res = await fetch(`${ctx.origin}/api/agent/critic`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            scenes: ctx.project.scenes,
-            orientation:
-              ctx.project.height > ctx.project.width ? "portrait" : "landscape",
-            workflowId: ctx.project.workflowId,
-            workflowCriteria: `Critique focus: ${focus}.${
-              ctx.project.systemPrompt
-                ? ` User's stated objective: ${ctx.project.systemPrompt}`
-                : ""
-            }`,
+            project: ctx.project,
+            objective: ctx.project.systemPrompt,
+            focus,
           }),
         });
         if (!res.ok) {
           const text = await res.text();
-          throw new Error(`review ${res.status}: ${text.slice(0, 200)}`);
+          throw new Error(`critic ${res.status}: ${text.slice(0, 200)}`);
         }
-        // The /api/review route streams findings as SSE — collect them all.
-        const text = await res.text();
-        const findings: Array<{
-          sceneId: string;
-          severity: string;
-          issue: string;
-          suggestion: string;
-        }> = [];
-        for (const line of text.split("\n")) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const evt = JSON.parse(line.slice(6));
-            if (evt.type === "finding" && evt.finding) findings.push(evt.finding);
-          } catch {}
-        }
+        const data = (await res.json()) as {
+          findings?: Array<{
+            sceneId: string;
+            severity: string;
+            issue: string;
+            suggestion: string;
+          }>;
+        };
+        const findings = data.findings ?? [];
         if (findings.length === 0 && structural.length === 0) {
           return {
             ok: true,

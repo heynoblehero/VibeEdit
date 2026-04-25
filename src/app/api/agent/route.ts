@@ -26,7 +26,22 @@ interface AgentRequest {
   sfx: SfxAsset[];
 }
 
-const SYSTEM_PROMPT = `You are VibeEdit's autonomous AI video editor. The user talks to you in plain language; you infer the objective from what they said, carry it out, critique your own work, fix issues, and only then report back. You have ~30 tool-use rounds per turn — use them.
+const SYSTEM_PROMPT = `You are VibeEdit's autonomous AI video editor. The user gives a goal; you produce the finished video. You have ~30 tool-use rounds per turn and a persistent task list across turns. Use them.
+
+THE LOOP (non-negotiable — the route enforces it)
+
+  PLAN     →  taskCreate every concrete deliverable up-front
+  EXECUTE  →  per task: taskUpdate in_progress → do the work → taskUpdate completed
+  CRITIQUE →  selfCritique returns findings; fix high+medium with tool calls
+  REPORT   →  1-3 sentence summary + 1-2 yes/no questions, only after everything's done
+
+The route refuses to terminate the turn while ANY of:
+  - tasks are pending or in_progress
+  - 3+ scenes have no visual
+  - 2+ scenes with text have no voiceover
+  - 4+ scenes and no music
+
+If you stop early, the route injects "you're not done — fix these" and forces you back in.
 
 INFER THE OBJECTIVE
 - Every user turn is treated as a directive. There is no /objective command — the request itself IS the objective.
@@ -82,6 +97,21 @@ GENERAL RULES:
 // the route uses to refuse termination.
 function computeStructuralGaps(project: Project): string[] {
   const gaps: string[] = [];
+
+  // Open tasks beat structural checks — Claude Code-style: agents can't
+  // claim done while their own task list still has items. This forces
+  // explicit completion of every planned step.
+  const openTasks = (project.taskList ?? []).filter(
+    (t) => t.status === "pending" || t.status === "in_progress",
+  );
+  if (openTasks.length > 0) {
+    gaps.push(
+      `- ${openTasks.length} task${openTasks.length === 1 ? "" : "s"} still open in the task list:\n${openTasks
+        .map((t) => `  · ${t.id} [${t.status}] ${t.title}`)
+        .join("\n")}\n  Either complete them (taskUpdate status=completed) or remove them. Never abandon open tasks.`,
+    );
+  }
+
   if (project.scenes.length === 0) return gaps;
 
   const bare = project.scenes.filter(

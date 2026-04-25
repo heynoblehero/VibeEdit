@@ -2135,6 +2135,98 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  prepareUploadForScene: {
+    schema: {
+      name: "prepareUploadForScene",
+      description:
+        "One-shot variant pipeline for an uploaded asset: takes an upload URL + the scene's needs (orientation, role) and produces the right variant. Internally calls smartCropAsset (when AR mismatches) and/or removeBackground (when role='character_portrait'). Returns the final URL the agent should set as scene.background.imageUrl. Saves a round-trip vs calling each tool separately.",
+      input_schema: {
+        type: "object",
+        properties: {
+          sourceUrl: { type: "string" },
+          role: {
+            type: "string",
+            enum: ["bg_full", "character_portrait", "product_hero", "insert"],
+            description: "What the asset is being used for. Drives which edits run.",
+          },
+          targetRatio: {
+            type: "string",
+            enum: ["9:16", "16:9", "1:1"],
+            description: "Default = project orientation if omitted.",
+          },
+        },
+        required: ["sourceUrl", "role"],
+      },
+    },
+    async execute(args, ctx) {
+      const sourceUrl = String(args.sourceUrl);
+      const role = String(args.role);
+      const projectRatio: "9:16" | "16:9" =
+        ctx.project.height > ctx.project.width ? "9:16" : "16:9";
+      const ratio = (args.targetRatio as "9:16" | "16:9" | "1:1") ?? projectRatio;
+      let currentUrl = sourceUrl;
+      const steps: string[] = [];
+
+      // Step 1: bg removal for character/product hero shots.
+      if (role === "character_portrait" || role === "product_hero") {
+        try {
+          const res = await fetch(`${ctx.origin}/api/uploads/edits/remove-bg`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sourceUrl: currentUrl }),
+          });
+          const data = await res.json();
+          if (res.ok && data.url) {
+            currentUrl = data.url;
+            steps.push("bg removed");
+          } else {
+            steps.push(`bg-remove skipped: ${data.error ?? res.status}`);
+          }
+        } catch (e) {
+          steps.push(`bg-remove failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+
+      // Step 2: smart crop to target AR for full-bleed roles.
+      if (role === "bg_full" || role === "insert") {
+        try {
+          const res = await fetch(`${ctx.origin}/api/uploads/edits/crop`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sourceUrl: currentUrl, ratio, strategy: "smart" }),
+          });
+          const data = await res.json();
+          if (res.ok && data.url) {
+            currentUrl = data.url;
+            steps.push(`cropped ${ratio}`);
+          } else {
+            steps.push(`crop skipped: ${data.error ?? res.status}`);
+          }
+        } catch (e) {
+          steps.push(`crop failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+
+      ctx.project.experiments = [
+        ...(ctx.project.experiments ?? []),
+        {
+          ts: Date.now(),
+          kind: "image",
+          decision: "user_upload",
+          prompt: `prepare role=${role}`,
+          url: currentUrl,
+          kept: true,
+          note: steps.join(" → "),
+        },
+      ];
+
+      return {
+        ok: true,
+        message: `prepared → ${currentUrl}\nsteps: ${steps.length > 0 ? steps.join(" → ") : "(none — source already fits)"}`,
+      };
+    },
+  },
+
   removeBackground: {
     schema: {
       name: "removeBackground",

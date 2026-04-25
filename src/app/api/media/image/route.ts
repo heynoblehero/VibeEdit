@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
     modelId?: string;
     aspectRatio?: "16:9" | "9:16" | "1:1" | "4:3";
     inputImageUrl?: string;
+    shotType?: "wide" | "medium" | "closeup" | "ecu" | "ots" | "insert";
   };
   if (!body.prompt?.trim()) {
     return Response.json({ error: "prompt required" }, { status: 400 });
@@ -20,6 +21,7 @@ export async function POST(request: NextRequest) {
       modelId: body.modelId,
       aspectRatio: body.aspectRatio,
       inputImageUrl: body.inputImageUrl,
+      shotType: body.shotType,
     });
     return Response.json(result);
   } catch (err) {

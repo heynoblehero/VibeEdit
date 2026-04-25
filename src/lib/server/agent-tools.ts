@@ -732,6 +732,11 @@ const TOOLS: Record<string, AgentTool> = {
             description: "Optional model id from the catalog. Default: gpt-image-1.",
           },
           styleHint: { type: "string", description: "Optional style appended to the prompt." },
+          shotType: {
+            type: "string",
+            enum: ["wide", "medium", "closeup", "ecu", "ots", "insert"],
+            description: "Frames the prompt with composition language (wide=24mm, medium=50mm, closeup=85mm, ecu=macro, ots=over-shoulder, insert=isolated object). Falls back to scene.shotType if set.",
+          },
         },
         required: ["sceneId", "prompt"],
       },
@@ -754,6 +759,9 @@ const TOOLS: Record<string, AgentTool> = {
       const prompt = `${userPrompt}${styleHint ? ` — ${styleHint}` : ""}${autoStyle}`;
       const aspectRatio: "16:9" | "9:16" =
         ctx.project.height > ctx.project.width ? "9:16" : "16:9";
+      // Pull shotType off the scene if not explicitly passed.
+      const sceneShot = ctx.project.scenes[idx].shotType;
+      const shotType = (args.shotType as string | undefined) ?? sceneShot;
       try {
         const res = await fetch(`${ctx.origin}/api/media/image`, {
           method: "POST",
@@ -762,6 +770,7 @@ const TOOLS: Record<string, AgentTool> = {
             prompt,
             modelId: args.model ? String(args.model) : undefined,
             aspectRatio,
+            shotType,
           }),
         });
         const data = await res.json();

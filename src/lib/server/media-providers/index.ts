@@ -15,6 +15,12 @@ export interface ImageRequest {
   aspectRatio?: "16:9" | "9:16" | "1:1" | "4:3";
   /** For edit-style models — current image to modify. */
   inputImageUrl?: string;
+  /**
+   * Optional shot-type hint. Generators get a much better composition
+   * when they know whether to frame this as wide / closeup / over-shoulder
+   * etc. Mapped to lens/composition language in the prompt suffix.
+   */
+  shotType?: "wide" | "medium" | "closeup" | "ecu" | "ots" | "insert";
 }
 
 export interface VideoRequest {
@@ -92,7 +98,16 @@ export async function generateImage(req: ImageRequest): Promise<MediaResult> {
     // failure modes (blur, mangled hands, accidental text, watermarks).
     const negatives =
       "no text, no watermark, no logo, no blurriness, no distorted faces, no extra fingers";
-    const finalPrompt = `${req.prompt}. ${negatives}.`;
+    const shotSuffix: Record<string, string> = {
+      wide: "wide establishing shot, full scene visible, 24mm lens",
+      medium: "medium shot, subject framed waist up, 50mm lens",
+      closeup: "tight close-up, shallow depth of field, 85mm lens",
+      ecu: "extreme close-up, macro detail, dramatic lighting",
+      ots: "over-the-shoulder shot, foreground bokeh, depth",
+      insert: "insert shot, isolated object on clean background",
+    };
+    const composition = req.shotType ? shotSuffix[req.shotType] : "";
+    const finalPrompt = `${req.prompt}${composition ? ", " + composition : ""}. ${negatives}.`;
     const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${w}&height=${h}&nologo=true&model=flux&seed=${seed}&enhance=true`;
     // Pollinations supports HEAD-style verification but most clients just
     // hand the URL out — the renderer will fetch it on demand. We do a

@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Film, ListVideo, MessageCircle, Redo2, Undo2 } from "lucide-react";
+import { CalendarClock, Film, ListVideo, MessageCircle, Redo2, Smartphone, Undo2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { AuthBar } from "@/components/editor/AuthBar";
@@ -219,7 +219,14 @@ export default function Home() {
               <Redo2 className="h-4 w-4" aria-label="Redo" />
             </button>
           </div>
-          {/* Auto-video button retired — the chat agent handles "make a video about X" natively. */}
+          <a
+            href="/download"
+            title="Get VibeEdit as an app"
+            className="hidden sm:flex items-center gap-1 text-[11px] text-neutral-400 hover:text-emerald-300 transition-colors px-1.5 py-0.5"
+          >
+            <Smartphone className="h-3.5 w-3.5" />
+            <span>Get the app</span>
+          </a>
           <button
             onClick={toggleQueue}
             title="Render queue"

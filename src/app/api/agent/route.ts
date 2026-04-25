@@ -453,6 +453,23 @@ export async function POST(request: NextRequest) {
               { type: "text", text: audioCatalogSystemBlock() },
               { type: "text", text: workflowContext(project) },
             ];
+            // Goal-anchor: every 3 rounds re-pin the spine + score so the
+            // agent doesn't drift mid-loop. autoresearch's "transparent
+            // experiment log" pattern, but for self-orientation.
+            if (round > 0 && round % 3 === 0) {
+              const anchor: string[] = [];
+              if (project.spine) anchor.push(`Spine: ${project.spine}`);
+              if (typeof project.qualityScore === "number")
+                anchor.push(`Last qualityScore: ${project.qualityScore}/100 (target ≥ 75)`);
+              if ((project.shotList?.length ?? 0) > 0)
+                anchor.push(`Plan has ${project.shotList!.length} shots — execute them, don't replan.`);
+              if (anchor.length > 0) {
+                systemBlocks.push({
+                  type: "text",
+                  text: `Round ${round} reminder:\n${anchor.join("\n")}`,
+                });
+              }
+            }
             // Per-project override appended at the end so it takes priority.
             if (project.systemPrompt?.trim()) {
               systemBlocks.push({

@@ -29,11 +29,29 @@ function pickEmphasizedWord(words: string[]): number {
   return best;
 }
 
+// Greedy chunker that prefers breaking at punctuation. We keep adding
+// words until we hit the size cap OR the previous word ends in a clause
+// boundary (.,?!:;) — this stops chunks from splitting awkwardly mid-
+// clause like "the absolute / best thing".
 function buildChunks(words: CaptionWord[], chunkSize: number): Chunk[] {
   const size = Math.max(1, chunkSize);
   const chunks: Chunk[] = [];
-  for (let i = 0; i < words.length; i += size) {
-    const group = words.slice(i, i + size);
+  let i = 0;
+  while (i < words.length) {
+    const group: CaptionWord[] = [];
+    while (group.length < size && i < words.length) {
+      const w = words[i];
+      group.push(w);
+      i++;
+      // If we've grabbed at least size-1 and the just-added word ends a
+      // clause, stop here so the next chunk starts fresh on a new clause.
+      if (
+        group.length >= Math.max(1, size - 1) &&
+        /[.,?!:;]$/.test(w.word.trim())
+      ) {
+        break;
+      }
+    }
     if (group.length === 0) continue;
     const tokens = group.map((w) => w.word.trim());
     chunks.push({

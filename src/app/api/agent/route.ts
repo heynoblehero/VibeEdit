@@ -7,6 +7,7 @@ import {
   summarizeProject,
 } from "@/lib/server/agent-tools";
 import { callClaude, type ClaudeContentBlock } from "@/lib/server/claude-bridge";
+import { modelCatalogSystemBlock } from "@/lib/server/media-providers/models";
 import { getWorkflow, WORKFLOWS } from "@/lib/workflows/registry";
 
 export const runtime = "nodejs";
@@ -151,6 +152,7 @@ export async function POST(request: NextRequest) {
               cache_control?: { type: "ephemeral" };
             }> = [
               { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+              { type: "text", text: modelCatalogSystemBlock() },
               { type: "text", text: workflowContext(project) },
             ];
             // Per-project override appended at the end so it takes priority.

@@ -555,13 +555,17 @@ const TOOLS: Record<string, AgentTool> = {
     schema: {
       name: "generateImageForScene",
       description:
-        "Generate an AI image for a single scene's background (slideshow / comic / true-crime style). Needs OPENAI_API_KEY.",
+        "Generate an AI image for a scene's background. Routes to the right provider via /api/media/image. Pick a model from the catalog if the user has a preference (e.g. 'hero', 'cheap', 'with text'); omit `model` to use the default (gpt-image-1). Available image models: gpt-image-1, flux-1.1-pro-ultra, flux-schnell, ideogram-v3-turbo.",
       input_schema: {
         type: "object",
         properties: {
           sceneId: { type: "string" },
           prompt: { type: "string" },
-          styleHint: { type: "string" },
+          model: {
+            type: "string",
+            description: "Optional model id from the catalog. Default: gpt-image-1.",
+          },
+          styleHint: { type: "string", description: "Optional style appended to the prompt." },
         },
         required: ["sceneId", "prompt"],
       },
@@ -570,19 +574,24 @@ const TOOLS: Record<string, AgentTool> = {
       const sceneId = String(args.sceneId);
       const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
       if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
-      const prompt = String(args.prompt ?? "");
-      const styleHint = String(args.styleHint ?? "cinematic storybook illustration");
-      const size = ctx.project.height > ctx.project.width ? "1024x1536" : "1536x1024";
+      const styleHint = args.styleHint ? String(args.styleHint) : "";
+      const prompt = `${args.prompt}${styleHint ? ` — ${styleHint}` : ""}`;
+      const aspectRatio: "16:9" | "9:16" =
+        ctx.project.height > ctx.project.width ? "9:16" : "16:9";
       try {
-        const res = await fetch(`${ctx.origin}/api/generate-images`, {
+        const res = await fetch(`${ctx.origin}/api/media/image`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompts: [prompt], size, styleHint }),
+          body: JSON.stringify({
+            prompt,
+            modelId: args.model ? String(args.model) : undefined,
+            aspectRatio,
+          }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "image failed");
-        const url = data.images?.[0]?.url;
-        if (!url) throw new Error("no image url");
+        if (!res.ok) throw new Error(data.error ?? `image failed (${res.status})`);
+        const url = data.url;
+        if (!url) throw new Error("no image url returned");
         const scene = ctx.project.scenes[idx];
         scene.background = {
           ...scene.background,
@@ -590,11 +599,75 @@ const TOOLS: Record<string, AgentTool> = {
           kenBurns: true,
         };
         ctx.project.scenes = ctx.project.scenes.map((s, i) => (i === idx ? scene : s));
-        return { ok: true, message: `image attached to scene ${sceneId}` };
+        return {
+          ok: true,
+          message: `image attached to scene ${sceneId} (via ${data.modelId})`,
+        };
       } catch (e) {
         return {
           ok: false,
           message: `image failed: ${e instanceof Error ? e.message : String(e)}`,
+        };
+      }
+    },
+  },
+
+  generateVideoForScene: {
+    schema: {
+      name: "generateVideoForScene",
+      description:
+        "Generate an AI text-to-video clip and attach it as the scene's background video. Pick a model from the catalog if the user has a preference. Models: seedance-1-pro (default — best $/quality), kling-v2.0 (image-to-video king, pass imageUrl), veo-3 (premium, has native audio), ltx-video (fast & cheap b-roll). When the scene already has a background image and you want to animate it, prefer kling-v2.0 with imageUrl=that.",
+      input_schema: {
+        type: "object",
+        properties: {
+          sceneId: { type: "string" },
+          prompt: { type: "string" },
+          model: {
+            type: "string",
+            description: "Optional model id. Default: seedance-1-pro.",
+          },
+          imageUrl: {
+            type: "string",
+            description: "Optional source image URL — triggers image-to-video on supporting models.",
+          },
+          durationSec: { type: "number", description: "Optional clip length in seconds." },
+        },
+        required: ["sceneId", "prompt"],
+      },
+    },
+    async execute(args, ctx) {
+      const sceneId = String(args.sceneId);
+      const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
+      if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
+      const aspectRatio: "16:9" | "9:16" =
+        ctx.project.height > ctx.project.width ? "9:16" : "16:9";
+      try {
+        const res = await fetch(`${ctx.origin}/api/media/video`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: String(args.prompt),
+            modelId: args.model ? String(args.model) : undefined,
+            imageUrl: args.imageUrl ? String(args.imageUrl) : undefined,
+            durationSec: args.durationSec ? Number(args.durationSec) : undefined,
+            aspectRatio,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? `video failed (${res.status})`);
+        const url = data.url;
+        if (!url) throw new Error("no video url returned");
+        const scene = ctx.project.scenes[idx];
+        scene.background = { ...scene.background, videoUrl: url };
+        ctx.project.scenes = ctx.project.scenes.map((s, i) => (i === idx ? scene : s));
+        return {
+          ok: true,
+          message: `video attached to scene ${sceneId} (via ${data.modelId})`,
+        };
+      } catch (e) {
+        return {
+          ok: false,
+          message: `video failed: ${e instanceof Error ? e.message : String(e)}`,
         };
       }
     },

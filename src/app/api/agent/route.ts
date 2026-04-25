@@ -412,6 +412,21 @@ export async function POST(request: NextRequest) {
       let consecutiveErrors = 0;
       let forcedContinues = 0;
       const MAX_FORCED_CONTINUES = 3;
+
+      // Per-turn budgets: bound exploration so the agent doesn't burn $$
+      // making the same call 20x. Inspired by autoresearch's fixed-budget
+      // training loop. When a budget is exceeded the tool returns a
+      // synthetic "budget exhausted" result instead of running the call.
+      const budgets = {
+        webSearch: 5,
+        researchTopic: 3,
+        stockSearch: 4,
+        generateImageForScene: 12,
+        generateVideoForScene: 3,
+        generateMusicForProject: 2,
+        generateSfxForScene: 6,
+      };
+      const used: Record<string, number> = {};
       try {
         // Up to 32 rounds: enough headroom for the agent to act, run a
         // self-critique pass via selfCritique, apply fixes, and loop a few
@@ -508,7 +523,29 @@ export async function POST(request: NextRequest) {
           for (const tu of toolUses) {
             const args = (tu.input ?? {}) as Record<string, unknown>;
             send({ type: "tool_start", id: tu.id, name: tu.name, args });
-            const result = await runTool(tu.name ?? "", args, ctx);
+            const toolName = tu.name ?? "";
+            const cap = budgets[toolName as keyof typeof budgets];
+            if (cap !== undefined) {
+              used[toolName] = (used[toolName] ?? 0) + 1;
+              if (used[toolName] > cap) {
+                const synthetic = `[budget] ${toolName} hit per-turn cap of ${cap}. Stop calling it this turn — work with what you already have, or ask the user for clarification.`;
+                send({
+                  type: "tool_result",
+                  id: tu.id,
+                  name: toolName,
+                  ok: false,
+                  message: synthetic,
+                });
+                toolResultBlocks.push({
+                  type: "tool_result",
+                  tool_use_id: tu.id ?? "",
+                  content: [{ type: "text", text: synthetic }],
+                  is_error: true,
+                });
+                continue;
+              }
+            }
+            const result = await runTool(toolName, args, ctx);
             // "Provider not configured" failures (501-style) don't count
             // toward the consecutive-error cap — those are signals to try a
             // different tool, not stop the whole turn.

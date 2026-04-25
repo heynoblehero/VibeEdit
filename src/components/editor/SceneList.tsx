@@ -147,10 +147,17 @@ export function SceneList() {
           </SortableContext>
         </DndContext>
         {project.scenes.length === 0 && !isGenerating && (
-          <div className="text-center py-6 text-neutral-600 text-[11px] leading-relaxed">
-            No scenes yet.
-            <br />
-            Ask the agent to make them (<kbd className="text-emerald-400">Cmd+K</kbd>).
+          <div className="flex flex-col items-center gap-2 py-6 text-neutral-600 text-[11px] leading-relaxed">
+            <span>No scenes yet</span>
+            <button
+              onClick={handleAdd}
+              className="text-[11px] text-emerald-400 hover:text-emerald-300 underline decoration-dotted underline-offset-2"
+            >
+              + Add a blank scene
+            </button>
+            <span className="text-[10px] text-neutral-700">
+              or press <kbd className="text-emerald-400">N</kbd> · or ask in chat (<kbd className="text-emerald-400">Cmd+K</kbd>)
+            </span>
           </div>
         )}
         {isGenerating && (

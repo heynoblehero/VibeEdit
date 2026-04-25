@@ -289,6 +289,36 @@ async function runJob(job: RenderJob): Promise<void> {
   });
 
   const stat = await fs.promises.stat(outPath);
+
+  // Sanity-check that the rendered output's actual duration matches what
+  // the composition advertised. Drifts > 0.5s usually mean a missing
+  // frame range or a music-loop overshoot. Flag it but don't fail the
+  // job — the file is usable, the user just needs to know.
+  try {
+    const { spawn } = await import("node:child_process");
+    const measured: number = await new Promise((resolve) => {
+      const p = spawn("ffprobe", [
+        "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        outPath,
+      ]);
+      let out = "";
+      p.stdout.on("data", (c) => (out += c.toString()));
+      p.on("close", () => resolve(parseFloat(out.trim()) || 0));
+    });
+    const expected = job.totalFrames / (job.input.project.fps ?? 30);
+    const drift = Math.abs(measured - expected);
+    if (drift > 0.5) {
+      emit(job, {
+        type: "warning",
+        message: `duration drift: expected ${expected.toFixed(2)}s, got ${measured.toFixed(2)}s (Δ ${drift.toFixed(2)}s)`,
+      });
+    }
+  } catch {
+    // ffprobe unavailable — skip silently
+  }
+
   job.outputPath = outPath;
   job.sizeBytes = stat.size;
   job.state = "done";

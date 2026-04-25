@@ -30,7 +30,8 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
   const setSystemPrompt = useProjectStore((s) => s.setSystemPrompt);
 
   const [name, setName] = useState("");
-  const [orientation, setOrient] = useState<Orientation>("landscape");
+  // Default 9:16 — short-form is the dominant use case.
+  const [orientation, setOrient] = useState<Orientation>("portrait");
   const [goal, setGoal] = useState("");
   const [assets, setAssets] = useState<PendingAsset[]>([]);
   const [dragOver, setDragOver] = useState(false);
@@ -44,7 +45,7 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
     } else {
       // Reset on close so the next open starts clean.
       setName("");
-      setOrient("landscape");
+      setOrient("portrait");
       setGoal("");
       setAssets([]);
     }

@@ -64,7 +64,7 @@ CORE LOOP (do this every meaningful turn):
    - **EMPHASIS BEATS: every 3-4 scenes drop a text_only ALL-CAPS punch** with zoomPunch 1.15 + a contrasting accent color. Makes cuts feel intentional.
    - **SHOT-TYPE VARIETY (anti-slideshow).** Stop making slideshows. Every project should mix at least 4 of these shot types: wide (establishing), medium (talking-head distance), closeup (face-tight), ecu (eye/object detail), ots (over-the-shoulder), insert (b-roll cutaway), montage (3-5 quick cuts), split (compare/contrast). Long stretches of the same shot type = dead air. Plan in planVideo with explicit shotType per shot.
    - **CAMERA MOVES instead of static frames.** When you set background.kenBurns=true, also pick a direction. Push-in for reveals, pull-out for context, pan for landscapes/lists, tilt for vertical objects. A motionless image background for 3+ seconds reads as boring.
-   - **SCENE 1 IS A HOOK, NOT AN INTRO.** First scene MUST be one of these 10 patterns. Pick one explicitly when you call planVideo (set the first shot's `beat` to "hook: <pattern>"):
+   - **SCENE 1 IS A HOOK, NOT AN INTRO.** First scene MUST be one of these 10 patterns. Pick one explicitly when you call planVideo (set the first shot's beat field to "hook: <pattern>"):
      1. *question* — "What if I told you…"
      2. *contrarian* — "Everyone gets this wrong."
      3. *promise* — "By the end of this you'll know how to…"
@@ -209,6 +209,36 @@ function computeStructuralGaps(project: Project): string[] {
     gaps.push(
       `- No narrative spine. Call writeNarrativeSpine(promise, stakes, reveal) so the video has a thesis, not just a sequence of slides.`,
     );
+  }
+
+  // Pattern-interrupt cadence: scan timeline for any 8s window with no
+  // beat (sfx / zoomPunch / strong text / camera-move). Flag the first
+  // dead window we find — agent should add at least one beat there.
+  if (project.scenes.length >= 4) {
+    let cursor = 0; // seconds
+    let lastBeatAt = 0;
+    let deadWindow: { from: number; to: number } | null = null;
+    for (const s of project.scenes) {
+      const dur = s.duration ?? 2;
+      const hasBeat =
+        !!(s.sfxId || s.sceneSfxUrl) ||
+        (s.zoomPunch !== undefined && s.zoomPunch >= 1.1) ||
+        !!s.emphasisText ||
+        (s.background?.cameraMove && s.background.cameraMove !== "still") ||
+        s.shakeIntensity !== undefined ||
+        s.transition !== "none";
+      if (hasBeat) lastBeatAt = cursor + dur / 2;
+      else if (cursor - lastBeatAt > 8) {
+        deadWindow = { from: lastBeatAt, to: cursor + dur };
+        break;
+      }
+      cursor += dur;
+    }
+    if (deadWindow) {
+      gaps.push(
+        `- Dead air from ${deadWindow.from.toFixed(1)}s → ${deadWindow.to.toFixed(1)}s (no SFX/zoomPunch/emphasis/camera-move/shake). Add a beat in this window so viewers don't bounce.`,
+      );
+    }
   }
 
   // Quality score gate: single autoresearch-style metric. Below 75 means

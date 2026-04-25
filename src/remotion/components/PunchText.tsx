@@ -52,7 +52,10 @@ export const PunchText: React.FC<PunchTextProps> = ({
         right: 0,
         display: "flex",
         justifyContent: x === "center" ? "center" : "flex-start",
-        paddingLeft: x !== "center" ? x : 0,
+        // Always reserve a 6% margin on each side so words never kiss the
+        // safe-area edges on shorts platforms that crop overlays.
+        paddingLeft: x !== "center" ? x : "6%",
+        paddingRight: "6%",
         gap: fontSize * 0.3,
         flexWrap: "wrap",
       }}

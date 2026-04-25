@@ -603,7 +603,17 @@ const TOOLS: Record<string, AgentTool> = {
       const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
       if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
       const styleHint = args.styleHint ? String(args.styleHint) : "";
-      const prompt = `${args.prompt}${styleHint ? ` — ${styleHint}` : ""}`;
+      // Auto-append cinematic quality boosters so prompts don't render as
+      // flat / amateur. Skipped if the user's prompt already has its own
+      // style language (any of these keywords).
+      const userPrompt = String(args.prompt);
+      const hasOwnStyle = /cinematic|photorealistic|illustration|anime|4k|hdr|painted|studio/i.test(
+        userPrompt + " " + styleHint,
+      );
+      const autoStyle = hasOwnStyle
+        ? ""
+        : ", cinematic, dramatic lighting, sharp focus, high detail, 4k";
+      const prompt = `${userPrompt}${styleHint ? ` — ${styleHint}` : ""}${autoStyle}`;
       const aspectRatio: "16:9" | "9:16" =
         ctx.project.height > ctx.project.width ? "9:16" : "16:9";
       try {

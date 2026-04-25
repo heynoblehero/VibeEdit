@@ -177,6 +177,7 @@ export default function Home() {
               );
             }}
             title="Home (double-click for shortcuts)"
+            aria-label="Go to home"
             className="shrink-0"
           >
             <Film className="h-5 w-5 text-emerald-400" aria-label="VibeEdit" />

@@ -170,6 +170,31 @@ function computeStructuralGaps(project: Project): string[] {
     );
   }
 
+  // Talking-head monotony check: 3+ consecutive scenes with the same
+  // characterId or the same first-3-scene background.imageUrl host means
+  // we've stalled on a single subject. Force a B-roll insert.
+  let runChar: string | null = null;
+  let runCount = 0;
+  let needsBroll = false;
+  for (const s of project.scenes) {
+    const key = s.characterId ?? "_none";
+    if (key === runChar && key !== "_none") {
+      runCount++;
+      if (runCount >= 3) {
+        needsBroll = true;
+        break;
+      }
+    } else {
+      runChar = key;
+      runCount = 1;
+    }
+  }
+  if (needsBroll) {
+    gaps.push(
+      `- 3+ consecutive scenes share the same character — break the talking-head with a B-roll insert (insert/montage shotType, generated or stock image of what's being discussed). Slot it between the runs.`,
+    );
+  }
+
   // Spine: agent should commit to a narrative arc before generating media.
   // We only enforce this once there's enough scene work to justify it.
   if (!project.spine && project.scenes.length >= 4) {

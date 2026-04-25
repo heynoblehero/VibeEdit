@@ -186,6 +186,20 @@ function computeStructuralGaps(project: Project): string[] {
     );
   }
 
+  // Image dedup: same imageUrl repeated on consecutive scenes reads as
+  // a stuck slideshow. Flag the first repeat so the agent regenerates
+  // or routes to a different asset for the second occurrence.
+  for (let i = 1; i < project.scenes.length; i++) {
+    const prev = project.scenes[i - 1].background?.imageUrl;
+    const cur = project.scenes[i].background?.imageUrl;
+    if (prev && cur && prev === cur) {
+      gaps.push(
+        `- Scene ${project.scenes[i].id} reuses the same imageUrl as scene ${project.scenes[i - 1].id}. Generate a fresh image or pick a different uploaded asset.`,
+      );
+      break;
+    }
+  }
+
   // Talking-head monotony check: 3+ consecutive scenes with the same
   // characterId or the same first-3-scene background.imageUrl host means
   // we've stalled on a single subject. Force a B-roll insert.

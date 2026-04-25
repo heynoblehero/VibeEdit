@@ -16,7 +16,7 @@ import type { CharacterAsset, SfxAsset } from "@/store/asset-store";
 import { applyPresetToScene, getPreset, STYLE_PRESETS } from "@/lib/style-presets";
 import { generateScenesFromScript } from "@/lib/generate-scenes";
 import { WORKFLOWS } from "@/lib/workflows/registry";
-import { listJobs, startRenderJob } from "@/lib/server/render-jobs";
+import { getJob, listJobs, startRenderJob } from "@/lib/server/render-jobs";
 
 export interface ToolContext {
   project: Project;
@@ -1558,6 +1558,120 @@ const TOOLS: Record<string, AgentTool> = {
         return { ok: false, message: "promise / stakes / reveal all required" };
       ctx.project.spine = `${promise} → ${stakes} → ${reveal}`;
       return { ok: true, message: `spine: ${ctx.project.spine}` };
+    },
+  },
+
+  watchRenderedVideo: {
+    schema: {
+      name: "watchRenderedVideo",
+      description:
+        "After a render completes, sample N frames evenly across the output and run ffprobe for audio levels. Returns a structured per-frame summary (timestamp + filesize) plus audio peak/mean dB so the agent can decide what to fix. Inspired by the claude-video-vision plugin pattern: render, then 'watch' the output before claiming done. Pass the render job id from getRenderStatus or the latest done job is auto-picked.",
+      input_schema: {
+        type: "object",
+        properties: {
+          jobId: { type: "string", description: "Render job id. Omit to use the most recent done job." },
+          frames: { type: "number", description: "How many frames to sample (3-10). Default 6." },
+        },
+      },
+    },
+    async execute(args, ctx) {
+      const { spawn } = await import("node:child_process");
+      const fs = await import("node:fs");
+      const os = await import("node:os");
+      const path = await import("node:path");
+      const allJobs = listJobs();
+      const targetId = args.jobId
+        ? String(args.jobId)
+        : [...allJobs].reverse().find((j) => j.state === "done")?.id;
+      if (!targetId) return { ok: false, message: "no completed render job found — render first." };
+      const job = getJob(targetId);
+      if (!job) return { ok: false, message: `unknown job ${targetId}` };
+      if (!job.outputPath || !fs.existsSync(job.outputPath))
+        return { ok: false, message: `output missing for job ${job.id}` };
+
+      const n = Math.max(3, Math.min(10, Number(args.frames ?? 6)));
+      // Probe duration first.
+      const dur: number = await new Promise((resolve) => {
+        const p = spawn("ffprobe", [
+          "-v", "error",
+          "-show_entries", "format=duration",
+          "-of", "default=noprint_wrappers=1:nokey=1",
+          job.outputPath!,
+        ]);
+        let out = "";
+        p.stdout.on("data", (c) => (out += c.toString()));
+        p.on("close", () => resolve(parseFloat(out.trim()) || 0));
+      });
+      if (dur <= 0) return { ok: false, message: "ffprobe couldn't read duration" };
+
+      // Sample frame metadata (we don't return base64 images here — too
+      // heavy for the SSE channel; we report timing + size so the agent
+      // knows roughly where the cuts are. The full frame extraction lands
+      // in a follow-up commit if/when we wire vision into the loop).
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `vibeedit-watch-`));
+      const frames: Array<{ t: number; size: number; path: string }> = [];
+      for (let i = 0; i < n; i++) {
+        const t = Number(((i + 0.5) * dur / n).toFixed(2));
+        const out = path.join(tmpDir, `f${i}.jpg`);
+        await new Promise<void>((resolve) => {
+          const p = spawn("ffmpeg", [
+            "-y", "-ss", String(t), "-i", job.outputPath!,
+            "-frames:v", "1", "-q:v", "4", out,
+          ]);
+          p.on("close", () => resolve());
+        });
+        try {
+          const stat = fs.statSync(out);
+          frames.push({ t, size: stat.size, path: out });
+        } catch {
+          // frame extraction failed
+        }
+      }
+
+      // Audio level probe.
+      const audio: { peak: number; mean: number } | null = await new Promise(
+        (resolve) => {
+          const p = spawn("ffmpeg", [
+            "-i", job.outputPath!,
+            "-af", "volumedetect",
+            "-vn", "-sn", "-dn",
+            "-f", "null", "-",
+          ]);
+          let stderr = "";
+          p.stderr.on("data", (c) => (stderr += c.toString()));
+          p.on("close", () => {
+            const peak = parseFloat(stderr.match(/max_volume:\s*(-?\d+(\.\d+)?)/)?.[1] ?? "");
+            const mean = parseFloat(stderr.match(/mean_volume:\s*(-?\d+(\.\d+)?)/)?.[1] ?? "");
+            if (!isFinite(peak) || !isFinite(mean)) resolve(null);
+            else resolve({ peak, mean });
+          });
+        },
+      );
+
+      const audioLine = audio
+        ? `audio: peak=${audio.peak}dB, mean=${audio.mean}dB ` +
+          (audio.peak > -1 ? "⚠ clipping risk" : audio.mean < -30 ? "⚠ too quiet" : "✓ in range")
+        : "audio: probe failed";
+
+      // Persist a record so the agent can readExperimentLog and see this.
+      ctx.project.experiments = [
+        ...(ctx.project.experiments ?? []),
+        {
+          ts: Date.now(),
+          kind: "image",
+          decision: "ai_generated",
+          kept: true,
+          note: `watch dur=${dur.toFixed(1)}s frames=${frames.length} ${audioLine}`,
+        },
+      ];
+
+      return {
+        ok: true,
+        message:
+          `watched job ${job.id.slice(0, 8)} — ${dur.toFixed(1)}s, ${frames.length} frames sampled\n` +
+          frames.map((f) => `  · t=${f.t}s — ${(f.size / 1024).toFixed(0)}KB`).join("\n") +
+          `\n${audioLine}`,
+      };
     },
   },
 

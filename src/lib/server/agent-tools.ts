@@ -1561,6 +1561,42 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  readExperimentLog: {
+    schema: {
+      name: "readExperimentLog",
+      description:
+        "Read the project's append-only log of asset decisions: which images / videos / music / SFX were tried, which won, which got discarded. Use this when you're about to make a similar decision and want to avoid repeating a mistake. Returns at most the last 30 records.",
+      input_schema: {
+        type: "object",
+        properties: {
+          kind: {
+            type: "string",
+            enum: ["image", "video", "music", "sfx", "asset_route"],
+            description: "Filter by record kind. Omit to see all.",
+          },
+        },
+      },
+    },
+    async execute(args, ctx) {
+      const log = ctx.project.experiments ?? [];
+      const kind = args.kind ? String(args.kind) : null;
+      const filtered = kind ? log.filter((r) => r.kind === kind) : log;
+      const recent = filtered.slice(-30);
+      if (recent.length === 0) {
+        return { ok: true, message: "experiment log empty — nothing tried yet." };
+      }
+      const lines = recent.map((r, i) => {
+        const when = new Date(r.ts).toISOString().slice(11, 19);
+        const flag = r.kept ? "✓" : "✗";
+        return `${i + 1}. [${when}] ${flag} ${r.kind} via ${r.decision}` +
+          (r.prompt ? ` — "${r.prompt.slice(0, 60)}${r.prompt.length > 60 ? "…" : ""}"` : "") +
+          (r.score !== undefined ? ` (score=${r.score})` : "") +
+          (r.note ? ` — ${r.note}` : "");
+      });
+      return { ok: true, message: lines.join("\n") };
+    },
+  },
+
   scoreAssetForScene: {
     schema: {
       name: "scoreAssetForScene",

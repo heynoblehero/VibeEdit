@@ -150,8 +150,11 @@ const TOOLS: Record<string, AgentTool> = {
         background: {
           color: (args.backgroundColor as string | undefined) ?? "#0a0a0a",
           imageUrl: args.backgroundImageUrl as string | undefined,
-          kenBurns: args.backgroundKenBurns as boolean | undefined,
-          vignette: 0.5,
+          kenBurns:
+            (args.backgroundKenBurns as boolean | undefined) ??
+            !!args.backgroundImageUrl,
+          // Lighter vignette by default — 0.5 was crushing image bgs.
+          vignette: 0.35,
         },
       };
       const insertAt =

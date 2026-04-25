@@ -80,9 +80,17 @@ export const VideoComposition: React.FC<CompositionProps> = ({
             const ducked = duckRanges.some(
               (r) => frame >= r.from && frame < r.from + r.duration,
             );
-            return ducked
+            const target = ducked
               ? music.duckedVolume ?? 0.18
               : music.volume ?? 0.55;
+            // Smooth fade in over first ~0.6s, fade out over last ~0.6s so
+            // the bed never pops in/out at boundaries.
+            const fadeFrames = Math.min(Math.round(fps * 0.6), Math.floor(totalFrames / 4));
+            let envelope = 1;
+            if (frame < fadeFrames) envelope = frame / fadeFrames;
+            else if (frame > totalFrames - fadeFrames)
+              envelope = Math.max(0, (totalFrames - frame) / fadeFrames);
+            return target * envelope;
           }}
         />
       )}

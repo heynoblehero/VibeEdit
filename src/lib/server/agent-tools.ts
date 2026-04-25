@@ -1561,6 +1561,104 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  stockSearch: {
+    schema: {
+      name: "stockSearch",
+      description:
+        "Search free stock photo libraries (Pexels) for a query. Returns up to 8 candidate URLs you can plug straight into scene.background.imageUrl. Cheaper than AI gen and looks more authentic for real-world subjects (food, places, products, people doing things). Requires PEXELS_API_KEY set on server. Falls back to Pollinations search if missing.",
+      input_schema: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "What to search for. Be specific: 'sunrise over mountains' beats 'nature'." },
+          orientation: {
+            type: "string",
+            enum: ["landscape", "portrait", "square"],
+            description: "Match the project orientation. Default landscape.",
+          },
+          limit: { type: "number", description: "1-8, default 6." },
+        },
+        required: ["query"],
+      },
+    },
+    async execute(args, ctx) {
+      const query = String(args.query ?? "").trim();
+      if (!query) return { ok: false, message: "query required" };
+      const orientation = String(args.orientation ?? "landscape");
+      const limit = Math.max(1, Math.min(8, Number(args.limit ?? 6)));
+      const pexelsKey = process.env.PEXELS_API_KEY;
+      const results: Array<{ url: string; src: string; w: number; h: number; photographer?: string }> = [];
+
+      if (pexelsKey) {
+        try {
+          const res = await fetch(
+            `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=${limit}&orientation=${orientation}`,
+            { headers: { Authorization: pexelsKey } },
+          );
+          if (res.ok) {
+            const data = (await res.json()) as {
+              photos?: Array<{
+                src: { large2x: string; large: string; original: string };
+                url: string;
+                width: number;
+                height: number;
+                photographer?: string;
+              }>;
+            };
+            for (const p of data.photos ?? []) {
+              results.push({
+                url: p.src.large2x ?? p.src.large ?? p.src.original,
+                src: p.url,
+                w: p.width,
+                h: p.height,
+                photographer: p.photographer,
+              });
+            }
+          }
+        } catch {
+          // network — fall through to fallback
+        }
+      }
+
+      // Fallback: synthesize via Pollinations so the agent always gets
+      // something usable. Lower quality than real stock, but keyless.
+      if (results.length === 0) {
+        const w = orientation === "portrait" ? 1080 : orientation === "square" ? 1024 : 1920;
+        const h = orientation === "portrait" ? 1920 : orientation === "square" ? 1024 : 1080;
+        for (let i = 0; i < Math.min(limit, 3); i++) {
+          const seed = Math.floor(Math.random() * 1_000_000);
+          results.push({
+            url: `https://image.pollinations.ai/prompt/${encodeURIComponent(query + ", documentary photography, no text, no watermark")}?width=${w}&height=${h}&nologo=true&model=flux&seed=${seed}`,
+            src: "pollinations",
+            w,
+            h,
+          });
+        }
+      }
+
+      // Log so we can see which URLs the agent considered.
+      ctx.project.experiments = [
+        ...(ctx.project.experiments ?? []),
+        ...results.map((r) => ({
+          ts: Date.now(),
+          kind: "image" as const,
+          decision: "stock" as AssetSource,
+          prompt: query,
+          url: r.url,
+          kept: false,
+        })),
+      ];
+
+      return {
+        ok: true,
+        message:
+          `${results.length} stock results for "${query}":\n` +
+          results
+            .map((r, i) => `${i + 1}. ${r.url}${r.photographer ? `  — © ${r.photographer}` : ""}`)
+            .join("\n"),
+      };
+    },
+  },
+
   routeAsset: {
     schema: {
       name: "routeAsset",

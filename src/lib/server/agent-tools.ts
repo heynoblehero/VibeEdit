@@ -127,8 +127,19 @@ const TOOLS: Record<string, AgentTool> = {
         characterId: args.characterId as string | undefined,
         characterX: args.characterX as number | undefined,
         characterY: args.characterY as number | undefined,
-        enterFrom: args.enterFrom as Scene["enterFrom"],
-        transition: args.transition as Scene["transition"],
+        // Default rotation for enterFrom + transition so consecutive scenes
+        // don't all swoop in from the left with the same beat-flash. Cycles
+        // off scene index — predictable but varied.
+        enterFrom:
+          (args.enterFrom as Scene["enterFrom"]) ??
+          (["bottom", "right", "scale", "left"] as const)[
+            ctx.project.scenes.length % 4
+          ],
+        transition:
+          (args.transition as Scene["transition"]) ??
+          (["beat_flash", "beat_flash_colored", "none"] as const)[
+            ctx.project.scenes.length % 3
+          ],
         transitionColor: args.transitionColor as string | undefined,
         zoomPunch: args.zoomPunch as number | undefined,
         shakeIntensity: args.shakeIntensity as number | undefined,

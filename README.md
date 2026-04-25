@@ -136,6 +136,39 @@ server — zero per-token API spend in dev.
 
 See `docker/cliproxy/README.md` for the OAuth bootstrap steps.
 
+## AI provider architecture
+
+Three unified adapters live under `src/lib/server/`:
+
+- `media-providers/` — image (DALL-E/gpt-image-1, Flux, Ideogram) + video
+  (Seedance, Kling, Veo 3, LTX). Mostly Replicate; gpt-image-1 hits OpenAI.
+- `voice-providers/` — TTS (OpenAI gpt-4o-mini-tts, ElevenLabs presets).
+- `audio-providers/` — music (MusicGen, Stable Audio) + SFX (ElevenLabs SFX,
+  AudioGen).
+
+Each adapter exposes a `models.ts` catalog with provider, slug, tags, cost.
+`<adapter>CatalogSystemBlock()` injects the catalog into the agent's system
+prompt so it can pick a model from intent ("hero shot" → flux-1.1-pro-ultra,
+"cheap b-roll" → ltx-video, "deep narrator" → openai-onyx).
+
+Adding a model = one entry in the catalog file. No provider code unless
+it's a new vendor.
+
+**Env vars to wire each one on:**
+```
+REPLICATE_API_TOKEN     # everything except gpt-image-1, OpenAI TTS, ElevenLabs SFX
+ELEVENLABS_API_KEY      # voice cloning + SFX + premium ElevenLabs voices
+OPENAI_API_KEY          # gpt-image-1, OpenAI TTS, Whisper
+SEARCH_PROVIDER + key   # webSearch agent tool (tavily / serper)
+AVATAR_PROVIDER + key   # talking-head avatars (fal)
+```
+
+Catalog endpoints:
+```
+GET /api/media/models     # image + video models
+GET /api/media/voices     # TTS voices
+```
+
 ## Architecture
 
 - `src/app/api/*` — route handlers (agent, render queue, TTS, Whisper, image gen, Stripe, auth)

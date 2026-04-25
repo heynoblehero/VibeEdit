@@ -186,6 +186,28 @@ function computeStructuralGaps(project: Project): string[] {
     );
   }
 
+  // CTA check: last scene should hint at a call-to-action when the video
+  // is long enough to warrant one (>20s). Look for keywords in the
+  // text/emphasisText/voiceover.text of the last scene.
+  if (project.scenes.length >= 6) {
+    const totalSec = project.scenes.reduce((acc, s) => acc + (s.duration ?? 2), 0);
+    if (totalSec >= 20) {
+      const last = project.scenes[project.scenes.length - 1];
+      const lastText = `${last.text ?? ""} ${last.emphasisText ?? ""} ${last.voiceover?.text ?? ""}`.toLowerCase();
+      const ctaSignals = [
+        "follow", "subscribe", "comment", "share", "like", "save",
+        "click", "link", "join", "sign up", "try", "book", "buy",
+        "watch", "next", "tap", "swipe", "dm", "message",
+      ];
+      const hasCta = ctaSignals.some((c) => lastText.includes(c));
+      if (!hasCta) {
+        gaps.push(
+          `- Last scene has no call-to-action. ${totalSec.toFixed(0)}s of video deserves a CTA (follow, save, comment, or "watch part 2"). Update the last scene's text or emphasisText.`,
+        );
+      }
+    }
+  }
+
   // Image dedup: same imageUrl repeated on consecutive scenes reads as
   // a stuck slideshow. Flag the first repeat so the agent regenerates
   // or routes to a different asset for the second occurrence.

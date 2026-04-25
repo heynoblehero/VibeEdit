@@ -100,8 +100,23 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   const progress = Math.min(1, frame / Math.max(1, durationInFrames));
   const cam = cameraTransform(move, progress);
 
+  // When neither image nor video is set, the bare color background
+  // looks like the renderer crashed. Replace with a slow animated radial
+  // gradient that pulses ±8% lightness so the scene reads alive.
+  const noMedia = !videoUrl && !imageUrl;
+
   return (
     <AbsoluteFill style={{ backgroundColor: color, overflow: "hidden" }}>
+      {noMedia && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: `radial-gradient(ellipse at ${50 + Math.sin(frame / 60) * 12}% ${50 + Math.cos(frame / 70) * 10}%, ${color}ee 0%, ${color} 60%, ${color}88 100%)`,
+            transition: "none",
+          }}
+        />
+      )}
       {videoUrl && (
         <OffthreadVideo
           src={videoUrl}

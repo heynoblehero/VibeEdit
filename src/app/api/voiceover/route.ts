@@ -172,13 +172,56 @@ export async function POST(request: NextRequest) {
   }
 
   const buffer = Buffer.from(await res.arrayBuffer());
+  // Write the raw output, then run ffmpeg silenceremove to trim
+  // leading/trailing dead air the TTS sometimes pads. Quiet failures —
+  // we always have the untrimmed file as a fallback.
   await fs.promises.writeFile(outPath, buffer);
-  durationSec = estimateDurationSec(polishedText, speed);
+  try {
+    const { spawn } = await import("node:child_process");
+    const trimmedPath = outPath.replace(/\.mp3$/, ".trim.mp3");
+    await new Promise<void>((resolve, reject) => {
+      const p = spawn("ffmpeg", [
+        "-y", "-i", outPath,
+        "-af",
+        // Trim ≥0.2s of <-50dB silence at the start AND end.
+        "silenceremove=start_periods=1:start_duration=0.2:start_threshold=-50dB:detection=peak,areverse,silenceremove=start_periods=1:start_duration=0.2:start_threshold=-50dB:detection=peak,areverse",
+        "-codec:a", "libmp3lame", "-q:a", "3",
+        trimmedPath,
+      ]);
+      p.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg ${code}`))));
+      p.on("error", reject);
+    });
+    // Swap files: trimmed becomes the canonical version.
+    await fs.promises.rename(trimmedPath, outPath);
+  } catch {
+    // ffmpeg unavailable or trim failed — keep the raw file.
+  }
 
+  // Re-read duration: prefer ffprobe if available (accurate), else estimate.
+  durationSec = estimateDurationSec(polishedText, speed);
+  try {
+    const { spawn } = await import("node:child_process");
+    const probed = await new Promise<number>((resolve) => {
+      const p = spawn("ffprobe", [
+        "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        outPath,
+      ]);
+      let out = "";
+      p.stdout.on("data", (c) => (out += c.toString()));
+      p.on("close", () => resolve(parseFloat(out.trim()) || 0));
+    });
+    if (probed > 0) durationSec = probed;
+  } catch {
+    // estimate is fine
+  }
+
+  const finalStat = await fs.promises.stat(outPath);
   return Response.json({
     audioUrl,
     audioDurationSec: durationSec,
-    bytes: buffer.length,
+    bytes: finalStat.size,
     provider: "openai" as const,
     voice,
   });

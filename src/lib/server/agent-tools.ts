@@ -143,6 +143,11 @@ const TOOLS: Record<string, AgentTool> = {
           },
           backgroundImageUrl: { type: "string" },
           backgroundKenBurns: { type: "boolean" },
+          backgroundCameraMove: {
+            type: "string",
+            enum: ["still", "push_in", "pull_out", "pan_lr", "pan_rl", "tilt_up", "tilt_down", "ken_burns"],
+            description: "Camera move applied to image background. Overrides kenBurns. push_in=reveals, pull_out=context, pan=landscapes/lists, tilt=vertical objects.",
+          },
           insertAt: {
             type: "number",
             description: "Zero-based index to insert at. Omit to append.",
@@ -214,6 +219,19 @@ const TOOLS: Record<string, AgentTool> = {
           kenBurns:
             (args.backgroundKenBurns as boolean | undefined) ??
             !!args.backgroundImageUrl,
+          cameraMove: (() => {
+            const explicit = args.backgroundCameraMove as Scene["background"]["cameraMove"] | undefined;
+            if (explicit) return explicit;
+            // Auto-pick a camera move when an image bg is present so we
+            // don't end up with N static-image scenes in a row. Cycle
+            // through 4 templates by scene index for variety.
+            if (args.backgroundImageUrl) {
+              return (["push_in", "pull_out", "pan_lr", "ken_burns"] as const)[
+                ctx.project.scenes.length % 4
+              ];
+            }
+            return undefined;
+          })(),
           // Lighter vignette by default — 0.5 was crushing image bgs.
           vignette: 0.35,
         },

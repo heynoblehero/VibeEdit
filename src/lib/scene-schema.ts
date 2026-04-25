@@ -67,6 +67,13 @@ export interface SceneBackground {
   imageUrl?: string;
   /** If true, apply a slow Ken Burns zoom to the imageUrl. */
   kenBurns?: boolean;
+  /**
+   * Camera move applied to the imageUrl. Overrides kenBurns when set.
+   * "still" = no motion. "push_in" = scale 1→1.15 from center.
+   * "pull_out" = scale 1.15→1. "pan_lr" / "pan_rl" = horizontal drift.
+   * "tilt_up" / "tilt_down" = vertical drift. "ken_burns" = legacy diagonal.
+   */
+  cameraMove?: "still" | "push_in" | "pull_out" | "pan_lr" | "pan_rl" | "tilt_up" | "tilt_down" | "ken_burns";
   imageOpacity?: number;
   /** Full-bleed background video. Used by commentary/movie-review/gaming. */
   videoUrl?: string;

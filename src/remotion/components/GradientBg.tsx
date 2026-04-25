@@ -12,11 +12,45 @@ interface GradientBgProps {
   imageUrl?: string;
   imageOpacity?: number;
   kenBurns?: boolean;
+  cameraMove?:
+    | "still"
+    | "push_in"
+    | "pull_out"
+    | "pan_lr"
+    | "pan_rl"
+    | "tilt_up"
+    | "tilt_down"
+    | "ken_burns";
   videoUrl?: string;
   videoStartSec?: number;
   videoMuted?: boolean;
   drift?: boolean;
   children?: React.ReactNode;
+}
+
+function cameraTransform(
+  move: NonNullable<GradientBgProps["cameraMove"]>,
+  progress: number,
+): { scale: number; tx: number; ty: number } {
+  // progress: 0 → 1 across the scene.
+  switch (move) {
+    case "still":
+      return { scale: 1, tx: 0, ty: 0 };
+    case "push_in":
+      return { scale: 1 + progress * 0.18, tx: 0, ty: 0 };
+    case "pull_out":
+      return { scale: 1.18 - progress * 0.18, tx: 0, ty: 0 };
+    case "pan_lr":
+      return { scale: 1.12, tx: -60 + progress * 120, ty: 0 };
+    case "pan_rl":
+      return { scale: 1.12, tx: 60 - progress * 120, ty: 0 };
+    case "tilt_up":
+      return { scale: 1.12, tx: 0, ty: 60 - progress * 120 };
+    case "tilt_down":
+      return { scale: 1.12, tx: 0, ty: -60 + progress * 120 };
+    case "ken_burns":
+      return { scale: 1 + progress * 0.1, tx: (progress - 0.5) * 40, ty: 0 };
+  }
 }
 
 export const GradientBg: React.FC<GradientBgProps> = ({
@@ -29,6 +63,7 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   imageUrl,
   imageOpacity = 1,
   kenBurns = false,
+  cameraMove,
   videoUrl,
   videoStartSec = 0,
   videoMuted = true,
@@ -40,10 +75,11 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   const driftX = drift ? bob(frame, 8, 200) : 0;
   const driftY = drift ? bob(frame + 50, 5, 160) : 0;
 
-  // Ken Burns: smoothly scale from 1 → 1.1 across the scene's duration.
-  const kbProgress = kenBurns ? Math.min(1, frame / Math.max(1, durationInFrames)) : 0;
-  const kbScale = 1 + kbProgress * 0.1;
-  const kbDriftX = kenBurns ? (kbProgress - 0.5) * 40 : 0;
+  // Resolve camera move. Explicit `cameraMove` wins; fall back to legacy
+  // kenBurns boolean which now maps to the diagonal drift template.
+  const move = cameraMove ?? (kenBurns ? "ken_burns" : "still");
+  const progress = Math.min(1, frame / Math.max(1, durationInFrames));
+  const cam = cameraTransform(move, progress);
 
   return (
     <AbsoluteFill style={{ backgroundColor: color, overflow: "hidden" }}>
@@ -76,7 +112,7 @@ export const GradientBg: React.FC<GradientBgProps> = ({
               width: "100%",
               height: "100%",
               objectFit: "cover",
-              transform: `scale(${kbScale}) translateX(${kbDriftX}px)`,
+              transform: `scale(${cam.scale}) translate(${cam.tx}px, ${cam.ty}px)`,
               transformOrigin: "center center",
             }}
           />

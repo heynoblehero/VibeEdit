@@ -132,6 +132,13 @@ export interface Scene {
   statValue?: string;
   statLabel?: string;
   statColor?: string;
+  /**
+   * Tag the scene with its planned shot type. Lets the qualityScore +
+   * gate count distinct shotTypes per project rather than guessing.
+   */
+  shotType?: ShotType;
+  /** Tag the scene with its planned act (1/2/3) for three-act enforcement. */
+  act?: 1 | 2 | 3;
 
   voiceover?: Voiceover;
   showCaptions?: boolean;

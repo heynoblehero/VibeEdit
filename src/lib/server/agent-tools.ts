@@ -116,6 +116,16 @@ const TOOLS: Record<string, AgentTool> = {
           statValue: { type: "string", description: "For type=stat: the big hero number/percentage." },
           statLabel: { type: "string", description: "For type=stat: small label below the number." },
           statColor: { type: "string" },
+          shotType: {
+            type: "string",
+            enum: ["wide", "medium", "closeup", "ecu", "ots", "insert", "montage", "split"],
+            description: "Tag the scene's intended shot type so qualityScore can count distinct types accurately.",
+          },
+          act: {
+            type: "number",
+            enum: [1, 2, 3],
+            description: "Three-act tag (1=hook/setup, 2=core, 3=payoff/CTA).",
+          },
           montageUrls: {
             type: "array",
             items: { type: "string" },
@@ -196,6 +206,8 @@ const TOOLS: Record<string, AgentTool> = {
         statValue: args.statValue as string | undefined,
         statLabel: args.statLabel as string | undefined,
         statColor: args.statColor as string | undefined,
+        shotType: args.shotType as ShotType | undefined,
+        act: args.act as 1 | 2 | 3 | undefined,
         text: args.text as string | undefined,
         emphasisText: args.emphasisText as string | undefined,
         emphasisColor: args.emphasisColor as string | undefined,
@@ -1404,8 +1416,11 @@ const TOOLS: Record<string, AgentTool> = {
       const idealCount = Math.max(6, Math.floor(totalSec / 3.5));
       const density = Math.min(10, Math.round((scenes.length / idealCount) * 10));
 
-      // Component 4: shot-type variety (10 pts) — count unique shotTypes from shotList
-      const types = new Set((ctx.project.shotList ?? []).map((s) => s.shotType));
+      // Component 4: shot-type variety (10 pts) — count unique shotTypes
+      // across the actual scenes (preferred) and fall back to shotList.
+      const sceneTypes = new Set(scenes.map((s) => s.shotType).filter(Boolean));
+      const planTypes = new Set((ctx.project.shotList ?? []).map((p) => p.shotType));
+      const types = sceneTypes.size > 0 ? sceneTypes : planTypes;
       const variety = Math.min(10, types.size * 2);
 
       // Component 5: hook quality (10 pts) — first scene must have visual + short text or zoomPunch

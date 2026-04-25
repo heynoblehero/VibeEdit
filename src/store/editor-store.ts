@@ -11,6 +11,10 @@ interface EditorStore {
   setPreviewFrame: (f: number) => void;
   imageEditorBRollId: string | null;
   openImageEditor: (brollId: string | null) => void;
+  /** Scene currently in frame during full-video playback. SceneList +
+      timeline read this to show a "now playing" pulse. */
+  playingSceneId: string | null;
+  setPlayingSceneId: (id: string | null) => void;
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
@@ -22,4 +26,6 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setPreviewFrame: (f) => set({ previewFrame: f }),
   imageEditorBRollId: null,
   openImageEditor: (brollId) => set({ imageEditorBRollId: brollId }),
+  playingSceneId: null,
+  setPlayingSceneId: (id) => set({ playingSceneId: id }),
 }));

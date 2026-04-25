@@ -28,7 +28,7 @@ function SingleSceneWrapper({ scene, characters, sfx, captionStyle }: any) {
 export function Preview() {
   const { project, selectedSceneId } = useProjectStore();
   const { characters, sfx } = useAssetStore();
-  const { isPaused, setPaused, setEditTarget } = useEditorStore();
+  const { isPaused, setPaused, setEditTarget, setPlayingSceneId } = useEditorStore();
   const playerRef = useRef<PlayerRef>(null);
 
   const charMap = useMemo(() => {
@@ -57,17 +57,38 @@ export function Preview() {
   const [currentFrame, setCurrentFrame] = useState(0);
   const isFullPreview = !selectedScene;
 
+  // Compute scene boundaries once so the frameupdate handler can do an
+  // O(N) linear scan to find the active scene.
+  const sceneBounds = useMemo(() => {
+    let acc = 0;
+    return project.scenes.map((s) => {
+      const start = acc;
+      const frames = sceneDurationFrames(s, project.fps);
+      acc += frames;
+      return { id: s.id, start, end: acc };
+    });
+  }, [project.scenes, project.fps]);
+
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
     const onFrame = (e: { detail: { frame: number } }) => {
-      setCurrentFrame(e.detail.frame);
+      const f = e.detail.frame;
+      setCurrentFrame(f);
+      if (isFullPreview) {
+        // Find which scene is in frame and broadcast it.
+        const hit = sceneBounds.find((b) => f >= b.start && f < b.end);
+        setPlayingSceneId(hit?.id ?? null);
+      } else {
+        setPlayingSceneId(selectedSceneId);
+      }
     };
     player.addEventListener("frameupdate", onFrame);
     return () => {
       player.removeEventListener("frameupdate", onFrame);
+      setPlayingSceneId(null);
     };
-  }, [isFullPreview, selectedSceneId]);
+  }, [isFullPreview, selectedSceneId, sceneBounds, setPlayingSceneId]);
 
   useEffect(() => {
     if (isPaused && playerRef.current) {

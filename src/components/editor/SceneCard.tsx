@@ -1,10 +1,11 @@
 "use client";
 
-import { Copy, GripVertical, Trash2 } from "lucide-react";
+import { Copy, GripVertical, Play, Trash2 } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useRef } from "react";
 import type { Scene } from "@/lib/scene-schema";
+import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 import { SceneThumbnail } from "./SceneThumbnail";
 
@@ -23,14 +24,18 @@ export function SceneCard({ scene, index }: SceneCardProps) {
 
   const isActive = selectedSceneId === scene.id;
   const isInMulti = selectedSceneIds.includes(scene.id);
+  const playingSceneId = useEditorStore((s) => s.playingSceneId);
+  const isPlaying = playingSceneId === scene.id;
   const rowRef = useRef<HTMLDivElement | null>(null);
 
-  // When selection moves via keyboard, scroll the active card into view.
+  // Scroll the active card into view — driven by either selection (kbd nav)
+  // or playback position. Playback uses 'nearest' so it doesn't jerk the
+  // list around mid-watch.
   useEffect(() => {
-    if (isActive && rowRef.current) {
+    if ((isActive || isPlaying) && rowRef.current) {
       rowRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
-  }, [isActive]);
+  }, [isActive, isPlaying]);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: scene.id });
@@ -70,7 +75,9 @@ export function SceneCard({ scene, index }: SceneCardProps) {
           : `${scene.type} · ${scene.duration}s`
       }
       className={`group flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors border ${
-        isActive
+        isPlaying
+          ? "border-sky-400 bg-sky-500/15 ring-2 ring-sky-400/40 ring-offset-1 ring-offset-neutral-950"
+          : isActive
           ? "border-emerald-500 bg-emerald-500/10"
           : isInMulti
             ? "border-emerald-700/60 bg-emerald-900/15"
@@ -86,8 +93,12 @@ export function SceneCard({ scene, index }: SceneCardProps) {
       >
         <GripVertical className="h-3 w-3" />
       </button>
-      <span className="text-[9px] font-mono text-neutral-600 shrink-0 w-5 text-right">
-        {String(index + 1).padStart(2, "0")}
+      <span className="text-[9px] font-mono text-neutral-600 shrink-0 w-5 text-right flex items-center justify-end">
+        {isPlaying ? (
+          <Play className="h-2.5 w-2.5 text-sky-400 fill-sky-400 animate-pulse" />
+        ) : (
+          String(index + 1).padStart(2, "0")
+        )}
       </span>
       {scene.emphasisColor && (
         <span

@@ -860,6 +860,37 @@ const TOOLS: Record<string, AgentTool> = {
         return { ok: true, message: "no scenes yet — nothing to critique" };
       }
       const focus = args.focus ? String(args.focus) : "overall quality";
+
+      // Pre-check: catch the structural problems Claude's review prompt
+      // sometimes glosses over. These ALWAYS get flagged as high-severity.
+      const structural: string[] = [];
+      const bare = ctx.project.scenes.filter(
+        (s) => !s.background?.imageUrl && !s.background?.videoUrl,
+      );
+      if (bare.length >= 3) {
+        structural.push(
+          `[high] ${bare.length} scenes have no image or video background — call generateImageForScene on them: ${bare
+            .slice(0, 5)
+            .map((s) => s.id)
+            .join(", ")}${bare.length > 5 ? "…" : ""}`,
+        );
+      }
+      const unnarrated = ctx.project.scenes.filter(
+        (s) =>
+          !s.voiceover?.audioUrl &&
+          (s.text || s.emphasisText || s.subtitleText),
+      );
+      if (unnarrated.length >= 2) {
+        structural.push(
+          `[high] ${unnarrated.length} scenes with text but no voiceover — run narrateAllScenes.`,
+        );
+      }
+      if (!ctx.project.music && ctx.project.scenes.length >= 4) {
+        structural.push(
+          `[medium] no backing music — call generateMusicForProject with a mood-matched prompt.`,
+        );
+      }
+
       try {
         const res = await fetch(`${ctx.origin}/api/review`, {
           method: "POST",
@@ -895,21 +926,22 @@ const TOOLS: Record<string, AgentTool> = {
             if (evt.type === "finding" && evt.finding) findings.push(evt.finding);
           } catch {}
         }
-        if (findings.length === 0) {
+        if (findings.length === 0 && structural.length === 0) {
           return {
             ok: true,
             message: "✓ self-critique pass clean — no issues found.",
           };
         }
-        const summary = findings
-          .map(
+        const summary = [
+          ...structural,
+          ...findings.map(
             (f, i) =>
-              `${i + 1}. [${f.severity}] scene ${f.sceneId}: ${f.issue} → ${f.suggestion}`,
-          )
-          .join("\n");
+              `${structural.length + i + 1}. [${f.severity}] scene ${f.sceneId}: ${f.issue} → ${f.suggestion}`,
+          ),
+        ].join("\n");
         return {
           ok: true,
-          message: `${findings.length} findings:\n${summary}`,
+          message: `${structural.length + findings.length} findings:\n${summary}`,
         };
       } catch (e) {
         return {

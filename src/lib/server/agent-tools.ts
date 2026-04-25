@@ -503,7 +503,7 @@ const TOOLS: Record<string, AgentTool> = {
           voice: v.voiceParam,
           text,
         };
-        scene.duration = Math.max(scene.duration, data.audioDurationSec + 0.3);
+        scene.duration = Math.max(scene.duration, data.audioDurationSec + 0.6);
         ctx.project.scenes = ctx.project.scenes.map((s, i) => (i === idx ? scene : s));
         return {
           ok: true,
@@ -566,7 +566,7 @@ const TOOLS: Record<string, AgentTool> = {
             voice,
             text,
           };
-          s.duration = Math.max(s.duration, data.audioDurationSec + 0.3);
+          s.duration = Math.max(s.duration, data.audioDurationSec + 0.6);
           ok++;
         } catch {
           fail++;

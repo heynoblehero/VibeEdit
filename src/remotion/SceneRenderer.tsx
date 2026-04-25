@@ -32,7 +32,11 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
 }) => {
   const s = scene;
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width: frameW, height: frameH } = useVideoConfig();
+  // Default text Y: 28% from top. Lands cleanly above center on either AR
+  // and lets us size emphasis/subtitle stacks below it without overflow.
+  const defaultTextY = Math.round(frameH * 0.28);
+  void frameW;
   const graphicSrc = s.background.graphic ? GRAPHIC_MAP[s.background.graphic] : undefined;
   // sceneSfxUrl (AI-generated) takes priority over the library sfxId.
   const sfxSrc = s.sceneSfxUrl ?? (s.sfxId ? sfx[s.sfxId] : null);
@@ -149,7 +153,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
               startFrame={3}
               fontSize={s.textSize ?? 64}
               color={s.textColor ?? "#888888"}
-              y={s.textY ?? 300}
+              y={s.textY ?? defaultTextY}
               staggerFrames={4}
             />
           )}
@@ -161,7 +165,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
               fontSize={s.emphasisSize ?? 96}
               color={s.emphasisColor ?? "white"}
               glowColor={s.emphasisGlow}
-              y={(s.textY ?? 300) + (s.textSize ?? 64) + 20}
+              y={(s.textY ?? defaultTextY) + (s.textSize ?? 64) + 20}
               staggerFrames={5}
             />
           )}
@@ -172,7 +176,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
               startFrame={25}
               fontSize={36}
               color={s.subtitleColor ?? "#666666"}
-              y={(s.textY ?? 300) + (s.textSize ?? 64) + (s.emphasisSize ?? 96) + 50}
+              y={(s.textY ?? defaultTextY) + (s.textSize ?? 64) + (s.emphasisSize ?? 96) + 50}
               staggerFrames={3}
             />
           )}
@@ -221,6 +225,28 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
           words={s.voiceover.captions}
           style={captionStyle}
           characterY={s.characterY}
+          reservedZones={(() => {
+            // Bands occupied by in-scene text layers, expressed in canvas
+            // pixels. Captions sees these and picks an unused band.
+            const zones: Array<{ top: number; bottom: number }> = [];
+            const baseY = s.textY ?? defaultTextY;
+            if (s.text) {
+              zones.push({ top: baseY, bottom: baseY + (s.textSize ?? 64) * 1.4 });
+            }
+            if (s.emphasisText) {
+              const eY = baseY + (s.textSize ?? 64) + 20;
+              zones.push({ top: eY, bottom: eY + (s.emphasisSize ?? 96) * 1.4 });
+            }
+            if (s.subtitleText) {
+              const sY = baseY + (s.textSize ?? 64) + (s.emphasisSize ?? 96) + 50;
+              zones.push({ top: sY, bottom: sY + 36 * 1.4 });
+            }
+            // big_number Counter is centered at y=380 — block the middle.
+            if (s.type === "big_number") zones.push({ top: 350, bottom: 540 });
+            // stat scene takes the whole center.
+            if (s.type === "stat") zones.push({ top: frameH * 0.3, bottom: frameH * 0.65 });
+            return zones;
+          })()}
         />
       )}
     </GradientBg>

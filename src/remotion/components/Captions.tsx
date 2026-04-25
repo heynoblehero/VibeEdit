@@ -6,6 +6,12 @@ interface CaptionsProps {
   words: CaptionWord[];
   style?: CaptionStyle;
   characterY?: number;
+  /**
+   * Y bands the parent scene has already used for text/emphasis/etc.
+   * Captions place themselves in the largest unused band so they never
+   * overlap in-scene text. Each entry is {top, bottom} in canvas pixels.
+   */
+  reservedZones?: Array<{ top: number; bottom: number }>;
 }
 
 interface Chunk {
@@ -67,7 +73,7 @@ function buildChunks(words: CaptionWord[], chunkSize: number): Chunk[] {
   return chunks;
 }
 
-export const Captions: React.FC<CaptionsProps> = ({ words, style, characterY }) => {
+export const Captions: React.FC<CaptionsProps> = ({ words, style, characterY, reservedZones }) => {
   const frame = useCurrentFrame();
   const { fps, height } = useVideoConfig();
   if (!words || words.length === 0) return null;
@@ -87,16 +93,42 @@ export const Captions: React.FC<CaptionsProps> = ({ words, style, characterY }) 
   });
   if (active < 0) return null;
 
-  // Smart position: if the character sits in the lower half of frame, push
-  // captions to the upper third so they don't cover the face.
+  // Reserved-zone aware placement. For "auto": pick whichever of top-12%
+  // or bottom-14% has no collision with the in-scene text bands. If both
+  // zones collide we fall back to whichever has the smaller overlap.
   const characterInLowerHalf =
     typeof characterY === "number" && characterY > height * 0.55;
 
+  const TOP_BAND = { top: height * 0.10, bottom: height * 0.22 };
+  const BOTTOM_BAND = { top: height * 0.78, bottom: height * 0.92 };
+
+  function bandOverlap(
+    a: { top: number; bottom: number },
+    b: { top: number; bottom: number },
+  ): number {
+    return Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+  }
+
+  const topConflict = (reservedZones ?? []).reduce(
+    (acc, z) => acc + bandOverlap(z, TOP_BAND),
+    0,
+  );
+  const botConflict = (reservedZones ?? []).reduce(
+    (acc, z) => acc + bandOverlap(z, BOTTOM_BAND),
+    0,
+  );
+
   let verticalStyle: React.CSSProperties;
-  if (positionMode === "top" || (positionMode === "auto" && characterInLowerHalf)) {
+  if (positionMode === "top") {
     verticalStyle = { top: "12%" };
   } else if (positionMode === "center") {
     verticalStyle = { top: "50%", transform: "translateY(-50%)" };
+  } else if (positionMode === "auto") {
+    // Pick zone: prefer the one with no conflict; tie-break by character.
+    if (topConflict === 0 && botConflict > 0) verticalStyle = { top: "12%" };
+    else if (botConflict === 0 && topConflict > 0) verticalStyle = { bottom: "14%" };
+    else if (characterInLowerHalf) verticalStyle = { top: "12%" };
+    else verticalStyle = { bottom: "14%" };
   } else {
     verticalStyle = { bottom: "14%" };
   }

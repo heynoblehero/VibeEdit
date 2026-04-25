@@ -207,7 +207,7 @@ export default function Home() {
               title={`Undo (Cmd/Ctrl+Z) — ${historyLen} step${historyLen === 1 ? "" : "s"}`}
               className="p-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
             >
-              <Undo2 className="h-4 w-4" />
+              <Undo2 className="h-4 w-4" aria-label="Undo" />
             </button>
             <button
               onClick={redo}
@@ -215,7 +215,7 @@ export default function Home() {
               title={`Redo (Shift+Cmd/Ctrl+Z) — ${futureLen} step${futureLen === 1 ? "" : "s"}`}
               className="p-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
             >
-              <Redo2 className="h-4 w-4" />
+              <Redo2 className="h-4 w-4" aria-label="Redo" />
             </button>
           </div>
           {/* Auto-video button retired — the chat agent handles "make a video about X" natively. */}
@@ -224,7 +224,7 @@ export default function Home() {
             title="Render queue"
             className="relative p-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
           >
-            <ListVideo className="h-4 w-4" />
+            <ListVideo className="h-4 w-4" aria-label="Render queue" />
             {queueCount > 0 && (
               <span className="absolute -top-0.5 -right-0.5 text-[9px] font-bold bg-emerald-500 text-black rounded-full w-3.5 h-3.5 flex items-center justify-center">
                 {queueCount}

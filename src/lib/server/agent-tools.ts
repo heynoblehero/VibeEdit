@@ -27,6 +27,39 @@ export interface ToolResult {
 
 type ToolArgs = Record<string, unknown>;
 
+// Quick WCAG-relative contrast check between two hex colors. Returns the
+// passed `textColor` if contrast is fine, otherwise returns a high-contrast
+// fallback (white or black, whichever is further). Image backgrounds are
+// unpredictable so we don't try to correct against them.
+function ensureLegibleTextColor(
+  textColor: string | undefined,
+  backgroundColor: string | undefined,
+): string | undefined {
+  if (!textColor || !backgroundColor) return textColor;
+  const parse = (hex: string) => {
+    const m = hex.replace("#", "").match(/^([0-9a-f]{6}|[0-9a-f]{3})$/i);
+    if (!m) return null;
+    const v = m[0].length === 3 ? m[0].split("").map((c) => c + c).join("") : m[0];
+    return [
+      parseInt(v.slice(0, 2), 16) / 255,
+      parseInt(v.slice(2, 4), 16) / 255,
+      parseInt(v.slice(4, 6), 16) / 255,
+    ] as const;
+  };
+  const lin = (c: number) =>
+    c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  const lum = (rgb: readonly [number, number, number]) =>
+    0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]);
+  const fg = parse(textColor);
+  const bg = parse(backgroundColor);
+  if (!fg || !bg) return textColor;
+  const lf = lum(fg);
+  const lb = lum(bg);
+  const ratio = (Math.max(lf, lb) + 0.05) / (Math.min(lf, lb) + 0.05);
+  if (ratio >= 4.5) return textColor;
+  return lb > 0.45 ? "#0a0a0a" : "#ffffff";
+}
+
 // Claude tool definition shape (subset we care about).
 interface ClaudeTool {
   name: string;
@@ -122,7 +155,14 @@ const TOOLS: Record<string, AgentTool> = {
         emphasisText: args.emphasisText as string | undefined,
         emphasisColor: args.emphasisColor as string | undefined,
         emphasisSize: args.emphasisSize as number | undefined,
-        textColor: args.textColor as string | undefined,
+        textColor: ensureLegibleTextColor(
+          args.textColor as string | undefined,
+          // Only correct against solid bg — image bg legibility is handled
+          // by the caption stroke + drop shadow, not by flipping textColor.
+          (args.backgroundImageUrl as string | undefined)
+            ? undefined
+            : (args.backgroundColor as string | undefined),
+        ),
         textY: args.textY as number | undefined,
         characterId: args.characterId as string | undefined,
         characterX: args.characterX as number | undefined,

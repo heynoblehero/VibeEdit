@@ -348,15 +348,18 @@ export type SceneEffectKind =
   | "scan_line"
   | "bar_wipe"
   | "corner_brackets"
-  | "reveal_box";
+  | "reveal_box"
+  | "lower_third";
 
 export interface SceneEffect {
   kind: SceneEffectKind;
   /** Start frame within the scene. Defaults to 0. */
   startFrame?: number;
   color?: string;
-  /** Optional secondary text payload (used by bar_wipe). */
+  /** Optional primary text payload (bar_wipe / lower_third). */
   text?: string;
+  /** Optional secondary text (lower_third subtitle / role). */
+  subtext?: string;
   /** Generic position fields — interpretation depends on `kind`. */
   x?: number | string;
   y?: number | string;

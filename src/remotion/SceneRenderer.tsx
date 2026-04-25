@@ -15,6 +15,7 @@ import { StatBlock } from "./components/StatBlock";
 import { CirclePing, RadialPulse, ScanLine } from "./components/effects";
 import { BarWipe, CornerBrackets, RevealBox } from "./components/graphics";
 import { BulletList } from "./components/BulletList";
+import { LowerThird } from "./components/LowerThird";
 import { QuoteBlock } from "./components/QuoteBlock";
 import { GRAPHIC_MAP } from "./assets";
 import { bob } from "@/lib/anim";
@@ -262,6 +263,16 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
                 y={e.y}
                 w={e.w}
                 h={e.h}
+              />
+            );
+          case "lower_third":
+            return (
+              <LowerThird
+                key={i}
+                startFrame={start}
+                text={e.text}
+                subtext={e.subtext}
+                textColor={e.color}
               />
             );
         }

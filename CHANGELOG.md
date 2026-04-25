@@ -1,5 +1,49 @@
 # Changelog
 
+## Unreleased — sprint 4: layout fixes + effects/graphics toolbox (12 commits)
+
+User feedback: text was overlapping in scenes; we needed real graphics +
+effect primitives, not just text-on-image.
+
+### Layout
+- **Text-collision solver**: SceneRenderer computes Y bands occupied by
+  text / emphasisText / subtitleText / big_number / stat and passes them
+  to Captions as `reservedZones[]`. Captions overlap-test top-12% vs
+  bottom-14% bands and pick whichever has zero conflict.
+- Default text Y is now 28% of frame height (was 300px hardcoded), so
+  portrait shorts no longer squash all text at the top.
+- 6% horizontal safe-area padding on PunchText so words don't kiss the
+  TikTok/IG/YT chrome.
+
+### Effects / overlay primitives (`scene.effects[]`)
+- `circle_ping` — expanding ring, fades.
+- `radial_pulse` — center gradient flash on hooks.
+- `scan_line` — vertical sweep, hud feel.
+- `bar_wipe` — solid color bar with label reveal, section dividers.
+- `corner_brackets` — 4-corner viewfinder.
+- `reveal_box` — clockwise animated border around a region.
+- `lower_third` — slide-in name+title strap.
+
+### New scene types
+- `bullet_list` — staggered checklist with green check-squares.
+- `quote` — pull-quote with smart-quote ornament + attribution line.
+
+### Transitions
+- `slide_left` / `slide_right` — color panel swipe across the cut.
+- `zoom_blur` — radial blur dim on entry.
+
+### Quality
+- Animated radial-gradient fallback when scene has no image/video, so
+  bare scenes don't read as "render glitched".
+- `videoQualityScore` adds a graphics-richness bonus (up to 10 pts) for
+  using non-text_only types + populating `effects[]`.
+
+### Agent integration
+- All new scene types + effects exposed in `createScene` schema.
+- SYSTEM_PROMPT gains a "scene-type toolbox" + "overlay effects"
+  reference so the agent picks the right primitive instead of
+  defaulting everything to text_only.
+
 ## Unreleased — sprint 3: visual + audio polish (25 commits)
 
 Focused on what was still ugly after the autonomous-loop sprint: flat

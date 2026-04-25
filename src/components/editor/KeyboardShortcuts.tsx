@@ -51,6 +51,13 @@ export function KeyboardShortcuts() {
         return;
       }
 
+      if (mod && /^[1-9]$/.test(e.key) && !isTextInput(e.target) && scenes.length > 0) {
+        e.preventDefault();
+        const idx = Math.min(scenes.length - 1, Number(e.key) - 1);
+        selectScene(scenes[idx].id);
+        return;
+      }
+
       if (e.key === "g" && !mod && !isTextInput(e.target) && scenes.length > 0) {
         e.preventDefault();
         selectScene(scenes[0].id);

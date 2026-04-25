@@ -22,6 +22,7 @@ async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      "User-Agent": "vibeedit-studio/0.1 (+https://vibevideoedit.com)",
       ...(init?.headers ?? {}),
     },
   });

@@ -2088,6 +2088,53 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  smartCropAsset: {
+    schema: {
+      name: "smartCropAsset",
+      description:
+        "Crop an uploaded or remote image to the project's aspect ratio using sharp's attention-based saliency detection. Returns a new URL to the cropped variant. Use when an upload's AR doesn't match the project orientation (e.g. user dropped a 16:9 photo into a 9:16 short).",
+      input_schema: {
+        type: "object",
+        properties: {
+          sourceUrl: { type: "string" },
+          ratio: { type: "string", enum: ["9:16", "16:9", "1:1"] },
+          strategy: { type: "string", enum: ["smart", "center"] },
+        },
+        required: ["sourceUrl", "ratio"],
+      },
+    },
+    async execute(args, ctx) {
+      try {
+        const res = await fetch(`${ctx.origin}/api/uploads/edits/crop`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sourceUrl: String(args.sourceUrl),
+            ratio: String(args.ratio),
+            strategy: args.strategy ? String(args.strategy) : "smart",
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? `crop failed (${res.status})`);
+        ctx.project.experiments = [
+          ...(ctx.project.experiments ?? []),
+          {
+            ts: Date.now(),
+            kind: "image",
+            decision: "user_upload",
+            prompt: `crop ${args.ratio} ${args.strategy ?? "smart"}`,
+            url: data.url,
+            kept: true,
+            note: `${data.width}×${data.height}`,
+          },
+        ];
+        return { ok: true, message: `cropped → ${data.url} (${data.width}×${data.height})` };
+      } catch (e) {
+        return { ok: false, message: `crop failed: ${e instanceof Error ? e.message : String(e)}` };
+      }
+    },
+  },
+
   routeAsset: {
     schema: {
       name: "routeAsset",

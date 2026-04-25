@@ -87,7 +87,13 @@ export async function generateImage(req: ImageRequest): Promise<MediaResult> {
     const h =
       req.aspectRatio === "9:16" ? 1920 : req.aspectRatio === "1:1" ? 1024 : 1080;
     const seed = Math.floor(Math.random() * 1_000_000);
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(req.prompt)}?width=${w}&height=${h}&nologo=true&model=flux&seed=${seed}&enhance=true`;
+    // Flux on Pollinations responds well to inline quality boosters and
+    // exclusionary phrasing. We append both to fight the most common
+    // failure modes (blur, mangled hands, accidental text, watermarks).
+    const negatives =
+      "no text, no watermark, no logo, no blurriness, no distorted faces, no extra fingers";
+    const finalPrompt = `${req.prompt}. ${negatives}.`;
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${w}&height=${h}&nologo=true&model=flux&seed=${seed}&enhance=true`;
     // Pollinations supports HEAD-style verification but most clients just
     // hand the URL out — the renderer will fetch it on demand. We do a
     // single GET so we know it's reachable + cached server-side.

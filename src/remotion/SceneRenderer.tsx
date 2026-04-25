@@ -80,6 +80,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       kenBurns={s.background.kenBurns}
       cameraMove={s.background.cameraMove}
       colorGrade={s.background.colorGrade}
+      blur={s.background.blur}
       videoUrl={s.background.videoUrl}
       videoStartSec={s.background.videoStartSec}
       videoMuted={s.background.videoMuted}

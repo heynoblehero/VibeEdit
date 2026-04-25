@@ -84,6 +84,8 @@ export interface SceneBackground {
    *  - neutral: untouched (default)
    */
   colorGrade?: "warm" | "cool" | "punchy" | "bw" | "neutral";
+  /** Background blur in px (0-30). Use for focus-pull behind big text/numbers. */
+  blur?: number;
   imageOpacity?: number;
   /** Full-bleed background video. Used by commentary/movie-review/gaming. */
   videoUrl?: string;

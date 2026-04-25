@@ -167,6 +167,10 @@ const TOOLS: Record<string, AgentTool> = {
             description: "Fire a soft lens-flare overlay on frame 0. Use sparingly — best on reveals, big_number scenes, or hero shots.",
           },
           lensFlareColor: { type: "string" },
+          backgroundBlur: {
+            type: "number",
+            description: "Blur the background image/video in px (0-30). Use 6-12 behind big_number / text_only scenes for a focus-pull look.",
+          },
           insertAt: {
             type: "number",
             description: "Zero-based index to insert at. Omit to append.",
@@ -258,6 +262,7 @@ const TOOLS: Record<string, AgentTool> = {
             return undefined;
           })(),
           colorGrade: args.backgroundColorGrade as Scene["background"]["colorGrade"] | undefined,
+          blur: args.backgroundBlur as number | undefined,
           // Lighter vignette by default — 0.5 was crushing image bgs.
           vignette: 0.35,
         },

@@ -22,6 +22,7 @@ interface GradientBgProps {
     | "tilt_down"
     | "ken_burns";
   colorGrade?: "warm" | "cool" | "punchy" | "bw" | "neutral";
+  blur?: number;
   videoUrl?: string;
   videoStartSec?: number;
   videoMuted?: boolean;
@@ -81,6 +82,7 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   kenBurns = false,
   cameraMove,
   colorGrade = "neutral",
+  blur = 0,
   videoUrl,
   videoStartSec = 0,
   videoMuted = true,
@@ -130,7 +132,7 @@ export const GradientBg: React.FC<GradientBgProps> = ({
               height: "100%",
               objectFit: "cover",
               transform: `scale(${cam.scale}) translate(${cam.tx}px, ${cam.ty}px)`,
-              filter: gradeFilter(colorGrade),
+              filter: `${gradeFilter(colorGrade)}${blur > 0 ? ` blur(${blur}px)` : ""}`,
               transformOrigin: "center center",
             }}
           />

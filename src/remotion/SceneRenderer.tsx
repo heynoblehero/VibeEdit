@@ -31,7 +31,8 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const graphicSrc = s.background.graphic ? GRAPHIC_MAP[s.background.graphic] : undefined;
-  const sfxSrc = s.sfxId ? sfx[s.sfxId] : null;
+  // sceneSfxUrl (AI-generated) takes priority over the library sfxId.
+  const sfxSrc = s.sceneSfxUrl ?? (s.sfxId ? sfx[s.sfxId] : null);
   const charSrc = s.characterId ? characters[s.characterId] : null;
 
   const enterDelay = 3;

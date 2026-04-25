@@ -197,6 +197,43 @@ async function runJob(job: RenderJob): Promise<void> {
   };
 
   job.state = "rendering";
+  // Preflight: HEAD every URL the renderer will fetch. Catches broken
+  // imageUrls / audioUrls / videoUrls before we waste 60+ seconds inside
+  // renderMedia waiting for the timeout. Inline (data:) URLs are skipped.
+  job.stage = "preflight";
+  emit(job, { type: "stage", stage: "preflight" });
+  const urlsToCheck = new Set<string>();
+  for (const s of scenes) {
+    if (s.background.imageUrl?.startsWith("http")) urlsToCheck.add(s.background.imageUrl);
+    if (s.background.videoUrl?.startsWith("http")) urlsToCheck.add(s.background.videoUrl);
+    if (s.voiceover?.audioUrl?.startsWith("http")) urlsToCheck.add(s.voiceover.audioUrl);
+    if (s.sceneSfxUrl?.startsWith("http")) urlsToCheck.add(s.sceneSfxUrl);
+    if (s.montageUrls) for (const u of s.montageUrls) if (u.startsWith("http")) urlsToCheck.add(u);
+    if (s.splitLeftUrl?.startsWith("http")) urlsToCheck.add(s.splitLeftUrl);
+    if (s.splitRightUrl?.startsWith("http")) urlsToCheck.add(s.splitRightUrl);
+  }
+  if (music?.url?.startsWith("http")) urlsToCheck.add(music.url);
+  const failures: Array<{ url: string; status: number | string }> = [];
+  await Promise.all(
+    [...urlsToCheck].map(async (u) => {
+      try {
+        const res = await fetch(u, { method: "HEAD" });
+        if (!res.ok) failures.push({ url: u, status: res.status });
+      } catch (e) {
+        failures.push({ url: u, status: e instanceof Error ? e.message : "fetch failed" });
+      }
+    }),
+  );
+  if (failures.length > 0) {
+    const summary = failures
+      .slice(0, 8)
+      .map((f) => `  · ${f.status} ${f.url.slice(0, 100)}`)
+      .join("\n");
+    throw new Error(
+      `Preflight failed — ${failures.length} unreachable URL${failures.length === 1 ? "" : "s"}:\n${summary}\n\nFix or remove these scenes before rendering.`,
+    );
+  }
+
   job.stage = "bundling";
   emit(job, { type: "stage", stage: "bundling" });
 

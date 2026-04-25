@@ -196,6 +196,25 @@ export function ChatSidebar({
         }
         return;
       }
+      if (cmd === "setup") {
+        try {
+          const r = await fetch("/api/setup").then((res) => res.json());
+          const lines: string[] = [];
+          for (const c of r.checks ?? []) {
+            const icon = c.ok ? "✓" : "✗";
+            lines.push(
+              `${icon} ${c.name}\n   ${c.note}${c.envVar && !c.ok ? `\n   → set: ${c.envVar}` : ""}`,
+            );
+          }
+          toast(`AI provider setup`, {
+            description: lines.join("\n"),
+            duration: 30000,
+          });
+        } catch {
+          toast.error("Couldn't reach /api/setup");
+        }
+        return;
+      }
       if (cmd === "status") {
         fetch("/api/bridge/status", { cache: "no-store" })
           .then((r) => r.json())
@@ -218,7 +237,7 @@ export function ChatSidebar({
       if (cmd === "help") {
         toast("Slash commands", {
           description:
-            "/new — new project\n/reset — clear scenes\n/render — render now\n/undo — undo last turn\n/save — flush state to localStorage\n/status — show AI backend info\n/prompt — set a project-specific system prompt\n/template — pick a structured workflow template\n/models — list available AI models / voices\n/voice <id>\n/preset <id>\n/export — open export pack\n/tips — workflow tips\n/help — this menu",
+            "/new — new project\n/reset — clear scenes\n/render — render now\n/undo — undo last turn\n/save — flush state to localStorage\n/status — show AI backend info\n/setup — check which provider keys are set\n/prompt — set a project-specific system prompt\n/template — pick a structured workflow template\n/models — list available AI models / voices\n/voice <id>\n/preset <id>\n/export — open export pack\n/tips — workflow tips\n/help — this menu",
           duration: 8000,
         });
         return;

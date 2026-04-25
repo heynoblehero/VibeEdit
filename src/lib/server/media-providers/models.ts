@@ -9,7 +9,7 @@
  */
 
 export type MediaKind = "image" | "video";
-export type Provider = "replicate" | "openai" | "google" | "volcano";
+export type Provider = "replicate" | "openai" | "google" | "volcano" | "pollinations";
 
 export interface MediaModel {
   /** Canonical id used in env / agent tool args. */
@@ -38,6 +38,17 @@ export interface MediaModel {
 
 export const MEDIA_MODELS: MediaModel[] = [
   // ----- IMAGE -----
+  {
+    id: "pollinations",
+    kind: "image",
+    provider: "pollinations",
+    name: "Pollinations (free)",
+    description:
+      "Free, keyless. URL-based generation — no API key required. Quality is OK (Flux-class), latency 5-15s. Use this as the safety-net default when no other image keys are set on the server.",
+    tags: ["free", "default-no-key", "keyless"],
+    estimatedCostUsd: 0,
+    resolution: "1024",
+  },
   {
     id: "gpt-image-1",
     kind: "image",
@@ -153,9 +164,19 @@ export function listMediaModels(kind?: MediaKind): MediaModel[] {
   return kind ? MEDIA_MODELS.filter((m) => m.kind === kind) : MEDIA_MODELS;
 }
 
-/** Default model id when the user / agent doesn't specify. */
+/** Default model id when the user / agent doesn't specify. Adapts to
+ * which env vars are configured so it never picks a model that will
+ * 501 immediately. */
 export function defaultModelId(kind: MediaKind): string {
-  return kind === "video" ? "seedance-1-pro" : "gpt-image-1";
+  if (kind === "video") {
+    if (process.env.REPLICATE_API_TOKEN) return "seedance-1-pro";
+    // No video fallback today — caller will get a clear 501.
+    return "seedance-1-pro";
+  }
+  // Image: prefer the user's configured key, fall back to free pollinations.
+  if (process.env.OPENAI_API_KEY) return "gpt-image-1";
+  if (process.env.REPLICATE_API_TOKEN) return "flux-1.1-pro-ultra";
+  return "pollinations";
 }
 
 /**

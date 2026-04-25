@@ -70,6 +70,25 @@ export async function generateImage(req: ImageRequest): Promise<MediaResult> {
   const model = getMediaModel(id);
   if (!model || model.kind !== "image") throw new Error(`Unknown image model: ${id}`);
 
+  if (model.provider === "pollinations") {
+    // Free, keyless. URL-based: GET /prompt/<encoded>?width=&height=&nologo=true
+    const w =
+      req.aspectRatio === "9:16"
+        ? 768
+        : req.aspectRatio === "1:1"
+          ? 1024
+          : 1280;
+    const h = req.aspectRatio === "9:16" ? 1280 : req.aspectRatio === "1:1" ? 1024 : 720;
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(req.prompt)}?width=${w}&height=${h}&nologo=true`;
+    // Pollinations supports HEAD-style verification but most clients just
+    // hand the URL out — the renderer will fetch it on demand. We do a
+    // single GET so we know it's reachable + cached server-side.
+    const res = await fetch(url, { method: "GET" });
+    if (!res.ok) {
+      throw new Error(`Pollinations ${res.status}`);
+    }
+    return { url, modelId: id, provider: "pollinations" };
+  }
   if (model.provider === "openai") {
     return generateOpenAIImage(req);
   }

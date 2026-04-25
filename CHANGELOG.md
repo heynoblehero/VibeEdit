@@ -1,5 +1,67 @@
 # Changelog
 
+## Unreleased — sprint 3: visual + audio polish (25 commits)
+
+Focused on what was still ugly after the autonomous-loop sprint: flat
+backgrounds, popped audio cuts, generic image prompts, no asset edit
+pipeline, and the agent shipping monotone scripts.
+
+### Visual / motion
+- 5 color-grade presets per scene (warm / cool / punchy / bw / neutral)
+  via CSS-filter LUT in GradientBg.
+- Per-scene `background.blur` (0-30 px) for focus-pull behind big text.
+- Lens-flare overlay on emphasis beats — soft radial glow with 24-frame
+  attack/decay envelope.
+- New scene types:
+  - `stat` — hero number + small label, spring-scaled, auto-sized.
+
+### Captions
+- Karaoke-style word-by-word reveal at transcription timings (80ms ease).
+- PunchText auto-shrinks fontSize when longest word would overflow the
+  frame (capped at 28px floor).
+
+### Audio
+- 3-frame voiceover fade in/out per scene — no more hard audio cuts.
+- Anticipatory music ducking — 6-frame lead-in before narration, 10-frame
+  tail-out after, so the narrator's first consonant doesn't clip.
+- TTS pre-process: ensure space after commas / periods / semicolons for
+  natural breath beats.
+- TTS post-process: ffmpeg silenceremove trims ≥0.2s of <-50dB padding
+  on both ends; ffprobe reports the actual duration.
+- Workflow-aware default voice: onyx for commentary, nova for review,
+  fable for faceless, shimmer for shorts, alloy for ai-animated.
+
+### Render
+- New `preflight` stage HEADs every URL (image/video/audio/sfx/montage/
+  split/music) before bundling. Aggregates failures into one error.
+- Post-render ffprobe duration sanity check — emits a warning when the
+  output drifts >0.5s from expected.
+
+### Agent tools
+- `lintScript` — heuristic critique (filler / weak verbs / run-ons /
+  density / silent scenes / monotone-cadence variance check).
+- `scoreHook` — 0-100 metric for scene 1 across 9 hook regex patterns
+  + visual + zoomPunch + duration + length.
+- `extractBRollKeywords` — pulls visual nouns per scene (proper nouns
+  first, then non-stopword tokens ranked by length).
+- `smartCropAsset` — sharp attention-strategy crop to 9:16/16:9/1:1.
+- `removeBackground` — Replicate cjwbw/rembg variant.
+- `prepareUploadForScene` — composite pipeline (bg-remove + crop) by role.
+
+### Generation
+- Pollinations prompts now respect shotType: appends composition language
+  (24mm wide / 50mm medium / 85mm closeup / macro / over-shoulder / insert).
+- Scene.shotType + Scene.act persisted on Scene so qualityScore counts
+  realized scene variety, not just plan intent.
+
+### Force-continue gate
+- Image dedup detector — flags duplicate `imageUrl` on consecutive scenes.
+- CTA enforcer — last scene of >20s videos must include a CTA keyword.
+
+### New API routes
+- `POST /api/uploads/edits/crop` — sharp smart-crop endpoint.
+- `POST /api/uploads/edits/remove-bg` — Replicate rembg endpoint.
+
 ## Unreleased — autonomous one-shot sprint (25 commits)
 
 Synthesized learnings from three reference repos into 25 commits that

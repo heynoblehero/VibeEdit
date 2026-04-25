@@ -72,6 +72,43 @@ GENERAL RULES:
 - If the project name is still "Draft", call setProjectName once with a Title Case topic name (4-8 words).
 - Treat every meaningful turn as autonomous: do the full loop, don't stop after the first batch of edits.`;
 
+// Server-enforced "you're not done yet" check. The agent's system prompt
+// MANDATES visuals/audio/music — but Claude can ignore wording. This
+// inspects project state directly and returns a list of structural gaps
+// the route uses to refuse termination.
+function computeStructuralGaps(project: Project): string[] {
+  const gaps: string[] = [];
+  if (project.scenes.length === 0) return gaps;
+
+  const bare = project.scenes.filter(
+    (s) => !s.background?.imageUrl && !s.background?.videoUrl,
+  );
+  if (bare.length >= 3) {
+    gaps.push(
+      `- ${bare.length} scenes have no visual (color-only background). Generate images for them: ${bare
+        .slice(0, 5)
+        .map((s) => s.id)
+        .join(", ")}${bare.length > 5 ? "…" : ""}`,
+    );
+  }
+
+  const unnarrated = project.scenes.filter(
+    (s) =>
+      !s.voiceover?.audioUrl && (s.text || s.emphasisText || s.subtitleText),
+  );
+  if (unnarrated.length >= 2) {
+    gaps.push(
+      `- ${unnarrated.length} scenes with text but no voiceover. Run narrateAllScenes.`,
+    );
+  }
+
+  if (!project.music && project.scenes.length >= 4) {
+    gaps.push(`- No backing music. Call generateMusicForProject.`);
+  }
+
+  return gaps;
+}
+
 function workflowContext(project: Project): string {
   const wf = getWorkflow(project.workflowId);
   const catalogLine = WORKFLOWS.map(
@@ -175,8 +212,9 @@ export async function POST(request: NextRequest) {
       };
 
       let consecutiveErrors = 0;
+      let forcedContinues = 0;
+      const MAX_FORCED_CONTINUES = 3;
       try {
-        // Up to 16 tool-use rounds — a full video build can hit 10+ calls.
         // Up to 32 rounds: enough headroom for the agent to act, run a
         // self-critique pass via selfCritique, apply fixes, and loop a few
         // more times before claiming done.
@@ -237,7 +275,25 @@ export async function POST(request: NextRequest) {
 
           const toolUses = contentBlocks.filter((b) => b.type === "tool_use");
           if (toolUses.length === 0) {
-            // No more tool calls — the assistant is done.
+            // Claude wants to stop. Verify structural completeness before
+            // letting it. If gaps remain, inject a synthetic user message
+            // that demands they be fixed and force another round. Capped to
+            // 3 forced-continue cycles to avoid infinite loops on
+            // un-fixable issues (e.g. provider env vars unset).
+            const gaps = computeStructuralGaps(project);
+            if (gaps.length > 0 && forcedContinues < MAX_FORCED_CONTINUES) {
+              forcedContinues++;
+              const block = `You said you're done, but the project still has these issues:\n\n${gaps.join("\n")}\n\nFix every one of them now using tools (analyzeAssets, generateImageForScene, narrateAllScenes, generateMusicForProject, etc.). Don't stop again until they're all resolved.`;
+              send({
+                type: "text",
+                text: `\n[force-continue ${forcedContinues}/${MAX_FORCED_CONTINUES}: ${gaps.length} structural issue${gaps.length === 1 ? "" : "s"} remaining]\n`,
+              });
+              // Conversation requires the assistant turn before the next user.
+              conversation.push({ role: "assistant", content: contentBlocks });
+              conversation.push({ role: "user", content: block });
+              continue;
+            }
+            // Truly done.
             break;
           }
 

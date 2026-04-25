@@ -218,9 +218,39 @@ export function ChatSidebar({
       if (cmd === "help") {
         toast("Slash commands", {
           description:
-            "/new — new project\n/reset — clear scenes\n/render — render now\n/undo — undo last turn\n/save — flush state to localStorage\n/status — show AI backend info\n/prompt — set a project-specific system prompt\n/template — pick a structured workflow template\n/voice <id>\n/preset <id>\n/export — open export pack\n/tips — workflow tips\n/help — this menu",
+            "/new — new project\n/reset — clear scenes\n/render — render now\n/undo — undo last turn\n/save — flush state to localStorage\n/status — show AI backend info\n/prompt — set a project-specific system prompt\n/template — pick a structured workflow template\n/models — list available AI models / voices\n/voice <id>\n/preset <id>\n/export — open export pack\n/tips — workflow tips\n/help — this menu",
           duration: 8000,
         });
+        return;
+      }
+      if (cmd === "models") {
+        try {
+          const [m, v] = await Promise.all([
+            fetch("/api/media/models").then((r) => r.json()),
+            fetch("/api/media/voices").then((r) => r.json()),
+          ]);
+          const lines: string[] = [];
+          for (const x of (m.models ?? []) as Array<{
+            id: string;
+            kind: string;
+            estimatedCostUsd: number;
+            tags?: string[];
+          }>) {
+            lines.push(
+              `${x.kind === "image" ? "🖼" : "🎬"} ${x.id} · $${x.estimatedCostUsd} · ${(x.tags ?? []).join(",")}`,
+            );
+          }
+          for (const x of (v.voices ?? []) as Array<{
+            id: string;
+            costPer1kChars: number;
+            tags?: string[];
+          }>) {
+            lines.push(`🎙 ${x.id} · $${x.costPer1kChars}/1k · ${(x.tags ?? []).join(",")}`);
+          }
+          toast("AI catalog", { description: lines.join("\n"), duration: 15000 });
+        } catch {
+          toast.error("Couldn't fetch catalog");
+        }
         return;
       }
       if (cmd === "tips") {

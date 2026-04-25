@@ -5,6 +5,7 @@
  * vars aren't configured.
  */
 
+import { applyStoredKeys } from "@/lib/server/runtime-keys";
 import { getMediaModel, defaultModelId, type MediaKind } from "./models";
 import { replicatePredict } from "./replicate";
 
@@ -66,6 +67,7 @@ async function generateOpenAIImage(req: ImageRequest): Promise<MediaResult> {
 }
 
 export async function generateImage(req: ImageRequest): Promise<MediaResult> {
+  applyStoredKeys();
   const id = req.modelId ?? defaultModelId("image");
   const model = getMediaModel(id);
   if (!model || model.kind !== "image") throw new Error(`Unknown image model: ${id}`);
@@ -106,6 +108,7 @@ export async function generateImage(req: ImageRequest): Promise<MediaResult> {
 }
 
 export async function generateVideo(req: VideoRequest): Promise<MediaResult> {
+  applyStoredKeys();
   const id = req.modelId ?? defaultModelId("video");
   const model = getMediaModel(id);
   if (!model || model.kind !== "video") throw new Error(`Unknown video model: ${id}`);

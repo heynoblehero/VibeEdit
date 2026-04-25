@@ -11,6 +11,7 @@
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { applyStoredKeys } from "@/lib/server/runtime-keys";
 
 export interface ClaudeContentBlock {
   type: string;
@@ -155,6 +156,8 @@ export async function callClaude(
   body: Record<string, unknown>,
   label: string,
 ): Promise<ClaudeResponse> {
+  // Pull in user-pasted keys before any provider call. Idempotent.
+  applyStoredKeys();
   if (isBridgeMode()) return callClaudeViaBridge(body, label);
   return callClaudeViaApi(body);
 }

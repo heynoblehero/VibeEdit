@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Film, ListVideo, MessageCircle, Redo2, Smartphone, Undo2 } from "lucide-react";
+import { CalendarClock, Film, ListVideo, MessageCircle, Redo2, Settings, Smartphone, Undo2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { AuthBar } from "@/components/editor/AuthBar";
@@ -8,6 +8,7 @@ import { BatchVariantsButton } from "@/components/editor/BatchVariantsButton";
 import { BridgeIndicator } from "@/components/editor/BridgeIndicator";
 import { DevBadge } from "@/components/editor/DevBadge";
 import { ProjectHome } from "@/components/editor/ProjectHome";
+import { SettingsDialog } from "@/components/editor/SettingsDialog";
 import { BulkActionsBar } from "@/components/editor/BulkActionsBar";
 import { ChatSidebar } from "@/components/editor/ChatSidebar";
 import { CreateProjectDialog } from "@/components/editor/CreateProjectDialog";
@@ -91,6 +92,7 @@ export default function Home() {
       window.removeEventListener("vibeedit:open-template-picker", handler);
   }, []);
   const [createOpen, setCreateOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "n") {
@@ -227,6 +229,14 @@ export default function Home() {
             <Smartphone className="h-3.5 w-3.5" />
             <span>Get the app</span>
           </a>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            title="Settings (API keys)"
+            aria-label="Settings"
+            className="p-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
           <button
             onClick={toggleQueue}
             title="Render queue"
@@ -375,6 +385,7 @@ export default function Home() {
           setHomeDismissed(true);
         }}
       />
+      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

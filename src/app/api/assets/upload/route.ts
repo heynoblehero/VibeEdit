@@ -2,16 +2,10 @@ import path from "node:path";
 import fs from "node:fs";
 import crypto from "node:crypto";
 import type { NextRequest } from "next/server";
+import { storageDir, publicUrlFor } from "@/lib/server/runtime-storage";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
-
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
-try {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-} catch {
-  // dir exists
-}
 
 const MAX_BYTES = 200 * 1024 * 1024; // 200 MB
 
@@ -31,12 +25,12 @@ export async function POST(request: NextRequest) {
   const hash = crypto.createHash("sha1").update(buffer).digest("hex").slice(0, 16);
   const ext = path.extname(file.name).toLowerCase() || ".bin";
   const filename = `${hash}${ext}`;
-  const outPath = path.join(UPLOAD_DIR, filename);
+  const outPath = path.join(storageDir("uploads"), filename);
   if (!fs.existsSync(outPath)) {
     await fs.promises.writeFile(outPath, buffer);
   }
   return Response.json({
-    url: `/uploads/${filename}`,
+    url: publicUrlFor("uploads", filename),
     name: file.name,
     bytes: buffer.length,
     type: file.type,

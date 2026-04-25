@@ -22,7 +22,11 @@ export interface AudioResult {
   durationSec: number;
 }
 
-const AUDIO_DIR = path.join(process.cwd(), "public", "voiceovers");
+// Persistent on dokku via VIBEEDIT_DATA_DIR; falls back to public/ for dev.
+const AUDIO_DIR = path.join(
+  process.env.VIBEEDIT_DATA_DIR || path.join(process.cwd(), "public"),
+  "voiceovers",
+);
 try {
   fs.mkdirSync(AUDIO_DIR, { recursive: true });
 } catch {

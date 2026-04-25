@@ -16,7 +16,12 @@ interface VoiceoverRequest {
   elevenLabsVoiceId?: string;
 }
 
-const VOICEOVER_DIR = path.join(process.cwd(), "public", "voiceovers");
+// Persistent on dokku — see src/lib/server/runtime-storage.ts. Falls back
+// to public/voiceovers in dev so static serving still works locally.
+const VOICEOVER_DIR = path.join(
+  process.env.VIBEEDIT_DATA_DIR || path.join(process.cwd(), "public"),
+  "voiceovers",
+);
 try {
   fs.mkdirSync(VOICEOVER_DIR, { recursive: true });
 } catch {

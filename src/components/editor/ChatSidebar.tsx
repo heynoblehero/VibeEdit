@@ -592,6 +592,39 @@ export function ChatSidebar({
           <code>.env.local.example</code>.
         </div>
       )}
+      {/* Aggregate failure banner: sum every failed tool call in the
+          conversation. Click → /setup to see which keys are missing. */}
+      {(() => {
+        const fails = messages.flatMap(
+          (m) => m.toolCalls?.filter((c) => c.ok === false) ?? [],
+        );
+        if (fails.length === 0) return null;
+        // Most-recent N for the inline preview.
+        const recent = fails.slice(-3);
+        return (
+          <div className="px-3 py-2 border-b border-red-500/30 bg-red-500/10 text-[11px] text-red-300 flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold">
+                ⚠ {fails.length} tool error{fails.length === 1 ? "" : "s"} this session
+              </span>
+              <button
+                onClick={() => void send("/setup")}
+                className="text-[10px] underline decoration-dotted underline-offset-2 hover:text-white"
+                title="Run /setup to see which provider keys are missing"
+              >
+                /setup
+              </button>
+            </div>
+            <ul className="space-y-0.5 text-red-200/90">
+              {recent.map((f, i) => (
+                <li key={i} className="font-mono break-all leading-tight">
+                  ✗ {f.name}: {String(f.message ?? "").slice(0, 140)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })()}
       <div
         ref={scrollRef}
         onScroll={onScroll}
@@ -833,10 +866,16 @@ function MessageBubble({
   onQuickReply: (text: string) => void;
   isLatest: boolean;
 }) {
-  // Collapse tool call lists by default — less visual noise in the chat.
-  const [toolsExpanded, setToolsExpanded] = useState(false);
   const isUser = message.role === "user";
   const toolCount = message.toolCalls?.length ?? 0;
+  const failedCount =
+    message.toolCalls?.filter((c) => c.ok === false).length ?? 0;
+  // Auto-expand the tool list whenever there are failures so the user
+  // sees errors immediately. User can still collapse manually.
+  const [toolsExpanded, setToolsExpanded] = useState(false);
+  useEffect(() => {
+    if (failedCount > 0) setToolsExpanded(true);
+  }, [failedCount]);
   const timestamp = new Date(message.createdAt);
 
   // Show quick-reply chips if the latest non-streaming assistant message ends
@@ -911,10 +950,14 @@ function MessageBubble({
                       ? `${c.name}(${JSON.stringify(c.args, null, 0).slice(0, 300)})`
                       : c.name
                   }
-                  className="flex items-start gap-1.5 text-[10px] leading-tight animate-[fadeIn_150ms_ease-out]"
+                  className={`flex items-start gap-1.5 text-[10px] leading-tight animate-[fadeIn_150ms_ease-out] ${
+                    c.ok === false
+                      ? "bg-red-500/10 border border-red-500/30 rounded px-1.5 py-1"
+                      : ""
+                  }`}
                 >
                   <span
-                    className={`font-mono ${
+                    className={`font-mono shrink-0 ${
                       c.ok == null
                         ? "text-neutral-500"
                         : c.ok
@@ -924,9 +967,17 @@ function MessageBubble({
                   >
                     {c.ok == null ? "…" : c.ok ? "✓" : "✗"}
                   </span>
-                  <span className="text-white font-mono">{c.name}</span>
+                  <span className="text-white font-mono shrink-0">{c.name}</span>
                   {c.message && (
-                    <span className="text-neutral-500 truncate">— {c.message}</span>
+                    <span
+                      className={`flex-1 break-all ${
+                        c.ok === false
+                          ? "text-red-300 whitespace-pre-wrap"
+                          : "text-neutral-500 truncate"
+                      }`}
+                    >
+                      — {c.message}
+                    </span>
                   )}
                 </div>
               ))}

@@ -1,0 +1,73 @@
+name: Android APK
+
+# Builds an unsigned debug APK on every push to master and replaces the
+# 'android-latest' release with the new file. /download links to the
+# stable release URL so users always get the freshest build.
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install deps
+        run: bun install --frozen-lockfile
+
+      - name: Add android platform
+        run: bunx cap add android
+
+      - name: Sync capacitor
+        run: bunx cap sync android
+        env:
+          # Force the production URL so the WebView loads the live site.
+          CAP_PROD_URL: https://vibevideoedit.com
+
+      - name: Build debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Stage APK
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/vibeedit.apk
+          ls -lh dist/
+
+      - name: Upload as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vibeedit-android
+          path: dist/vibeedit.apk
+          retention-days: 90
+
+      - name: Publish to 'android-latest' release
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          name: VibeEdit Android (latest)
+          body: |
+            Unsigned debug APK auto-built from master.
+            Loads https://vibevideoedit.com inside a Capacitor WebView.
+            Install via direct download — Android settings may require
+            "Install from unknown sources" the first time.
+          files: dist/vibeedit.apk
+          make_latest: false

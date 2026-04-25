@@ -135,6 +135,26 @@ export default function DownloadPage() {
           </span>
         </div>
 
+        {/* Real APK download — built by GitHub Actions on every push. */}
+        <div className="flex flex-col gap-2 p-3 rounded-lg bg-neutral-900/50 border border-neutral-800/50">
+          <div className="flex items-center gap-2 text-[11px] font-semibold text-neutral-300">
+            <Smartphone className="h-3.5 w-3.5 text-emerald-400" />
+            Native Android APK
+          </div>
+          <a
+            href="https://github.com/heynoblehero/VibeEdit/releases/download/android-latest/vibeedit.apk"
+            className="flex items-center gap-2 text-xs text-emerald-400 hover:text-emerald-300"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Latest APK (auto-built from master)
+          </a>
+          <span className="text-[10px] text-neutral-500 leading-tight">
+            Unsigned debug build. Sideload it (Settings → allow
+            &ldquo;Install unknown apps&rdquo;). Wraps vibevideoedit.com in
+            a Capacitor WebView. iOS via TestFlight — DM for invite.
+          </span>
+        </div>
+
         <a
           href="/"
           className="text-center text-xs text-neutral-500 hover:text-emerald-400 underline decoration-dotted underline-offset-2"

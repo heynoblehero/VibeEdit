@@ -17,7 +17,9 @@
     "cap:open:android": "cap open android",
     "cap:open:ios": "cap open ios",
     "cap:run:android": "cap run android",
-    "cap:run:ios": "cap run ios"
+    "cap:run:ios": "cap run ios",
+    "cap:build:android": "./scripts/build-android.sh",
+    "cap:build:ios": "./scripts/build-ios.sh"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.1",

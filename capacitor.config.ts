@@ -1,16 +1,21 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
-// VibeEdit Studio ships as a Capacitor-wrapped web app.
+// VibeEdit ships as a Capacitor-wrapped web app — the native WebView
+// loads vibevideoedit.com directly, so the app is always in sync with
+// the live site. No client bundle to ship.
 //
-// For development, set `CAP_DEV_URL=http://<laptop-ip>:3000` and the native
-// WebView loads the running Next.js dev server live — code edits reflect on
-// device immediately, no rebuild. Example:
+// Override priority:
+//   CAP_DEV_URL    e.g. http://192.168.1.14:3000 — laptop dev server
+//   CAP_PROD_URL   defaults to https://vibevideoedit.com
 //
-//   CAP_DEV_URL=http://192.168.1.14:3000 bun run cap:sync
+// Example local dev (phone hits laptop dev server):
+//   CAP_DEV_URL=http://<lan-ip>:3000 bun run cap:sync && bun run cap:run:android
 //
-// For a production build, export the Next.js app statically (or serve it
-// from a remote URL) and drop the output into `webDir` / `server.url`.
+// Example release build (phone hits production):
+//   bun run cap:sync && bun run cap:build:android
 const devUrl = process.env.CAP_DEV_URL;
+const prodUrl = process.env.CAP_PROD_URL ?? "https://vibevideoedit.com";
+const serverUrl = devUrl ?? prodUrl;
 
 const config: CapacitorConfig = {
   appId: "com.vibeedit.studio",
@@ -18,17 +23,16 @@ const config: CapacitorConfig = {
   // Native WebView needs a webDir even when server.url is set — we point it
   // at public/ so the capacitor sync step has something to copy.
   webDir: "public",
-  server: devUrl
-    ? {
-        url: devUrl,
-        cleartext: true,
-      }
-    : undefined,
+  server: {
+    url: serverUrl,
+    // Only allow plaintext when explicitly pointing at a dev server.
+    cleartext: !!devUrl,
+  },
   ios: {
     contentInset: "always",
   },
   android: {
-    allowMixedContent: true,
+    allowMixedContent: !!devUrl,
   },
 };
 

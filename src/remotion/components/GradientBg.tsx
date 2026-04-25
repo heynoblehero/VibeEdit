@@ -21,11 +21,27 @@ interface GradientBgProps {
     | "tilt_up"
     | "tilt_down"
     | "ken_burns";
+  colorGrade?: "warm" | "cool" | "punchy" | "bw" | "neutral";
   videoUrl?: string;
   videoStartSec?: number;
   videoMuted?: boolean;
   drift?: boolean;
   children?: React.ReactNode;
+}
+
+function gradeFilter(grade: NonNullable<GradientBgProps["colorGrade"]>): string {
+  switch (grade) {
+    case "warm":
+      return "sepia(0.25) saturate(1.15) hue-rotate(-8deg) brightness(1.04)";
+    case "cool":
+      return "hue-rotate(180deg) saturate(0.85) brightness(0.96) contrast(1.05)";
+    case "punchy":
+      return "saturate(1.35) contrast(1.18) brightness(1.04)";
+    case "bw":
+      return "grayscale(1) contrast(1.12) brightness(1.02)";
+    case "neutral":
+      return "none";
+  }
 }
 
 function cameraTransform(
@@ -64,6 +80,7 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   imageOpacity = 1,
   kenBurns = false,
   cameraMove,
+  colorGrade = "neutral",
   videoUrl,
   videoStartSec = 0,
   videoMuted = true,
@@ -113,6 +130,7 @@ export const GradientBg: React.FC<GradientBgProps> = ({
               height: "100%",
               objectFit: "cover",
               transform: `scale(${cam.scale}) translate(${cam.tx}px, ${cam.ty}px)`,
+              filter: gradeFilter(colorGrade),
               transformOrigin: "center center",
             }}
           />

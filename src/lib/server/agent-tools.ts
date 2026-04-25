@@ -157,6 +157,11 @@ const TOOLS: Record<string, AgentTool> = {
             enum: ["still", "push_in", "pull_out", "pan_lr", "pan_rl", "tilt_up", "tilt_down", "ken_burns"],
             description: "Camera move applied to image background. Overrides kenBurns. push_in=reveals, pull_out=context, pan=landscapes/lists, tilt=vertical objects.",
           },
+          backgroundColorGrade: {
+            type: "string",
+            enum: ["warm", "cool", "punchy", "bw", "neutral"],
+            description: "Color grade for the bg image/video. warm=nostalgic, cool=tech/news, punchy=hype/commentary, bw=archival/serious, neutral=untouched.",
+          },
           insertAt: {
             type: "number",
             description: "Zero-based index to insert at. Omit to append.",
@@ -245,6 +250,7 @@ const TOOLS: Record<string, AgentTool> = {
             }
             return undefined;
           })(),
+          colorGrade: args.backgroundColorGrade as Scene["background"]["colorGrade"] | undefined,
           // Lighter vignette by default — 0.5 was crushing image bgs.
           vignette: 0.35,
         },

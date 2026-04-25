@@ -74,6 +74,16 @@ export interface SceneBackground {
    * "tilt_up" / "tilt_down" = vertical drift. "ken_burns" = legacy diagonal.
    */
   cameraMove?: "still" | "push_in" | "pull_out" | "pan_lr" | "pan_rl" | "tilt_up" | "tilt_down" | "ken_burns";
+  /**
+   * LUT-style color grade applied to the bg image/video. Implemented as a
+   * CSS filter chain so it works in Remotion + browser preview.
+   *  - warm: golden hour, sepia-tinted; nostalgic / story / lifestyle
+   *  - cool: blue-shifted, slightly desaturated; moody / tech / news
+   *  - punchy: high contrast + saturation; commentary / hype / shorts
+   *  - bw: monochrome; archival / serious / dramatic
+   *  - neutral: untouched (default)
+   */
+  colorGrade?: "warm" | "cool" | "punchy" | "bw" | "neutral";
   imageOpacity?: number;
   /** Full-bleed background video. Used by commentary/movie-review/gaming. */
   videoUrl?: string;

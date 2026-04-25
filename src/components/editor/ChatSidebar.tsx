@@ -763,6 +763,8 @@ export function ChatSidebar({
           <button
             type="submit"
             disabled={!input.trim()}
+            aria-label="Send message"
+            title="Send (Enter)"
             className="flex items-center justify-center h-8 w-8 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white"
           >
             <Send className="h-4 w-4" />

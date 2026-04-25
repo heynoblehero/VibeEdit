@@ -113,6 +113,24 @@ server, including the Claude-Code bridge.
 `ios/` and `android/` dirs are gitignored while scaffolding; commit them
 once you're ready to ship to the stores.
 
+## Enable everything in prod
+
+Single command to wire all AI providers on the live dokku app:
+
+```bash
+ssh dokku@<host> config:set vibeedit \
+  ANTHROPIC_API_KEY=sk-ant-... \
+  OPENAI_API_KEY=sk-... \
+  REPLICATE_API_TOKEN=r8_... \
+  ELEVENLABS_API_KEY=sk_... \
+  AVATAR_PROVIDER=fal FAL_API_KEY=fal_... \
+  SEARCH_PROVIDER=tavily TAVILY_API_KEY=tvly-... \
+  VIBEEDIT_DATA_DIR=/data
+```
+
+(omit any key whose feature you don't want — every adapter degrades to
+a clear 501 / fallback rather than crashing.)
+
 ## How it's deployed
 
 Production runs on **dokku** on a Linode box at `172.104.41.101`, fronted

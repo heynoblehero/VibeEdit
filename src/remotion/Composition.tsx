@@ -111,12 +111,34 @@ export const VideoComposition: React.FC<CompositionProps> = ({
           startFrom={0}
           loop
           volume={(frame) => {
-            const ducked = duckRanges.some(
-              (r) => frame >= r.from && frame < r.from + r.duration,
-            );
-            const target = ducked
-              ? music.duckedVolume ?? 0.18
-              : music.volume ?? 0.55;
+            // Anticipatory ducking: start fading down ~6 frames BEFORE the
+            // narrator starts and ramping back up ~10 frames AFTER they
+            // stop. Real broadcast audio does this — keeps voice clear at
+            // the consonant attack instead of slamming on top of music.
+            const lead = 6;
+            const tail = 10;
+            const baseVol = music.volume ?? 0.55;
+            const duckVol = music.duckedVolume ?? 0.18;
+            // Find proximity to nearest ducking range.
+            let target = baseVol;
+            for (const r of duckRanges) {
+              const start = r.from - lead;
+              const end = r.from + r.duration + tail;
+              if (frame >= start && frame < end) {
+                if (frame < r.from) {
+                  // ducking down
+                  const t = (frame - start) / lead;
+                  target = baseVol + (duckVol - baseVol) * t;
+                } else if (frame >= r.from + r.duration) {
+                  // ducking back up
+                  const t = (frame - (r.from + r.duration)) / tail;
+                  target = duckVol + (baseVol - duckVol) * t;
+                } else {
+                  target = duckVol;
+                }
+                break;
+              }
+            }
             // Smooth fade in over first ~0.6s, fade out over last ~0.6s so
             // the bed never pops in/out at boundaries.
             const fadeFrames = Math.min(Math.round(fps * 0.6), Math.floor(totalFrames / 4));

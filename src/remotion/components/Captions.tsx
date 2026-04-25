@@ -10,6 +10,8 @@ interface CaptionsProps {
 
 interface Chunk {
   words: string[];
+  /** Per-word ms timings preserved so we can do karaoke-style word reveal. */
+  wordTimings: CaptionWord[];
   highlightIdx: number;
   startMs: number;
   endMs: number;
@@ -56,6 +58,7 @@ function buildChunks(words: CaptionWord[], chunkSize: number): Chunk[] {
     const tokens = group.map((w) => w.word.trim());
     chunks.push({
       words: tokens,
+      wordTimings: group,
       highlightIdx: pickEmphasizedWord(tokens),
       startMs: group[0].startMs,
       endMs: group[group.length - 1].endMs,
@@ -151,13 +154,25 @@ export const Captions: React.FC<CaptionsProps> = ({ words, style, characterY }) 
         {chunk.words.map((w, i) => {
           const display = uppercase ? w.toUpperCase() : w;
           const isHighlight = highlightColor && i === chunk.highlightIdx;
+          // Karaoke-style: each word fades + scales in at its actual
+          // startMs from the transcription. Falls back to chunk-start if
+          // word timings are missing.
+          const wt = chunk.wordTimings[i];
+          const wordStart = wt?.startMs ?? chunk.startMs;
+          const elapsed = currentMs - wordStart;
+          const fadeMs = 80;
+          const revealed = elapsed >= 0;
+          const opacity = revealed ? Math.min(1, elapsed / fadeMs) : 0;
+          const scale = isHighlight ? 1.08 : revealed ? 1 - 0.08 * (1 - opacity) : 1;
           return (
             <span
               key={i}
               style={{
                 color: isHighlight ? highlightColor : color,
-                transform: isHighlight ? "scale(1.08)" : undefined,
+                opacity,
+                transform: `scale(${scale})`,
                 display: "inline-block",
+                transition: "none",
               }}
             >
               {display}

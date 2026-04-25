@@ -115,9 +115,11 @@ export const Captions: React.FC<CaptionsProps> = ({ words, style, characterY }) 
       <div
         style={{
           fontSize,
-          fontWeight: 900,
-          letterSpacing: 1,
-          fontFamily: "Geist, system-ui, sans-serif",
+          fontWeight: 950,
+          letterSpacing: -0.5,
+          fontFamily:
+            "Inter, 'SF Pro Display', 'Helvetica Neue', system-ui, -apple-system, sans-serif",
+          fontStretch: "condensed",
           textShadow,
           padding: "0 6%",
           textAlign: "center",

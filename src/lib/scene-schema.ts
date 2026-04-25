@@ -125,6 +125,8 @@ export interface Scene {
   numberColor?: string;
 
   sfxId?: string;
+  /** AI-generated SFX clip URL — overrides sfxId when present. */
+  sceneSfxUrl?: string;
   transition?: "beat_flash" | "beat_flash_colored" | "none";
   transitionColor?: string;
   shakeIntensity?: number;

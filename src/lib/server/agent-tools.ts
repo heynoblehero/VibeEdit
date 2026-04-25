@@ -686,6 +686,109 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  generateMusicForProject: {
+    schema: {
+      name: "generateMusicForProject",
+      description:
+        "Generate a backing music track from a text prompt and attach it to the project. Models: musicgen (default), musicgen-melody, stable-audio (cinematic). Pass durationSec to control length (default 30s, max 47s).",
+      input_schema: {
+        type: "object",
+        properties: {
+          prompt: {
+            type: "string",
+            description: "e.g. 'upbeat lo-fi for a coding montage' or 'tense cinematic synth'.",
+          },
+          model: { type: "string" },
+          durationSec: { type: "number" },
+          volume: {
+            type: "number",
+            description: "0-1, default 0.6 (so voiceover stays audible).",
+          },
+        },
+        required: ["prompt"],
+      },
+    },
+    async execute(args, ctx) {
+      const prompt = String(args.prompt ?? "");
+      try {
+        const res = await fetch(`${ctx.origin}/api/media/music`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            modelId: args.model ? String(args.model) : undefined,
+            durationSec: args.durationSec ? Number(args.durationSec) : 30,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? `music failed (${res.status})`);
+        ctx.project.music = {
+          url: data.url,
+          name: prompt.slice(0, 60),
+          volume: typeof args.volume === "number" ? Number(args.volume) : 0.6,
+          duckedVolume: 0.15,
+        };
+        return {
+          ok: true,
+          message: `music attached (via ${data.modelId}, ${data.durationSec}s)`,
+        };
+      } catch (e) {
+        return {
+          ok: false,
+          message: `music failed: ${e instanceof Error ? e.message : String(e)}`,
+        };
+      }
+    },
+  },
+
+  generateSfxForScene: {
+    schema: {
+      name: "generateSfxForScene",
+      description:
+        "Generate a sound effect from a text prompt and attach it to a scene as the sceneSfxUrl. Use for transitions, stingers, ambient layers. Models: elevenlabs-sfx (default, best quality), audiogen (cheap fallback). Default duration 5s, max 22s.",
+      input_schema: {
+        type: "object",
+        properties: {
+          sceneId: { type: "string" },
+          prompt: { type: "string" },
+          model: { type: "string" },
+          durationSec: { type: "number" },
+        },
+        required: ["sceneId", "prompt"],
+      },
+    },
+    async execute(args, ctx) {
+      const sceneId = String(args.sceneId);
+      const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
+      if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
+      try {
+        const res = await fetch(`${ctx.origin}/api/media/sfx`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: String(args.prompt),
+            modelId: args.model ? String(args.model) : undefined,
+            durationSec: args.durationSec ? Number(args.durationSec) : 5,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? `sfx failed (${res.status})`);
+        const scene = ctx.project.scenes[idx];
+        scene.sceneSfxUrl = data.url;
+        ctx.project.scenes = ctx.project.scenes.map((s, i) => (i === idx ? scene : s));
+        return {
+          ok: true,
+          message: `sfx attached to scene ${sceneId} (via ${data.modelId})`,
+        };
+      } catch (e) {
+        return {
+          ok: false,
+          message: `sfx failed: ${e instanceof Error ? e.message : String(e)}`,
+        };
+      }
+    },
+  },
+
   generateAvatarForScene: {
     schema: {
       name: "generateAvatarForScene",

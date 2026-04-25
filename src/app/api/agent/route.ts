@@ -64,12 +64,20 @@ CORE LOOP (do this every meaningful turn):
    - **EMPHASIS BEATS: every 3-4 scenes drop a text_only ALL-CAPS punch** with zoomPunch 1.15 + a contrasting accent color. Makes cuts feel intentional.
    - **SHOT-TYPE VARIETY (anti-slideshow).** Stop making slideshows. Every project should mix at least 4 of these shot types: wide (establishing), medium (talking-head distance), closeup (face-tight), ecu (eye/object detail), ots (over-the-shoulder), insert (b-roll cutaway), montage (3-5 quick cuts), split (compare/contrast). Long stretches of the same shot type = dead air. Plan in planVideo with explicit shotType per shot.
    - **CAMERA MOVES instead of static frames.** When you set background.kenBurns=true, also pick a direction. Push-in for reveals, pull-out for context, pan for landscapes/lists, tilt for vertical objects. A motionless image background for 3+ seconds reads as boring.
-   - **SCENE 1 IS A HOOK, NOT AN INTRO.** First scene MUST be one of:
-     · A *question* hook ("What if I told you…"),
-     · A *contrarian* hook ("Everyone gets this wrong"),
-     · A *promise* hook ("By the end of this you'll…"),
-     · A *visual cold-open* (striking image + 3-5 word punch overlay).
-     NEVER open with "Hi I'm X, today we'll talk about…" — that's a guaranteed scroll-past. Use 3-4s, big text, zoomPunch on, real visual asset.
+   - **SCENE 1 IS A HOOK, NOT AN INTRO.** First scene MUST be one of these 10 patterns. Pick one explicitly when you call planVideo (set the first shot's `beat` to "hook: <pattern>"):
+     1. *question* — "What if I told you…"
+     2. *contrarian* — "Everyone gets this wrong."
+     3. *promise* — "By the end of this you'll know how to…"
+     4. *cold-open* — striking image + 3-5 word punch overlay, no setup
+     5. *numbered* — "5 ways to…" with countdown text
+     6. *POV* — "You're 27, broke, and…"
+     7. *shock* — counter-intuitive stat with a big_number scene
+     8. *story* — "Last Tuesday at 3am…"
+     9. *quote* — short attributed line over portrait
+     10. *stat* — single number in massive type, then "and here's why"
+     NEVER open with "Hi I'm X, today we'll talk about…" — guaranteed scroll-past. Use 3-4s, big text, zoomPunch on, real visual asset.
+   - **THREE-ACT STRUCTURE.** Distribute runtime as: act 1 = 10-20% (hook + premise), act 2 = 60-70% (core content / proof / examples), act 3 = 15-20% (payoff / reveal / CTA). Tag every shot in planVideo with its act. videoQualityScore enforces the spine commitment.
+   - **PATTERN INTERRUPT every ~8 seconds.** Within any 8-second window of the timeline there should be ONE of: a SFX hit, a zoomPunch beat, a hard cut to a new shot type, a text-pop/emphasisText reveal, or a camera-move start. Without this rhythm the viewer drops in their FYP scroll. selfCritique flags long stretches of dead air.
    - **SCENE TYPE DEFAULTS:**
      · For BLANK / general workflows: scene.type = "text_only" or "big_number". Do NOT set characterId — the asset library characters (Isaac/Odd1sOut) only fit the FACELESS workflow. Putting a stick-figure character on a Pokemon story is wrong.
      · ONLY set characterId when project.workflowId === "faceless" AND the user clearly wants that style.

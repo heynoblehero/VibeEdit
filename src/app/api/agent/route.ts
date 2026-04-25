@@ -168,6 +168,27 @@ function computeStructuralGaps(project: Project): string[] {
     );
   }
 
+  // Spine: agent should commit to a narrative arc before generating media.
+  // We only enforce this once there's enough scene work to justify it.
+  if (!project.spine && project.scenes.length >= 4) {
+    gaps.push(
+      `- No narrative spine. Call writeNarrativeSpine(promise, stakes, reveal) so the video has a thesis, not just a sequence of slides.`,
+    );
+  }
+
+  // Quality score gate: single autoresearch-style metric. Below 75 means
+  // the agent should keep iterating (selfCritique → fixes → re-score).
+  const score = project.qualityScore;
+  if (typeof score === "number" && score < 75 && project.scenes.length >= 4) {
+    gaps.push(
+      `- videoQualityScore is ${score}/100 (need ≥75). Run selfCritique, fix the top findings, then videoQualityScore again. Don't claim done.`,
+    );
+  } else if (typeof score !== "number" && project.scenes.length >= 4) {
+    gaps.push(
+      `- Never computed videoQualityScore on this project. Call it now so we know what's weak.`,
+    );
+  }
+
   return gaps;
 }
 

@@ -31,6 +31,8 @@ export default function RootLayout({
     (function(){
       if (!true) return;
       try {
+        // Escape hatch: ?persist=1 in the URL keeps state for this load.
+        if (location.search.indexOf("persist=1") >= 0) return;
         for (const k of ["vibeedit-project","vibeedit-chat","vibeedit-broll","vibeedit-render-queue"]) {
           localStorage.removeItem(k);
         }

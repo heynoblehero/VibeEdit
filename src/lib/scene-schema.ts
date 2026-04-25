@@ -159,6 +159,10 @@ export interface Scene {
   transitionColor?: string;
   shakeIntensity?: number;
   zoomPunch?: number;
+  /** When true, fire a soft lens-flare overlay on frame 0 of the scene. */
+  lensFlare?: boolean;
+  /** Hex color override for the lens flare. */
+  lensFlareColor?: string;
 
   broll?: BRoll[];
 

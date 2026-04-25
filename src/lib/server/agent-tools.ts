@@ -162,6 +162,11 @@ const TOOLS: Record<string, AgentTool> = {
             enum: ["warm", "cool", "punchy", "bw", "neutral"],
             description: "Color grade for the bg image/video. warm=nostalgic, cool=tech/news, punchy=hype/commentary, bw=archival/serious, neutral=untouched.",
           },
+          lensFlare: {
+            type: "boolean",
+            description: "Fire a soft lens-flare overlay on frame 0. Use sparingly — best on reveals, big_number scenes, or hero shots.",
+          },
+          lensFlareColor: { type: "string" },
           insertAt: {
             type: "number",
             description: "Zero-based index to insert at. Omit to append.",
@@ -179,6 +184,8 @@ const TOOLS: Record<string, AgentTool> = {
         splitLeftUrl: args.splitLeftUrl as string | undefined,
         splitRightUrl: args.splitRightUrl as string | undefined,
         splitDivider: args.splitDivider as string | undefined,
+        lensFlare: args.lensFlare as boolean | undefined,
+        lensFlareColor: args.lensFlareColor as string | undefined,
         text: args.text as string | undefined,
         emphasisText: args.emphasisText as string | undefined,
         emphasisColor: args.emphasisColor as string | undefined,

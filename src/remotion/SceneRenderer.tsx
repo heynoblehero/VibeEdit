@@ -9,6 +9,7 @@ import { PunchText } from "./components/PunchText";
 import { ScreenShake } from "./components/ScreenShake";
 import { ZoomPunch } from "./components/ZoomPunch";
 import { Captions } from "./components/Captions";
+import { LensFlare } from "./components/LensFlare";
 import { Montage } from "./components/Montage";
 import { GRAPHIC_MAP } from "./assets";
 import { bob } from "@/lib/anim";
@@ -188,6 +189,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
         </ScreenShake>
       </ZoomPunch>
 
+      {s.lensFlare && <LensFlare hitFrame={0} color={s.lensFlareColor} />}
       {s.transition === "beat_flash" && <BeatFlash hitFrame={0} />}
       {s.transition === "beat_flash_colored" && (
         <BeatFlash hitFrame={0} color={s.transitionColor ?? "#10b981"} peakOpacity={0.25} />

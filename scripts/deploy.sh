@@ -20,6 +20,8 @@ if ! git remote get-url dokku-linode &>/dev/null; then
   exit 1
 fi
 
+REF="$(git rev-parse --short HEAD) ($(git log -1 --pretty=%s))"
+echo "==> Deploying ${REF}"
 echo "==> Pushing to GitHub origin…"
 git push origin master
 

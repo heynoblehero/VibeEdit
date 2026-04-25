@@ -1210,6 +1210,39 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  lintScript: {
+    schema: {
+      name: "lintScript",
+      description:
+        "Critique the narration text across all scenes for filler words, jargon, weak verbs, and run-ons. Returns a per-scene list of issues + concrete rewrite suggestions. Heuristic only (no model call) — fast, deterministic. Use after generating a script and before narration.",
+      input_schema: { type: "object", properties: {} },
+    },
+    async execute(_args, ctx) {
+      const FILLER = ["really", "very", "just", "kind of", "sort of", "basically", "actually", "literally", "honestly", "you know", "i mean"];
+      const WEAK_VERBS = ["got", "get", "make", "do", "have", "be", "go", "come"];
+      const findings: string[] = [];
+      for (const s of ctx.project.scenes) {
+        const text = (s.voiceover?.text ?? s.text ?? "").trim();
+        if (!text) continue;
+        const lower = ` ${text.toLowerCase()} `;
+        const fillerHits = FILLER.filter((f) => lower.includes(` ${f} `));
+        const weakHits = WEAK_VERBS.filter((v) => new RegExp(`\\b${v}\\b`, "i").test(text));
+        const wordCount = text.split(/\s+/).filter(Boolean).length;
+        const sentences = text.split(/[.!?]+/).filter((x) => x.trim());
+        const longRuns = sentences.filter((sen) => sen.split(/\s+/).length > 28);
+        const issues: string[] = [];
+        if (fillerHits.length > 0) issues.push(`filler: ${fillerHits.join(", ")}`);
+        if (weakHits.length > 2) issues.push(`weak verbs: ${weakHits.join(", ")}`);
+        if (longRuns.length > 0) issues.push(`${longRuns.length} run-on sentence${longRuns.length === 1 ? "" : "s"} (>28 words)`);
+        if (wordCount > 60 && (s.duration ?? 2) < 6) issues.push(`${wordCount} words in ${s.duration}s — too dense, viewer can't keep up`);
+        if (wordCount === 0 && s.duration > 1.5) issues.push(`silent ${s.duration}s — add narration or shorten`);
+        if (issues.length > 0) findings.push(`${s.id}: ${issues.join("; ")}`);
+      }
+      if (findings.length === 0) return { ok: true, message: "✓ script lint clean — no filler / weak verbs / run-ons." };
+      return { ok: true, message: `${findings.length} script issues:\n${findings.map((f, i) => `${i + 1}. ${f}`).join("\n")}` };
+    },
+  },
+
   videoQualityScore: {
     schema: {
       name: "videoQualityScore",

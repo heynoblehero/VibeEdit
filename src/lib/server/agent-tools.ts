@@ -1561,6 +1561,79 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  spawnSubAgent: {
+    schema: {
+      name: "spawnSubAgent",
+      description:
+        "Run a focused sub-task in an ISOLATED Claude context with NO editing tools. Use roles: 'director' (returns a structured shot list given the brief — call this if planVideo feels overwhelming), 'reviewer' (reads the current project state + experiment log and returns a prioritized fix list, more thorough than selfCritique), or 'researcher' (deep web research on a single subject). The sub-agent's output is plain text. Use it for parallel/specialized work that would pollute the main agent's context.",
+      input_schema: {
+        type: "object",
+        properties: {
+          role: {
+            type: "string",
+            enum: ["director", "reviewer", "researcher"],
+          },
+          brief: {
+            type: "string",
+            description: "What you want the sub-agent to do, in 1-3 sentences.",
+          },
+        },
+        required: ["role", "brief"],
+      },
+    },
+    async execute(args, ctx) {
+      const role = String(args.role ?? "");
+      const brief = String(args.brief ?? "").trim();
+      if (!brief) return { ok: false, message: "brief required" };
+
+      const promptByRole: Record<string, string> = {
+        director:
+          "You are a senior video director. Read the brief and return a JSON-style shot list: [{act:1|2|3, beat:string, shotType:string, cameraMove:string, durationHint:number, assetDecision:string, text:string}]. Mix shot types; vary durations; commit to a 3-act structure. Be specific. No prose around the JSON — just the array.",
+        reviewer:
+          "You are a brutal video reviewer. Read the project state + experiment log + spine. Return a numbered list of the top 5 issues holding the video back, each tagged [high|medium|low] and paired with one concrete fix the agent should call (tool name + args). No fluff.",
+        researcher:
+          "You are a research analyst. Given a topic, return: 5 concrete visual references (real-world descriptions, not URLs), 3 surprising facts, 1 contrarian angle. Markdown. Under 300 words.",
+      };
+      const sysPrompt = promptByRole[role];
+      if (!sysPrompt) return { ok: false, message: `unknown role "${role}"` };
+
+      const projectSummary = summarizeProject(ctx.project);
+      const spine = ctx.project.spine ? `Spine: ${ctx.project.spine}\n` : "";
+      const expLog = (ctx.project.experiments ?? []).slice(-10).map(
+        (e) => `- ${e.kind} via ${e.decision} ${e.kept ? "kept" : "discarded"}${e.note ? `: ${e.note}` : ""}`,
+      ).join("\n");
+
+      const userMsg =
+        `Brief: ${brief}\n\n` +
+        spine +
+        `Current project:\n${projectSummary}\n\n` +
+        (expLog ? `Recent experiments:\n${expLog}\n\n` : "") +
+        (role === "researcher" || role === "director"
+          ? ""
+          : `Research notes (excerpt):\n${(ctx.project.researchNotes ?? "").slice(-1500)}\n`);
+
+      try {
+        const { callClaude } = await import("@/lib/server/claude-bridge");
+        const data = await callClaude(
+          {
+            model: "claude-sonnet-4-5",
+            max_tokens: 1500,
+            system: [{ type: "text", text: sysPrompt }],
+            messages: [{ role: "user", content: userMsg }],
+          },
+          `subagent-${role}`,
+        );
+        const text = data.content.map((b) => b.text ?? "").join("\n").trim();
+        return { ok: true, message: `[${role}]\n${text || "(empty response)"}` };
+      } catch (e) {
+        return {
+          ok: false,
+          message: `sub-agent failed: ${e instanceof Error ? e.message : String(e)}`,
+        };
+      }
+    },
+  },
+
   watchRenderedVideo: {
     schema: {
       name: "watchRenderedVideo",

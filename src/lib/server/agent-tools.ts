@@ -1,7 +1,12 @@
 import {
   type CaptionStyle,
+  type ExperimentRecord,
   type Project,
   type Scene,
+  type ShotPlan,
+  type ShotType,
+  type CameraMove,
+  type AssetSource,
   type VideoTask,
   DEFAULT_CAPTION_STYLE,
   DIMENSIONS,
@@ -1335,6 +1340,101 @@ const TOOLS: Record<string, AgentTool> = {
           message: `search failed: ${e instanceof Error ? e.message : String(e)}`,
         };
       }
+    },
+  },
+
+  planVideo: {
+    schema: {
+      name: "planVideo",
+      description:
+        "Author the structured shot list BEFORE creating any scenes or generating any media. Returns nothing useful — its purpose is to force you to plan in one place. Each shot specifies: act (1/2/3), beat (one-line description), shotType (wide/medium/closeup/ecu/ots/insert/montage/split), cameraMove (still/push_in/pull_out/pan_lr/pan_rl/tilt_up/tilt_down/ken_burns), durationHint (seconds), assetDecision (user_upload/ai_generated/stock/research_url/library), assetTarget (filename/url/prompt). Plan once, then execute. Replan only if the brief changes.",
+      input_schema: {
+        type: "object",
+        properties: {
+          shots: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                act: { type: "number", enum: [1, 2, 3] },
+                beat: { type: "string" },
+                shotType: {
+                  type: "string",
+                  enum: ["wide", "medium", "closeup", "ecu", "ots", "insert", "montage", "split"],
+                },
+                cameraMove: {
+                  type: "string",
+                  enum: ["still", "push_in", "pull_out", "pan_lr", "pan_rl", "tilt_up", "tilt_down", "ken_burns"],
+                },
+                durationHint: { type: "number" },
+                assetDecision: {
+                  type: "string",
+                  enum: ["user_upload", "ai_generated", "stock", "research_url", "library"],
+                },
+                assetTarget: { type: "string" },
+                text: { type: "string" },
+              },
+              required: ["act", "beat", "shotType", "durationHint", "assetDecision"],
+            },
+          },
+        },
+        required: ["shots"],
+      },
+    },
+    async execute(args, ctx) {
+      const raw = args.shots as Array<Record<string, unknown>> | undefined;
+      if (!raw || raw.length === 0) return { ok: false, message: "shots required" };
+      const plan: ShotPlan[] = raw.map((s, i) => ({
+        index: i,
+        act: (s.act as 1 | 2 | 3) ?? 2,
+        beat: String(s.beat ?? ""),
+        shotType: (s.shotType as ShotType) ?? "medium",
+        cameraMove: (s.cameraMove as CameraMove) ?? "still",
+        durationHint: Number(s.durationHint ?? 2.5),
+        assetDecision: (s.assetDecision as AssetSource) ?? "ai_generated",
+        assetTarget: s.assetTarget ? String(s.assetTarget) : undefined,
+        text: s.text ? String(s.text) : undefined,
+      }));
+      // Sanity-check three-act distribution.
+      const total = plan.reduce((acc, p) => acc + p.durationHint, 0);
+      const act1 = plan.filter((p) => p.act === 1).reduce((a, p) => a + p.durationHint, 0);
+      const act3 = plan.filter((p) => p.act === 3).reduce((a, p) => a + p.durationHint, 0);
+      const warn: string[] = [];
+      if (total > 0 && act1 / total > 0.3) warn.push("act 1 too long (>30%)");
+      if (total > 0 && act3 / total < 0.1) warn.push("act 3 too short (<10%)");
+      ctx.project.shotList = plan;
+      return {
+        ok: true,
+        message:
+          `shot list saved (${plan.length} shots, ${total.toFixed(1)}s total)` +
+          (warn.length > 0 ? `\nwarn: ${warn.join("; ")}` : ""),
+      };
+    },
+  },
+
+  writeNarrativeSpine: {
+    schema: {
+      name: "writeNarrativeSpine",
+      description:
+        "Pin a one-line narrative arc to the project: the promise, stakes, and reveal/payoff. Every scene you create afterward MUST advance one of these three. Call this once at the start, before planVideo.",
+      input_schema: {
+        type: "object",
+        properties: {
+          promise: { type: "string", description: "What the viewer will get if they keep watching." },
+          stakes: { type: "string", description: "Why it matters / what's at risk / what changes." },
+          reveal: { type: "string", description: "The payoff or punch the video lands on." },
+        },
+        required: ["promise", "stakes", "reveal"],
+      },
+    },
+    async execute(args, ctx) {
+      const promise = String(args.promise ?? "").trim();
+      const stakes = String(args.stakes ?? "").trim();
+      const reveal = String(args.reveal ?? "").trim();
+      if (!promise || !stakes || !reveal)
+        return { ok: false, message: "promise / stakes / reveal all required" };
+      ctx.project.spine = `${promise} → ${stakes} → ${reveal}`;
+      return { ok: true, message: `spine: ${ctx.project.spine}` };
     },
   },
 

@@ -1,9 +1,88 @@
 # Changelog
 
-## Unreleased — video-quality sprint (25 commits)
+## Unreleased — autonomous one-shot sprint (25 commits)
 
-A focused pass on making finished videos look + sound 10x better. Every
-item ships in its own commit so anything can be reverted independently.
+Synthesized learnings from three reference repos into 25 commits that
+turn VibeEdit's agent from "make a slideshow when prompted" into "watch
+the user's brief, plan, fetch references, decide assets, render, watch
+its own output, and iterate to a metric."
+
+### Inspiration
+- **codeaashu/claude-code** — tool-based capability system, sub-agent
+  spawning, plan-mode separation, skills/packaged workflows.
+- **karpathy/autoresearch** — single quantifiable self-eval metric,
+  bounded exploration budgets, transparent experiment logging.
+- **jordanrendric/claude-video-vision** — frame-extraction + audio probe
+  so the agent can "watch" its own output before claiming done.
+
+### New tools
+- `researchTopic(topic, mode)` — web-searches visual references and
+  persists findings to `project.researchNotes`.
+- `writeNarrativeSpine(promise, stakes, reveal)` — pins a one-line arc
+  every scene must advance.
+- `planVideo(shots[])` — structured shot list with act/beat/shotType/
+  cameraMove/durationHint/assetDecision. Mandatory before media gen.
+- `routeAsset(sceneDescription, preferUserUpload)` — explicit
+  upload-vs-generate-vs-research-url decision. Logs to experiments.
+- `scoreAssetForScene(assetUrl, sceneDescription)` — fast heuristic
+  0-1 relevance check for uploaded assets.
+- `stockSearch(query, orientation, limit)` — Pexels-backed free
+  stock photo source w/ Pollinations documentary-style fallback.
+- `videoQualityScore()` — 0-100 metric across 8 dimensions
+  (structural / pacing / density / variety / hook / sfx / spine / captions).
+  Gate refuses termination below 75.
+- `watchRenderedVideo(jobId, frames)` — ffmpeg frame sampling +
+  ffprobe audio peak/mean detection.
+- `readExperimentLog(kind)` — autoresearch-style audit trail of every
+  asset decision.
+- `spawnSubAgent(role, brief)` — Director/Reviewer/Researcher in
+  isolated context with no editing tools.
+
+### New scene primitives (anti-slideshow)
+- `scene.type = "montage"` — 3-5 image URLs cut at 0.5s with scale-pop.
+- `scene.type = "split"` — left+right halves with VS divider.
+- `scene.background.cameraMove` — push_in / pull_out / pan_lr / pan_rl /
+  tilt_up / tilt_down / ken_burns. createScene auto-cycles for image bgs.
+
+### Schema additions
+- `project.researchNotes` — markdown log from researchTopic/Plan tools.
+- `project.spine` — promise → stakes → reveal sentence.
+- `project.shotList` — typed `ShotPlan[]` from planVideo.
+- `project.experiments` — typed `ExperimentRecord[]` log.
+- `project.qualityScore` — last computed score for gating.
+
+### Agent flow / route gates
+- **Plan-mode block**: generateImage/Video/Music/Sfx/Avatar all return a
+  synthetic [plan-mode] error until spine + plan exist.
+- **Per-turn budgets**: webSearch=5, researchTopic=3, stockSearch=4,
+  generateImageForScene=12, generateVideoForScene=3, generateMusicFor
+  Project=2, generateSfxForScene=6.
+- **Force-continue gate** now checks: missing spine, missing
+  qualityScore, score < 75, dead-air windows > 8s, talking-head runs
+  of 3+ same characterId, scene density vs runtime, SFX presence.
+- **Goal-anchor**: every 3 rounds, re-inject spine + last score + plan
+  size so the agent doesn't drift mid-loop.
+
+### SYSTEM_PROMPT additions
+- Phase 1.5 (Commit to a Spine): writeNarrativeSpine + planVideo before
+  any media gen. Hard rule.
+- Shot-type vocabulary (8 named types) with anti-slideshow framing.
+- Camera-move vocabulary (4 named directions) for image backgrounds.
+- 10 hook templates (question/contrarian/promise/cold-open/numbered/
+  POV/shock/story/quote/stat).
+- Three-act runtime distribution rule (10-20% / 60-70% / 15-20%).
+- 8-second pattern-interrupt cadence rule.
+- Mandatory SFX beats.
+
+### UX
+- `/cinematic-short <topic>` — packaged autonomous one-shot slash
+  command. Pre-loads the chat with the full agentic loop and submits.
+
+## polish pass #9 — video-quality sprint #1 (25 commits)
+
+A focused pass on making finished videos look + sound better — render
+knobs, caption legibility, agent behavior, image/TTS defaults, and
+structural-gap guardrails. Every item ships in its own commit.
 
 ### Render output
 - CRF 18 + slow x264 preset + 192k audio bitrate + jpegQuality 95 so

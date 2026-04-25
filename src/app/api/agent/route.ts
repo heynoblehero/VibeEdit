@@ -72,6 +72,24 @@ CORE LOOP (do this every meaningful turn):
    - **EMPHASIS BEATS: every 3-4 scenes drop a text_only ALL-CAPS punch** with zoomPunch 1.15 + a contrasting accent color. Makes cuts feel intentional.
    - **SHOT-TYPE VARIETY (anti-slideshow).** Stop making slideshows. Every project should mix at least 4 of these shot types: wide (establishing), medium (talking-head distance), closeup (face-tight), ecu (eye/object detail), ots (over-the-shoulder), insert (b-roll cutaway), montage (3-5 quick cuts), split (compare/contrast). Long stretches of the same shot type = dead air. Plan in planVideo with explicit shotType per shot.
    - **CAMERA MOVES instead of static frames.** When you set background.kenBurns=true, also pick a direction. Push-in for reveals, pull-out for context, pan for landscapes/lists, tilt for vertical objects. A motionless image background for 3+ seconds reads as boring.
+   - **SCENE-TYPE TOOLBOX.** Pick the right primitive for the beat — don't default everything to text_only:
+     · *bullet_list* (scene.bulletItems): "5 things", "what you'll learn", "checklist". 2-6 items, 0.4s each animates in.
+     · *quote* (scene.quoteText + quoteAttribution): testimonials, expert authority, "X said: ...".
+     · *stat* (scene.statValue + statLabel): single hero number ("73%" / "of viewers drop in 3 seconds"). Pair with backgroundBlur=8 + lensFlare for shock beats.
+     · *montage* (scene.montageUrls): compress a sequence/list of items into 0.5s cuts.
+     · *split* (scene.splitLeftUrl + splitRightUrl): before/after, vs, compare/contrast.
+     · *big_number*: animated counter (numberFrom→numberTo). Use for revenue, growth, time-saved beats.
+     · *text_only*: only when the punch IS the text — short ALL-CAPS hits.
+   - **OVERLAY EFFECTS via scene.effects[].** Stack these on top of any scene:
+     · *circle_ping*: impact ring on hard cuts.
+     · *radial_pulse*: white center flash on hooks/reveals.
+     · *scan_line*: vertical sweep, tech/hud feel.
+     · *bar_wipe*: solid color bar wiping in with a label — section titles ("STEP 2", "THE CATCH").
+     · *corner_brackets*: 4-corner viewfinder, gaming overlay.
+     · *reveal_box*: clockwise animated border around an emphasized region.
+     · *lower_third*: slide-in name+title strap (text + subtext), use on the speaker's first appearance.
+     Stagger effects with startFrame to build a beat sequence inside one scene.
+   - **TRANSITIONS.** Match the cut treatment to the beat: beat_flash for default rhythm; slide_left/slide_right for chapter starts; zoom_blur for dramatic reveals. Don't use beat_flash on every single cut.
    - **SCENE 1 IS A HOOK, NOT AN INTRO.** First scene MUST be one of these 10 patterns. Pick one explicitly when you call planVideo (set the first shot's beat field to "hook: <pattern>"):
      1. *question* — "What if I told you…"
      2. *contrarian* — "Everyone gets this wrong."

@@ -1,6 +1,65 @@
 # Changelog
 
-## Unreleased — polish pass #8 — unified AI providers
+## Unreleased — video-quality sprint (25 commits)
+
+A focused pass on making finished videos look + sound 10x better. Every
+item ships in its own commit so anything can be reverted independently.
+
+### Render output
+- CRF 18 + slow x264 preset + 192k audio bitrate + jpegQuality 95 so
+  finals stay crisp through TikTok/IG re-encode.
+- Music bed fades in / out over ~0.6s instead of popping at boundaries.
+- Subtle animated film-grain overlay (SVG feTurbulence, opacity 0.18)
+  for perceived production value. Toggle via `filmGrain` prop.
+- Soft 4-frame opacity ramp on every scene entry — cuts breathe.
+
+### Captions
+- 8-direction stroke + wider drop shadow → never lost on bright backgrounds.
+- Heavier font (Inter 950 / SF Pro Display) with condensed tracking for
+  the shorts-native look.
+- Emphasized word scales 1.08x in addition to color highlight.
+- Greedy chunker that breaks at punctuation, not mid-clause.
+
+### Agent behavior
+- Scene 1 must be a hook (question / contrarian / promise / cold-open),
+  never "Hi I'm X today we'll talk about…".
+- Sound-effect requirement (1-2 SFX per video minimum).
+- Force-continue gate adds two new structural checks:
+  · target ≥ 1 cut per 3.5s of runtime,
+  · at least one SFX once the project has 6+ scenes.
+- Auto-zoomPunch on text_only ALL-CAPS punch scenes and emphasis beats.
+- WCAG-relative contrast guardrail on AI-picked textColor — auto-flips
+  to white/black when the agent picks a low-contrast pair.
+- Workflow-aware fallback music prompts (lo-fi for commentary, cinematic
+  uplift for review, tense for faceless, punchy electronic for shorts).
+- Music auto-fits video duration (15-47s clamp).
+
+### Image / TTS quality
+- Pollinations: native canvas res + flux model + random seed + inline
+  exclusionary phrasing (no text/watermark/distorted faces/extra fingers).
+- Image gen auto-appends cinematic style boosters when prompt lacks its own.
+- TTS speed default 1.05 → 1.0 (natural cadence).
+- Narration scene-duration padding 0.3s → 0.6s (no clipping).
+
+### Defaults
+- New projects default to 9:16 portrait.
+- Vignette 0.5 → 0.35; Ken-Burns auto-on when scene has image bg.
+- Music volume 0.45 / ducked 0.12 (sits below narration cleanly).
+- enterFrom + transition cycle by scene index (no more swooping in from
+  the left every cut).
+
+### Earlier in this session
+- self-loopback fix (localhost not public URL) so dokku container fetches
+  succeed.
+- Persistent runtime storage at `VIBEEDIT_DATA_DIR=/data` with dynamic
+  `/uploads/[name]` and `/voiceovers/[name]` routes.
+- Settings dialog at `/api/keys` writing to `/data/keys.json`.
+- Render preflight HEADs every scene's media URL before render starts.
+- Active scene highlight via `playingSceneId` in editor-store.
+- Critic sub-agent + per-turn task list + force-continue gate +
+  Pollinations free fallback so the agent doesn't give up on missing keys.
+
+## polish pass #8 — unified AI providers
 
 Three parallel adapters (`media-providers`, `voice-providers`,
 `audio-providers`) follow the same shape: catalog + facade + agent tool.

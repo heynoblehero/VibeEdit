@@ -231,6 +231,12 @@ async function runJob(job: RenderJob): Promise<void> {
     outputLocation: outPath,
     inputProps,
     scale: preset.scale,
+    // Visibly sharper finals: lower CRF (perceptually-lossless region) and
+    // higher audio bitrate so platform re-encodes don't gut quality.
+    crf: 18,
+    jpegQuality: 95,
+    audioBitrate: "192k",
+    x264Preset: "slow",
     onProgress: ({ progress, renderedFrames, stitchStage }) => {
       job.progress = progress;
       job.renderedFrames = renderedFrames;

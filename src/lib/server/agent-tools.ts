@@ -2088,6 +2088,44 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  removeBackground: {
+    schema: {
+      name: "removeBackground",
+      description:
+        "Strip the background from a portrait or product image and return a transparent-PNG variant. Uses Replicate cjwbw/rembg (~$0.001 per image). Use on uploaded character portraits before placing them as scene.background.imageUrl with a colored backdrop, or for product hero shots.",
+      input_schema: {
+        type: "object",
+        properties: { sourceUrl: { type: "string" } },
+        required: ["sourceUrl"],
+      },
+    },
+    async execute(args, ctx) {
+      try {
+        const res = await fetch(`${ctx.origin}/api/uploads/edits/remove-bg`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sourceUrl: String(args.sourceUrl) }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? `remove-bg failed (${res.status})`);
+        ctx.project.experiments = [
+          ...(ctx.project.experiments ?? []),
+          {
+            ts: Date.now(),
+            kind: "image",
+            decision: "user_upload",
+            prompt: "remove-bg",
+            url: data.url,
+            kept: true,
+          },
+        ];
+        return { ok: true, message: `bg removed → ${data.url}` };
+      } catch (e) {
+        return { ok: false, message: `remove-bg failed: ${e instanceof Error ? e.message : String(e)}` };
+      }
+    },
+  },
+
   smartCropAsset: {
     schema: {
       name: "smartCropAsset",

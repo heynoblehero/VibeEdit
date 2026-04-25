@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased — polish pass #8 — unified AI providers
+
+Three parallel adapters (`media-providers`, `voice-providers`,
+`audio-providers`) follow the same shape: catalog + facade + agent tool.
+Agent picks the right model from intent without the user pinning one.
+
+### Catalogs
+- 4 image models (gpt-image-1, flux-1.1-pro-ultra, flux-schnell,
+  ideogram-v3-turbo).
+- 4 video models (seedance-1-pro default, kling-v2.0 for i2v, veo-3
+  with audio, ltx-video for cheap b-roll).
+- 9 voices (6 OpenAI TTS + 3 ElevenLabs presets).
+- 5 audio models (musicgen, musicgen-melody, stable-audio, elevenlabs-sfx,
+  audiogen).
+
+### Routes
+- POST /api/media/image, /api/media/video, /api/media/music,
+  /api/media/sfx — uniform shape, 501 on missing provider config.
+- GET /api/media/models, /api/media/voices — cached 60s.
+
+### Agent tools
+- generateImageForScene, generateVideoForScene now take a `model` arg.
+- generateMusicForProject, generateSfxForScene (new).
+- listAvailableModels for introspection.
+- /models slash command surfaces the catalog as a toast.
+
+### UI
+- MediaModelPicker dropdown in the SceneEditor background panel.
+- VoicePicker component for per-scene voice override.
+- Catalog descriptions injected into the agent's system prompt.
+
+### Misc
+- Cmd/Ctrl+1…9 jumps to scene N.
+- ConfigTabs remembers last-active tab.
+- Reset-on-load script honors `?persist=1` URL param.
+- README documents the three-adapter architecture + one-liner
+  prod config:set.
+
 ## Unreleased — polish pass #7 — templates banished
 
 The template dropdown is off the primary surface entirely. Projects

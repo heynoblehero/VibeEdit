@@ -45,9 +45,13 @@ CORE LOOP (do this every meaningful turn):
    - Stable ids only: never guess a scene id.
    - Colors hex. Durations seconds. Positions canvas pixels (0-1920 X, 0-1080 Y landscape; 0-1080 X, 0-1920 Y portrait).
    - Batch tool calls when possible (parallel createScene, parallel generateImageForScene, etc.).
+   - **SCENE TYPE DEFAULTS:**
+     · For BLANK / general workflows: scene.type = "text_only" or "big_number". Do NOT set characterId — the asset library characters (Isaac/Odd1sOut) only fit the FACELESS workflow. Putting a stick-figure character on a Pokemon story is wrong.
+     · ONLY set characterId when project.workflowId === "faceless" AND the user clearly wants that style.
+   - **CHAT-UPLOADED FILES: When the user has dropped images / clips into the chat, those URLs (e.g. /uploads/abc.jpg) appear in earlier user messages. Use them DIRECTLY as scene.background.imageUrl or scene.background.videoUrl — DON'T regenerate or treat them as 'characters'.** Distribute uploaded images across scenes that match their content semantically.
    - **MANDATORY VISUALS: Every scene must have a real visual asset.** A scene with just text on a solid color is a FAILURE. Specifically:
-     · If the user uploaded images / clips / audio: USE THEM. Reference their URLs in scene.background.imageUrl / videoUrl.
-     · If they didn't upload anything: call generateImageForScene for each scene. Use prompts that match the scene's text. Never leave 3+ scenes in a row with no imagery.
+     · If the user uploaded images / clips: USE THEM via scene.background.imageUrl. Place each one on the most relevant scene.
+     · If you've used all uploaded images and need more: call generateImageForScene with a prompt that matches the scene's text and the overall topic. Pollinations is the free fallback if no Replicate / OpenAI key is set.
      · For motion-heavy beats (hooks, transitions, reveals): call generateVideoForScene — seedance-1-pro for cheap b-roll, kling-v2.0 if you have a still to animate, veo-3 for the hero opener.
    - **MANDATORY AUDIO: every scene with text needs narration.** Call narrateAllScenes after creating scenes. Pick a voice from the catalog that fits the tone (deep/onyx for serious, shimmer for hype, fable for storytelling).
    - **MANDATORY MUSIC: full videos need a backing track.** If the objective is "make a video" and there's no music, call generateMusicForProject with a mood-matched prompt. Default volume 0.5-0.6.
@@ -193,6 +197,20 @@ export async function POST(request: NextRequest) {
         }
       };
 
+      // Pull every /uploads/ URL out of the conversation so the agent has
+      // a clean inventory of what the user dropped — separate from the
+      // chat fluff. These are the assets it should attach to scenes.
+      const uploadedUrls: string[] = [];
+      for (const m of body.messages) {
+        if (m.role !== "user" || typeof m.content !== "string") continue;
+        const matches = m.content.match(/\/uploads\/[A-Za-z0-9_.-]+/g);
+        if (matches) {
+          for (const u of matches) {
+            if (!uploadedUrls.includes(u)) uploadedUrls.push(u);
+          }
+        }
+      }
+
       // Conversation we grow across tool-use loops. Start from the user's
       // history; each loop may append assistant + tool_result messages.
       const conversation: AnthropicMessage[] = [
@@ -200,8 +218,17 @@ export async function POST(request: NextRequest) {
         // message so it knows what exists. Subsequent turns carry real history.
         { role: "user", content: `Current project state:\n${summarizeProject(project)}` },
         { role: "assistant", content: "Got it. Ready." },
-        ...body.messages.map((m) => ({ role: m.role, content: m.content }) as AnthropicMessage),
       ];
+      if (uploadedUrls.length > 0) {
+        conversation.push({
+          role: "user",
+          content: `Files the user uploaded into chat (use these as scene.background.imageUrl / videoUrl — don't regenerate):\n${uploadedUrls.map((u) => `- ${u}`).join("\n")}`,
+        });
+        conversation.push({ role: "assistant", content: "Logged the uploads." });
+      }
+      conversation.push(
+        ...body.messages.map((m) => ({ role: m.role, content: m.content }) as AnthropicMessage),
+      );
 
       const tools = listToolSchemas();
       const ctx = {
@@ -311,7 +338,17 @@ export async function POST(request: NextRequest) {
             const args = (tu.input ?? {}) as Record<string, unknown>;
             send({ type: "tool_start", id: tu.id, name: tu.name, args });
             const result = await runTool(tu.name ?? "", args, ctx);
-            consecutiveErrors = result.ok ? 0 : consecutiveErrors + 1;
+            // "Provider not configured" failures (501-style) don't count
+            // toward the consecutive-error cap — those are signals to try a
+            // different tool, not stop the whole turn.
+            const isConfigFailure =
+              !result.ok &&
+              /not set|not configured|API_KEY|API_TOKEN|503|501/i.test(result.message);
+            if (result.ok || isConfigFailure) {
+              consecutiveErrors = 0;
+            } else {
+              consecutiveErrors++;
+            }
             send({
               type: "tool_result",
               id: tu.id,
@@ -334,8 +371,10 @@ export async function POST(request: NextRequest) {
           });
 
           // Bail if the same kind of failure keeps repeating — prevents a
-          // runaway loop where the agent can't find a way forward.
-          if (consecutiveErrors >= 4) {
+          // runaway loop where the agent can't find a way forward. Bumped
+          // 4 → 10 because a normal turn now hits config-failures (which
+          // we tolerate) and real failures get a much longer rope.
+          if (consecutiveErrors >= 10) {
             send({
               type: "error",
               error:

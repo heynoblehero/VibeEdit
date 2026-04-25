@@ -835,6 +835,20 @@ const TOOLS: Record<string, AgentTool> = {
       if (filledSlots.length > 0) {
         lines.push(`Workflow inputs filled: ${filledSlots.join(", ")}`);
       }
+      // Chat-uploaded /uploads/ URLs already attached to scenes.
+      const usedUploads = new Set<string>();
+      for (const s of ctx.project.scenes) {
+        if (s.background?.imageUrl?.startsWith("/uploads/"))
+          usedUploads.add(s.background.imageUrl);
+        if (s.background?.videoUrl?.startsWith("/uploads/"))
+          usedUploads.add(s.background.videoUrl);
+      }
+      if (usedUploads.size > 0) {
+        lines.push(`Chat uploads already placed: ${[...usedUploads].join(", ")}`);
+      }
+      lines.push(
+        "Reminder: any /uploads/<file> URLs in the recent user messages should be set as scene.background.imageUrl/videoUrl directly — never as characterId.",
+      );
       return { ok: true, message: lines.join("\n") };
     },
   },

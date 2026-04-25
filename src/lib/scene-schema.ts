@@ -229,6 +229,67 @@ export interface Project {
    * route refuses to let it terminate while items are open.
    */
   taskList?: VideoTask[];
+  /**
+   * Markdown notes the agent accumulates from research/planning tools.
+   * Persisted across turns so the agent doesn't re-search the same topic.
+   */
+  researchNotes?: string;
+  /**
+   * One-line narrative arc the agent commits to before generating media.
+   * Format: "promise → stakes → reveal".
+   */
+  spine?: string;
+  /**
+   * Structured shot-list authored by planVideo tool, before any media.
+   */
+  shotList?: ShotPlan[];
+  /**
+   * Append-only log of asset decisions: which option won, why, what got tried.
+   * autoresearch-style transparency for debugging "why does the video look like this?".
+   */
+  experiments?: ExperimentRecord[];
+  /**
+   * Latest computed quality score so the route can gate termination.
+   */
+  qualityScore?: number;
+}
+
+export type ShotType =
+  | "wide"
+  | "medium"
+  | "closeup"
+  | "ecu"
+  | "ots"
+  | "insert"
+  | "montage"
+  | "split";
+
+export type CameraMove = "still" | "push_in" | "pull_out" | "pan_lr" | "pan_rl" | "tilt_up" | "tilt_down" | "ken_burns";
+
+export type AssetSource = "user_upload" | "ai_generated" | "stock" | "research_url" | "library";
+
+export interface ShotPlan {
+  /** Index in the final timeline. */
+  index: number;
+  act: 1 | 2 | 3;
+  beat: string;
+  shotType: ShotType;
+  cameraMove: CameraMove;
+  durationHint: number;
+  assetDecision: AssetSource;
+  assetTarget?: string;
+  text?: string;
+}
+
+export interface ExperimentRecord {
+  ts: number;
+  kind: "image" | "video" | "music" | "sfx" | "asset_route";
+  decision: AssetSource;
+  prompt?: string;
+  url?: string;
+  score?: number;
+  kept: boolean;
+  note?: string;
 }
 
 export interface VideoTask {

@@ -1338,6 +1338,70 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  researchTopic: {
+    schema: {
+      name: "researchTopic",
+      description:
+        "Web-research a topic for VISUAL references before generating images. Returns 5-10 candidate sources (titles + urls + snippets) that describe what the subject actually looks like in the real world. Call this BEFORE generateImageForScene so prompts are grounded in reality, not invented from thin air. Use for: real people, brands, places, products, current events, niche subcultures.",
+      input_schema: {
+        type: "object",
+        properties: {
+          topic: {
+            type: "string",
+            description: "What to research (e.g. 'pokemon trading card art', 'mid-century modern coffee shop interiors').",
+          },
+          mode: {
+            type: "string",
+            enum: ["images", "facts", "both"],
+            description: "images: visual references. facts: textual context. both: default.",
+          },
+        },
+        required: ["topic"],
+      },
+    },
+    async execute(args, ctx) {
+      const topic = String(args.topic ?? "").trim();
+      if (!topic) return { ok: false, message: "topic required" };
+      const mode = (args.mode as string) ?? "both";
+      const queries: string[] = [];
+      if (mode === "images" || mode === "both") {
+        queries.push(`${topic} visual reference`);
+        queries.push(`${topic} photography`);
+      }
+      if (mode === "facts" || mode === "both") queries.push(`${topic} explained`);
+
+      const allResults: Array<{ q: string; title: string; url: string; snippet: string }> = [];
+      for (const q of queries) {
+        try {
+          const res = await fetch(`${ctx.origin}/api/search`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: q, limit: 4 }),
+          });
+          const data = (await res.json()) as {
+            results?: Array<{ title: string; url: string; snippet: string }>;
+          };
+          for (const r of data.results ?? []) allResults.push({ q, ...r });
+        } catch {
+          // search backend missing — skip silently, agent gets fewer hits
+        }
+      }
+      // Persist a compact summary on project so future turns don't re-search.
+      const refs = allResults.slice(0, 12);
+      ctx.project.researchNotes = (ctx.project.researchNotes ?? "") +
+        `\n\n# ${topic}\n` +
+        refs.map((r) => `- ${r.title} — ${r.url}\n  ${r.snippet}`).join("\n");
+      return {
+        ok: true,
+        message:
+          refs.length === 0
+            ? "no research hits — proceed without references"
+            : `${refs.length} references on "${topic}":\n` +
+              refs.map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}\n   ${r.snippet}`).join("\n\n"),
+      };
+    },
+  },
+
   renderProject: {
     schema: {
       name: "renderProject",

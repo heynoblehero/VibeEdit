@@ -850,8 +850,10 @@ const TOOLS: Record<string, AgentTool> = {
         ctx.project.music = {
           url: data.url,
           name: prompt.slice(0, 60),
-          volume: typeof args.volume === "number" ? Number(args.volume) : 0.6,
-          duckedVolume: 0.15,
+          // Default volume 0.45 sits below narration without burying it.
+          // Ducks to 0.12 when voiceover is playing.
+          volume: typeof args.volume === "number" ? Number(args.volume) : 0.45,
+          duckedVolume: 0.12,
         };
         return {
           ok: true,

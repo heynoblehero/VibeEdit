@@ -1,7 +1,7 @@
 "use client";
 
 import { Player, type PlayerRef } from "@remotion/player";
-import { Pause, Play } from "lucide-react";
+import { ArrowRight, MessageCircle, Pause, Play, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AbsoluteFill } from "remotion";
 import { sceneDurationFrames, totalDurationFrames } from "@/lib/scene-schema";
@@ -146,32 +146,7 @@ export function Preview() {
   }, [setEditTarget]);
 
   if (project.scenes.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full bg-black/50 text-neutral-500 text-sm rounded-lg gap-4 border border-neutral-800">
-        <div className="text-4xl">🎬</div>
-        <div className="text-center">
-          Ask the agent to make a video.
-          <br />
-          <kbd className="text-emerald-400">Cmd+K</kbd> to start.
-        </div>
-        <button
-          onClick={async () => {
-            const { useChatStore } = await import("@/store/chat-store");
-            useChatStore
-              .getState()
-              .addUserMessage(
-                "Surprise me. Pick a fun workflow and make a fully-narrated 60s demo video.",
-              );
-            document
-              .querySelector<HTMLFormElement>("aside form")
-              ?.requestSubmit();
-          }}
-          className="flex items-center gap-2 px-4 py-2 rounded-md bg-gradient-to-r from-amber-500 to-pink-500 hover:from-amber-400 hover:to-pink-400 text-white text-xs font-semibold transition-colors"
-        >
-          🎲 Surprise me
-        </button>
-      </div>
-    );
+    return <EmptyProjectInstruction />;
   }
 
   const hasChar = selectedScene?.characterId;
@@ -327,6 +302,133 @@ export function Preview() {
         currentFrame={currentFrame}
         isFullPreview={isFullPreview}
       />
+    </div>
+  );
+}
+
+/**
+ * Shown when the project has no scenes yet. Instructs the user to chat
+ * with the agent. Three example prompts pre-fill + auto-submit the
+ * chat. Cmd+K shortcut hint is prominent. Surprise-me is demoted to a
+ * tiny secondary link at the bottom.
+ */
+function EmptyProjectInstruction() {
+  const sendToChat = async (text: string, autoSubmit: boolean) => {
+    // Open the chat sidebar (the page-level Cmd+K handler is the
+    // canonical way to open + focus). We dispatch a synthesized
+    // keyboard event so we don't have to wire a new prop through the
+    // editor layout.
+    const evt = new KeyboardEvent("keydown", {
+      key: "k",
+      metaKey: true,
+      ctrlKey: false,
+      bubbles: true,
+    });
+    window.dispatchEvent(evt);
+    // Wait for the sidebar to mount + focus, then either pre-fill the
+    // textarea (so the user sees the prompt and can edit) or
+    // addUserMessage + submit for one-click suggestions.
+    setTimeout(async () => {
+      if (autoSubmit) {
+        const { useChatStore } = await import("@/store/chat-store");
+        useChatStore.getState().addUserMessage(text);
+        document.querySelector<HTMLFormElement>("aside form")?.requestSubmit();
+      } else {
+        const ta = document.querySelector<HTMLTextAreaElement>("aside textarea");
+        if (ta) {
+          ta.value = text;
+          ta.dispatchEvent(new Event("input", { bubbles: true }));
+          ta.focus();
+        }
+      }
+    }, 80);
+  };
+
+  const PROMPTS = [
+    {
+      label: "60-second short about morning routines",
+      text: "Make a 9:16 short about a productive morning routine — 8 scenes, punchy hook, 5 specific tips, CTA at the end.",
+    },
+    {
+      label: "Product reveal video",
+      text: "Make a 30-second product reveal — tease scene, hero close-up, three feature highlights, dramatic reveal, CTA.",
+    },
+    {
+      label: "Educational explainer",
+      text: "Make a 45-second explainer answering 'why does X happen?' — question hook, setup, core explanation, two examples, takeaway.",
+    },
+  ];
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full bg-black/50 rounded-lg border border-neutral-800 p-8 gap-6">
+      <div className="flex items-center gap-2 text-emerald-400">
+        <MessageCircle className="h-6 w-6" />
+        <ArrowRight className="h-4 w-4 animate-pulse" />
+        <Sparkles className="h-6 w-6" />
+      </div>
+      <div className="text-center max-w-md">
+        <h2 className="text-base font-semibold text-white mb-1">
+          Tell the AI what to make
+        </h2>
+        <p className="text-xs text-neutral-400 leading-relaxed">
+          Open the chat (
+          <kbd className="px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-emerald-400 text-[10px]">
+            Cmd
+          </kbd>{" "}
+          +{" "}
+          <kbd className="px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-emerald-400 text-[10px]">
+            K
+          </kbd>
+          ) and describe the video you want. The agent will plan it,
+          generate visuals + narration + music, and render it for you.
+        </p>
+      </div>
+      <div className="flex flex-col gap-2 w-full max-w-md">
+        <span className="text-[10px] uppercase tracking-wider text-neutral-500 text-center">
+          Or pick a starter prompt
+        </span>
+        {PROMPTS.map((p) => (
+          <button
+            key={p.label}
+            type="button"
+            onClick={() => sendToChat(p.text, true)}
+            className="group flex items-center gap-2 w-full text-left px-3 py-2 rounded-md bg-neutral-900 border border-neutral-800 hover:border-emerald-500/60 hover:bg-emerald-500/5 transition-colors"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+            <span className="text-xs text-neutral-300 group-hover:text-white flex-1">
+              {p.label}
+            </span>
+            <ArrowRight className="h-3 w-3 text-neutral-600 group-hover:text-emerald-400" />
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => {
+          const evt = new KeyboardEvent("keydown", {
+            key: "k",
+            metaKey: true,
+            bubbles: true,
+          });
+          window.dispatchEvent(evt);
+        }}
+        className="flex items-center gap-2 px-5 py-2.5 rounded-md bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-sm transition-colors"
+      >
+        <MessageCircle className="h-4 w-4" />
+        Open the AI chat
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          sendToChat(
+            "Surprise me. Pick a fun workflow and make a fully-narrated 60s demo video.",
+            true,
+          )
+        }
+        className="text-[10px] text-neutral-600 hover:text-neutral-400 underline decoration-dotted underline-offset-2"
+      >
+        or surprise me with a random demo
+      </button>
     </div>
   );
 }

@@ -118,12 +118,16 @@ export function ProjectHome({
           <FolderPlus className="h-5 w-5" />
           Create a new project
         </button>
-        <div className="flex items-center gap-3 text-[11px] text-neutral-600">
+        <p className="text-[11px] text-neutral-500 text-center mt-1">
+          You&apos;ll describe the video, and the AI agent will plan,
+          generate, and render it for you.
+        </p>
+        <div className="flex items-center gap-3 text-[11px] text-neutral-600 mt-1">
           <button
             onClick={handleQuickNew}
             className="hover:text-neutral-300 underline decoration-dotted underline-offset-2"
           >
-            or skip the setup (blank project)
+            blank project
           </button>
           <span className="text-neutral-800">·</span>
           <button
@@ -143,7 +147,7 @@ export function ProjectHome({
             className="hover:text-neutral-300"
             title="Random demo video"
           >
-            🎲 surprise me
+            🎲 random demo
           </button>
         </div>
       </div>

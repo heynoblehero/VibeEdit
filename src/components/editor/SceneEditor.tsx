@@ -6,9 +6,10 @@ import { toast } from "sonner";
 import { useAssetStore } from "@/store/asset-store";
 import { useEditorStore, type EditTarget } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
-import type { EnterDirection, MotionPreset, Scene } from "@/lib/scene-schema";
+import type { EnterDirection, KeyframeProperty, MotionPreset, Scene } from "@/lib/scene-schema";
 import { getWorkflow } from "@/lib/workflows/registry";
 import { BRollPanel } from "./BRollPanel";
+import { KeyframeGraph } from "./KeyframeGraph";
 import { MediaModelPicker } from "./MediaModelPicker";
 
 const DIRECTIONS: EnterDirection[] = ["left", "right", "bottom", "scale"];
@@ -136,6 +137,90 @@ export function SceneEditor() {
         {editTarget === "background" && <BackgroundPanel scene={scene} update={update} />}
         {editTarget === "counter" && <CounterPanel scene={scene} update={update} />}
         {editTarget === "broll" && <BRollPanel scene={scene} />}
+        {editTarget === "keyframes" && <AnimatePanel scene={scene} />}
+      </div>
+    </div>
+  );
+}
+
+const KEYFRAME_PROPERTIES: KeyframeProperty[] = [
+  "textY",
+  "textOpacity",
+  "textScale",
+  "emphasisY",
+  "emphasisOpacity",
+  "emphasisScale",
+  "characterY",
+  "characterScale",
+  "bgScale",
+  "bgOffsetX",
+  "bgOffsetY",
+  "overlayOpacity",
+];
+
+function AnimatePanel({ scene }: { scene: Scene }) {
+  const [property, setProperty] = useState<KeyframeProperty>("textY");
+  const fps = useProjectStore((s) => s.project.fps);
+  const durationFrames = Math.max(1, Math.round(scene.duration * fps));
+  // Sticky tabs: 3 most recently edited channels — for now just track in
+  // local state. A future iteration could persist across tab switches.
+  const [recent, setRecent] = useState<KeyframeProperty[]>([]);
+  const pickProperty = (p: KeyframeProperty) => {
+    setProperty(p);
+    setRecent((prev) => [p, ...prev.filter((x) => x !== p)].slice(0, 3));
+  };
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] uppercase tracking-wider text-neutral-500">Property</span>
+        <select
+          value={property}
+          onChange={(e) => pickProperty(e.target.value as KeyframeProperty)}
+          className="input-field text-xs flex-1"
+        >
+          {KEYFRAME_PROPERTIES.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+      </div>
+      {recent.length > 1 && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] uppercase text-neutral-600">Recent</span>
+          {recent.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setProperty(p)}
+              className={
+                p === property
+                  ? "px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/60 text-[10px] text-emerald-300"
+                  : "px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-700 text-[10px] text-neutral-400 hover:text-white"
+              }
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      )}
+      <KeyframeGraph
+        sceneId={scene.id}
+        property={property}
+        durationFrames={durationFrames}
+        fallbackValue={(() => {
+          // Sensible defaults so the curve baseline isn't always at 0.
+          if (property === "textY") return scene.textY ?? 300;
+          if (property === "textScale" || property === "emphasisScale" || property === "characterScale" || property === "bgScale") return 1;
+          if (property.endsWith("Opacity")) return 1;
+          return 0;
+        })()}
+      />
+      <div className="text-[10px] text-neutral-600 leading-relaxed">
+        Click empty space on the graph to add a keyframe at that frame +
+        value. Drag a keyframe to move it. Right-click to delete. Pick the
+        easing for the segment leaving an active keyframe via the dropdown
+        in the graph header.
       </div>
     </div>
   );

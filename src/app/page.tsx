@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Film, ListVideo, MessageCircle, Redo2, Settings, Smartphone, Undo2 } from "lucide-react";
+import { CalendarClock, Film, ListVideo, MessageCircle, Redo2, Settings, Smartphone, Undo2, Upload } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { AuthBar } from "@/components/editor/AuthBar";
@@ -31,6 +31,7 @@ import { SceneList } from "@/components/editor/SceneList";
 import { ShortcutsOverlay } from "@/components/editor/ShortcutsOverlay";
 import { ScheduleRenderDialog } from "@/components/editor/ScheduleRenderDialog";
 import { SceneToolsPanel } from "@/components/editor/SceneToolsPanel";
+import { UploadsPanel } from "@/components/editor/UploadsPanel";
 import { useChatStore } from "@/store/chat-store";
 import { useProjectStore } from "@/store/project-store";
 import { useRenderQueueStore } from "@/store/render-queue-store";
@@ -66,6 +67,7 @@ export default function Home() {
   // Always start `true` so SSR and first client render agree. A post-mount
   // effect collapses the sidebar on narrow screens — avoids hydration mismatch.
   const [chatOpen, setChatOpenState] = useState(true);
+  const [uploadsOpen, setUploadsOpen] = useState(false);
   const setChatOpen = (v: boolean | ((prev: boolean) => boolean)) => {
     setChatOpenState((prev) => {
       const next = typeof v === "function" ? v(prev) : v;
@@ -230,6 +232,23 @@ export default function Home() {
             <span>Get the app</span>
           </a>
           <button
+            onClick={() => setUploadsOpen((v) => !v)}
+            title="Project uploads (drag onto timeline to insert)"
+            aria-label="Uploads"
+            className={
+              uploadsOpen
+                ? "p-1.5 rounded-md text-emerald-400 bg-neutral-800 transition-colors relative"
+                : "p-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors relative"
+            }
+          >
+            <Upload className="h-4 w-4" />
+            {(project.uploads?.length ?? 0) > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 text-[9px] font-bold bg-emerald-500 text-black rounded-full min-w-3.5 h-3.5 px-0.5 flex items-center justify-center">
+                {project.uploads!.length}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => setSettingsOpen(true)}
             title="Settings (API keys)"
             aria-label="Settings"
@@ -284,6 +303,7 @@ export default function Home() {
       {!showHome && (
       <div className="flex flex-1 min-h-0">
         <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
+        <UploadsPanel open={uploadsOpen} onClose={() => setUploadsOpen(false)} />
         {/* Left: scene list + tools — hidden until scenes exist so the empty
             state is just chat + preview (way less busy). */}
         {project.scenes.length > 0 && !leftCollapsed && (

@@ -155,10 +155,58 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
       <div
         ref={trackRef}
         onClick={handleClick}
+        onDragOver={(e) => {
+          if (e.dataTransfer.types.includes("vibeedit/upload-url")) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+          }
+        }}
+        onDrop={(e) => {
+          const url = e.dataTransfer.getData("vibeedit/upload-url");
+          const type = e.dataTransfer.getData("vibeedit/upload-type");
+          if (!url || !trackRef.current) return;
+          e.preventDefault();
+          const rect = trackRef.current.getBoundingClientRect();
+          const ratio = (e.clientX - rect.left) / rect.width;
+          const frame = Math.round(ratio * total);
+          // Find which scene index the drop landed in; insert AFTER it
+          // (if the drop is in the second half of the scene block) or
+          // BEFORE it (first half). End-of-track → append.
+          let insertIndex = markers.length;
+          for (let i = 0; i < markers.length; i++) {
+            const m = markers[i];
+            if (frame >= m.start && frame < m.endExclusive) {
+              const within = (frame - m.start) / m.frames;
+              insertIndex = within > 0.5 ? i + 1 : i;
+              break;
+            }
+          }
+          const portrait = project.height > project.width;
+          const scene = type.startsWith("video/")
+            ? {
+                id: createId(),
+                type: "text_only" as const,
+                duration: 3,
+                background: { ...DEFAULT_BG, videoUrl: url },
+                transition: "beat_flash" as const,
+              }
+            : {
+                id: createId(),
+                type: "text_only" as const,
+                duration: 3,
+                background: { ...DEFAULT_BG, imageUrl: url, kenBurns: true },
+                emphasisText: "edit me",
+                emphasisSize: portrait ? 96 : 72,
+                emphasisColor: "#ffffff",
+                textY: portrait ? 500 : 380,
+                transition: "beat_flash" as const,
+              };
+          insertSceneAt(insertIndex, scene);
+        }}
         className={`group/timeline relative h-8 bg-neutral-900 rounded border border-neutral-800 ${
           cutMode ? "cursor-crosshair" : "cursor-pointer"
         }`}
-        title={cutMode ? "Click to cut at this frame" : "Click to jump"}
+        title={cutMode ? "Click to cut at this frame" : "Click to jump · drop an upload to insert a scene"}
       >
         {markers.map((m, i) => {
           const left = (m.start / total) * 100;

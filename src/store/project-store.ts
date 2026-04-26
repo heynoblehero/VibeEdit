@@ -11,6 +11,7 @@ import {
   type MusicBed,
   type Orientation,
   type Project,
+  type ProjectUpload,
   type Scene,
   type StylePack,
   type Voiceover,
@@ -91,6 +92,10 @@ interface ProjectStore {
   splitScene: (sceneId: string, atFrameWithin: number) => string | null;
   /** Insert a new blank scene at `index` (pushes the rest right). */
   insertSceneAt: (index: number, scene: Scene) => void;
+  /** Add an upload to the project's per-project upload bin. */
+  addUpload: (upload: ProjectUpload) => void;
+  /** Remove an upload from the bin (does NOT delete the file on disk). */
+  removeUpload: (id: string) => void;
 
   undo: () => void;
   redo: () => void;
@@ -805,6 +810,39 @@ export const useProjectStore = create<ProjectStore>()(
         }));
         return newId;
       },
+
+      addUpload: (upload) =>
+        set((s) => {
+          const existing = s.project.uploads ?? [];
+          // Dedupe by URL — re-uploading the same content (sha-hash
+          // dedupe upstream) returns the same URL; we just bump
+          // uploadedAt on the existing entry instead of growing the
+          // list.
+          const filtered = existing.filter((u) => u.url !== upload.url);
+          const updated = {
+            ...s.project,
+            uploads: [...filtered, upload],
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: pushHistory(s.history, s.project),
+            future: [],
+          };
+        }),
+      removeUpload: (id) =>
+        set((s) => {
+          const updated = {
+            ...s.project,
+            uploads: (s.project.uploads ?? []).filter((u) => u.id !== id),
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: pushHistory(s.history, s.project),
+            future: [],
+          };
+        }),
 
       insertSceneAt: (index, scene) =>
         set((s) => {

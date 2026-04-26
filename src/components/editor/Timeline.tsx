@@ -2,8 +2,10 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { PlayerRef } from "@remotion/player";
+import type { Cut } from "@/lib/scene-schema";
 import { sceneDurationFrames, totalDurationFrames } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
+import { CutMarker } from "./CutMarker";
 
 interface TimelineProps {
   playerRef: React.RefObject<PlayerRef | null>;
@@ -182,6 +184,40 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
             className="absolute top-0 bottom-0 w-[2px] bg-emerald-400 pointer-events-none"
           />
         )}
+        {/* Cut markers between consecutive scenes. We mount them at the
+            track level (above the scene blocks' z-index) so the popover
+            anchors correctly without getting clipped by the block's
+            overflow-hidden parent. */}
+        {markers.slice(0, -1).map((m, i) => {
+          const fromScene = project.scenes[i];
+          const toScene = project.scenes[i + 1];
+          if (!fromScene || !toScene) return null;
+          const cut: Cut = (project.cuts ?? []).find(
+            (c) =>
+              c.fromSceneId === fromScene.id && c.toSceneId === toScene.id,
+          ) ?? {
+            id: `auto-${fromScene.id}-${toScene.id}`,
+            fromSceneId: fromScene.id,
+            toSceneId: toScene.id,
+            kind: "hard",
+            durationFrames: 0,
+          };
+          const leftPct = (m.endExclusive / total) * 100;
+          return (
+            <div
+              key={`cut-${fromScene.id}-${toScene.id}`}
+              style={{ left: `${leftPct}%`, position: "absolute", top: 0, bottom: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <CutMarker
+                cut={cut}
+                fromScene={fromScene}
+                toScene={toScene}
+                orientation="horizontal"
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );

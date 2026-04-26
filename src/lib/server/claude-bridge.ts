@@ -19,6 +19,7 @@ export interface ClaudeContentBlock {
   id?: string;
   name?: string;
   input?: Record<string, unknown>;
+  source?: { type: "url" | "base64"; url?: string; data?: string; media_type?: string };
 }
 
 export interface ClaudeResponse {

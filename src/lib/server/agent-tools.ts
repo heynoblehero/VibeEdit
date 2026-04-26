@@ -2048,24 +2048,57 @@ const TOOLS: Record<string, AgentTool> = {
     schema: {
       name: "scoreAssetForScene",
       description:
-        "Quick heuristic relevance score (0-1) for whether a given asset URL or filename fits a scene description. Returns the score plus a one-line rationale. Use BEFORE attaching uploaded assets to scenes — only attach if score ≥ 0.6, otherwise generate fresh. Heuristic-only (token overlap + image-extension check). Cheap, deterministic, runs in <1ms.",
+        "Score whether an asset URL fits a scene description (0-1). Uses Claude vision when ANTHROPIC_API_KEY is set (accurate, ~$0.001), falls back to a heuristic on filename token overlap. Use BEFORE attaching uploaded assets — only attach if score ≥ 0.6.",
       input_schema: {
         type: "object",
         properties: {
           assetUrl: { type: "string" },
           assetName: { type: "string", description: "Filename or display name." },
           sceneDescription: { type: "string" },
+          useVision: { type: "boolean", description: "Default true. Set false to force heuristic-only." },
         },
         required: ["sceneDescription"],
       },
     },
     async execute(args) {
-      const desc = String(args.sceneDescription ?? "").toLowerCase();
-      const url = String(args.assetUrl ?? "").toLowerCase();
+      const desc = String(args.sceneDescription ?? "").trim();
+      const url = String(args.assetUrl ?? "");
       const name = String(args.assetName ?? "").toLowerCase();
-      const haystack = `${url} ${name}`;
       if (!desc) return { ok: false, message: "sceneDescription required" };
+
+      // Try vision first when caller hasn't opted out.
+      if (args.useVision !== false && url) {
+        const { askAboutImage } = await import("@/lib/server/vision");
+        const answer = await askAboutImage({
+          imageUrl: url,
+          question:
+            `Given this image, rate from 0 to 10 how well it fits this scene description: "${desc}". ` +
+            `Respond with ONLY a JSON object: {"score": <int 0-10>, "reason": "<one short sentence>"}. ` +
+            `0 = totally unrelated, 10 = perfect fit. No prose around the JSON.`,
+        });
+        if (answer) {
+          const m = answer.match(/\{[^{}]*"score"\s*:\s*(\d+)[^{}]*\}/);
+          if (m) {
+            try {
+              const obj = JSON.parse(m[0]) as { score: number; reason?: string };
+              const norm = Math.max(0, Math.min(1, obj.score / 10));
+              const verdict =
+                norm >= 0.6 ? "use it" : norm >= 0.3 ? "maybe" : "skip";
+              return {
+                ok: true,
+                message: `score=${norm.toFixed(2)} (vision) — ${verdict}\nreason: ${obj.reason ?? "?"}`,
+              };
+            } catch {
+              // fall through to heuristic
+            }
+          }
+        }
+      }
+
+      // Heuristic fallback.
+      const haystack = `${url.toLowerCase()} ${name}`;
       const tokens = desc
+        .toLowerCase()
         .split(/\s+/)
         .map((t) => t.replace(/[^a-z0-9]/g, ""))
         .filter((t) => t.length > 3);
@@ -2077,15 +2110,10 @@ const TOOLS: Record<string, AgentTool> = {
       let score = ratio;
       if (!isImage && !isVideo) score *= 0.7;
       score = Math.max(0, Math.min(1, Number(score.toFixed(2))));
-      const verdict =
-        score >= 0.6
-          ? "use it"
-          : score >= 0.3
-            ? "maybe — also generate a fresh fallback"
-            : "skip — generate fresh";
+      const verdict = score >= 0.6 ? "use it" : score >= 0.3 ? "maybe" : "skip";
       return {
         ok: true,
-        message: `score=${score} (${hits}/${tokens.length} tokens hit) — ${verdict}`,
+        message: `score=${score} (heuristic, ${hits}/${tokens.length}) — ${verdict}`,
       };
     },
   },

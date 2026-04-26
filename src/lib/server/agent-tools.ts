@@ -2476,6 +2476,84 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  extractPalette: {
+    schema: {
+      name: "extractPalette",
+      description:
+        "Extract a 5-color palette (dominant + 4 accents) from an image URL using sharp's stats + k-means-ish quantization. Returns hex colors. Use on the hero asset after upload, then call applyStylePack to push the palette onto text/accents project-wide so the video reads as visually unified.",
+      input_schema: {
+        type: "object",
+        properties: { sourceUrl: { type: "string" } },
+        required: ["sourceUrl"],
+      },
+    },
+    async execute(args) {
+      const sourceUrl = String(args.sourceUrl ?? "");
+      if (!sourceUrl) return { ok: false, message: "sourceUrl required" };
+      try {
+        // Fetch bytes (or read from local /uploads/).
+        let buf: Buffer;
+        if (sourceUrl.startsWith("/uploads/")) {
+          const fs = await import("node:fs");
+          const path = await import("node:path");
+          const local = path.join(
+            process.env.VIBEEDIT_DATA_DIR || path.join(process.cwd(), "public"),
+            "uploads",
+            sourceUrl.slice("/uploads/".length),
+          );
+          if (!fs.existsSync(local)) return { ok: false, message: "source not found" };
+          buf = await fs.promises.readFile(local);
+        } else {
+          const res = await fetch(sourceUrl);
+          if (!res.ok) return { ok: false, message: `fetch ${res.status}` };
+          buf = Buffer.from(await res.arrayBuffer());
+        }
+        const sharp = (await import("sharp")).default;
+        // Downsample to 64×64, read raw RGB, quantize to a coarse 5×5×5
+        // grid for fast k-bucket counting.
+        const { data, info } = await sharp(buf)
+          .resize(64, 64, { fit: "cover" })
+          .removeAlpha()
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+        const buckets = new Map<string, { count: number; r: number; g: number; b: number }>();
+        for (let i = 0; i < data.length; i += info.channels) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          // Skip near-black and near-white so we don't return useless
+          // background neutrals as the dominant.
+          const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          if (lum < 25 || lum > 230) continue;
+          const key = `${Math.round(r / 51)}-${Math.round(g / 51)}-${Math.round(b / 51)}`;
+          const prev = buckets.get(key);
+          if (prev) {
+            prev.count++;
+            prev.r += r;
+            prev.g += g;
+            prev.b += b;
+          } else {
+            buckets.set(key, { count: 1, r, g, b });
+          }
+        }
+        const sorted = [...buckets.values()].sort((a, b) => b.count - a.count).slice(0, 5);
+        const palette = sorted.map((s) => {
+          const r = Math.round(s.r / s.count);
+          const g = Math.round(s.g / s.count);
+          const b = Math.round(s.b / s.count);
+          return "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
+        });
+        if (palette.length === 0) return { ok: true, message: "no colors extracted (mostly neutrals)" };
+        return {
+          ok: true,
+          message: `palette (dominant first): ${palette.join("  ")}`,
+        };
+      } catch (e) {
+        return { ok: false, message: `palette failed: ${e instanceof Error ? e.message : String(e)}` };
+      }
+    },
+  },
+
   analyzeUpload: {
     schema: {
       name: "analyzeUpload",

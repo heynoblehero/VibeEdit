@@ -29,6 +29,7 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
   const renameProject = useProjectStore((s) => s.renameProject);
   const setOrientation = useProjectStore((s) => s.setOrientation);
   const setSystemPrompt = useProjectStore((s) => s.setSystemPrompt);
+  const setWorkflowId = useProjectStore((s) => s.setWorkflowId);
 
   const [name, setName] = useState("");
   // Default 9:16 — short-form is the dominant use case.
@@ -90,6 +91,20 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
       if (finalName) renameProject(finalName);
       if (orientation !== "landscape") setOrientation(orientation);
       if (goal.trim()) setSystemPrompt(goal.trim());
+      // Auto-pick workflow from goal text so character-style projects
+      // don't default to faceless and pick up Isaac stick-figures.
+      const goalLower = goal.toLowerCase();
+      if (/\b(reaction|reacting|opinion|controversy|drama|tea)\b/.test(goalLower)) {
+        setWorkflowId("commentary");
+      } else if (/\b(review|hands.on|tested|first impressions|unboxing)\b/.test(goalLower)) {
+        setWorkflowId("review");
+      } else if (/\b(animated|cartoon|anime|illustrated)\b/.test(goalLower)) {
+        setWorkflowId("ai-animated");
+      } else if (/\b(short|tiktok|reel|fyp)\b/.test(goalLower)) {
+        setWorkflowId("shorts");
+      } else if (/\b(faceless|pov|story.?time)\b/.test(goalLower)) {
+        setWorkflowId("faceless");
+      }
       void id;
 
       // 2. Upload assets (if any) and hand their URLs to the chat.

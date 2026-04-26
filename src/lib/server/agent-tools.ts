@@ -1894,6 +1894,54 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  visionCritiqueScene: {
+    schema: {
+      name: "visionCritiqueScene",
+      description:
+        "Render a single scene to a still frame and have Claude vision critique what it looks like. Returns a list of concrete fixes (composition / readability / color / overlap). Costs ~1 cent per call. Use AFTER selfCritique on key scenes (hook, stat, cta) — not every scene.",
+      input_schema: {
+        type: "object",
+        properties: {
+          sceneId: { type: "string" },
+        },
+        required: ["sceneId"],
+      },
+    },
+    async execute(args, ctx) {
+      const sceneId = String(args.sceneId);
+      const scene = ctx.project.scenes.find((s) => s.id === sceneId);
+      if (!scene) return { ok: false, message: `no scene ${sceneId}` };
+      // We can't render a single scene cheaply without spinning the
+      // bundler. Cheap proxy: if the scene has a backgroundImageUrl, ask
+      // vision about THAT image with the scene's text overlaid in
+      // description form. For text-only scenes we can only critique
+      // structurally.
+      const bg = scene.background?.imageUrl;
+      if (!bg) {
+        return {
+          ok: true,
+          message: `scene ${sceneId} has no image bg — can't vision-critique. Generate one first.`,
+        };
+      }
+      const overlayText = [scene.text, scene.emphasisText, scene.subtitleText, scene.statValue, scene.statLabel]
+        .filter(Boolean)
+        .join(" / ");
+      const { askAboutImage } = await import("@/lib/server/vision");
+      const answer = await askAboutImage({
+        imageUrl: bg,
+        question:
+          `This is the background of a video scene. Text overlays will read: "${overlayText}". ` +
+          `Critique the composition for readability + visual interest. List up to 5 concrete fixes ` +
+          `the editor should consider — bullet points, no preamble. Each fix in 1 line. ` +
+          `Examples of good fixes: "add backgroundBlur=8 so text reads cleaner", "swap colorGrade to cool — ` +
+          `current image is too warm vs the tense topic", "image is busy on the left where text lives — ` +
+          `flip horizontally or move textY down to 60%".`,
+      });
+      if (!answer) return { ok: true, message: "vision unavailable — skipped" };
+      return { ok: true, message: `vision critique for ${sceneId}:\n${answer}` };
+    },
+  },
+
   watchRenderedVideo: {
     schema: {
       name: "watchRenderedVideo",

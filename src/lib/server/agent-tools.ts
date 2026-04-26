@@ -7,6 +7,7 @@ import {
   type ShotType,
   type CameraMove,
   type AssetSource,
+  type Subject,
   type VideoTask,
   DEFAULT_CAPTION_STYLE,
   DIMENSIONS,
@@ -3085,6 +3086,117 @@ const TOOLS: Record<string, AgentTool> = {
       } catch (e) {
         return { ok: false, message: `palette failed: ${e instanceof Error ? e.message : String(e)}` };
       }
+    },
+  },
+
+  registerSubject: {
+    schema: {
+      name: "registerSubject",
+      description:
+        "Register a recurring person / product / character that will appear in 2+ scenes. Saves a canonical reference image so every later generateImageForScene call with this subjectId produces a CONSISTENT look. CRITICAL: do this BEFORE generating any scene that includes a named character — otherwise scene 1's 'Sarah Chen' won't look like scene 5's. Pass referenceImageUrl directly (preferred — uses an existing upload or earlier generated image), OR pass description and we'll generate the hero portrait first.",
+      input_schema: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Display name. Match what appears in narration." },
+          description: {
+            type: "string",
+            description: "Short physical description used in fallback prompts. e.g. '30s, dark hair, glasses, blue blazer' or 'matte-black ergonomic chair, mesh back'.",
+          },
+          referenceImageUrl: {
+            type: "string",
+            description: "Hero portrait URL. Skip to auto-generate from description.",
+          },
+          kind: {
+            type: "string",
+            enum: ["person", "product", "other"],
+            description: "person uses face-matching models; product uses structural img2img; other = general subject.",
+          },
+        },
+        required: ["name", "description"],
+      },
+    },
+    async execute(args, ctx) {
+      const name = String(args.name).trim();
+      const description = String(args.description).trim();
+      if (!name || !description) return { ok: false, message: "name + description required" };
+      const kind = (args.kind as Subject["kind"]) ?? "person";
+
+      let referenceImageUrl = args.referenceImageUrl ? String(args.referenceImageUrl) : "";
+      if (!referenceImageUrl) {
+        // Auto-generate the hero portrait so the agent can register a
+        // subject in one tool call without juggling generateImage first.
+        const aspectRatio: "16:9" | "9:16" =
+          ctx.project.height > ctx.project.width ? "9:16" : "16:9";
+        const portraitPrompt =
+          kind === "person"
+            ? `studio portrait of ${name}, ${description}, plain neutral background, photorealistic, professional headshot lighting, eye-level, sharp focus`
+            : kind === "product"
+              ? `clean product shot of ${name}, ${description}, isolated on plain background, studio lighting, sharp focus, 4k`
+              : `${name}, ${description}, clean centered framing, sharp focus, 4k`;
+        try {
+          const res = await fetch(`${ctx.origin}/api/media/image`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: portraitPrompt, aspectRatio }),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.url) throw new Error(data.error ?? `image gen failed (${res.status})`);
+          referenceImageUrl = data.url;
+        } catch (e) {
+          return {
+            ok: false,
+            message: `couldn't auto-generate portrait: ${e instanceof Error ? e.message : String(e)}. Pass referenceImageUrl instead.`,
+          };
+        }
+      }
+
+      // Replace any existing subject with the same lowercase name so the
+      // agent can re-register without leaking duplicates.
+      const existing = (ctx.project.subjects ?? []).filter(
+        (s) => s.name.toLowerCase() !== name.toLowerCase(),
+      );
+      const subject: Subject = {
+        id: createId(),
+        name,
+        description,
+        referenceImageUrl,
+        kind,
+        createdAt: Date.now(),
+        usageCount: 0,
+      };
+      ctx.project.subjects = [...existing, subject];
+      return {
+        ok: true,
+        message: `subject registered: ${subject.id} (${name}, ${kind}) → ${referenceImageUrl}\nUse subjectId="${subject.id}" on generateImageForScene calls that should show this ${kind}.`,
+      };
+    },
+  },
+
+  listSubjects: {
+    schema: {
+      name: "listSubjects",
+      description:
+        "List all registered subjects on the project. Returns id, name, kind, and reference URL for each. Use to look up which subjectId to pass when generating an image for a scene.",
+      input_schema: { type: "object", properties: {} },
+    },
+    async execute(_args, ctx) {
+      const subjects = ctx.project.subjects ?? [];
+      if (subjects.length === 0) {
+        return {
+          ok: true,
+          message:
+            "no subjects registered. If a person/product appears in 2+ scenes, call registerSubject first so generations stay consistent.",
+        };
+      }
+      return {
+        ok: true,
+        message: subjects
+          .map(
+            (s, i) =>
+              `${i + 1}. ${s.id} — ${s.name} (${s.kind}) — used ${s.usageCount ?? 0}× — ${s.referenceImageUrl}`,
+          )
+          .join("\n"),
+      };
     },
   },
 

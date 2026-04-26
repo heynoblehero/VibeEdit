@@ -71,6 +71,29 @@ function buildDuckingRanges(
   return ranges;
 }
 
+/** Frames where the music should temporarily *swell* (over-volume). */
+function buildSwellFrames(scenes: Scene[], fps: number): number[] {
+  const out: number[] = [];
+  let frameOffset = 0;
+  for (const s of scenes) {
+    const sceneDur = sceneDurationFrames(s, fps);
+    // Stat / big_number / lensFlare / emphasis-text + non-narrated:
+    // these are the moments where a 0.5s music swell sells the impact.
+    const isImpact =
+      s.type === "stat" ||
+      s.type === "big_number" ||
+      !!s.lensFlare ||
+      (!!s.emphasisText && !s.voiceover?.audioUrl);
+    if (isImpact) {
+      // Swell starts at the beat (frame 0 of the scene + tiny lead) and
+      // covers ~14 frames.
+      out.push(frameOffset + Math.min(8, sceneDur / 4));
+    }
+    frameOffset += sceneDur;
+  }
+  return out;
+}
+
 export const VideoComposition: React.FC<CompositionProps> = ({
   scenes,
   fps,
@@ -86,6 +109,7 @@ export const VideoComposition: React.FC<CompositionProps> = ({
     0,
   );
   const duckRanges = music ? buildDuckingRanges(scenes, fps) : [];
+  const swellFrames = music ? buildSwellFrames(scenes, fps) : [];
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
@@ -136,6 +160,19 @@ export const VideoComposition: React.FC<CompositionProps> = ({
                 } else {
                   target = duckVol;
                 }
+                break;
+              }
+            }
+            // Music swell on impact beats: 14-frame triangular envelope
+            // bumping the bed up by 35% so stat/big_number reveals carry
+            // weight even without an SFX hit.
+            const swellWindow = 14;
+            for (const sf of swellFrames) {
+              if (frame >= sf && frame < sf + swellWindow) {
+                const tw = frame - sf;
+                const peak = swellWindow / 2;
+                const swellAmt = tw < peak ? tw / peak : (swellWindow - tw) / peak;
+                target = Math.min(1, target * (1 + swellAmt * 0.35));
                 break;
               }
             }

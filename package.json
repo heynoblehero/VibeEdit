@@ -33,6 +33,7 @@
     "@remotion/player": "4.0.370",
     "@remotion/renderer": "4.0.370",
     "@remotion/three": "4.0.370",
+    "@remotion/transitions": "4.0.370",
     "jszip": "^3.10.1",
     "lucide-react": "^1.8.0",
     "next": "16.2.4",

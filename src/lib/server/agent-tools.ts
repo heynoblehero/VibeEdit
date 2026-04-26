@@ -2216,6 +2216,73 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  analyzeUpload: {
+    schema: {
+      name: "analyzeUpload",
+      description:
+        "Look at an uploaded image with Claude vision and classify it: kind (portrait/product/screenshot/logo/wide_photo/text_heavy/abstract), 1-3 recommended edits (remove_bg/crop_9_16/upscale_2x/blur_face), and 3-5 scene roles it would fit (hero / character_portrait / bg_full / insert / split). Use after upload to plan asset routing. Requires ANTHROPIC_API_KEY (returns 'unknown' when missing).",
+      input_schema: {
+        type: "object",
+        properties: {
+          uploadUrl: { type: "string" },
+        },
+        required: ["uploadUrl"],
+      },
+    },
+    async execute(args, ctx) {
+      const url = String(args.uploadUrl ?? "");
+      if (!url) return { ok: false, message: "uploadUrl required" };
+      const { askAboutImage } = await import("@/lib/server/vision");
+      const answer = await askAboutImage({
+        imageUrl: url,
+        question:
+          `Classify this uploaded image for video production. Respond with ONLY a JSON object, no prose:
+{
+  "kind": "portrait" | "product" | "screenshot" | "logo" | "wide_photo" | "text_heavy" | "abstract" | "other",
+  "subject": "<one short phrase describing what's in it>",
+  "recommendedEdits": ["remove_bg" | "crop_9_16" | "crop_16_9" | "upscale_2x" | "blur_face"],
+  "fitRoles": ["hero" | "character_portrait" | "bg_full" | "insert" | "split_left" | "split_right"]
+}`,
+      });
+      if (!answer) {
+        return {
+          ok: true,
+          message: `analysis: kind=unknown subject=? (vision unavailable — set ANTHROPIC_API_KEY)`,
+        };
+      }
+      const m = answer.match(/\{[\s\S]*\}/);
+      if (!m) return { ok: true, message: `vision returned: ${answer.slice(0, 200)}` };
+      try {
+        const parsed = JSON.parse(m[0]) as {
+          kind: string;
+          subject: string;
+          recommendedEdits?: string[];
+          fitRoles?: string[];
+        };
+        ctx.project.experiments = [
+          ...(ctx.project.experiments ?? []),
+          {
+            ts: Date.now(),
+            kind: "image",
+            decision: "user_upload",
+            url,
+            kept: true,
+            note: `analyzed kind=${parsed.kind} subject="${parsed.subject}"`,
+          },
+        ];
+        return {
+          ok: true,
+          message:
+            `kind=${parsed.kind}\nsubject=${parsed.subject}\n` +
+            `recommended edits: ${(parsed.recommendedEdits ?? []).join(", ") || "(none)"}\n` +
+            `fits roles: ${(parsed.fitRoles ?? []).join(", ") || "(any)"}`,
+        };
+      } catch {
+        return { ok: true, message: `couldn't parse vision JSON: ${answer.slice(0, 200)}` };
+      }
+    },
+  },
+
   prepareUploadForScene: {
     schema: {
       name: "prepareUploadForScene",

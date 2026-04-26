@@ -691,7 +691,7 @@ const TOOLS: Record<string, AgentTool> = {
       },
     },
     async execute(args, ctx) {
-      const sceneId = String(args.sceneId);
+      const sceneId = resolveSceneId(args, ctx) ?? "";
       const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
       if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
       const scene = ctx.project.scenes[idx];
@@ -840,7 +840,7 @@ const TOOLS: Record<string, AgentTool> = {
       },
     },
     async execute(args, ctx) {
-      const sceneId = String(args.sceneId);
+      const sceneId = resolveSceneId(args, ctx) ?? "";
       const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
       if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
       const styleHint = args.styleHint ? String(args.styleHint) : "";
@@ -948,7 +948,7 @@ const TOOLS: Record<string, AgentTool> = {
       },
     },
     async execute(args, ctx) {
-      const sceneId = String(args.sceneId);
+      const sceneId = resolveSceneId(args, ctx) ?? "";
       const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
       if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
       const aspectRatio: "16:9" | "9:16" =
@@ -1211,7 +1211,7 @@ const TOOLS: Record<string, AgentTool> = {
       },
     },
     async execute(args, ctx) {
-      const sceneId = String(args.sceneId);
+      const sceneId = resolveSceneId(args, ctx) ?? "";
       const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
       if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
       try {
@@ -1738,7 +1738,7 @@ const TOOLS: Record<string, AgentTool> = {
       },
     },
     async execute(args, ctx) {
-      const sceneId = String(args.sceneId);
+      const sceneId = resolveSceneId(args, ctx) ?? "";
       const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
       if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
       const scene = ctx.project.scenes[idx];
@@ -2426,7 +2426,7 @@ const TOOLS: Record<string, AgentTool> = {
       },
     },
     async execute(args, ctx) {
-      const sceneId = String(args.sceneId);
+      const sceneId = resolveSceneId(args, ctx) ?? "";
       const scene = ctx.project.scenes.find((s) => s.id === sceneId);
       if (!scene) return { ok: false, message: `no scene ${sceneId}` };
       // We can't render a single scene cheaply without spinning the
@@ -3002,7 +3002,7 @@ const TOOLS: Record<string, AgentTool> = {
       },
     },
     async execute(args, ctx) {
-      const id = String(args.sceneId);
+      const id = resolveSceneId(args, ctx) ?? "";
       const scene = ctx.project.scenes.find((s) => s.id === id);
       if (!scene) return { ok: false, message: `no scene ${id}` };
       const url = scene.background?.imageUrl;
@@ -3722,7 +3722,7 @@ const TOOLS: Record<string, AgentTool> = {
       },
     },
     async execute(args, ctx) {
-      const id = String(args.sceneId);
+      const id = resolveSceneId(args, ctx) ?? "";
       const times = Math.max(1, Math.min(20, Number(args.times ?? 1)));
       const idx = ctx.project.scenes.findIndex((s) => s.id === id);
       if (idx < 0) return { ok: false, message: `no scene ${id}` };
@@ -3791,7 +3791,7 @@ const TOOLS: Record<string, AgentTool> = {
       },
     },
     async execute(args, ctx) {
-      const id = String(args.sceneId);
+      const id = resolveSceneId(args, ctx) ?? "";
       const dur = Math.max(0.5, Math.min(30, Number(args.durationSec ?? 2)));
       const idx = ctx.project.scenes.findIndex((s) => s.id === id);
       if (idx < 0) return { ok: false, message: `no scene ${id}` };
@@ -3816,7 +3816,7 @@ const TOOLS: Record<string, AgentTool> = {
       },
     },
     async execute(args, ctx) {
-      const id = String(args.sceneId);
+      const id = resolveSceneId(args, ctx) ?? "";
       const preset = getPreset(String(args.presetId));
       if (!preset) return { ok: false, message: `unknown preset` };
       const idx = ctx.project.scenes.findIndex((s) => s.id === id);

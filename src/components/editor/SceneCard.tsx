@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, GripVertical, Play, Trash2 } from "lucide-react";
+import { Copy, GripVertical, Play, Target, Trash2 } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useRef } from "react";
@@ -26,6 +26,9 @@ export function SceneCard({ scene, index }: SceneCardProps) {
   const isInMulti = selectedSceneIds.includes(scene.id);
   const playingSceneId = useEditorStore((s) => s.playingSceneId);
   const isPlaying = playingSceneId === scene.id;
+  const focusedSceneId = useEditorStore((s) => s.focusedSceneId);
+  const setFocusedSceneId = useEditorStore((s) => s.setFocusedSceneId);
+  const isFocused = focusedSceneId === scene.id;
   const rowRef = useRef<HTMLDivElement | null>(null);
 
   // Scroll the active card into view — driven by either selection (kbd nav)
@@ -154,7 +157,34 @@ export function SceneCard({ scene, index }: SceneCardProps) {
       >
         {scene.duration}s
       </span>
+      {/* The Focus button stays visible when active so the user can spot
+          + click to exit. Hidden by default; the rest of the action row
+          still hides on hover. */}
+      {isFocused && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setFocusedSceneId(null);
+          }}
+          title="Focused — click to exit focus mode"
+          className="p-1 text-emerald-400 hover:text-emerald-300 transition-colors"
+        >
+          <Target className="h-3 w-3" />
+        </button>
+      )}
       <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+        {!isFocused && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setFocusedSceneId(scene.id);
+            }}
+            title="Focus agent on this scene only"
+            className="p-1 text-neutral-500 hover:text-emerald-400 transition-colors"
+          >
+            <Target className="h-3 w-3" />
+          </button>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation();

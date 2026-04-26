@@ -1997,6 +1997,110 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  applySceneTemplate: {
+    schema: {
+      name: "applySceneTemplate",
+      description:
+        "Stamp a preset 5-7 scene structure into the project for a recognized format. Templates: tutorial_intro (hook→problem→3 steps→outcome→CTA), product_reveal (tease→reveal→3 features→CTA), before_after (problem→bridge→solution→proof→CTA), 5_tips (hook→tip×5→CTA), explainer (question→intro→core→examples×2→takeaway). Each template returns the scene IDs it created so the agent can populate text/assets.",
+      input_schema: {
+        type: "object",
+        properties: {
+          template: {
+            type: "string",
+            enum: ["tutorial_intro", "product_reveal", "before_after", "5_tips", "explainer"],
+          },
+        },
+        required: ["template"],
+      },
+    },
+    async execute(args, ctx) {
+      const template = String(args.template);
+      const portrait = ctx.project.height > ctx.project.width;
+      const ratio = portrait ? "9:16" : "16:9";
+      type ShotSeed = {
+        type: Scene["type"];
+        duration: number;
+        act: 1 | 2 | 3;
+        shotType?: ShotType;
+        text?: string;
+        emphasisText?: string;
+        zoomPunch?: number;
+      };
+      const TEMPLATES: Record<string, ShotSeed[]> = {
+        tutorial_intro: [
+          { type: "text_only", duration: 3.5, act: 1, shotType: "closeup", text: "[HOOK QUESTION]", zoomPunch: 1.15 },
+          { type: "character_text", duration: 3.5, act: 1, shotType: "medium", text: "[the problem]" },
+          { type: "text_only", duration: 2.5, act: 2, shotType: "wide", emphasisText: "STEP 1" },
+          { type: "text_only", duration: 2.5, act: 2, shotType: "wide", emphasisText: "STEP 2" },
+          { type: "text_only", duration: 2.5, act: 2, shotType: "wide", emphasisText: "STEP 3" },
+          { type: "text_only", duration: 3, act: 3, shotType: "closeup", text: "[outcome]" },
+        ],
+        product_reveal: [
+          { type: "text_only", duration: 3.5, act: 1, shotType: "ecu", text: "[tease line]", zoomPunch: 1.15 },
+          { type: "character_pop", duration: 3, act: 2, shotType: "wide", emphasisText: "INTRODUCING" },
+          { type: "text_only", duration: 2.5, act: 2, shotType: "closeup", text: "[feature 1]" },
+          { type: "text_only", duration: 2.5, act: 2, shotType: "closeup", text: "[feature 2]" },
+          { type: "text_only", duration: 2.5, act: 2, shotType: "closeup", text: "[feature 3]" },
+          { type: "text_only", duration: 3, act: 3, shotType: "medium", emphasisText: "GET YOURS" },
+        ],
+        before_after: [
+          { type: "text_only", duration: 3, act: 1, shotType: "wide", emphasisText: "BEFORE" },
+          { type: "split", duration: 3, act: 2, shotType: "split" },
+          { type: "text_only", duration: 3, act: 2, shotType: "wide", emphasisText: "AFTER" },
+          { type: "stat", duration: 3, act: 2, shotType: "ecu" },
+          { type: "text_only", duration: 3, act: 3, shotType: "medium", text: "[CTA]" },
+        ],
+        "5_tips": [
+          { type: "text_only", duration: 3.5, act: 1, shotType: "closeup", text: "[hook: 5 things to know about X]", zoomPunch: 1.15 },
+          { type: "bullet_list", duration: 3, act: 2, shotType: "medium" },
+          { type: "text_only", duration: 2.5, act: 2, shotType: "wide", emphasisText: "TIP 1" },
+          { type: "text_only", duration: 2.5, act: 2, shotType: "wide", emphasisText: "TIP 2" },
+          { type: "text_only", duration: 2.5, act: 2, shotType: "wide", emphasisText: "TIP 3" },
+          { type: "text_only", duration: 3, act: 3, shotType: "closeup", text: "[CTA]" },
+        ],
+        explainer: [
+          { type: "text_only", duration: 3.5, act: 1, shotType: "closeup", text: "[opening question]", zoomPunch: 1.15 },
+          { type: "character_text", duration: 3.5, act: 2, shotType: "medium", text: "[setup]" },
+          { type: "text_only", duration: 4, act: 2, shotType: "wide", text: "[core explanation]" },
+          { type: "text_only", duration: 3, act: 2, shotType: "insert", emphasisText: "EXAMPLE 1" },
+          { type: "text_only", duration: 3, act: 2, shotType: "insert", emphasisText: "EXAMPLE 2" },
+          { type: "text_only", duration: 3, act: 3, shotType: "closeup", text: "[takeaway]" },
+        ],
+      };
+      const seeds = TEMPLATES[template];
+      if (!seeds) return { ok: false, message: `unknown template "${template}"` };
+      const created: string[] = [];
+      for (const seed of seeds) {
+        const scene: Scene = {
+          id: createId(),
+          type: seed.type,
+          duration: seed.duration,
+          text: seed.text,
+          emphasisText: seed.emphasisText,
+          zoomPunch: seed.zoomPunch,
+          act: seed.act,
+          shotType: seed.shotType,
+          background: { color: "#0a0a0a", vignette: 0.35 },
+          enterFrom: (["bottom", "right", "scale", "left"] as const)[
+            ctx.project.scenes.length % 4
+          ],
+          transition: (["beat_flash", "beat_flash_colored", "slide_left", "zoom_blur"] as const)[
+            ctx.project.scenes.length % 4
+          ],
+        };
+        ctx.project.scenes = [...ctx.project.scenes, scene];
+        created.push(scene.id);
+      }
+      return {
+        ok: true,
+        message:
+          `${template} (${ratio}) stamped — ${created.length} scenes:\n` +
+          created.map((id, i) => `  ${i + 1}. ${id} (${seeds[i].emphasisText ?? seeds[i].text ?? seeds[i].type})`).join("\n") +
+          `\nNow fill the [bracketed] placeholders with real text and call generateImageForScene / narrateAllScenes.`,
+      };
+    },
+  },
+
   appendEndScreen: {
     schema: {
       name: "appendEndScreen",

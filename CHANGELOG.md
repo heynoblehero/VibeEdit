@@ -1,5 +1,80 @@
 # Changelog
 
+## Unreleased — sprint 5: vision + intelligence + finishing toolbox (29 commits)
+
+Pivoted from "more graphics primitives" to "make the agent smarter +
+finish the publish flow."
+
+### Vision (Claude vision API)
+- New `lib/server/vision.ts` — reusable Claude-vision wrapper. Defaults
+  to haiku to keep calls < $0.01.
+- `scoreAssetForScene` upgraded: vision-backed 0-10 fitness rating
+  with reason. Falls back to filename heuristic when key missing.
+- `analyzeUpload` — classifies uploads into kind / subject /
+  recommendedEdits / fitRoles via vision JSON.
+- `visionCritiqueScene` — render-aware composition critique on key
+  scenes (hook / stat / CTA).
+
+### Asset intelligence
+- `extractPalette` — sharp-based 5-color palette from any image URL.
+- `applyPaletteToProject` — push primary/secondary/neutral across
+  emphasisColor / textColor / chartBars / background.color where unset.
+  Saves to project.stylePack.
+- `suggestTextPlacement` — pick textY by image saliency stddev so text
+  lands on the flattest band.
+- `prepareUploadForScene` (sprint 3) now pairs with `analyzeUpload`.
+
+### One-shot finishing flow
+- `applySceneTemplate` — 5 preset structures (tutorial_intro /
+  product_reveal / before_after / 5_tips / explainer).
+- `appendEndScreen` — auto-CTA scene with radial pulse + lower-third.
+- `awaitRender` — block until render done, returns summary.
+- `generatePublishMetadata` — 3 titles + caption + description + 8-12
+  hashtags, platform-aware.
+- `exportSubtitles` — SRT/VTT generator from word timings.
+- `translateScript` — multi-lingual rewrites via Claude.
+- `listVoiceClones` — surface ElevenLabs cloned voices.
+- `suggestBeatMappedCuts` — snap durations to musical half-bars.
+- `snapshotProject` + `restoreSnapshot` — rollback before risky changes.
+
+### New scene types
+- `bar_chart` — 2-6 animated vertical bars with auto colors + label fade.
+
+### New effect kinds
+- `typewriter` — char-by-char monospace reveal with caret.
+- `glitch` — cyberpunk garble→resolve with RGB-split shake.
+- `arrow` — animated SVG arrow that draws toward a target.
+- `highlight` — fading semi-transparent rect for region pointing.
+- `particles` — confetti/spark burst with gravity.
+- `progress_bar` — fill toward target percentage.
+
+### Audio
+- Music swell on impact beats (stat / big_number / lensFlare): +35%
+  triangular envelope over 14 frames.
+- Sentiment-aware music prompt seasoning (tense / uplifting / playful
+  / epic / thoughtful) prepended to the workflow base prompt.
+
+### Quality / loop intelligence
+- Plateau detector: track last 6 qualityScore values, force a strategy
+  switch when last 3 are within ±2 below threshold.
+- Brief generation auto-detects scene template from goal text and
+  inserts new tools into the loop sequence.
+
+### Render
+- Concurrent frame rendering — half-cores capped at 6, ~2-3× speedup.
+- In-memory image-gen LRU cache (200 entries) — same prompt+AR+model
+  returns the cached URL within server lifetime.
+
+### Schema
+- Project: `qualityScoreHistory[]`, `metadata`.
+- Scene: `chartBars[]`, `chartTitle`, `chartUnit`.
+- SceneEffect: `subtext`, `fromX`, `fromY`, `to`.
+
+### Project setup
+- Auto-pick workflowId from goal text (commentary / review /
+  ai-animated / shorts / faceless) on CreateProjectDialog submit.
+- Secondary subtle 1.05× zoom when emphasisText reveals (frame 12).
+
 ## Unreleased — sprint 4: layout fixes + effects/graphics toolbox (12 commits)
 
 User feedback: text was overlapping in scenes; we needed real graphics +

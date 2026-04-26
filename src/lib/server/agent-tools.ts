@@ -1894,6 +1894,69 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  appendEndScreen: {
+    schema: {
+      name: "appendEndScreen",
+      description:
+        "Append a 2.5-3.5s end-screen scene with a CTA. Defaults: 'follow for more' on shorts, 'subscribe + watch next' on long-form. Pass cta to override. Idempotent — refuses to add a second one if the last scene already looks like an end-screen.",
+      input_schema: {
+        type: "object",
+        properties: {
+          cta: { type: "string", description: "Override the CTA text." },
+          subtext: { type: "string", description: "Smaller line below the CTA." },
+          color: { type: "string" },
+        },
+      },
+    },
+    async execute(args, ctx) {
+      const last = ctx.project.scenes[ctx.project.scenes.length - 1];
+      const lastText = `${last?.text ?? ""} ${last?.emphasisText ?? ""}`.toLowerCase();
+      const looksLikeEnd = /follow|subscribe|watch next|share|comment|save/.test(lastText);
+      if (looksLikeEnd) {
+        return {
+          ok: true,
+          message: "last scene already looks like an end-screen — not adding another.",
+        };
+      }
+      const wf = ctx.project.workflowId ?? "blank";
+      const isShort = ctx.project.height > ctx.project.width;
+      const defaultCta = isShort
+        ? wf === "commentary" || wf === "review"
+          ? "follow for more"
+          : "more like this →"
+        : "subscribe + watch next";
+      const cta = String(args.cta ?? defaultCta);
+      const subtext = String(args.subtext ?? (isShort ? "tap and hold to save" : ""));
+      const color = String(args.color ?? "#10b981");
+      const endScene: Scene = {
+        id: createId(),
+        type: "text_only",
+        duration: 3.0,
+        text: cta,
+        textSize: 96,
+        textColor: color,
+        textY: Math.round(ctx.project.height * 0.4),
+        emphasisText: subtext || undefined,
+        emphasisColor: "#ffffff",
+        emphasisSize: 40,
+        zoomPunch: 1.12,
+        background: { color: "#000000", vignette: 0.5 },
+        effects: [
+          { kind: "radial_pulse", color: `${color}cc`, startFrame: 0 },
+          { kind: "lower_third", text: "thanks for watching", color: "#ffffff", startFrame: 24 },
+        ],
+        shotType: "medium",
+        act: 3,
+        showCaptions: false,
+      };
+      ctx.project.scenes = [...ctx.project.scenes, endScene];
+      return {
+        ok: true,
+        message: `end-screen appended (${endScene.id}) — "${cta}"`,
+      };
+    },
+  },
+
   generatePublishMetadata: {
     schema: {
       name: "generatePublishMetadata",

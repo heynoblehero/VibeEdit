@@ -2391,6 +2391,44 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  awaitRender: {
+    schema: {
+      name: "awaitRender",
+      description:
+        "Block until a queued render finishes (or hits a timeout) and return the result URL + size + duration. Polls every 2s, max 5 minutes. Use after renderProject so the agent can call watchRenderedVideo on the finished file in the same turn instead of telling the user 'check back later'.",
+      input_schema: {
+        type: "object",
+        properties: {
+          jobId: { type: "string" },
+          timeoutSec: { type: "number", description: "Default 300." },
+        },
+        required: ["jobId"],
+      },
+    },
+    async execute(args) {
+      const id = String(args.jobId);
+      const timeoutMs = Math.max(10, Math.min(900, Number(args.timeoutSec ?? 300))) * 1000;
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        const job = getJob(id);
+        if (!job) return { ok: false, message: `unknown render job ${id}` };
+        if (job.state === "done") {
+          return {
+            ok: true,
+            message:
+              `render done: ${job.id.slice(0, 8)} · ${job.projectName} · ${job.presetId} · ` +
+              `${job.sizeBytes ? (job.sizeBytes / 1024 / 1024).toFixed(1) + " MB" : "?"}`,
+          };
+        }
+        if (job.state === "failed") {
+          return { ok: false, message: `render failed: ${job.error ?? "unknown"}` };
+        }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      return { ok: false, message: `render didn't finish within ${timeoutMs / 1000}s — try again.` };
+    },
+  },
+
   watchRenderedVideo: {
     schema: {
       name: "watchRenderedVideo",

@@ -83,6 +83,10 @@ CORE LOOP (do this every meaningful turn):
      · *split* (scene.splitLeftUrl + splitRightUrl): before/after, vs, compare/contrast.
      · *big_number*: animated counter (numberFrom→numberTo). Use for revenue, growth, time-saved beats.
      · *text_only*: only when the punch IS the text — short ALL-CAPS hits.
+     · *three_text*: extruded 3D rotating text — brand-reveal / logo-style hooks. Set scene.threeText. Costs nothing extra (renders inline).
+     · *three_card*: image floats on a rotating 3D card — product reveals, hero portrait shots. Set scene.threeCardImageUrl.
+     · *three_particles*: drifting 3D particle field — abstract intros, interlude beats, transitions between acts. Set scene.threeParticleCount (default 200).
+   - **WHEN TO REACH FOR 3D.** Use 3D scene types on the hook (three_text), an act-2 product reveal (three_card), or as a brief 1.5-2.5s interlude between dense scenes (three_particles). Don't use 3D back-to-back — single beats inside an otherwise 2D timeline are what give 3D its punch.
    - **OVERLAY EFFECTS via scene.effects[].** Stack these on top of any scene:
      · *circle_ping*: impact ring on hard cuts.
      · *radial_pulse*: white center flash on hooks/reveals.

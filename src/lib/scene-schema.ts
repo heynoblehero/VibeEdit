@@ -112,7 +112,7 @@ export interface Voiceover {
 
 export interface Scene {
   id: string;
-  type: "character_text" | "text_only" | "big_number" | "character_pop" | "montage" | "split" | "stat" | "bullet_list" | "quote" | "bar_chart";
+  type: "character_text" | "text_only" | "big_number" | "character_pop" | "montage" | "split" | "stat" | "bullet_list" | "quote" | "bar_chart" | "three_text" | "three_card" | "three_particles";
   duration: number;
   /**
    * For type=montage: 3-5 image URLs cut at ~0.5s each. Plays through them
@@ -142,6 +142,18 @@ export interface Scene {
   chartBars?: Array<{ label: string; value: number; color?: string }>;
   chartTitle?: string;
   chartUnit?: string;
+  /**
+   * 3D scene props (used by three_text / three_card / three_particles).
+   * Each variant treats the fields a little differently — the renderer
+   * reads what it needs.
+   */
+  threeText?: string;
+  /** Image URL displayed on a rotating card (three_card). */
+  threeCardImageUrl?: string;
+  /** Hex accent color for the 3D scene's lighting / particles. */
+  threeAccentColor?: string;
+  /** Particle count for three_particles. Default 200. */
+  threeParticleCount?: number;
   /**
    * Tag the scene with its planned shot type. Lets the qualityScore +
    * gate count distinct shotTypes per project rather than guessing.

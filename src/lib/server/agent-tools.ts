@@ -111,9 +111,13 @@ const TOOLS: Record<string, AgentTool> = {
         properties: {
           type: {
             type: "string",
-            enum: ["character_text", "text_only", "big_number", "character_pop", "montage", "split", "stat", "bullet_list", "quote", "bar_chart"],
-            description: "montage = 3-5 quick image cuts. split = side-by-side compare. stat = hero number + small label. bullet_list = checkmark list. quote = pull-quote with attribution. bar_chart = 2-6 animated vertical bars (use scene.chartBars). Others as before.",
+            enum: ["character_text", "text_only", "big_number", "character_pop", "montage", "split", "stat", "bullet_list", "quote", "bar_chart", "three_text", "three_card", "three_particles"],
+            description: "montage = 3-5 quick image cuts. split = side-by-side compare. stat = hero number + small label. bullet_list = checkmark list. quote = pull-quote. bar_chart = animated bars. three_text = 3D extruded text logo (scene.threeText). three_card = image on rotating 3D card (scene.threeCardImageUrl). three_particles = 3D particle field (scene.threeParticleCount). Reach for 3D on hero / interlude / brand-reveal beats — costs no extra API budget but adds wow.",
           },
+          threeText: { type: "string", description: "For type=three_text: the text to extrude in 3D." },
+          threeCardImageUrl: { type: "string", description: "For type=three_card: image URL placed on the rotating card." },
+          threeAccentColor: { type: "string", description: "Hex accent for 3D lighting / particles." },
+          threeParticleCount: { type: "number", description: "For three_particles: 50-500. Default 200." },
           chartBars: {
             type: "array",
             description: "For type=bar_chart: 2-6 bars [{label, value, color?}].",
@@ -267,6 +271,10 @@ const TOOLS: Record<string, AgentTool> = {
         chartBars: args.chartBars as Scene["chartBars"],
         chartTitle: args.chartTitle as string | undefined,
         chartUnit: args.chartUnit as string | undefined,
+        threeText: args.threeText as string | undefined,
+        threeCardImageUrl: args.threeCardImageUrl as string | undefined,
+        threeAccentColor: args.threeAccentColor as string | undefined,
+        threeParticleCount: args.threeParticleCount as number | undefined,
         effects: args.effects as Scene["effects"],
         text: args.text as string | undefined,
         emphasisText: args.emphasisText as string | undefined,

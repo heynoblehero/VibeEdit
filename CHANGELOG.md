@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased — sprint 7: 3D scene primitives via @remotion/three
+
+Three.js renders inline alongside the rest of the Remotion timeline —
+no Blender install, no extra render-farm, no per-gen API cost. Three
+new scene types:
+
+- `three_text` — extruded rotating 3D text columns ("logo reveal" feel).
+  Set `scene.threeText`. Procedural so no font file at render time.
+- `three_card` — image floats on a rotating 3D card. Set
+  `scene.threeCardImageUrl` to any URL (uploaded asset, generated image,
+  or stock).
+- `three_particles` — 3D particle field that drifts toward the camera.
+  Set `scene.threeParticleCount` (default 200). Wraps for infinite feel.
+
+Schema additions on Scene: `threeText`, `threeCardImageUrl`,
+`threeAccentColor`, `threeParticleCount`.
+
+Agent: createScene exposes the new types + fields. SYSTEM_PROMPT teaches
+when to reach for 3D (hook, product reveal, act-interlude — never
+back-to-back).
+
+Deps: @remotion/three, three, @react-three/fiber, @react-three/drei,
+@types/three.
+
 ## Unreleased — sprint 6: character consistency (8 commits)
 
 The biggest visible quality regression in agent-built videos was that

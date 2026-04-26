@@ -17,6 +17,7 @@ import { BarWipe, CornerBrackets, RevealBox } from "./components/graphics";
 import { Arrow, Highlight } from "./components/Annotation";
 import { Particles } from "./components/Particles";
 import { ProgressBar } from "./components/ProgressBar";
+import { ThreeCard, ThreeParticles, ThreeText } from "./components/Three3D";
 import { Glitch, Typewriter } from "./components/TextEffects";
 import { BarChart } from "./components/BarChart";
 import { BulletList } from "./components/BulletList";
@@ -119,6 +120,15 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       )}
       {s.type === "bar_chart" && s.chartBars && s.chartBars.length > 0 && (
         <BarChart bars={s.chartBars} title={s.chartTitle} unit={s.chartUnit} />
+      )}
+      {s.type === "three_text" && s.threeText && (
+        <ThreeText text={s.threeText} accent={s.threeAccentColor} />
+      )}
+      {s.type === "three_card" && s.threeCardImageUrl && (
+        <ThreeCard imageUrl={s.threeCardImageUrl} accent={s.threeAccentColor} />
+      )}
+      {s.type === "three_particles" && (
+        <ThreeParticles count={s.threeParticleCount} accent={s.threeAccentColor} />
       )}
       {s.type === "split" && (s.splitLeftUrl || s.splitRightUrl) && (
         <div style={{ position: "absolute", inset: 0, display: "flex" }}>

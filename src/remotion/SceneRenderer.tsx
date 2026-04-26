@@ -14,6 +14,7 @@ import { Montage } from "./components/Montage";
 import { StatBlock } from "./components/StatBlock";
 import { CirclePing, RadialPulse, ScanLine } from "./components/effects";
 import { BarWipe, CornerBrackets, RevealBox } from "./components/graphics";
+import { Arrow, Highlight } from "./components/Annotation";
 import { Glitch, Typewriter } from "./components/TextEffects";
 import { BarChart } from "./components/BarChart";
 import { BulletList } from "./components/BulletList";
@@ -301,6 +302,31 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
                 color={e.color}
                 fontSize={e.size}
                 y={e.y}
+              />
+            );
+          case "arrow":
+            return (
+              <Arrow
+                key={i}
+                startFrame={start}
+                fromX={e.fromX}
+                fromY={e.fromY}
+                toX={e.x}
+                toY={e.y}
+                color={e.color}
+                thickness={e.thickness}
+              />
+            );
+          case "highlight":
+            return (
+              <Highlight
+                key={i}
+                startFrame={start}
+                x={e.x}
+                y={e.y}
+                w={e.w}
+                h={e.h}
+                color={e.color}
               />
             );
         }

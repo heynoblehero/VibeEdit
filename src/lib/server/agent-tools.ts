@@ -157,7 +157,7 @@ const TOOLS: Record<string, AgentTool> = {
               properties: {
                 kind: {
                   type: "string",
-                  enum: ["circle_ping", "radial_pulse", "scan_line", "bar_wipe", "corner_brackets", "reveal_box", "lower_third", "typewriter", "glitch"],
+                  enum: ["circle_ping", "radial_pulse", "scan_line", "bar_wipe", "corner_brackets", "reveal_box", "lower_third", "typewriter", "glitch", "arrow", "highlight"],
                 },
                 startFrame: { type: "number" },
                 color: { type: "string" },
@@ -169,6 +169,8 @@ const TOOLS: Record<string, AgentTool> = {
                 h: { type: ["number", "string"] },
                 size: { type: "number" },
                 thickness: { type: "number" },
+                fromX: { type: ["number", "string"] },
+                fromY: { type: ["number", "string"] },
               },
               required: ["kind"],
             },

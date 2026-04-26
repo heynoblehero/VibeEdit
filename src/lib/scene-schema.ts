@@ -362,7 +362,9 @@ export type SceneEffectKind =
   | "reveal_box"
   | "lower_third"
   | "typewriter"
-  | "glitch";
+  | "glitch"
+  | "arrow"
+  | "highlight";
 
 export interface SceneEffect {
   kind: SceneEffectKind;
@@ -378,6 +380,9 @@ export interface SceneEffect {
   y?: number | string;
   w?: number | string;
   h?: number | string;
+  /** For arrow: the tail (origin) position. x/y becomes the target. */
+  fromX?: number | string;
+  fromY?: number | string;
   /** Generic numeric param — size for circle_ping, thickness for boxes/brackets. */
   size?: number;
   thickness?: number;

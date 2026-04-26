@@ -2678,6 +2678,56 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  suggestBeatMappedCuts: {
+    schema: {
+      name: "suggestBeatMappedCuts",
+      description:
+        "Given an estimated BPM (default 120), return scene-duration suggestions that snap to musical bars (4 beats) so cuts land on the music. Respects existing pacing variance — short scenes stay shorter, long stay longer, but each gets nudged to the nearest bar boundary. Read-only: returns suggestions, agent applies via setSceneDuration.",
+      input_schema: {
+        type: "object",
+        properties: {
+          bpm: { type: "number", description: "Default 120. Common: lo-fi 70-90, pop 110-130, EDM 128-140." },
+        },
+      },
+    },
+    async execute(args, ctx) {
+      const bpm = Math.max(40, Math.min(240, Number(args.bpm ?? 120)));
+      const beatSec = 60 / bpm;
+      const barSec = beatSec * 4;
+      const halfBar = beatSec * 2;
+      const suggestions: Array<{ id: string; from: number; to: number; bars: number }> = [];
+      for (const s of ctx.project.scenes) {
+        // Round to nearest half-bar but never below 1.5s — preserve the
+        // pacing-variance floor we set elsewhere.
+        const original = s.duration ?? 2;
+        const rounded = Math.max(
+          1.5,
+          Math.round(original / halfBar) * halfBar,
+        );
+        if (Math.abs(rounded - original) > 0.05) {
+          suggestions.push({
+            id: s.id,
+            from: Number(original.toFixed(2)),
+            to: Number(rounded.toFixed(2)),
+            bars: Number((rounded / barSec).toFixed(2)),
+          });
+        }
+      }
+      if (suggestions.length === 0) {
+        return { ok: true, message: `all scenes already snap to ${bpm} BPM half-bars (${halfBar.toFixed(2)}s).` };
+      }
+      return {
+        ok: true,
+        message:
+          `${suggestions.length} scene durations would snap to ${bpm} BPM (bar=${barSec.toFixed(2)}s):\n` +
+          suggestions
+            .map((s) => `  ${s.id}: ${s.from}s → ${s.to}s (${s.bars} bars)`)
+            .join("\n") +
+          `\nApply via setSceneDuration(sceneId, durationSec).`,
+      };
+    },
+  },
+
   applyPaletteToProject: {
     schema: {
       name: "applyPaletteToProject",

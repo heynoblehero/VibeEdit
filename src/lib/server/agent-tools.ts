@@ -2865,6 +2865,94 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  suggestTextPlacement: {
+    schema: {
+      name: "suggestTextPlacement",
+      description:
+        "Analyze a scene's background image with sharp + heuristic saliency to suggest where text should sit (top / center / bottom) — picks the band with the lowest visual complexity so text reads cleanly. Returns a textY value in canvas pixels. Falls back to 'top' when image isn't available.",
+      input_schema: {
+        type: "object",
+        properties: { sceneId: { type: "string" } },
+        required: ["sceneId"],
+      },
+    },
+    async execute(args, ctx) {
+      const id = String(args.sceneId);
+      const scene = ctx.project.scenes.find((s) => s.id === id);
+      if (!scene) return { ok: false, message: `no scene ${id}` };
+      const url = scene.background?.imageUrl;
+      if (!url) {
+        return {
+          ok: true,
+          message: `scene has no image bg — recommend top: textY=${Math.round(ctx.project.height * 0.18)}`,
+        };
+      }
+      try {
+        let buf: Buffer;
+        if (url.startsWith("/uploads/")) {
+          const fs = await import("node:fs");
+          const path = await import("node:path");
+          const local = path.join(
+            process.env.VIBEEDIT_DATA_DIR || path.join(process.cwd(), "public"),
+            "uploads",
+            url.slice("/uploads/".length),
+          );
+          buf = await fs.promises.readFile(local);
+        } else {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`fetch ${res.status}`);
+          buf = Buffer.from(await res.arrayBuffer());
+        }
+        const sharp = (await import("sharp")).default;
+        // Downsample to 32×32 grayscale, score each horizontal band's
+        // visual complexity by stddev. Lower = flatter = better for text.
+        const { data } = await sharp(buf)
+          .resize(32, 32, { fit: "cover" })
+          .greyscale()
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+        const bandRows = 10; // 10 rows per band → 32 / 10 ≈ 3 bands
+        const bands: Array<{ name: string; mean: number; stddev: number; row: number }> = [];
+        const cells = 32;
+        for (let bandIdx = 0; bandIdx < 3; bandIdx++) {
+          const rowStart = Math.floor((bandIdx * cells) / 3);
+          const rowEnd = Math.floor(((bandIdx + 1) * cells) / 3);
+          let sum = 0, sumSq = 0, n = 0;
+          for (let r = rowStart; r < rowEnd; r++) {
+            for (let c = 0; c < cells; c++) {
+              const v = data[r * cells + c];
+              sum += v;
+              sumSq += v * v;
+              n++;
+            }
+          }
+          const mean = sum / n;
+          const variance = sumSq / n - mean * mean;
+          bands.push({
+            name: ["top", "middle", "bottom"][bandIdx],
+            mean,
+            stddev: Math.sqrt(Math.max(0, variance)),
+            row: (rowStart + rowEnd) / 2,
+          });
+          void bandRows;
+        }
+        const flattest = bands.slice().sort((a, b) => a.stddev - b.stddev)[0];
+        // Map row index back to canvas Y. Add some padding so text isn't
+        // dead-center on the band.
+        const yPct = (flattest.row / 32) - 0.04;
+        const textY = Math.round(ctx.project.height * Math.max(0.08, yPct));
+        return {
+          ok: true,
+          message:
+            `flattest band: ${flattest.name} (stddev ${flattest.stddev.toFixed(1)}) — recommend textY=${textY}\n` +
+            `all bands: ${bands.map((b) => `${b.name}=${b.stddev.toFixed(1)}`).join(", ")}`,
+        };
+      } catch (e) {
+        return { ok: false, message: `placement failed: ${e instanceof Error ? e.message : String(e)}` };
+      }
+    },
+  },
+
   extractPalette: {
     schema: {
       name: "extractPalette",

@@ -13,11 +13,12 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { useState } from "react";
-import { createId, DEFAULT_BG, type Scene } from "@/lib/scene-schema";
+import React, { useState } from "react";
+import { createId, DEFAULT_BG, type Cut, type Scene } from "@/lib/scene-schema";
 import { totalDurationSeconds } from "@/lib/scene-schema";
 import { getWorkflow } from "@/lib/workflows/registry";
 import { useProjectStore } from "@/store/project-store";
+import { CutMarker } from "./CutMarker";
 import { SceneCard } from "./SceneCard";
 import { SceneContextMenu } from "./SceneContextMenu";
 
@@ -133,17 +134,45 @@ export function SceneList() {
             items={project.scenes.map((s) => s.id)}
             strategy={verticalListSortingStrategy}
           >
-            {project.scenes.map((scene, i) => (
-              <div
-                key={scene.id}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setCtxMenu({ scene, index: i, x: e.clientX, y: e.clientY });
-                }}
-              >
-                <SceneCard scene={scene} index={i} />
-              </div>
-            ))}
+            {project.scenes.map((scene, i) => {
+              const next = project.scenes[i + 1];
+              // Look up the cut going OUT of this scene (to the next one)
+              // so we can render a marker in the gap below this card.
+              const cutToNext: Cut | null = next
+                ? (project.cuts ?? []).find(
+                    (c) =>
+                      c.fromSceneId === scene.id && c.toSceneId === next.id,
+                  ) ?? {
+                    id: `auto-${scene.id}-${next.id}`,
+                    fromSceneId: scene.id,
+                    toSceneId: next.id,
+                    kind: "hard",
+                    durationFrames: 0,
+                  }
+                : null;
+              return (
+                <React.Fragment key={scene.id}>
+                  <div
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setCtxMenu({ scene, index: i, x: e.clientX, y: e.clientY });
+                    }}
+                  >
+                    <SceneCard scene={scene} index={i} />
+                  </div>
+                  {cutToNext && next && (
+                    <div className="relative">
+                      <CutMarker
+                        cut={cutToNext}
+                        fromScene={scene}
+                        toScene={next}
+                        orientation="vertical"
+                      />
+                    </div>
+                  )}
+                </React.Fragment>
+              );
+            })}
           </SortableContext>
         </DndContext>
         {project.scenes.length === 0 && !isGenerating && (

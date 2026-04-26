@@ -17,6 +17,15 @@ import { flip } from "@remotion/transitions/flip";
 import { clockWipe } from "@remotion/transitions/clock-wipe";
 import { iris } from "@remotion/transitions/iris";
 import { none } from "@remotion/transitions/none";
+import {
+  beatFlash,
+  dipToColor,
+  glitchCut,
+  jumpCut,
+  smashCut,
+  whipPan,
+  zoomBlur,
+} from "./cut-presentations-custom";
 import type { CutKind } from "@/lib/scene-schema";
 
 interface PresentationDims {
@@ -51,11 +60,9 @@ export function presentationFor(
     case "fade":
       return fade();
     case "dip_to_black":
-      // v1 stub: single fade through transparent. Commit 2.3 swaps for
-      // a true two-stage fade-to-color-then-fade-from custom presentation.
-      return fade();
+      return dipToColor("#000000");
     case "dip_to_white":
-      return fade();
+      return dipToColor("#ffffff");
     case "wipe":
       return wipe();
     case "iris":
@@ -68,18 +75,25 @@ export function presentationFor(
       return slide({ direction: "from-right" });
     case "slide_right":
       return slide({ direction: "from-left" });
-    // Custom kinds — commit 2.3 replaces these stubs with bespoke
-    // presentations. v1 falls through to fade so cut.durationFrames > 0
-    // still produces a visible transition rather than a runtime error.
     case "beat_flash":
+      return beatFlash();
     case "beat_flash_colored":
+      return beatFlash({ color: dims.color });
     case "zoom_blur":
+      return zoomBlur();
     case "jump_cut":
+      return jumpCut();
     case "smash_cut":
+      return smashCut({ color: dims.color });
     case "whip_pan":
+      return whipPan();
     case "glitch_cut":
+      return glitchCut();
     case "match_cut":
-      return fade();
+      // Match cuts are conceptually a hard cut with agent-suggested
+      // alignment — no visual blend. Renders as none() but the agent
+      // gets credit for the timing intent in qualityScore.
+      return none();
   }
   return none();
 }

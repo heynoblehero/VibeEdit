@@ -1,9 +1,10 @@
 "use client";
 
+import { Plus, Scissors } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { PlayerRef } from "@remotion/player";
 import type { Cut } from "@/lib/scene-schema";
-import { sceneDurationFrames, totalDurationFrames } from "@/lib/scene-schema";
+import { createId, DEFAULT_BG, sceneDurationFrames, totalDurationFrames } from "@/lib/scene-schema";
 import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 import { CutMarker } from "./CutMarker";
@@ -19,7 +20,10 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
   const selectScene = useProjectStore((s) => s.selectScene);
   const updateScene = useProjectStore((s) => s.updateScene);
   const moveScene = useProjectStore((s) => s.moveScene);
+  const splitScene = useProjectStore((s) => s.splitScene);
+  const insertSceneAt = useProjectStore((s) => s.insertSceneAt);
   const playingSceneId = useEditorStore((s) => s.playingSceneId);
+  const [cutMode, setCutMode] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
@@ -96,8 +100,18 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
     const rect = trackRef.current.getBoundingClientRect();
     const ratio = (e.clientX - rect.left) / rect.width;
     const frame = Math.round(ratio * total);
-    seekTo(frame);
     const marker = markers.find((m) => frame >= m.start && frame < m.endExclusive);
+    if (cutMode) {
+      // Cut at this frame inside the marker's scene.
+      if (marker) {
+        const within = frame - marker.start;
+        const newId = splitScene(marker.id, within);
+        if (newId) selectScene(newId);
+      }
+      // Stay in cut mode until the user toggles off.
+      return;
+    }
+    seekTo(frame);
     if (marker) selectScene(marker.id);
   };
 
@@ -114,19 +128,37 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
   return (
     <div className="flex flex-col gap-1 shrink-0 pt-2">
       <div className="flex items-center justify-between text-[10px] text-neutral-500 font-mono">
-        <span>0.0s</span>
+        <span className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCutMode((v) => !v)}
+            title={cutMode ? "Cut mode active — click on a scene to split" : "Cut tool — click to enable, then click on a scene at the frame to split"}
+            className={
+              cutMode
+                ? "flex items-center gap-1 px-1.5 py-0.5 rounded border border-amber-400 bg-amber-500/20 text-amber-300"
+                : "flex items-center gap-1 px-1.5 py-0.5 rounded border border-neutral-800 hover:border-amber-400 hover:text-amber-300"
+            }
+          >
+            <Scissors className="h-3 w-3" />
+            <span className="text-[10px]">cut</span>
+          </button>
+          <span className="text-neutral-600">0.0s</span>
+        </span>
         <span>
-          {isFullPreview
-            ? `${(currentFrame / project.fps).toFixed(1)}s`
-            : "per-scene"}
+          {`${(currentFrame / project.fps).toFixed(1)}s`}
+          {cutMode && (
+            <span className="ml-2 text-amber-300">click on a scene block to split</span>
+          )}
         </span>
         <span>{seconds}s</span>
       </div>
       <div
         ref={trackRef}
         onClick={handleClick}
-        className="relative h-6 bg-neutral-900 rounded cursor-pointer border border-neutral-800 overflow-hidden"
-        title="Click to jump"
+        className={`group/timeline relative h-8 bg-neutral-900 rounded border border-neutral-800 ${
+          cutMode ? "cursor-crosshair" : "cursor-pointer"
+        }`}
+        title={cutMode ? "Click to cut at this frame" : "Click to jump"}
       >
         {markers.map((m, i) => {
           const left = (m.start / total) * 100;
@@ -192,6 +224,46 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
             className="absolute top-0 bottom-0 w-[2px] bg-emerald-400 pointer-events-none"
           />
         )}
+        {/* Insert (+) buttons at every boundary AND at the very start and
+            end. Hover-revealed; click → blank scene at that index pushed
+            via insertSceneAt. */}
+        {(() => {
+          const portrait = project.height > project.width;
+          const blankScene = () => ({
+            id: createId(),
+            type: "text_only" as const,
+            duration: 2,
+            emphasisText: "edit me",
+            emphasisSize: portrait ? 96 : 72,
+            emphasisColor: "#ffffff",
+            textY: portrait ? 500 : 380,
+            transition: "beat_flash" as const,
+            background: { ...DEFAULT_BG },
+          });
+          const buttons: React.ReactNode[] = [];
+          for (let i = 0; i <= markers.length; i++) {
+            const m = markers[i];
+            const prevEnd = i === 0 ? 0 : markers[i - 1].endExclusive;
+            const leftPct = ((i === 0 ? 0 : i === markers.length ? markers[markers.length - 1].endExclusive : m.start) / total) * 100;
+            void prevEnd;
+            buttons.push(
+              <button
+                key={`ins-${i}`}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  insertSceneAt(i, blankScene());
+                }}
+                title={`Insert blank scene at position ${i + 1}`}
+                style={{ left: `${leftPct}%` }}
+                className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 opacity-0 hover:opacity-100 group-hover/timeline:opacity-100 transition-opacity h-4 w-4 rounded-full bg-emerald-500 text-black flex items-center justify-center hover:scale-110"
+              >
+                <Plus className="h-3 w-3" />
+              </button>,
+            );
+          }
+          return buttons;
+        })()}
         {/* Cut markers between consecutive scenes. We mount them at the
             track level (above the scene blocks' z-index) so the popover
             anchors correctly without getting clipped by the block's

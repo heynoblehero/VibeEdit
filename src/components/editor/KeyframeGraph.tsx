@@ -20,7 +20,21 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { evaluateKeyframes } from "@/lib/anim";
 import type { Easing, Keyframe, KeyframeProperty } from "@/lib/scene-schema";
+import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
+
+const EASINGS: Easing[] = [
+  "linear",
+  "ease_in",
+  "ease_out",
+  "ease_in_out",
+  "ease_in_back",
+  "ease_out_back",
+  "ease_in_out_back",
+  "spring",
+  "snappy",
+  "bouncy",
+];
 
 interface KeyframeGraphProps {
   sceneId: string;
@@ -51,6 +65,8 @@ export function KeyframeGraph({
   const svgRef = useRef<SVGSVGElement>(null);
   const [width, setWidth] = useState(600);
   const [draggingFrame, setDraggingFrame] = useState<number | null>(null);
+  const [activeKfFrame, setActiveKfFrame] = useState<number | null>(null);
+  const proKeyframes = useEditorStore((s) => s.proKeyframes);
 
   React.useEffect(() => {
     const update = () => {
@@ -122,6 +138,7 @@ export function KeyframeGraph({
 
   const startDrag = (kfFrame: number) => {
     setDraggingFrame(kfFrame);
+    setActiveKfFrame(kfFrame);
   };
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (draggingFrame === null || !svgRef.current) return;
@@ -166,16 +183,42 @@ export function KeyframeGraph({
 
   if (!scene) return null;
 
+  const activeKf = activeKfFrame !== null ? kfs.find((k) => k.frame === activeKfFrame) : null;
+  const setActiveEasing = (e: Easing) => {
+    if (!activeKf) return;
+    upsertKeyframe(sceneId, property, { ...activeKf, easing: e });
+  };
+
   return (
     <div className="rounded border border-neutral-800 bg-neutral-950 p-2">
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center justify-between mb-1 gap-2">
         <span className="text-[10px] uppercase tracking-wider text-neutral-500">
           {property}
+          {proKeyframes && (
+            <span className="ml-2 text-[9px] text-amber-400 normal-case">
+              pro mode (bezier handles UI in follow-up)
+            </span>
+          )}
         </span>
-        <span className="text-[10px] font-mono text-neutral-600">
-          {kfs.length} keyframe{kfs.length === 1 ? "" : "s"}
-          {" · "}click to add · drag to move · right-click to remove
-        </span>
+        <div className="flex items-center gap-2 text-[10px] text-neutral-600">
+          {activeKf && (
+            <select
+              value={activeKf.easing ?? "linear"}
+              onChange={(e) => setActiveEasing(e.target.value as Easing)}
+              className="bg-neutral-900 border border-neutral-700 rounded px-1 py-0.5 text-[10px] text-neutral-300 focus:border-emerald-500 focus:outline-none"
+              title="Easing for the segment leading out of the active keyframe"
+            >
+              {EASINGS.map((e) => (
+                <option key={e} value={e}>
+                  {e.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
+          )}
+          <span className="font-mono">
+            {kfs.length} kf · click=add · drag=move · right-click=remove
+          </span>
+        </div>
       </div>
       <svg
         ref={svgRef}
@@ -205,13 +248,17 @@ export function KeyframeGraph({
               <circle
                 cx={cx}
                 cy={cy}
-                r={6}
-                fill="#10b981"
-                stroke="#0a0a0a"
+                r={k.frame === activeKfFrame ? 7 : 6}
+                fill={k.frame === activeKfFrame ? "#34d399" : "#10b981"}
+                stroke={k.frame === activeKfFrame ? "#fff" : "#0a0a0a"}
                 strokeWidth={2}
                 onMouseDown={(e) => {
                   e.stopPropagation();
                   startDrag(k.frame);
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveKfFrame(k.frame);
                 }}
                 onContextMenu={(e) => onContextMenu(e, k.frame)}
                 style={{ cursor: "grab" }}

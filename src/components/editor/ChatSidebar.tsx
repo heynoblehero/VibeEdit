@@ -8,7 +8,9 @@ import {
   MessageCircle,
   Paperclip,
   Send,
+  Target,
   Undo2,
+  X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -16,8 +18,65 @@ import { buildCinematicShortBrief } from "@/lib/agent-briefs";
 import type { Project } from "@/lib/scene-schema";
 import { useAssetStore } from "@/store/asset-store";
 import { useChatStore, type ChatMessage } from "@/store/chat-store";
+import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 import { useVoiceStore } from "@/store/voice-store";
+
+/**
+ * Small chip above the chat input that signals the agent is scoped to
+ * one scene. When focusedSceneId is null and a scene is selected, offers
+ * a "Focus on selected scene" button. When set, shows the focused scene
+ * label with an × to unfocus.
+ */
+function FocusChip() {
+  const focusedSceneId = useEditorStore((s) => s.focusedSceneId);
+  const setFocusedSceneId = useEditorStore((s) => s.setFocusedSceneId);
+  const project = useProjectStore((s) => s.project);
+  const selectedSceneId = useProjectStore((s) => s.selectedSceneId);
+  const focusedIdx = focusedSceneId
+    ? project.scenes.findIndex((s) => s.id === focusedSceneId)
+    : -1;
+
+  if (focusedSceneId && focusedIdx >= 0) {
+    return (
+      <div className="mx-2 mb-1 flex items-center gap-1.5 rounded-md bg-emerald-500/15 border border-emerald-500/40 px-2 py-1 text-[11px] text-emerald-300">
+        <Target className="h-3.5 w-3.5" />
+        <span className="flex-1">
+          Focused: scene {focusedIdx + 1}{" "}
+          <span className="text-emerald-400/60">({focusedSceneId.slice(0, 6)})</span>
+          <span className="ml-1 text-emerald-400/70">— agent edits this scene only</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setFocusedSceneId(null)}
+          title="Exit focus mode"
+          className="text-emerald-400/70 hover:text-white"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    );
+  }
+  if (selectedSceneId) {
+    const idx = project.scenes.findIndex((s) => s.id === selectedSceneId);
+    if (idx < 0) return null;
+    return (
+      <div className="mx-2 mb-1 flex items-center justify-between rounded-md bg-neutral-900 border border-neutral-800 px-2 py-1 text-[11px] text-neutral-500">
+        <span>Selected: scene {idx + 1}</span>
+        <button
+          type="button"
+          onClick={() => setFocusedSceneId(selectedSceneId)}
+          className="flex items-center gap-1 text-neutral-400 hover:text-emerald-300"
+          title="Scope agent edits to just this scene"
+        >
+          <Target className="h-3 w-3" />
+          Focus
+        </button>
+      </div>
+    );
+  }
+  return null;
+}
 
 export function ChatSidebar({
   open,
@@ -355,6 +414,7 @@ export function ChatSidebar({
           project: projectBefore,
           characters,
           sfx,
+          focusedSceneId: useEditorStore.getState().focusedSceneId,
         }),
         signal: abortCtrl.signal,
       });
@@ -716,6 +776,7 @@ export function ChatSidebar({
           ↓ latest
         </button>
       )}
+      <FocusChip />
       <form
         onSubmit={(e) => {
           e.preventDefault();

@@ -1942,6 +1942,41 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  listVoiceClones: {
+    schema: {
+      name: "listVoiceClones",
+      description:
+        "List the user's saved ElevenLabs cloned voices (from /api/voice-clones). Returns id, name, and createdAt for each. Use when the user asks for 'my voice' / 'sound like me' / 'clone' — pass the matching voice id into narrateScene as elevenLabsVoiceId.",
+      input_schema: { type: "object", properties: {} },
+    },
+    async execute(_args, ctx) {
+      try {
+        const res = await fetch(`${ctx.origin}/api/voice-clones`, { method: "GET" });
+        const data = (await res.json()) as {
+          clones?: Array<{ id: string; name: string; createdAt?: number }>;
+          error?: string;
+        };
+        if (!res.ok) return { ok: false, message: data.error ?? `voice-clones failed (${res.status})` };
+        const clones = data.clones ?? [];
+        if (clones.length === 0) {
+          return {
+            ok: true,
+            message:
+              "no voice clones saved. Tell the user to upload a 30-60s clean audio sample via Settings → Voice Clones to create one (requires ELEVENLABS_API_KEY).",
+          };
+        }
+        return {
+          ok: true,
+          message:
+            `${clones.length} voice clone(s) available:\n` +
+            clones.map((c, i) => `${i + 1}. ${c.id} — ${c.name}`).join("\n"),
+        };
+      } catch (e) {
+        return { ok: false, message: `failed: ${e instanceof Error ? e.message : String(e)}` };
+      }
+    },
+  },
+
   translateScript: {
     schema: {
       name: "translateScript",

@@ -214,6 +214,27 @@ async function runJob(job: RenderJob): Promise<void> {
     if (s.splitRightUrl?.startsWith("http")) urlsToCheck.add(s.splitRightUrl);
   }
   if (music?.url?.startsWith("http")) urlsToCheck.add(music.url);
+
+  // Validate every cut points at scenes that exist in this project.
+  // Stale cuts (referencing deleted scenes) would cause cutByPair lookups
+  // to silently drop the cut — better to fail loudly here.
+  const sceneIds = new Set(scenes.map((s) => s.id));
+  const cutErrors: string[] = [];
+  for (const c of project.cuts ?? []) {
+    if (!sceneIds.has(c.fromSceneId))
+      cutErrors.push(`cut ${c.id}: fromSceneId "${c.fromSceneId}" not in project`);
+    if (!sceneIds.has(c.toSceneId))
+      cutErrors.push(`cut ${c.id}: toSceneId "${c.toSceneId}" not in project`);
+    if (c.durationFrames < 0)
+      cutErrors.push(`cut ${c.id}: durationFrames ${c.durationFrames} negative`);
+  }
+  if (cutErrors.length > 0) {
+    throw new Error(
+      `Preflight failed — ${cutErrors.length} stale cut${cutErrors.length === 1 ? "" : "s"}:\n` +
+        cutErrors.slice(0, 8).map((e) => `  · ${e}`).join("\n"),
+    );
+  }
+
   const failures: Array<{ url: string; status: number | string }> = [];
   await Promise.all(
     [...urlsToCheck].map(async (u) => {

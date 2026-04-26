@@ -16,6 +16,7 @@ import { CirclePing, RadialPulse, ScanLine } from "./components/effects";
 import { BarWipe, CornerBrackets, RevealBox } from "./components/graphics";
 import { Arrow, Highlight } from "./components/Annotation";
 import { Particles } from "./components/Particles";
+import { ProgressBar } from "./components/ProgressBar";
 import { Glitch, Typewriter } from "./components/TextEffects";
 import { BarChart } from "./components/BarChart";
 import { BulletList } from "./components/BulletList";
@@ -343,6 +344,17 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
                 count={e.size}
                 x={typeof e.x === "number" ? e.x : undefined}
                 y={typeof e.y === "number" ? e.y : undefined}
+              />
+            );
+          case "progress_bar":
+            return (
+              <ProgressBar
+                key={i}
+                startFrame={start}
+                to={e.to}
+                color={e.color}
+                label={e.text}
+                y={e.y}
               />
             );
         }

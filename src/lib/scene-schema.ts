@@ -367,7 +367,8 @@ export type SceneEffectKind =
   | "glitch"
   | "arrow"
   | "highlight"
-  | "particles";
+  | "particles"
+  | "progress_bar";
 
 export interface SceneEffect {
   kind: SceneEffectKind;
@@ -386,6 +387,8 @@ export interface SceneEffect {
   /** For arrow: the tail (origin) position. x/y becomes the target. */
   fromX?: number | string;
   fromY?: number | string;
+  /** For progress_bar: target fill fraction 0-1. Defaults to 1. */
+  to?: number;
   /** Generic numeric param — size for circle_ping, thickness for boxes/brackets. */
   size?: number;
   thickness?: number;

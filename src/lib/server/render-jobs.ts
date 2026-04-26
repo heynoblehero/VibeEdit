@@ -261,6 +261,11 @@ async function runJob(job: RenderJob): Promise<void> {
 
   const outPath = path.join(os.tmpdir(), `vibeedit-${job.id}.${preset.extension}`);
 
+  // Concurrency: most dokku containers have 4-8 cores. Default Remotion
+  // uses 1; bumping to half-cores cuts render time meaningfully without
+  // pegging the box. Cap at 6 to leave headroom for Next.js / nginx.
+  const cores = Math.max(1, Math.min(6, Math.floor((os.cpus()?.length ?? 2) / 2)));
+
   await renderMedia({
     composition,
     serveUrl,
@@ -268,6 +273,7 @@ async function runJob(job: RenderJob): Promise<void> {
     outputLocation: outPath,
     inputProps,
     scale: preset.scale,
+    concurrency: cores,
     // Visibly sharper finals: lower CRF (perceptually-lossless region) and
     // higher audio bitrate so platform re-encodes don't gut quality.
     crf: 18,

@@ -1,5 +1,5 @@
 import React from "react";
-import { AbsoluteFill, Audio, useCurrentFrame } from "remotion";
+import { AbsoluteFill, Audio, Sequence, useCurrentFrame } from "remotion";
 import { TransitionSeries, linearTiming } from "@remotion/transitions";
 import type { CaptionStyle, Cut, MusicBed, Scene } from "@/lib/scene-schema";
 import { sceneDurationFrames } from "@/lib/scene-schema";
@@ -57,22 +57,59 @@ interface DuckingRange {
   duration: number;
 }
 
+/**
+ * Per-scene start frame on the global timeline. Index aligns with `scenes`.
+ */
+function buildSceneStartFrames(scenes: Scene[], fps: number): number[] {
+  const starts: number[] = [];
+  let frameOffset = 0;
+  for (const s of scenes) {
+    starts.push(frameOffset);
+    frameOffset += sceneDurationFrames(s, fps);
+  }
+  return starts;
+}
+
+/**
+ * Per-scene voiceover *audio* start frame on the global timeline. This
+ * is the visual start frame minus the J-cut audioLeadFrames from the
+ * cut leading into this scene (audio-leads-visual).
+ */
+function buildAudioStartFrames(
+  scenes: Scene[],
+  fps: number,
+  cuts: Cut[] | undefined,
+): number[] {
+  const visualStarts = buildSceneStartFrames(scenes, fps);
+  if (!cuts || cuts.length === 0) return visualStarts.slice();
+  const cutByPair = new Map<string, Cut>();
+  for (const c of cuts) cutByPair.set(`${c.fromSceneId}->${c.toSceneId}`, c);
+  return scenes.map((s, i) => {
+    const prev = scenes[i - 1];
+    if (!prev) return visualStarts[i];
+    const cut = cutByPair.get(`${prev.id}->${s.id}`);
+    return visualStarts[i] - (cut?.audioLeadFrames ?? 0);
+  });
+}
+
 function buildDuckingRanges(
   scenes: Scene[],
   fps: number,
+  cuts: Cut[] | undefined,
 ): DuckingRange[] {
+  const audioStarts = buildAudioStartFrames(scenes, fps, cuts);
   const ranges: DuckingRange[] = [];
-  let frameOffset = 0;
-  for (const s of scenes) {
+  for (let i = 0; i < scenes.length; i++) {
+    const s = scenes[i];
+    if (!s.voiceover?.audioUrl) continue;
+    const vo = Math.round((s.voiceover.audioDurationSec ?? s.duration) * fps);
     const sceneDur = sceneDurationFrames(s, fps);
-    if (s.voiceover?.audioUrl) {
-      const vo = Math.round((s.voiceover.audioDurationSec ?? s.duration) * fps);
-      ranges.push({
-        from: frameOffset,
-        duration: Math.min(sceneDur, vo),
-      });
-    }
-    frameOffset += sceneDur;
+    ranges.push({
+      from: audioStarts[i],
+      duration: Math.min(sceneDur + (audioStarts[i + 1]
+        ? audioStarts[i + 1] - audioStarts[i]
+        : sceneDur), vo),
+    });
   }
   return ranges;
 }
@@ -116,8 +153,11 @@ export const VideoComposition: React.FC<CompositionProps> = ({
     (sum, s) => sum + sceneDurationFrames(s, fps),
     0,
   );
-  const duckRanges = music ? buildDuckingRanges(scenes, fps) : [];
+  const duckRanges = music ? buildDuckingRanges(scenes, fps, cuts) : [];
   const swellFrames = music ? buildSwellFrames(scenes, fps) : [];
+  const audioStarts = buildAudioStartFrames(scenes, fps, cuts);
+  const cutByPairForAudio = new Map<string, Cut>();
+  for (const c of cuts ?? []) cutByPairForAudio.set(`${c.fromSceneId}->${c.toSceneId}`, c);
 
   // Lookup table so we can find the cut between any two consecutive
   // scenes without scanning the project.cuts array per pair.
@@ -142,6 +182,7 @@ export const VideoComposition: React.FC<CompositionProps> = ({
           characters={characters}
           sfx={sfx}
           captionStyle={captionStyle}
+          renderAudio={false}
         />
       </TransitionSeries.Sequence>,
     );
@@ -163,9 +204,67 @@ export const VideoComposition: React.FC<CompositionProps> = ({
     }
   }
 
+  // Per-scene audio rails rendered at composition level so J/L cuts can
+  // shift them independently of the visual sequence start. Each scene's
+  // voiceover lives inside a <Sequence from={audioStart}> so a J cut
+  // (audioLeadFrames > 0) starts the audio before the visual cut and an
+  // L cut (audioTrailFrames > 0 on the OUTGOING scene's cut) keeps the
+  // audio playing past the cut by leaving its sequence-end past the
+  // visual end. Outgoing trail = read the cut-leading-INTO-NEXT scene.
+  const audioRails: React.ReactNode[] = [];
+  for (let i = 0; i < scenes.length; i++) {
+    const scene = scenes[i];
+    const sceneDur = sceneDurationFrames(scene, fps);
+    const audioStart = audioStarts[i];
+    // Outgoing trail: the cut going from this scene to the next determines
+    // how much we extend this scene's audio past the visual cut.
+    const next = scenes[i + 1];
+    const trailFrames = next
+      ? cutByPairForAudio.get(`${scene.id}->${next.id}`)?.audioTrailFrames ?? 0
+      : 0;
+    const voDurFrames = scene.voiceover?.audioDurationSec
+      ? Math.round(scene.voiceover.audioDurationSec * fps)
+      : sceneDur;
+    const audioDur = Math.max(1, sceneDur + trailFrames);
+    if (scene.voiceover?.audioUrl) {
+      audioRails.push(
+        <Sequence
+          key={`vo-${scene.id}`}
+          from={audioStart}
+          durationInFrames={audioDur}
+        >
+          <Audio
+            src={scene.voiceover.audioUrl}
+            startFrom={0}
+            volume={(f) => {
+              const fade = 3;
+              if (f < fade) return f / fade;
+              if (f > voDurFrames - fade)
+                return Math.max(0, (voDurFrames - f) / fade);
+              return 1;
+            }}
+          />
+        </Sequence>,
+      );
+    }
+    const sfxSrc = scene.sceneSfxUrl ?? (scene.sfxId ? sfx[scene.sfxId] : null);
+    if (sfxSrc) {
+      audioRails.push(
+        <Sequence
+          key={`sfx-${scene.id}`}
+          from={audioStart}
+          durationInFrames={audioDur}
+        >
+          <Audio src={sfxSrc} startFrom={0} volume={0.7} />
+        </Sequence>,
+      );
+    }
+  }
+
   return (
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
       <TransitionSeries>{seriesChildren}</TransitionSeries>
+      {audioRails}
 
       {music?.url && totalFrames > 0 && (
         <Audio

@@ -32,6 +32,16 @@ interface SceneRendererProps {
   characters: Record<string, string>;
   sfx: Record<string, string>;
   captionStyle?: CaptionStyle;
+  /**
+   * When false, SceneRenderer skips its own per-scene <Audio> elements
+   * (voiceover + sfx). The host (Composition.tsx) renders them at the
+   * composition level instead so J/L cuts can shift audio independently
+   * of the visual sequence start.
+   *
+   * Single-scene preview (via SingleSceneWrapper) keeps it true so
+   * isolated previews still play sound.
+   */
+  renderAudio?: boolean;
 }
 
 const CHAR_HEIGHT = 550;
@@ -41,6 +51,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
   characters,
   sfx,
   captionStyle,
+  renderAudio = true,
 }) => {
   const s = scene;
   const frame = useCurrentFrame();
@@ -381,13 +392,14 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       )}
       {s.transition === "zoom_blur" && <ZoomBlur />}
 
-      {sfxSrc && <Audio src={sfxSrc} startFrom={0} volume={0.7} />}
-      {s.voiceover?.audioUrl && (
+      {/* Audio rendered here only when renderAudio is true (single-scene
+          preview path). Composition.tsx renders the same elements at the
+          top level for the full timeline so J/L cuts can shift them. */}
+      {renderAudio && sfxSrc && <Audio src={sfxSrc} startFrom={0} volume={0.7} />}
+      {renderAudio && s.voiceover?.audioUrl && (
         <Audio
           src={s.voiceover.audioUrl}
           startFrom={0}
-          // Tiny 3-frame fade in / out on every voiceover so consecutive
-          // scenes don't audibly hard-cut between narrators / intonation.
           volume={(f) => {
             const fade = 3;
             const total = Math.round((s.voiceover?.audioDurationSec ?? s.duration) * fps);

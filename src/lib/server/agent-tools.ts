@@ -2678,6 +2678,70 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  applyPaletteToProject: {
+    schema: {
+      name: "applyPaletteToProject",
+      description:
+        "Push a color palette across the project so the video reads as visually unified: primary as emphasisColor + chartBars, secondary as textColor accents, neutral as backgroundColor where unset. Pair with extractPalette → applyPaletteToProject for one-call brand alignment.",
+      input_schema: {
+        type: "object",
+        properties: {
+          colors: {
+            type: "array",
+            items: { type: "string" },
+            description: "Hex colors. First = primary accent, second = secondary, last = neutral bg.",
+          },
+        },
+        required: ["colors"],
+      },
+    },
+    async execute(args, ctx) {
+      const colors = (args.colors as string[] | undefined) ?? [];
+      const valid = colors.filter((c) => /^#[0-9a-fA-F]{6}$/.test(c));
+      if (valid.length === 0) return { ok: false, message: "no valid hex colors provided" };
+      const primary = valid[0];
+      const secondary = valid[1] ?? primary;
+      const neutral = valid[valid.length - 1];
+      let touched = 0;
+      ctx.project.scenes = ctx.project.scenes.map((s) => {
+        const next = { ...s };
+        // Only fill where the agent left a default — never override an
+        // explicit color the agent or user set on purpose.
+        if (!s.emphasisColor && s.emphasisText) {
+          next.emphasisColor = primary;
+          touched++;
+        }
+        if (!s.textColor || s.textColor === "#888888") {
+          next.textColor = secondary;
+          touched++;
+        }
+        if (!s.background.color || s.background.color === "#0a0a0a") {
+          next.background = { ...s.background, color: neutral };
+          touched++;
+        }
+        if (s.type === "bar_chart" && s.chartBars) {
+          next.chartBars = s.chartBars.map((b, i) => ({
+            ...b,
+            color: b.color ?? valid[i % valid.length],
+          }));
+        }
+        return next;
+      });
+      // Stash on stylePack so the editor UI can reflect the choice.
+      ctx.project.stylePack = {
+        ...(ctx.project.stylePack ?? { accentColors: [], emphasisColor: primary, backgroundColor: neutral }),
+        accentColors: valid,
+        emphasisColor: primary,
+        textColor: secondary,
+        backgroundColor: neutral,
+      };
+      return {
+        ok: true,
+        message: `palette applied — ${touched} field${touched === 1 ? "" : "s"} updated. primary=${primary} secondary=${secondary} neutral=${neutral}`,
+      };
+    },
+  },
+
   extractPalette: {
     schema: {
       name: "extractPalette",

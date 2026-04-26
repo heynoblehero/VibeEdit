@@ -1,6 +1,12 @@
 import {
   type CaptionStyle,
+  type Cut,
+  type CutKind,
+  type Easing,
   type ExperimentRecord,
+  type Keyframe,
+  type KeyframeProperty,
+  type MotionPreset,
   type Project,
   type Scene,
   type ShotPlan,
@@ -2563,6 +2569,90 @@ const TOOLS: Record<string, AgentTool> = {
         await new Promise((r) => setTimeout(r, 2000));
       }
       return { ok: false, message: `render didn't finish within ${timeoutMs / 1000}s — try again.` };
+    },
+  },
+
+  setCut: {
+    schema: {
+      name: "setCut",
+      description:
+        "Set the cut between two consecutive scenes. Pick a kind that matches the beat: fade for soft transitions, dip_to_black for time jumps, whip_pan for energetic pivots, beat_flash for default rhythm cuts. Set audioLeadFrames > 0 for J-cuts (audio of incoming scene starts before visual cut) — sells dialogue continuity. audioTrailFrames > 0 for L-cuts. Replaces any existing cut between this pair.",
+      input_schema: {
+        type: "object",
+        properties: {
+          fromSceneId: { type: "string" },
+          toSceneId: { type: "string" },
+          kind: {
+            type: "string",
+            enum: [
+              "hard", "fade", "dip_to_black", "dip_to_white", "iris",
+              "clock_wipe", "flip", "wipe", "slide_left", "slide_right",
+              "zoom_blur", "beat_flash", "beat_flash_colored", "smash_cut",
+              "whip_pan", "glitch_cut", "jump_cut", "match_cut",
+            ],
+          },
+          durationFrames: { type: "number", description: "0 = hard cut, 8-20 typical for fade/wipe, 24-30 for dip." },
+          easing: {
+            type: "string",
+            enum: ["linear", "ease_in", "ease_out", "ease_in_out", "ease_in_back", "ease_out_back", "ease_in_out_back", "spring", "snappy", "bouncy"],
+          },
+          color: { type: "string", description: "Hex for color-using kinds (beat_flash_colored, dip_to_*, smash_cut)." },
+          audioLeadFrames: { type: "number", description: "J-cut: incoming voiceover starts N frames before visual cut. 6-15 typical." },
+          audioTrailFrames: { type: "number", description: "L-cut: outgoing voiceover continues N frames past visual cut." },
+        },
+        required: ["fromSceneId", "toSceneId", "kind", "durationFrames"],
+      },
+    },
+    async execute(args, ctx) {
+      const fromSceneId = String(args.fromSceneId);
+      const toSceneId = String(args.toSceneId);
+      const fromExists = ctx.project.scenes.some((s) => s.id === fromSceneId);
+      const toExists = ctx.project.scenes.some((s) => s.id === toSceneId);
+      if (!fromExists) return { ok: false, message: `fromSceneId ${fromSceneId} not in project` };
+      if (!toExists) return { ok: false, message: `toSceneId ${toSceneId} not in project` };
+      const cut: Cut = {
+        id: createId(),
+        fromSceneId,
+        toSceneId,
+        kind: args.kind as CutKind,
+        durationFrames: Math.max(0, Math.round(Number(args.durationFrames))),
+        easing: args.easing as Easing | undefined,
+        color: args.color as string | undefined,
+        audioLeadFrames: args.audioLeadFrames ? Math.max(0, Math.round(Number(args.audioLeadFrames))) : undefined,
+        audioTrailFrames: args.audioTrailFrames ? Math.max(0, Math.round(Number(args.audioTrailFrames))) : undefined,
+      };
+      const existing = (ctx.project.cuts ?? []).filter(
+        (c) => !(c.fromSceneId === fromSceneId && c.toSceneId === toSceneId),
+      );
+      ctx.project.cuts = [...existing, cut];
+      const offsetNote =
+        (cut.audioLeadFrames ? ` · J +${cut.audioLeadFrames}f` : "") +
+        (cut.audioTrailFrames ? ` · L +${cut.audioTrailFrames}f` : "");
+      return {
+        ok: true,
+        message: `cut set ${fromSceneId.slice(0, 6)}→${toSceneId.slice(0, 6)}: ${cut.kind} · ${cut.durationFrames}f${offsetNote}`,
+      };
+    },
+  },
+
+  listCuts: {
+    schema: {
+      name: "listCuts",
+      description: "List every cut on the project keyed by scene-id pair. Returns kind, duration, easing, audio offsets.",
+      input_schema: { type: "object", properties: {} },
+    },
+    async execute(_args, ctx) {
+      const cuts = ctx.project.cuts ?? [];
+      if (cuts.length === 0) return { ok: true, message: "no cuts set — every boundary will hard-cut" };
+      const summary = cuts
+        .map((c) => {
+          const offsets =
+            (c.audioLeadFrames ? ` J+${c.audioLeadFrames}f` : "") +
+            (c.audioTrailFrames ? ` L+${c.audioTrailFrames}f` : "");
+          return `  · ${c.fromSceneId.slice(0, 6)}→${c.toSceneId.slice(0, 6)}: ${c.kind} · ${c.durationFrames}f${offsets}`;
+        })
+        .join("\n");
+      return { ok: true, message: `${cuts.length} cuts:\n${summary}` };
     },
   },
 

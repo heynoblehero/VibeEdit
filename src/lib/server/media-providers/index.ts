@@ -21,6 +21,13 @@ export interface ImageRequest {
    * etc. Mapped to lens/composition language in the prompt suffix.
    */
   shotType?: "wide" | "medium" | "closeup" | "ecu" | "ots" | "insert";
+  /**
+   * Identity reference. When set, route to an identity-preserving model
+   * (instant-id for person, flux-redux for product) instead of the
+   * default text-to-image flow. Caller sets this from scene.subjectId.
+   */
+  subjectReferenceUrl?: string;
+  subjectKind?: "person" | "product" | "other";
 }
 
 export interface VideoRequest {
@@ -84,7 +91,20 @@ function imageCacheKey(req: ImageRequest, modelId: string): string {
 
 export async function generateImage(req: ImageRequest): Promise<MediaResult> {
   applyStoredKeys();
-  const id = req.modelId ?? defaultModelId("image");
+
+  // Identity-routing: when caller passed subjectReferenceUrl, override the
+  // model selection and use instant-id (person) or flux-redux (product /
+  // other) so the output matches the reference. Replicate-only path —
+  // when REPLICATE_API_TOKEN is missing we fall back to the user-chosen
+  // model with the reference url stuffed into inputImageUrl as a hint
+  // (Pollinations ignores it but the prompt still benefits).
+  let effectiveModelId = req.modelId ?? defaultModelId("image");
+  if (req.subjectReferenceUrl) {
+    if (process.env.REPLICATE_API_TOKEN) {
+      effectiveModelId = req.subjectKind === "person" ? "instant-id" : "flux-redux";
+    }
+  }
+  const id = effectiveModelId;
   const model = getMediaModel(id);
   if (!model || model.kind !== "image") throw new Error(`Unknown image model: ${id}`);
 
@@ -143,10 +163,22 @@ export async function generateImage(req: ImageRequest): Promise<MediaResult> {
   }
   if (model.provider === "replicate") {
     if (!model.slug) throw new Error(`Model ${id} missing slug`);
+    // InstantID + flux-redux both take an `image` input as the identity
+    // anchor. Other models can still receive inputImageUrl for img2img.
+    const refUrl = req.subjectReferenceUrl ?? req.inputImageUrl;
+    const refKey =
+      id === "instant-id"
+        ? "image"
+        : id === "flux-redux"
+          ? "redux_image"
+          : refUrl
+            ? "image"
+            : null;
     const { output } = await replicatePredict(model.slug, {
       ...(model.defaultInput ?? {}),
       prompt: req.prompt,
       ...(req.aspectRatio ? { aspect_ratio: req.aspectRatio } : {}),
+      ...(refUrl && refKey ? { [refKey]: refUrl } : {}),
     });
     const url = Array.isArray(output) ? output[0] : output;
     const result: MediaResult = { url, modelId: id, provider: "replicate" };

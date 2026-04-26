@@ -797,6 +797,10 @@ const TOOLS: Record<string, AgentTool> = {
             enum: ["wide", "medium", "closeup", "ecu", "ots", "insert"],
             description: "Frames the prompt with composition language (wide=24mm, medium=50mm, closeup=85mm, ecu=macro, ots=over-shoulder, insert=isolated object). Falls back to scene.shotType if set.",
           },
+          subjectId: {
+            type: "string",
+            description: "Pass a subject id from registerSubject/listSubjects to anchor the generation on that subject's reference photo. Routes to instant-id (person) or flux-redux (product) so 'Sarah' looks like 'Sarah' across scenes.",
+          },
         },
         required: ["sceneId", "prompt"],
       },
@@ -822,15 +826,36 @@ const TOOLS: Record<string, AgentTool> = {
       // Pull shotType off the scene if not explicitly passed.
       const sceneShot = ctx.project.scenes[idx].shotType;
       const shotType = (args.shotType as string | undefined) ?? sceneShot;
+      // Resolve subject reference: explicit arg wins; fall back to
+      // scene.subjectId set elsewhere. Either way, look up the subject
+      // and grab its referenceImageUrl.
+      const subjectIdArg =
+        (args.subjectId as string | undefined) ?? ctx.project.scenes[idx].subjectId;
+      const subject = subjectIdArg
+        ? (ctx.project.subjects ?? []).find((s) => s.id === subjectIdArg)
+        : null;
+      // When subject exists, also tag the scene so re-renders stay
+      // consistent and so listSubjects' usageCount stays accurate.
+      if (subject && !ctx.project.scenes[idx].subjectId) {
+        ctx.project.scenes[idx].subjectId = subject.id;
+      }
+      // Augment the prompt with the subject's description so the model
+      // has more to work with than a face — also helps when REPLICATE
+      // isn't available and we degrade to Pollinations.
+      const finalPrompt = subject
+        ? `${prompt}, depicting ${subject.name} (${subject.description})`
+        : prompt;
       try {
         const res = await fetch(`${ctx.origin}/api/media/image`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            prompt,
+            prompt: finalPrompt,
             modelId: args.model ? String(args.model) : undefined,
             aspectRatio,
             shotType,
+            subjectReferenceUrl: subject?.referenceImageUrl,
+            subjectKind: subject?.kind,
           }),
         });
         const data = await res.json();
@@ -844,9 +869,17 @@ const TOOLS: Record<string, AgentTool> = {
           kenBurns: true,
         };
         ctx.project.scenes = ctx.project.scenes.map((s, i) => (i === idx ? scene : s));
+        // Bump subject usageCount so listSubjects shows hot subjects.
+        if (subject) {
+          ctx.project.subjects = (ctx.project.subjects ?? []).map((s) =>
+            s.id === subject.id ? { ...s, usageCount: (s.usageCount ?? 0) + 1 } : s,
+          );
+        }
         return {
           ok: true,
-          message: `image attached to scene ${sceneId} (via ${data.modelId})`,
+          message:
+            `image attached to scene ${sceneId} (via ${data.modelId})` +
+            (subject ? ` — using subject "${subject.name}"` : ""),
         };
       } catch (e) {
         return {

@@ -151,6 +151,9 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       )}
       <BRollLayer brolls={s.broll} />
       <ZoomPunch hitFrame={s.zoomPunch ? 0 : 9999} intensity={s.zoomPunch ?? 1.15}>
+       {/* Secondary subtle zoom when emphasis text appears (frame 12)
+           so the reveal feels punctuated without needing a full beat. */}
+       <ZoomPunch hitFrame={s.emphasisText ? 12 : 9999} intensity={1.05}>
         <ScreenShake hitFrame={s.shakeIntensity ? 5 : 9999} intensity={s.shakeIntensity ?? 0} duration={12}>
 
           {showChar && (
@@ -219,6 +222,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
           )}
 
         </ScreenShake>
+       </ZoomPunch>
       </ZoomPunch>
 
       {s.lensFlare && <LensFlare hitFrame={0} color={s.lensFlareColor} />}

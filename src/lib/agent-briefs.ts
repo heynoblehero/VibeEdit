@@ -33,7 +33,8 @@ export function buildCinematicShortBrief({
     tmplHint
       ? `3. applySceneTemplate("${tmplHint}") to stamp a known structure, then planVideo to refine.`
       : "3. planVideo with explicit shot list (mix ≥4 shotTypes, three-act distribution)",
-    "4. For each shot: routeAsset → use upload OR stockSearch OR generateImageForScene",
+    "3.5. For any named person / character / product that will appear in 2+ scenes: registerSubject(name, description) BEFORE generation. Then pass subjectId on every generateImageForScene that depicts them — keeps the same face/look across scenes via instant-id / flux-redux.",
+    "4. For each shot: routeAsset → use upload OR stockSearch OR generateImageForScene (with subjectId when applicable)",
     "5. extractPalette on the hero asset → applyPaletteToProject for visual unity",
     "6. narrateAllScenes",
     "7. generateMusicForProject",

@@ -157,7 +157,7 @@ const TOOLS: Record<string, AgentTool> = {
               properties: {
                 kind: {
                   type: "string",
-                  enum: ["circle_ping", "radial_pulse", "scan_line", "bar_wipe", "corner_brackets", "reveal_box", "lower_third"],
+                  enum: ["circle_ping", "radial_pulse", "scan_line", "bar_wipe", "corner_brackets", "reveal_box", "lower_third", "typewriter", "glitch"],
                 },
                 startFrame: { type: "number" },
                 color: { type: "string" },

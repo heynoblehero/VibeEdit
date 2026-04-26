@@ -360,7 +360,9 @@ export type SceneEffectKind =
   | "bar_wipe"
   | "corner_brackets"
   | "reveal_box"
-  | "lower_third";
+  | "lower_third"
+  | "typewriter"
+  | "glitch";
 
 export interface SceneEffect {
   kind: SceneEffectKind;

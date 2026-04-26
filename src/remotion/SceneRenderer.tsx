@@ -14,6 +14,7 @@ import { Montage } from "./components/Montage";
 import { StatBlock } from "./components/StatBlock";
 import { CirclePing, RadialPulse, ScanLine } from "./components/effects";
 import { BarWipe, CornerBrackets, RevealBox } from "./components/graphics";
+import { Glitch, Typewriter } from "./components/TextEffects";
 import { BarChart } from "./components/BarChart";
 import { BulletList } from "./components/BulletList";
 import { LowerThird } from "./components/LowerThird";
@@ -278,6 +279,28 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
                 text={e.text}
                 subtext={e.subtext}
                 textColor={e.color}
+              />
+            );
+          case "typewriter":
+            return (
+              <Typewriter
+                key={i}
+                startFrame={start}
+                text={e.text ?? ""}
+                color={e.color}
+                fontSize={e.size}
+                y={e.y}
+              />
+            );
+          case "glitch":
+            return (
+              <Glitch
+                key={i}
+                startFrame={start}
+                text={e.text ?? ""}
+                color={e.color}
+                fontSize={e.size}
+                y={e.y}
               />
             );
         }

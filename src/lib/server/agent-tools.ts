@@ -1942,6 +1942,76 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  translateScript: {
+    schema: {
+      name: "translateScript",
+      description:
+        "Translate every scene's narration text into a target language using Claude. Returns the translated lines per sceneId. Does NOT auto-overwrite — agent should review and call updateScene with the new text. Use for international versions.",
+      input_schema: {
+        type: "object",
+        properties: {
+          targetLanguage: {
+            type: "string",
+            description: "e.g. 'Spanish (Latin American)', 'Japanese', 'Hindi', 'French'.",
+          },
+          tone: {
+            type: "string",
+            enum: ["literal", "natural", "punchy"],
+            description: "literal = word-for-word; natural = idiomatic; punchy = adapts the energy. Default natural.",
+          },
+        },
+        required: ["targetLanguage"],
+      },
+    },
+    async execute(args, ctx) {
+      const target = String(args.targetLanguage);
+      const tone = String(args.tone ?? "natural");
+      const lines = ctx.project.scenes
+        .map((s) => ({ id: s.id, text: s.voiceover?.text ?? s.text ?? "" }))
+        .filter((l) => l.text);
+      if (lines.length === 0) return { ok: true, message: "no narration text to translate" };
+      try {
+        const { callClaude } = await import("@/lib/server/claude-bridge");
+        const data = await callClaude(
+          {
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 2000,
+            system: [
+              {
+                type: "text",
+                text:
+                  `You translate video narration. Output ONLY a JSON object: {"translations": {"<sceneId>": "<translated text>"}}. ` +
+                  `Tone: ${tone}. Preserve emphasis on capitalized hook words. Keep punchlines punchy.`,
+              },
+            ],
+            messages: [
+              {
+                role: "user",
+                content:
+                  `Target: ${target}\n\nLines to translate:\n` +
+                  lines.map((l) => `${l.id}: ${l.text}`).join("\n"),
+              },
+            ],
+          },
+          "translate-script",
+        );
+        const text = data.content.map((b) => b.text ?? "").join("\n");
+        const m = text.match(/\{[\s\S]*\}/);
+        if (!m) return { ok: true, message: `couldn't parse: ${text.slice(0, 300)}` };
+        const parsed = JSON.parse(m[0]) as { translations: Record<string, string> };
+        const out = Object.entries(parsed.translations)
+          .map(([id, txt]) => `${id}: ${txt}`)
+          .join("\n");
+        return {
+          ok: true,
+          message: `translated to ${target} (${tone}):\n\n${out}\n\nReview and call updateScene for each line you want to apply, then narrateScene with a voice that fits the language (e.g. ElevenLabs cloned voice).`,
+        };
+      } catch (e) {
+        return { ok: false, message: `translate failed: ${e instanceof Error ? e.message : String(e)}` };
+      }
+    },
+  },
+
   exportSubtitles: {
     schema: {
       name: "exportSubtitles",

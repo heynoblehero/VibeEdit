@@ -110,9 +110,24 @@ const TOOLS: Record<string, AgentTool> = {
         properties: {
           type: {
             type: "string",
-            enum: ["character_text", "text_only", "big_number", "character_pop", "montage", "split", "stat", "bullet_list", "quote"],
-            description: "montage = 3-5 quick image cuts. split = side-by-side compare. stat = hero number + small label. bullet_list = checkmark list (use scene.bulletItems). quote = pull-quote with attribution. Others as before.",
+            enum: ["character_text", "text_only", "big_number", "character_pop", "montage", "split", "stat", "bullet_list", "quote", "bar_chart"],
+            description: "montage = 3-5 quick image cuts. split = side-by-side compare. stat = hero number + small label. bullet_list = checkmark list. quote = pull-quote with attribution. bar_chart = 2-6 animated vertical bars (use scene.chartBars). Others as before.",
           },
+          chartBars: {
+            type: "array",
+            description: "For type=bar_chart: 2-6 bars [{label, value, color?}].",
+            items: {
+              type: "object",
+              properties: {
+                label: { type: "string" },
+                value: { type: "number" },
+                color: { type: "string" },
+              },
+              required: ["label", "value"],
+            },
+          },
+          chartTitle: { type: "string" },
+          chartUnit: { type: "string", description: "Suffix on each bar value, e.g. '%' or 'M'." },
           bulletItems: {
             type: "array",
             items: { type: "string" },
@@ -245,6 +260,9 @@ const TOOLS: Record<string, AgentTool> = {
         bulletColor: args.bulletColor as string | undefined,
         quoteText: args.quoteText as string | undefined,
         quoteAttribution: args.quoteAttribution as string | undefined,
+        chartBars: args.chartBars as Scene["chartBars"],
+        chartTitle: args.chartTitle as string | undefined,
+        chartUnit: args.chartUnit as string | undefined,
         effects: args.effects as Scene["effects"],
         text: args.text as string | undefined,
         emphasisText: args.emphasisText as string | undefined,

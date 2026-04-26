@@ -112,7 +112,7 @@ export interface Voiceover {
 
 export interface Scene {
   id: string;
-  type: "character_text" | "text_only" | "big_number" | "character_pop" | "montage" | "split" | "stat" | "bullet_list" | "quote";
+  type: "character_text" | "text_only" | "big_number" | "character_pop" | "montage" | "split" | "stat" | "bullet_list" | "quote" | "bar_chart";
   duration: number;
   /**
    * For type=montage: 3-5 image URLs cut at ~0.5s each. Plays through them
@@ -138,6 +138,10 @@ export interface Scene {
   /** For type=quote: pull-quote text + attribution. */
   quoteText?: string;
   quoteAttribution?: string;
+  /** For type=bar_chart: 2-6 named bars that animate up. */
+  chartBars?: Array<{ label: string; value: number; color?: string }>;
+  chartTitle?: string;
+  chartUnit?: string;
   /**
    * Tag the scene with its planned shot type. Lets the qualityScore +
    * gate count distinct shotTypes per project rather than guessing.

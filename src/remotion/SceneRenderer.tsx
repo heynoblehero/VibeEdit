@@ -14,6 +14,7 @@ import { Montage } from "./components/Montage";
 import { StatBlock } from "./components/StatBlock";
 import { CirclePing, RadialPulse, ScanLine } from "./components/effects";
 import { BarWipe, CornerBrackets, RevealBox } from "./components/graphics";
+import { BarChart } from "./components/BarChart";
 import { BulletList } from "./components/BulletList";
 import { LowerThird } from "./components/LowerThird";
 import { QuoteBlock } from "./components/QuoteBlock";
@@ -111,6 +112,9 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
           attribution={s.quoteAttribution}
           color={s.bulletColor}
         />
+      )}
+      {s.type === "bar_chart" && s.chartBars && s.chartBars.length > 0 && (
+        <BarChart bars={s.chartBars} title={s.chartTitle} unit={s.chartUnit} />
       )}
       {s.type === "split" && (s.splitLeftUrl || s.splitRightUrl) && (
         <div style={{ position: "absolute", inset: 0, display: "flex" }}>

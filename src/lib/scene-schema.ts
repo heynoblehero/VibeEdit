@@ -364,7 +364,8 @@ export type SceneEffectKind =
   | "typewriter"
   | "glitch"
   | "arrow"
-  | "highlight";
+  | "highlight"
+  | "particles";
 
 export interface SceneEffect {
   kind: SceneEffectKind;

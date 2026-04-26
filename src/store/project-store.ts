@@ -80,6 +80,17 @@ interface ProjectStore {
   removeKeyframe: (sceneId: string, property: KeyframeProperty, frame: number) => void;
   /** Wipe all keyframes on a scene's property. */
   clearKeyframes: (sceneId: string, property: KeyframeProperty) => void;
+  /**
+   * Premiere-style cut: split scene `sceneId` at frame `atFrameWithin`
+   * (a 0-indexed frame relative to the scene's own start). Both halves
+   * share the original's content fields (text, background, character,
+   * effects, motion). Voiceover audioDurationSec is *not* split — the
+   * second half keeps the same audioUrl but renderer trims via duration.
+   * Returns the new (second-half) scene id, or null if nothing happened.
+   */
+  splitScene: (sceneId: string, atFrameWithin: number) => string | null;
+  /** Insert a new blank scene at `index` (pushes the rest right). */
+  insertSceneAt: (index: number, scene: Scene) => void;
 
   undo: () => void;
   redo: () => void;
@@ -692,6 +703,151 @@ export const useProjectStore = create<ProjectStore>()(
               delete existing[property];
               return { ...sc, keyframes: existing };
             }),
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: pushHistory(s.history, s.project),
+            future: [],
+          };
+        }),
+
+      splitScene: (sceneId, atFrameWithin) => {
+        const state = get();
+        const idx = state.project.scenes.findIndex((sc) => sc.id === sceneId);
+        if (idx < 0) return null;
+        const original = state.project.scenes[idx];
+        const fps = state.project.fps;
+        const totalFrames = Math.max(1, Math.round(original.duration * fps));
+        // Reject splits at the very start / end — those produce a 0-duration
+        // scene which the renderer handles badly.
+        if (atFrameWithin < 2 || atFrameWithin > totalFrames - 2) return null;
+        const aDuration = atFrameWithin / fps;
+        const bDuration = (totalFrames - atFrameWithin) / fps;
+        // First half keeps the original id (so any external references —
+        // selectedSceneId, focusedSceneId, etc. — stay valid).
+        const sceneA: Scene = {
+          ...original,
+          duration: Number(aDuration.toFixed(3)),
+          // Keyframes inside scene A: keep only the ones at frame ≤ split.
+          keyframes: original.keyframes
+            ? Object.fromEntries(
+                Object.entries(original.keyframes).map(([k, kfs]) => [
+                  k,
+                  (kfs ?? []).filter((kf) => kf.frame <= atFrameWithin),
+                ]),
+              )
+            : undefined,
+        };
+        const newId = createId();
+        const sceneB: Scene = {
+          ...original,
+          id: newId,
+          duration: Number(bDuration.toFixed(3)),
+          // Voiceover: scene B keeps the audioUrl reference but we adjust
+          // the duration. Renderer plays it from frame 0 of scene B; the
+          // audio simply re-starts. Acceptable v1; future work could
+          // ffmpeg-trim the audio for scene-A-end → scene-B-start continuity.
+          // BRoll: shift each broll's startFrame so b-rolls anchored to
+          // scene B's content keep their relative timing. Drop b-rolls
+          // whose entire range lived in scene A.
+          broll: original.broll
+            ?.map((b) => ({
+              ...b,
+              id: createId(),
+              startFrame: Math.max(0, b.startFrame - atFrameWithin),
+            }))
+            .filter((b) => b.startFrame + b.durationFrames > 0),
+          keyframes: original.keyframes
+            ? Object.fromEntries(
+                Object.entries(original.keyframes).map(([k, kfs]) => [
+                  k,
+                  (kfs ?? [])
+                    .filter((kf) => kf.frame >= atFrameWithin)
+                    .map((kf) => ({ ...kf, frame: kf.frame - atFrameWithin })),
+                ]),
+              )
+            : undefined,
+        };
+        // Cuts: original boundary cuts pointing AT the original become:
+        //   - cut(prev → original) keeps targeting original (sceneA).
+        //   - cut(original → next) needs to retarget to sceneB.
+        // We also auto-insert a "hard" cut between the two halves so the
+        // boundary has a Cut record (matches addScene's behavior).
+        const renamedCuts = (state.project.cuts ?? []).map((c) => {
+          if (c.fromSceneId === original.id) {
+            return { ...c, fromSceneId: newId };
+          }
+          return c;
+        });
+        const splitCut = {
+          id: createId(),
+          fromSceneId: original.id,
+          toSceneId: newId,
+          kind: "hard" as const,
+          durationFrames: 0,
+        };
+        const updated: Project = {
+          ...state.project,
+          scenes: [
+            ...state.project.scenes.slice(0, idx),
+            sceneA,
+            sceneB,
+            ...state.project.scenes.slice(idx + 1),
+          ],
+          cuts: [...renamedCuts, splitCut],
+        };
+        set((s) => ({
+          project: updated,
+          projects: { ...s.projects, [updated.id]: updated },
+          history: pushHistory(s.history, s.project),
+          future: [],
+        }));
+        return newId;
+      },
+
+      insertSceneAt: (index, scene) =>
+        set((s) => {
+          const at = Math.max(0, Math.min(s.project.scenes.length, index));
+          const before = s.project.scenes.slice(0, at);
+          const after = s.project.scenes.slice(at);
+          const newScenes = [...before, scene, ...after];
+          // Auto-cut wiring: if there's a scene before, insert a hard cut
+          // INTO this one; if there's a scene after, insert a hard cut
+          // FROM this one TO the next. The cut that previously linked
+          // before→after needs to be removed so we don't have a phantom
+          // bypassing the new scene.
+          const prev = before[before.length - 1];
+          const next = after[0];
+          let cuts = s.project.cuts ?? [];
+          if (prev && next) {
+            cuts = cuts.filter(
+              (c) => !(c.fromSceneId === prev.id && c.toSceneId === next.id),
+            );
+          }
+          const newCuts = [...cuts];
+          if (prev) {
+            newCuts.push({
+              id: createId(),
+              fromSceneId: prev.id,
+              toSceneId: scene.id,
+              kind: "hard",
+              durationFrames: 0,
+            });
+          }
+          if (next) {
+            newCuts.push({
+              id: createId(),
+              fromSceneId: scene.id,
+              toSceneId: next.id,
+              kind: "hard",
+              durationFrames: 0,
+            });
+          }
+          const updated = {
+            ...s.project,
+            scenes: newScenes,
+            cuts: newCuts.length > 0 ? newCuts : undefined,
           };
           return {
             project: updated,

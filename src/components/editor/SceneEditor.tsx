@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Captions as CaptionsIcon, Film, Loader2, Mic, RefreshCw, Sparkles, User, Type, Palette, Zap, Hash } from "lucide-react";
+import { Activity, ArrowLeft, Captions as CaptionsIcon, Film, Loader2, Mic, RefreshCw, Sparkles, User, Type, Palette, Zap, Hash } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useAssetStore } from "@/store/asset-store";
@@ -20,6 +20,7 @@ const TARGET_META: Record<Exclude<EditTarget, null>, { icon: any; label: string;
   background: { icon: Palette, label: "Background", color: "text-purple-400" },
   counter: { icon: Hash, label: "Counter", color: "text-orange-400" },
   broll: { icon: Film, label: "B-Roll", color: "text-pink-400" },
+  keyframes: { icon: Activity, label: "Animate", color: "text-cyan-400" },
 };
 
 export function SceneEditor() {

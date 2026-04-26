@@ -1,5 +1,79 @@
 # Changelog
 
+## Unreleased — sprint 8: cuts, focus mode, motion presets, keyframe graph (29 commits)
+
+The largest single sprint to date. Closes three structural gaps the
+agent + UI couldn't reach before: cuts were baked-in flashes, the
+agent operated project-wide, and motion was on/off per element.
+
+### New schema
+- `Cut` (project-level): {fromSceneId, toSceneId, kind, durationFrames,
+  easing, color?, audioLeadFrames?, audioTrailFrames?}.
+- `CutKind`: 18 kinds (existing 6 + fade / dip_to_black / dip_to_white
+  / iris / clock_wipe / flip / wipe / jump_cut / smash_cut / whip_pan
+  / glitch_cut / match_cut + explicit `hard`).
+- `Easing`: 10 named curves shared by Cuts + Keyframes.
+- `Keyframe`: {frame, value, easing?, bezierIn?, bezierOut?}.
+- `KeyframeProperty`: 12 animatable channels.
+- `MotionPreset`: 12 element-motion shorthands.
+
+### Renderer (TransitionSeries migration)
+- Composition.tsx flows visuals through @remotion/transitions
+  TransitionSeries. 17/18 cut kinds wire to a TransitionPresentation;
+  bespoke ones for whip_pan / smash_cut / glitch_cut / dip-to-color /
+  beat_flash / zoom_blur / jump_cut.
+- Per-scene voiceover + sfx audio extracted from SceneRenderer
+  (renderAudio prop) and rendered at composition level so J cuts
+  shift audio earlier than the visual cut, L cuts later.
+- SceneRenderer reads textMotion / emphasisMotion / characterMotion
+  via `motionValue(preset, property)` → expands preset to keyframes,
+  evaluates per frame.
+- New helpers in lib/anim.ts: `evaluateKeyframes` + `resolveEasing`.
+- New lib/motion-presets.ts catalog with 12 keyframe generators.
+
+### Cut-marker UI
+- CutMarker + CutEditPopover components, mounted in both Timeline.tsx
+  (horizontal) and SceneList.tsx (vertical). Click a diamond to edit
+  kind / duration / easing / color / J/L offsets.
+- Auto-creates `hard` cuts on every addScene so the UI always has
+  something to render at every boundary.
+
+### Scene focus mode
+- useEditorStore.focusedSceneId. FocusChip in ChatSidebar + Target
+  button on SceneCard.
+- Route splices a FOCUSED SCOPE system block: bans cross-scene tools,
+  narrows selfCritique + videoQualityScore to one scene.
+- resolveSceneId helper migrates 10+ tools to default sceneId-less
+  calls to ctx.focusedSceneId.
+
+### Motion presets
+- 12 presets: drift_up/down, pulse, shake, ken_burns_in/out,
+  parallax_slow/fast, bounce_in, fade_in_out, wobble, none.
+- MotionPresetField dropdown in SceneEditor's TextPanel for textMotion
+  + emphasisMotion.
+
+### Keyframe graph editor
+- KeyframeGraph.tsx: SVG canvas, click-to-add / drag-to-move /
+  right-click-to-remove. Curve sampled every 4px via
+  evaluateKeyframes so the line matches the renderer.
+- Per-keyframe easing dropdown for the active keyframe.
+- AnimatePanel in SceneEditor mounts under a new editTarget="keyframes"
+  tab. Property dropdown + sticky "Recent" chips.
+- proKeyframes flag in useEditorStore reserved for the bezier-handle
+  follow-up.
+
+### Agent tools
+- setCut, listCuts, setMotionPreset, addKeyframe, clearKeyframes,
+  listMotionPresets.
+
+### SYSTEM_PROMPT
+- FOCUSED SCOPE (when focusedSceneId is set).
+- CUTS BETWEEN SCENES — per-kind use cases + J/L cut guidance.
+- MOTION PRESETS — per-preset element guidance.
+
+### Deps
+- @remotion/transitions@4.0.370.
+
 ## Unreleased — sprint 7: 3D scene primitives via @remotion/three
 
 Three.js renders inline alongside the rest of the Remotion timeline —

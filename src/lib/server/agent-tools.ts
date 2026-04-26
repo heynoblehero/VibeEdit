@@ -1328,44 +1328,69 @@ const TOOLS: Record<string, AgentTool> = {
       }
       const focus = args.focus ? String(args.focus) : "overall quality";
 
+      // FOCUSED MODE: scope every check to the one focused scene. Skip
+      // cross-scene structural checks (bare scene count, music presence).
+      const focusedScene = ctx.focusedSceneId
+        ? ctx.project.scenes.find((s) => s.id === ctx.focusedSceneId)
+        : null;
+      const scopedScenes = focusedScene ? [focusedScene] : ctx.project.scenes;
+
       // Pre-check: catch the structural problems Claude's review prompt
       // sometimes glosses over. These ALWAYS get flagged as high-severity.
       const structural: string[] = [];
-      const bare = ctx.project.scenes.filter(
-        (s) => !s.background?.imageUrl && !s.background?.videoUrl,
-      );
-      if (bare.length >= 3) {
-        structural.push(
-          `[high] ${bare.length} scenes have no image or video background — call generateImageForScene on them: ${bare
-            .slice(0, 5)
-            .map((s) => s.id)
-            .join(", ")}${bare.length > 5 ? "…" : ""}`,
+      if (!focusedScene) {
+        const bare = ctx.project.scenes.filter(
+          (s) => !s.background?.imageUrl && !s.background?.videoUrl,
         );
-      }
-      const unnarrated = ctx.project.scenes.filter(
-        (s) =>
-          !s.voiceover?.audioUrl &&
-          (s.text || s.emphasisText || s.subtitleText),
-      );
-      if (unnarrated.length >= 2) {
-        structural.push(
-          `[high] ${unnarrated.length} scenes with text but no voiceover — run narrateAllScenes.`,
+        if (bare.length >= 3) {
+          structural.push(
+            `[high] ${bare.length} scenes have no image or video background — call generateImageForScene on them: ${bare
+              .slice(0, 5)
+              .map((s) => s.id)
+              .join(", ")}${bare.length > 5 ? "…" : ""}`,
+          );
+        }
+        const unnarrated = ctx.project.scenes.filter(
+          (s) =>
+            !s.voiceover?.audioUrl &&
+            (s.text || s.emphasisText || s.subtitleText),
         );
-      }
-      if (!ctx.project.music && ctx.project.scenes.length >= 4) {
-        structural.push(
-          `[medium] no backing music — call generateMusicForProject with a mood-matched prompt.`,
-        );
+        if (unnarrated.length >= 2) {
+          structural.push(
+            `[high] ${unnarrated.length} scenes with text but no voiceover — run narrateAllScenes.`,
+          );
+        }
+        if (!ctx.project.music && ctx.project.scenes.length >= 4) {
+          structural.push(
+            `[medium] no backing music — call generateMusicForProject with a mood-matched prompt.`,
+          );
+        }
+      } else {
+        // Per-scene structural check.
+        if (!focusedScene.background?.imageUrl && !focusedScene.background?.videoUrl) {
+          structural.push(`[high] focused scene has no image/video — generateImageForScene.`);
+        }
+        if (
+          !focusedScene.voiceover?.audioUrl &&
+          (focusedScene.text || focusedScene.emphasisText || focusedScene.subtitleText)
+        ) {
+          structural.push(`[medium] focused scene has text but no voiceover — narrateScene.`);
+        }
       }
 
       try {
         // Sub-agent route — separate context budget, dedicated critic
         // prompt, no editing tools available to it. Returns clean JSON.
+        // Pass only the scoped scenes when focused so the critic doesn't
+        // mention cross-scene issues.
+        const projectForCritic = focusedScene
+          ? { ...ctx.project, scenes: scopedScenes }
+          : ctx.project;
         const res = await fetch(`${ctx.origin}/api/agent/critic`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            project: ctx.project,
+            project: projectForCritic,
             objective: ctx.project.systemPrompt,
             focus,
           }),
@@ -1566,6 +1591,49 @@ const TOOLS: Record<string, AgentTool> = {
       input_schema: { type: "object", properties: {} },
     },
     async execute(_args, ctx) {
+      // Per-scene mode: when focused, score only the focused scene's
+      // local components (visuals, narration, captions, hook-relevance,
+      // graphics) and skip the project-wide metrics (density, variety,
+      // pacing variance, spine).
+      if (ctx.focusedSceneId) {
+        const focusedScene = ctx.project.scenes.find(
+          (s) => s.id === ctx.focusedSceneId,
+        );
+        if (!focusedScene) {
+          return { ok: false, message: `focused scene ${ctx.focusedSceneId} not found` };
+        }
+        let local = 0;
+        const reasons: string[] = [];
+        if (focusedScene.background?.imageUrl || focusedScene.background?.videoUrl) {
+          local += 25;
+        } else {
+          reasons.push("no visual asset (-25)");
+        }
+        if (focusedScene.voiceover?.audioUrl) local += 20;
+        else reasons.push("no narration (-20)");
+        if (focusedScene.voiceover?.captions?.length) local += 15;
+        else reasons.push("no captions (-15)");
+        if (focusedScene.zoomPunch && focusedScene.zoomPunch >= 1.1) local += 10;
+        else reasons.push("no zoomPunch (-10)");
+        if (focusedScene.effects && focusedScene.effects.length > 0) local += 10;
+        else reasons.push("no overlay effects (-10)");
+        if (focusedScene.shotType) local += 5;
+        if (focusedScene.background?.colorGrade && focusedScene.background.colorGrade !== "neutral") local += 5;
+        if (focusedScene.sfxId || focusedScene.sceneSfxUrl) local += 5;
+        if (focusedScene.duration >= 1.5 && focusedScene.duration <= 5) local += 5;
+        else reasons.push(`duration ${focusedScene.duration}s out of 1.5-5s sweet spot`);
+        const verdict =
+          local >= 80 ? "✓ ship-quality"
+          : local >= 65 ? "✓ acceptable"
+          : "⚠ keep iterating";
+        return {
+          ok: true,
+          message:
+            `[focused] scene ${focusedScene.id} score: ${local}/100 — ${verdict}\n` +
+            (reasons.length > 0 ? `weaknesses:\n  · ${reasons.join("\n  · ")}` : "no weaknesses found"),
+        };
+      }
+
       const scenes = ctx.project.scenes;
       if (scenes.length === 0) {
         ctx.project.qualityScore = 0;

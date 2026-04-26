@@ -1,5 +1,6 @@
 import { interpolate, spring, Easing } from 'remotion';
 import { snappy, bouncy } from './easing';
+import type { Easing as EasingName, Keyframe } from './scene-schema';
 
 // === impact / squash ===
 
@@ -142,4 +143,68 @@ export function keyframes(
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
+}
+
+/**
+ * Resolve a named easing from the schema enum to a Remotion easing
+ * function. Spring is special — Remotion's spring() takes config so we
+ * approximate it here with cubic-bezier ease-out. Use the actual spring
+ * function for character entry / impact beats; this resolver is for
+ * the keyframe / cut paths where we just need a curve.
+ */
+export function resolveEasing(name: EasingName | undefined): (n: number) => number {
+  switch (name) {
+    case "linear":
+    case undefined:
+      return Easing.linear;
+    case "ease_in":
+      return Easing.in(Easing.cubic);
+    case "ease_out":
+      return Easing.out(Easing.cubic);
+    case "ease_in_out":
+      return Easing.inOut(Easing.cubic);
+    case "ease_in_back":
+      return Easing.in(Easing.back(1.7));
+    case "ease_out_back":
+      return Easing.out(Easing.back(1.7));
+    case "ease_in_out_back":
+      return Easing.inOut(Easing.back(1.4));
+    case "spring":
+      // Approximation — true spring uses Remotion's spring() per frame.
+      // For keyframe-segment interpolation we use a soft ease-out that
+      // mimics the post-overshoot settle.
+      return Easing.bezier(0.34, 1.56, 0.64, 1);
+    case "snappy":
+      return snappy;
+    case "bouncy":
+      return bouncy;
+  }
+}
+
+/**
+ * Evaluate a Keyframe[] (sorted by frame ascending) at the given frame.
+ * Locates the surrounding pair, interpolates with the leading keyframe's
+ * easing. Clamps to the first/last value outside the range.
+ *
+ * Used by the renderer to read motion-preset and explicit-keyframe
+ * animations for textY / opacity / scale / etc.
+ */
+export function evaluateKeyframes(frame: number, kfs: Keyframe[]): number {
+  if (kfs.length === 0) return 0;
+  if (kfs.length === 1) return kfs[0].value;
+  if (frame <= kfs[0].frame) return kfs[0].value;
+  if (frame >= kfs[kfs.length - 1].frame) return kfs[kfs.length - 1].value;
+  // Linear search is fine for the small (≤8) keyframe sets we expect.
+  for (let i = 0; i < kfs.length - 1; i++) {
+    const a = kfs[i];
+    const b = kfs[i + 1];
+    if (frame >= a.frame && frame <= b.frame) {
+      return interpolate(frame, [a.frame, b.frame], [a.value, b.value], {
+        easing: resolveEasing(a.easing),
+        extrapolateLeft: 'clamp',
+        extrapolateRight: 'clamp',
+      });
+    }
+  }
+  return kfs[kfs.length - 1].value;
 }

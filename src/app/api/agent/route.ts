@@ -24,6 +24,8 @@ interface AgentRequest {
   project: Project;
   characters: CharacterAsset[];
   sfx: SfxAsset[];
+  /** When set, the agent's edits are scoped to this scene only. */
+  focusedSceneId?: string | null;
 }
 
 const SYSTEM_PROMPT = `You are VibeEdit's autonomous AI video editor. The user gives a goal; you produce the finished video. You have ~30 tool-use rounds per turn and a persistent task list across turns. Use them.
@@ -525,6 +527,7 @@ export async function POST(request: NextRequest) {
         characters: filteredCharacters,
         sfx: body.sfx ?? [],
         origin,
+        focusedSceneId: body.focusedSceneId ?? null,
       };
 
       let consecutiveErrors = 0;
@@ -571,6 +574,30 @@ export async function POST(request: NextRequest) {
               { type: "text", text: audioCatalogSystemBlock() },
               { type: "text", text: workflowContext(project) },
             ];
+            // FOCUSED SCOPE: the user has scoped this turn to one scene.
+            // Splice a constraint block that overrides the default
+            // global-optimization mindset of the SYSTEM_PROMPT.
+            if (body.focusedSceneId) {
+              const focusedScene = project.scenes.find(
+                (s) => s.id === body.focusedSceneId,
+              );
+              if (focusedScene) {
+                const idx = project.scenes.findIndex(
+                  (s) => s.id === body.focusedSceneId,
+                );
+                systemBlocks.push({
+                  type: "text",
+                  text:
+                    `FOCUSED SCOPE — IMPORTANT.\n` +
+                    `The user has scoped this turn to scene ${idx + 1} (id ${focusedScene.id}).\n` +
+                    `Modifications must apply ONLY to this scene. All tool calls without an explicit sceneId default to "${focusedScene.id}".\n` +
+                    `DO NOT call: planVideo, applySceneTemplate, applyPaletteToProject, switchWorkflow, appendEndScreen, generateMusicForProject, or any other tool that mutates other scenes.\n` +
+                    `selfCritique should focus on this scene only.\n` +
+                    `videoQualityScore is already running in per-scene mode.\n` +
+                    `If the user's request implies a multi-scene change, ask them to exit focus mode first; do not silently widen scope.`,
+                });
+              }
+            }
             // Goal-anchor: every 3 rounds re-pin the spine + score so the
             // agent doesn't drift mid-loop. autoresearch's "transparent
             // experiment log" pattern, but for self-orientation.

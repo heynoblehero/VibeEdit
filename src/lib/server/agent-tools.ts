@@ -24,6 +24,32 @@ export interface ToolContext {
   characters: CharacterAsset[];
   sfx: SfxAsset[];
   origin: string;
+  /** When set, sceneId-less tool calls default to this id. */
+  focusedSceneId?: string | null;
+}
+
+/**
+ * Resolve the sceneId a tool should operate on. Helper used by every
+ * tool that takes a `sceneId` arg so the agent can omit the arg in
+ * focus mode and have it auto-fill from the focused scene.
+ *
+ *  - If args.sceneId is provided AND matches a real scene, use it.
+ *  - Else if ctx.focusedSceneId is set AND matches, use it.
+ *  - Else return null (caller emits the error message).
+ */
+export function resolveSceneId(
+  args: ToolArgs,
+  ctx: ToolContext,
+): string | null {
+  const explicit = args.sceneId ? String(args.sceneId) : "";
+  if (explicit && ctx.project.scenes.some((s) => s.id === explicit))
+    return explicit;
+  if (
+    ctx.focusedSceneId &&
+    ctx.project.scenes.some((s) => s.id === ctx.focusedSceneId)
+  )
+    return ctx.focusedSceneId;
+  return null;
 }
 
 export interface ToolResult {

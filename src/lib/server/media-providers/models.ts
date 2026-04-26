@@ -87,6 +87,31 @@ export const MEDIA_MODELS: MediaModel[] = [
     defaultInput: { aspect_ratio: "16:9" },
   },
   {
+    id: "instant-id",
+    kind: "image",
+    provider: "replicate",
+    slug: "zsxkib/instant-id",
+    name: "InstantID (face consistency)",
+    description:
+      "Identity-preserving face generation. Pass a face photo + prompt and it generates the same person in the new context. Use whenever scene.subjectId is set on a person subject so 'Sarah' looks like 'Sarah' across all scenes.",
+    tags: ["consistency", "face", "identity", "subject"],
+    estimatedCostUsd: 0.005,
+    resolution: "1024",
+    defaultInput: { num_inference_steps: 30, guidance_scale: 5 },
+  },
+  {
+    id: "flux-redux",
+    kind: "image",
+    provider: "replicate",
+    slug: "black-forest-labs/flux-redux-dev",
+    name: "Flux Redux (img2img)",
+    description:
+      "Image-to-image conditioning. Pass a reference image + prompt — output preserves the structure/style of the reference. Use for product/object subjects where you want the SAME object in a new context.",
+    tags: ["consistency", "img2img", "product", "subject"],
+    estimatedCostUsd: 0.005,
+    resolution: "1024",
+  },
+  {
     id: "ideogram-v3-turbo",
     kind: "image",
     provider: "replicate",

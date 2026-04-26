@@ -1050,6 +1050,24 @@ const TOOLS: Record<string, AgentTool> = {
     },
     async execute(args, ctx) {
       let prompt = String(args.prompt ?? "");
+      // Sentiment-aware seasoning: scan all narration text for emotional
+      // keywords and prepend the dominant tone to the agent's prompt.
+      // E.g. "lo-fi beats" + script full of "shocking", "scam", "you
+      // won't believe" → "tense lo-fi beats". Keeps the agent's intent
+      // but steers the model toward the right energy.
+      const allText = ctx.project.scenes
+        .map((s) => `${s.voiceover?.text ?? ""} ${s.text ?? ""} ${s.emphasisText ?? ""}`)
+        .join(" ")
+        .toLowerCase();
+      const sentimentMap: Array<{ tone: string; words: RegExp }> = [
+        { tone: "tense", words: /\b(scam|shock|warning|wrong|crisis|danger|secret)\b/ },
+        { tone: "uplifting", words: /\b(amazing|love|joy|incredible|win|success|beautiful)\b/ },
+        { tone: "playful", words: /\b(funny|silly|haha|wow|fun|cute|weird)\b/ },
+        { tone: "epic", words: /\b(legendary|massive|huge|epic|finally|ultimate)\b/ },
+        { tone: "thoughtful", words: /\b(reflect|consider|think about|wonder|maybe|perhaps)\b/ },
+      ];
+      const sentiment = sentimentMap.find((m) => m.words.test(allText));
+
       // Workflow-aware genre bias: if the agent passed a generic prompt
       // ("background music"), nudge it toward a sound that actually fits
       // the workflow instead of defaulting to a stock orchestra hit.
@@ -1061,6 +1079,11 @@ const TOOLS: Record<string, AgentTool> = {
         else if (wf === "faceless") prompt = "tense cinematic underscore, low pulsing synth, drama";
         else if (wf === "shorts" || wf === "ai-animated") prompt = "punchy upbeat electronic, hype, modern pop";
         else prompt = "modern cinematic underscore, subtle, mood-neutral";
+      }
+      // Prepend the detected sentiment (if any) so it composes with the
+      // workflow base prompt: "tense + lo-fi beats" beats either alone.
+      if (sentiment && !prompt.toLowerCase().includes(sentiment.tone)) {
+        prompt = `${sentiment.tone}, ${prompt}`;
       }
       // Auto-fit the music length to the video unless caller specified.
       // Cap at 47s (model max). Min 15s — short clips loop awkwardly.

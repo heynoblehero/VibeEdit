@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useAssetStore } from "@/store/asset-store";
 import { useEditorStore, type EditTarget } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
-import type { EnterDirection, Scene } from "@/lib/scene-schema";
+import type { EnterDirection, MotionPreset, Scene } from "@/lib/scene-schema";
 import { getWorkflow } from "@/lib/workflows/registry";
 import { BRollPanel } from "./BRollPanel";
 import { MediaModelPicker } from "./MediaModelPicker";
@@ -279,7 +279,61 @@ function TextPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>
           <span className="text-[10px] text-neutral-500">{scene.textY ?? 300}</span>
         </Field>
       </div>
+      <MotionPresetField
+        label="Text motion"
+        value={scene.textMotion}
+        onChange={(v) => update({ textMotion: v })}
+      />
+      <MotionPresetField
+        label="Emphasis motion"
+        value={scene.emphasisMotion}
+        onChange={(v) => update({ emphasisMotion: v })}
+      />
     </>
+  );
+}
+
+const MOTION_NAMES: Array<MotionPreset> = [
+  "none",
+  "drift_up",
+  "drift_down",
+  "pulse",
+  "shake",
+  "ken_burns_in",
+  "ken_burns_out",
+  "parallax_slow",
+  "parallax_fast",
+  "bounce_in",
+  "fade_in_out",
+  "wobble",
+];
+
+function MotionPresetField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: MotionPreset | undefined;
+  onChange: (v: MotionPreset | undefined) => void;
+}) {
+  return (
+    <Field label={label}>
+      <select
+        value={value ?? "none"}
+        onChange={(e) => {
+          const v = e.target.value as MotionPreset;
+          onChange(v === "none" ? undefined : v);
+        }}
+        className="input-field w-full text-xs"
+      >
+        {MOTION_NAMES.map((n) => (
+          <option key={n} value={n}>
+            {n.replace(/_/g, " ")}
+          </option>
+        ))}
+      </select>
+    </Field>
   );
 }
 

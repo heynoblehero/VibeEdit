@@ -1576,6 +1576,11 @@ const TOOLS: Record<string, AgentTool> = {
         structural + pacing + density + variety + hook + sfx + spine + cap + richBonus,
       );
       ctx.project.qualityScore = score;
+      // Track rolling history (last 6) so the gate can detect a plateau.
+      ctx.project.qualityScoreHistory = [
+        ...(ctx.project.qualityScoreHistory ?? []),
+        score,
+      ].slice(-6);
       const breakdown = [
         `structural=${structural}/30`,
         `pacing=${pacing}/15`,

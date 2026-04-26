@@ -307,9 +307,23 @@ function computeStructuralGaps(project: Project): string[] {
   // the agent should keep iterating (selfCritique → fixes → re-score).
   const score = project.qualityScore;
   if (typeof score === "number" && score < 75 && project.scenes.length >= 4) {
-    gaps.push(
-      `- videoQualityScore is ${score}/100 (need ≥75). Run selfCritique, fix the top findings, then videoQualityScore again. Don't claim done.`,
-    );
+    // Stall detector: if the last 3 scores are within ±2 of each other and
+    // still below threshold, the agent is doing the same thing and not
+    // improving. Demand a *different* strategy this turn.
+    const hist = project.qualityScoreHistory ?? [];
+    const recent = hist.slice(-3);
+    const stalled =
+      recent.length === 3 &&
+      Math.max(...recent) - Math.min(...recent) <= 2;
+    if (stalled) {
+      gaps.push(
+        `- qualityScore plateaued at ~${score}/100 across the last 3 passes. STOP doing the same thing. Try a *different* strategy: spawnSubAgent role=reviewer for fresh eyes, swap one shot's assetDecision (generate→stock or vice versa), or replan a weak scene with planVideo. Don't repeat the previous fix attempt.`,
+      );
+    } else {
+      gaps.push(
+        `- videoQualityScore is ${score}/100 (need ≥75). Run selfCritique, fix the top findings, then videoQualityScore again. Don't claim done.`,
+      );
+    }
   } else if (typeof score !== "number" && project.scenes.length >= 4) {
     gaps.push(
       `- Never computed videoQualityScore on this project. Call it now so we know what's weak.`,

@@ -2572,6 +2572,165 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  setMotionPreset: {
+    schema: {
+      name: "setMotionPreset",
+      description:
+        "Apply a named motion preset to a scene's element. element=text|emphasis|character|bg. preset=none|drift_up|drift_down|pulse|shake|ken_burns_in|ken_burns_out|parallax_slow|parallax_fast|bounce_in|fade_in_out|wobble. Use drift_up on hero/text-only scenes so they're not static; ken_burns_* on image bgs; pulse on emphasis text on stat/big_number scenes; shake/glitch on tense beats.",
+      input_schema: {
+        type: "object",
+        properties: {
+          sceneId: { type: "string" },
+          element: { type: "string", enum: ["text", "emphasis", "character", "bg"] },
+          preset: {
+            type: "string",
+            enum: [
+              "none", "drift_up", "drift_down", "pulse", "shake",
+              "ken_burns_in", "ken_burns_out", "parallax_slow", "parallax_fast",
+              "bounce_in", "fade_in_out", "wobble",
+            ],
+          },
+        },
+        required: ["sceneId", "element", "preset"],
+      },
+    },
+    async execute(args, ctx) {
+      const sceneId = resolveSceneId(args, ctx) ?? "";
+      const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
+      if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
+      const element = String(args.element);
+      const preset = args.preset as MotionPreset;
+      const scene = ctx.project.scenes[idx];
+      const updated: Scene = (() => {
+        switch (element) {
+          case "text":
+            return { ...scene, textMotion: preset === "none" ? undefined : preset };
+          case "emphasis":
+            return { ...scene, emphasisMotion: preset === "none" ? undefined : preset };
+          case "character":
+            return { ...scene, characterMotion: preset === "none" ? undefined : preset };
+          case "bg":
+            return { ...scene, bgMotion: preset === "none" ? undefined : preset };
+          default:
+            return scene;
+        }
+      })();
+      ctx.project.scenes = ctx.project.scenes.map((s, i) => (i === idx ? updated : s));
+      return { ok: true, message: `${element}Motion = ${preset} on scene ${sceneId.slice(0, 6)}` };
+    },
+  },
+
+  addKeyframe: {
+    schema: {
+      name: "addKeyframe",
+      description:
+        "Add or replace a keyframe on a scene's animatable property. Properties: textY, textOpacity, textScale, emphasisY, emphasisOpacity, emphasisScale, characterY, characterScale, bgScale, bgOffsetX, bgOffsetY, overlayOpacity. Replaces any existing keyframe at the same frame. For most beats, use setMotionPreset instead — addKeyframe is for fine-grained custom motion.",
+      input_schema: {
+        type: "object",
+        properties: {
+          sceneId: { type: "string" },
+          property: {
+            type: "string",
+            enum: [
+              "textY", "textOpacity", "textScale",
+              "emphasisY", "emphasisOpacity", "emphasisScale",
+              "characterY", "characterScale",
+              "bgScale", "bgOffsetX", "bgOffsetY",
+              "overlayOpacity",
+            ],
+          },
+          frame: { type: "number" },
+          value: { type: "number" },
+          easing: {
+            type: "string",
+            enum: ["linear", "ease_in", "ease_out", "ease_in_out", "ease_in_back", "ease_out_back", "ease_in_out_back", "spring", "snappy", "bouncy"],
+          },
+        },
+        required: ["sceneId", "property", "frame", "value"],
+      },
+    },
+    async execute(args, ctx) {
+      const sceneId = resolveSceneId(args, ctx) ?? "";
+      const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
+      if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
+      const property = args.property as KeyframeProperty;
+      const kf: Keyframe = {
+        frame: Math.max(0, Math.round(Number(args.frame))),
+        value: Number(args.value),
+        easing: args.easing as Easing | undefined,
+      };
+      const scene = ctx.project.scenes[idx];
+      const existing = scene.keyframes?.[property] ?? [];
+      const filtered = existing.filter((k) => k.frame !== kf.frame);
+      const next = [...filtered, kf].sort((a, b) => a.frame - b.frame);
+      const updated: Scene = {
+        ...scene,
+        keyframes: { ...(scene.keyframes ?? {}), [property]: next },
+      };
+      ctx.project.scenes = ctx.project.scenes.map((s, i) => (i === idx ? updated : s));
+      return {
+        ok: true,
+        message: `keyframe set on ${sceneId.slice(0, 6)}: ${property} @ frame ${kf.frame} = ${kf.value} (${args.easing ?? "linear"})`,
+      };
+    },
+  },
+
+  clearKeyframes: {
+    schema: {
+      name: "clearKeyframes",
+      description: "Remove all keyframes for a property on a scene. Use to revert to the static value or to fall back to a motion preset.",
+      input_schema: {
+        type: "object",
+        properties: {
+          sceneId: { type: "string" },
+          property: { type: "string" },
+        },
+        required: ["sceneId", "property"],
+      },
+    },
+    async execute(args, ctx) {
+      const sceneId = resolveSceneId(args, ctx) ?? "";
+      const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
+      if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
+      const property = args.property as KeyframeProperty;
+      const scene = ctx.project.scenes[idx];
+      if (!scene.keyframes?.[property]) {
+        return { ok: true, message: `no keyframes on ${property} — nothing to clear` };
+      }
+      const nextKfs = { ...scene.keyframes };
+      delete nextKfs[property];
+      ctx.project.scenes = ctx.project.scenes.map((s, i) =>
+        i === idx ? { ...s, keyframes: nextKfs } : s,
+      );
+      return { ok: true, message: `cleared ${property} keyframes on scene ${sceneId.slice(0, 6)}` };
+    },
+  },
+
+  listMotionPresets: {
+    schema: {
+      name: "listMotionPresets",
+      description: "Discoverable enum of motion presets the agent can pass to setMotionPreset. Use when picking the right preset for a beat.",
+      input_schema: { type: "object", properties: {} },
+    },
+    async execute() {
+      return {
+        ok: true,
+        message: [
+          "Available motion presets (with typical use):",
+          "  none — no motion",
+          "  drift_up / drift_down — text/character drifts vertically over the scene",
+          "  pulse — heartbeat scale (~6%) for emphasis on stat/big_number",
+          "  shake — lateral 6px jitter for tense / glitch beats",
+          "  ken_burns_in / ken_burns_out — slow bg zoom (1.0 ↔ 1.12)",
+          "  parallax_slow / parallax_fast — horizontal bg drift",
+          "  bounce_in — spring scale 0.6 → 1.0 with overshoot",
+          "  fade_in_out — opacity 0 → 1 → 0 with edge fades",
+          "  wobble — small rotation oscillation",
+        ].join("\n"),
+      };
+    },
+  },
+
   setCut: {
     schema: {
       name: "setCut",

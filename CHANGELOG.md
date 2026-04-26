@@ -1,5 +1,47 @@
 # Changelog
 
+## Unreleased — sprint 6: character consistency (8 commits)
+
+The biggest visible quality regression in agent-built videos was that
+named people changed face every scene. Sprint 6 closes it.
+
+### Schema
+- New `Subject` type: `{id, name, description, referenceImageUrl, kind}`.
+  `kind` is "person" / "product" / "other" — drives model routing.
+- `project.subjects[]`: registry of recurring subjects.
+- `scene.subjectId`: link a scene to a subject; image gen routes
+  through identity-preserving model.
+
+### Tools
+- `registerSubject(name, description, referenceImageUrl?, kind?)` —
+  saves a canonical hero portrait. When `referenceImageUrl` is omitted,
+  auto-generates a kind-aware portrait (studio headshot for person,
+  clean product shot for product).
+- `listSubjects` — returns the registry with usage counts.
+
+### Models
+- `instant-id` (zsxkib/instant-id, Replicate, ~$0.005): face-preserving
+  generation for person subjects.
+- `flux-redux` (black-forest-labs/flux-redux-dev, Replicate, ~$0.005):
+  structural img2img for product/object subjects.
+
+### Routing
+- `generateImage()` auto-selects instant-id / flux-redux when
+  `subjectReferenceUrl` + REPLICATE token are present. Falls back to
+  the default model with subject-augmented prompt when not.
+- `generateImageForScene` accepts `subjectId`, threads through the
+  full chain, sticky-tags the scene, bumps subject `usageCount`.
+
+### Gate
+- New force-continue check: scans capitalized proper nouns across all
+  scenes, flags any name that appears in 2+ without a registered
+  subject. Refuses termination until they're registered.
+
+### Agent
+- SYSTEM_PROMPT gains a SUBJECT CONSISTENCY rule.
+- Cinematic-short brief inserts a mandatory step 3.5: registerSubject
+  for every named recurring person/product before image gen.
+
 ## Unreleased — sprint 5: vision + intelligence + finishing toolbox (29 commits)
 
 Pivoted from "more graphics primitives" to "make the agent smarter +

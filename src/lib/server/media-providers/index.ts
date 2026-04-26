@@ -72,11 +72,25 @@ async function generateOpenAIImage(req: ImageRequest): Promise<MediaResult> {
   return { url, modelId: "gpt-image-1", provider: "openai" };
 }
 
+// In-memory cache so the same prompt + AR + model returns the same URL
+// within the same server lifetime. Cuts cost for /cinematic-short re-runs
+// on the same topic and for cinematic-mode user iteration.
+const imageCache = new Map<string, MediaResult>();
+const IMAGE_CACHE_MAX = 200;
+
+function imageCacheKey(req: ImageRequest, modelId: string): string {
+  return `${modelId}|${req.aspectRatio ?? "?"}|${req.shotType ?? "?"}|${req.prompt}`;
+}
+
 export async function generateImage(req: ImageRequest): Promise<MediaResult> {
   applyStoredKeys();
   const id = req.modelId ?? defaultModelId("image");
   const model = getMediaModel(id);
   if (!model || model.kind !== "image") throw new Error(`Unknown image model: ${id}`);
+
+  const cacheKey = imageCacheKey(req, id);
+  const cached = imageCache.get(cacheKey);
+  if (cached) return cached;
 
   if (model.provider === "pollinations") {
     // Free, keyless. URL-based: GET /prompt/<encoded>?width=&height=&nologo=true
@@ -116,10 +130,16 @@ export async function generateImage(req: ImageRequest): Promise<MediaResult> {
     if (!res.ok) {
       throw new Error(`Pollinations ${res.status}`);
     }
-    return { url, modelId: id, provider: "pollinations" };
+    const result: MediaResult = { url, modelId: id, provider: "pollinations" };
+    if (imageCache.size >= IMAGE_CACHE_MAX) imageCache.delete(imageCache.keys().next().value!);
+    imageCache.set(cacheKey, result);
+    return result;
   }
   if (model.provider === "openai") {
-    return generateOpenAIImage(req);
+    const result = await generateOpenAIImage(req);
+    if (imageCache.size >= IMAGE_CACHE_MAX) imageCache.delete(imageCache.keys().next().value!);
+    imageCache.set(cacheKey, result);
+    return result;
   }
   if (model.provider === "replicate") {
     if (!model.slug) throw new Error(`Model ${id} missing slug`);
@@ -129,7 +149,10 @@ export async function generateImage(req: ImageRequest): Promise<MediaResult> {
       ...(req.aspectRatio ? { aspect_ratio: req.aspectRatio } : {}),
     });
     const url = Array.isArray(output) ? output[0] : output;
-    return { url, modelId: id, provider: "replicate" };
+    const result: MediaResult = { url, modelId: id, provider: "replicate" };
+    if (imageCache.size >= IMAGE_CACHE_MAX) imageCache.delete(imageCache.keys().next().value!);
+    imageCache.set(cacheKey, result);
+    return result;
   }
   throw new Error(`No provider implementation for ${id}`);
 }

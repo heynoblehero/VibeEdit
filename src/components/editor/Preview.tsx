@@ -90,6 +90,17 @@ export function Preview() {
     };
   }, [isFullPreview, selectedSceneId, sceneBounds, setPlayingSceneId]);
 
+  // Map the player's current frame to a GLOBAL timeline frame so the
+  // Timeline strip's playhead is correct in both modes:
+  //   - Full preview: player frame already global.
+  //   - Single-scene preview: add the selected scene's start offset so
+  //     the playhead lands inside that scene block on the timeline.
+  const globalCurrentFrame = useMemo(() => {
+    if (isFullPreview) return currentFrame;
+    const bound = sceneBounds.find((b) => b.id === selectedSceneId);
+    return (bound?.start ?? 0) + currentFrame;
+  }, [isFullPreview, currentFrame, sceneBounds, selectedSceneId]);
+
   useEffect(() => {
     if (isPaused && playerRef.current) {
       playerRef.current.pause();
@@ -299,7 +310,7 @@ export function Preview() {
       </div>
       <Timeline
         playerRef={playerRef}
-        currentFrame={currentFrame}
+        currentFrame={globalCurrentFrame}
         isFullPreview={isFullPreview}
       />
     </div>

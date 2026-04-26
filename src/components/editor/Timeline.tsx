@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import type { PlayerRef } from "@remotion/player";
 import type { Cut } from "@/lib/scene-schema";
 import { sceneDurationFrames, totalDurationFrames } from "@/lib/scene-schema";
+import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 import { CutMarker } from "./CutMarker";
 
@@ -18,6 +19,7 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
   const selectScene = useProjectStore((s) => s.selectScene);
   const updateScene = useProjectStore((s) => s.updateScene);
   const moveScene = useProjectStore((s) => s.moveScene);
+  const playingSceneId = useEditorStore((s) => s.playingSceneId);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
@@ -101,9 +103,11 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
 
   if (project.scenes.length === 0) return null;
 
-  const playheadPct = isFullPreview
-    ? Math.min(100, Math.max(0, (currentFrame / total) * 100))
-    : null;
+  // Always show the playhead. Preview computes a global currentFrame
+  // (single-scene mode adds the selected scene's start offset) so the
+  // line lands correctly even when the user is editing one scene.
+  const playheadPct = Math.min(100, Math.max(0, (currentFrame / total) * 100));
+  void isFullPreview;
 
   const seconds = (total / project.fps).toFixed(1);
 
@@ -156,8 +160,12 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                 setDragIndex(null);
                 setHoverIndex(null);
               }}
-              className={`absolute top-0 bottom-0 border-l border-neutral-800/70 cursor-grab active:cursor-grabbing ${
-                selected ? "bg-emerald-500/25" : "hover:bg-neutral-800/60"
+              className={`absolute top-0 bottom-0 border-l border-neutral-800/70 cursor-grab active:cursor-grabbing transition-colors ${
+                playingSceneId === m.id
+                  ? "bg-sky-500/40 ring-1 ring-sky-400 ring-inset"
+                  : selected
+                    ? "bg-emerald-500/25"
+                    : "hover:bg-neutral-800/60"
               } ${isHoverTarget ? "ring-2 ring-sky-400 ring-inset" : ""} ${
                 dragIndex === i ? "opacity-50" : ""
               }`}
@@ -178,7 +186,7 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
             </div>
           );
         })}
-        {playheadPct !== null && (
+        {(
           <div
             style={{ left: `${playheadPct}%` }}
             className="absolute top-0 bottom-0 w-[2px] bg-emerald-400 pointer-events-none"

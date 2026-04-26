@@ -1894,6 +1894,61 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  exportSubtitles: {
+    schema: {
+      name: "exportSubtitles",
+      description:
+        "Build an SRT (or VTT) subtitle file from all narrated scenes' word timings. Returns the file as text the user can save. Useful for re-uploading the video to platforms that auto-display SRT (YouTube, Vimeo) or for translating.",
+      input_schema: {
+        type: "object",
+        properties: {
+          format: { type: "string", enum: ["srt", "vtt"] },
+          /** Group N words per cue. Default 5 — readable mid-screen. */
+          wordsPerCue: { type: "number" },
+        },
+      },
+    },
+    async execute(args, ctx) {
+      const fmt = args.format === "vtt" ? "vtt" : "srt";
+      const grouping = Math.max(2, Math.min(10, Number(args.wordsPerCue ?? 5)));
+      const cues: Array<{ start: number; end: number; text: string }> = [];
+      let sceneOffsetSec = 0;
+      for (const s of ctx.project.scenes) {
+        const words = s.voiceover?.captions ?? [];
+        for (let i = 0; i < words.length; i += grouping) {
+          const group = words.slice(i, i + grouping);
+          if (group.length === 0) continue;
+          cues.push({
+            start: sceneOffsetSec + group[0].startMs / 1000,
+            end: sceneOffsetSec + group[group.length - 1].endMs / 1000,
+            text: group.map((w) => w.word.trim()).join(" "),
+          });
+        }
+        sceneOffsetSec += s.duration ?? 2;
+      }
+      if (cues.length === 0) {
+        return { ok: true, message: "no caption word-timings on any scene — nothing to export." };
+      }
+      const fmtTime = (sec: number, useDot: boolean) => {
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        const s = Math.floor(sec % 60);
+        const ms = Math.floor((sec - Math.floor(sec)) * 1000);
+        const sep = useDot ? "." : ",";
+        return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}${sep}${String(ms).padStart(3, "0")}`;
+      };
+      let body = fmt === "vtt" ? "WEBVTT\n\n" : "";
+      cues.forEach((c, i) => {
+        if (fmt === "srt") body += `${i + 1}\n`;
+        body += `${fmtTime(c.start, fmt === "vtt")} --> ${fmtTime(c.end, fmt === "vtt")}\n${c.text}\n\n`;
+      });
+      return {
+        ok: true,
+        message: `${cues.length} cues exported (${fmt}):\n\n${body.slice(0, 4000)}${body.length > 4000 ? "\n... (truncated)" : ""}`,
+      };
+    },
+  },
+
   appendEndScreen: {
     schema: {
       name: "appendEndScreen",

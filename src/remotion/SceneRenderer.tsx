@@ -25,7 +25,9 @@ import { LowerThird } from "./components/LowerThird";
 import { QuoteBlock } from "./components/QuoteBlock";
 import { SlideTransition, ZoomBlur } from "./components/SlideTransition";
 import { GRAPHIC_MAP } from "./assets";
-import { bob } from "@/lib/anim";
+import { bob, evaluateKeyframes } from "@/lib/anim";
+import { MOTION_PRESETS, presetBaseValue } from "@/lib/motion-presets";
+import type { KeyframeProperty, MotionPreset } from "@/lib/scene-schema";
 
 interface SceneRendererProps {
   scene: Scene;
@@ -64,6 +66,40 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
   // sceneSfxUrl (AI-generated) takes priority over the library sfxId.
   const sfxSrc = s.sceneSfxUrl ?? (s.sfxId ? sfx[s.sfxId] : null);
   const charSrc = s.characterId ? characters[s.characterId] : null;
+
+  // ---- motion-preset / keyframe evaluation ----
+  // For a given (preset?, property): expand the preset to keyframes
+  // (or use scene.keyframes[property] if present — explicit overrides
+  // beat presets), then evaluate at the current frame. Falls through
+  // to presetBaseValue("none") when nothing is configured so callers
+  // can blindly add the offset without a guard.
+  const sceneDurFrames = Math.max(1, Math.round(s.duration * fps));
+  const motionValue = (
+    preset: MotionPreset | undefined,
+    property: KeyframeProperty,
+  ): number => {
+    const explicitKfs = s.keyframes?.[property];
+    if (explicitKfs && explicitKfs.length > 0) {
+      return evaluateKeyframes(frame, explicitKfs);
+    }
+    if (preset && preset !== "none") {
+      const generator = MOTION_PRESETS[preset];
+      if (generator) {
+        const kfs = generator(sceneDurFrames);
+        if (kfs.length > 0) return evaluateKeyframes(frame, kfs);
+      }
+    }
+    return presetBaseValue(preset ?? "none", property);
+  };
+
+  // Resolved per-element offsets used downstream.
+  const textYOffset = motionValue(s.textMotion, "textY");
+  const textScale = motionValue(s.textMotion, "textScale");
+  const emphasisYOffset = motionValue(s.emphasisMotion, "emphasisY");
+  const emphasisScale = motionValue(s.emphasisMotion, "emphasisScale");
+  const charYOffset = motionValue(s.characterMotion, "characterY");
+  const charScaleMotion = motionValue(s.characterMotion, "characterScale");
+  // emphasisScale + charScaleMotion are read inline below
 
   const enterDelay = 3;
   const charProgress = spring({
@@ -184,9 +220,9 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
               alt=""
               style={{
                 position: "absolute",
-                height: CHAR_HEIGHT * charScale,
-                left: charX + charTx - (CHAR_HEIGHT * charScale * 0.4),
-                top: charY + charTy + charBob - CHAR_HEIGHT * charScale,
+                height: CHAR_HEIGHT * charScale * charScaleMotion,
+                left: charX + charTx - (CHAR_HEIGHT * charScale * charScaleMotion * 0.4),
+                top: charY + charTy + charBob + charYOffset - CHAR_HEIGHT * charScale * charScaleMotion,
                 transform: `scaleX(${s.flipCharacter ? -1 : 1})`,
                 transformOrigin: "center bottom",
                 filter: "drop-shadow(0 8px 30px rgba(0,0,0,0.6))",
@@ -199,9 +235,9 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
             <PunchText
               text={s.text}
               startFrame={3}
-              fontSize={s.textSize ?? 64}
+              fontSize={(s.textSize ?? 64) * textScale}
               color={s.textColor ?? "#888888"}
-              y={s.textY ?? defaultTextY}
+              y={(s.textY ?? defaultTextY) + textYOffset}
               staggerFrames={4}
             />
           )}
@@ -210,10 +246,10 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
             <PunchText
               text={s.emphasisText}
               startFrame={12}
-              fontSize={s.emphasisSize ?? 96}
+              fontSize={(s.emphasisSize ?? 96) * emphasisScale}
               color={s.emphasisColor ?? "white"}
               glowColor={s.emphasisGlow}
-              y={(s.textY ?? defaultTextY) + (s.textSize ?? 64) + 20}
+              y={(s.textY ?? defaultTextY) + (s.textSize ?? 64) + 20 + emphasisYOffset}
               staggerFrames={5}
             />
           )}

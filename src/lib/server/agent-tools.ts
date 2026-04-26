@@ -1894,6 +1894,80 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  generatePublishMetadata: {
+    schema: {
+      name: "generatePublishMetadata",
+      description:
+        "Generate publish-time metadata for the video: 3 title variants (A/B testable), a TikTok/Reels caption, a YouTube description, and 8-12 hashtags. Reads project.spine + scenes for context. Stores result on project.metadata so the editor can copy/paste at publish time.",
+      input_schema: {
+        type: "object",
+        properties: {
+          platform: {
+            type: "string",
+            enum: ["tiktok", "instagram", "youtube_shorts", "youtube", "twitter"],
+          },
+        },
+      },
+    },
+    async execute(args, ctx) {
+      const platform = String(args.platform ?? "tiktok");
+      const spine = ctx.project.spine ?? "";
+      const scriptLines = ctx.project.scenes
+        .map((s) => s.voiceover?.text ?? s.text ?? s.emphasisText ?? "")
+        .filter(Boolean)
+        .join(" ")
+        .slice(0, 1500);
+      try {
+        const { callClaude } = await import("@/lib/server/claude-bridge");
+        const data = await callClaude(
+          {
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 1200,
+            system: [
+              {
+                type: "text",
+                text:
+                  `You are a social-media copy specialist. Output ONLY valid JSON, no prose around it. ` +
+                  `Required shape: {"titles":[<3 strings>],"caption":"<one ${platform} caption>","description":"<longform>","hashtags":[<8-12 strings without #>]}. ` +
+                  `Match platform conventions: TikTok captions <= 150 chars, YouTube descriptions can be 200-400 words. ` +
+                  `Lean into the spine when present.`,
+              },
+            ],
+            messages: [
+              {
+                role: "user",
+                content:
+                  `Spine: ${spine}\n\nScript transcript:\n${scriptLines}\n\nPlatform: ${platform}`,
+              },
+            ],
+          },
+          "publish-metadata",
+        );
+        const text = data.content.map((b) => b.text ?? "").join("\n");
+        const m = text.match(/\{[\s\S]*\}/);
+        if (!m) return { ok: true, message: `couldn't parse: ${text.slice(0, 200)}` };
+        const meta = JSON.parse(m[0]) as {
+          titles?: string[];
+          caption?: string;
+          description?: string;
+          hashtags?: string[];
+        };
+        // Stash on project for the UI to pick up.
+        (ctx.project as unknown as { metadata?: typeof meta }).metadata = meta;
+        return {
+          ok: true,
+          message:
+            `titles:\n${(meta.titles ?? []).map((t, i) => ` ${i + 1}. ${t}`).join("\n")}\n\n` +
+            `caption: ${meta.caption ?? "(none)"}\n\n` +
+            `description:\n${(meta.description ?? "").slice(0, 400)}\n\n` +
+            `hashtags: ${(meta.hashtags ?? []).map((h) => "#" + h).join(" ")}`,
+        };
+      } catch (e) {
+        return { ok: false, message: `metadata gen failed: ${e instanceof Error ? e.message : String(e)}` };
+      }
+    },
+  },
+
   visionCritiqueScene: {
     schema: {
       name: "visionCritiqueScene",

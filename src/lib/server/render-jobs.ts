@@ -194,6 +194,7 @@ async function runJob(job: RenderJob): Promise<void> {
     sfx,
     music,
     captionStyle: project.captionStyle,
+    cuts: project.cuts,
   };
 
   job.state = "rendering";

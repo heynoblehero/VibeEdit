@@ -1,8 +1,10 @@
 import React from "react";
-import { AbsoluteFill, Audio, Sequence, useCurrentFrame } from "remotion";
-import type { CaptionStyle, MusicBed, Scene } from "@/lib/scene-schema";
+import { AbsoluteFill, Audio, useCurrentFrame } from "remotion";
+import { TransitionSeries, linearTiming } from "@remotion/transitions";
+import type { CaptionStyle, Cut, MusicBed, Scene } from "@/lib/scene-schema";
 import { sceneDurationFrames } from "@/lib/scene-schema";
 import { SceneRenderer } from "./SceneRenderer";
+import { presentationFor } from "./cut-presentations";
 
 interface CompositionProps {
   scenes: Scene[];
@@ -11,6 +13,10 @@ interface CompositionProps {
   sfx: Record<string, string>;
   music?: MusicBed;
   captionStyle?: CaptionStyle;
+  cuts?: Cut[];
+  /** Canvas dims — required by some transition presentations (iris, clockWipe). */
+  width: number;
+  height: number;
   /** Subtle filmic grain overlay. Defaults on. */
   filmGrain?: boolean;
 }
@@ -101,9 +107,11 @@ export const VideoComposition: React.FC<CompositionProps> = ({
   sfx,
   music,
   captionStyle,
+  cuts,
+  width,
+  height,
   filmGrain = true,
 }) => {
-  let frameOffset = 0;
   const totalFrames = scenes.reduce(
     (sum, s) => sum + sceneDurationFrames(s, fps),
     0,
@@ -111,23 +119,53 @@ export const VideoComposition: React.FC<CompositionProps> = ({
   const duckRanges = music ? buildDuckingRanges(scenes, fps) : [];
   const swellFrames = music ? buildSwellFrames(scenes, fps) : [];
 
+  // Lookup table so we can find the cut between any two consecutive
+  // scenes without scanning the project.cuts array per pair.
+  const cutByPair = new Map<string, Cut>();
+  for (const c of cuts ?? []) {
+    cutByPair.set(`${c.fromSceneId}->${c.toSceneId}`, c);
+  }
+
+  // Build the TransitionSeries children inline. We emit a Sequence for
+  // every scene and a Transition between consecutive scenes ONLY when
+  // there's a cut with durationFrames > 0 — adjacent Sequences with no
+  // Transition between them produce a hard cut, which is what we want
+  // for the default case.
+  const seriesChildren: React.ReactNode[] = [];
+  for (let i = 0; i < scenes.length; i++) {
+    const scene = scenes[i];
+    const dur = sceneDurationFrames(scene, fps);
+    seriesChildren.push(
+      <TransitionSeries.Sequence key={`seq-${scene.id}`} durationInFrames={dur}>
+        <SceneRenderer
+          scene={scene}
+          characters={characters}
+          sfx={sfx}
+          captionStyle={captionStyle}
+        />
+      </TransitionSeries.Sequence>,
+    );
+    const next = scenes[i + 1];
+    if (next) {
+      // Prefer the explicit project.cuts entry; fall back to
+      // scene.transition for legacy projects saved before sprint 8.
+      const cut = cutByPair.get(`${scene.id}->${next.id}`);
+      const cutDur = cut?.durationFrames ?? 0;
+      if (cutDur > 0) {
+        seriesChildren.push(
+          <TransitionSeries.Transition
+            key={`trans-${scene.id}-${next.id}`}
+            presentation={presentationFor(cut!.kind, { width, height, color: cut?.color })}
+            timing={linearTiming({ durationInFrames: cutDur })}
+          />,
+        );
+      }
+    }
+  }
+
   return (
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
-      {scenes.map((scene) => {
-        const dur = sceneDurationFrames(scene, fps);
-        const el = (
-          <Sequence key={scene.id} from={frameOffset} durationInFrames={dur}>
-            <SceneRenderer
-              scene={scene}
-              characters={characters}
-              sfx={sfx}
-              captionStyle={captionStyle}
-            />
-          </Sequence>
-        );
-        frameOffset += dur;
-        return el;
-      })}
+      <TransitionSeries>{seriesChildren}</TransitionSeries>
 
       {music?.url && totalFrames > 0 && (
         <Audio

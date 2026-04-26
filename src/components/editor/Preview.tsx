@@ -234,6 +234,9 @@ export function Preview() {
               sfx: sfxMap,
               music: project.music,
               captionStyle: project.captionStyle,
+              cuts: project.cuts,
+              width: project.width,
+              height: project.height,
             }}
             durationInFrames={totalFrames}
             fps={project.fps}

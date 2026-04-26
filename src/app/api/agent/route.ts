@@ -233,6 +233,44 @@ function computeStructuralGaps(project: Project): string[] {
     }
   }
 
+  // Subject consistency: scan all narration / text / emphasisText for
+  // proper nouns that appear in 2+ scenes. If any of those names doesn't
+  // match a registered subject, the agent will produce a different face
+  // every time — flag it and demand registerSubject.
+  const properNounCounts = new Map<string, number>();
+  // Skip these — common ALL-CAPS hooks or brand-y words that don't refer
+  // to a recurring person/product.
+  const SKIP = new Set([
+    "I", "Im", "Ill", "AI", "USA", "UK", "EU", "TV", "DM", "LOL", "OK",
+    "WHY", "HOW", "WHAT", "WHEN", "WHERE", "WHO", "STEP", "TIP", "TIPS",
+    "NEW", "BIG", "TOP", "THE", "AND", "BUT", "FOR", "YOU",
+  ]);
+  for (const s of project.scenes) {
+    const text = `${s.text ?? ""} ${s.emphasisText ?? ""} ${s.voiceover?.text ?? ""}`;
+    const matches = text.match(/\b[A-Z][a-zA-Z]{2,}/g) ?? [];
+    const seenInScene = new Set<string>();
+    for (const m of matches) {
+      if (SKIP.has(m)) continue;
+      if (seenInScene.has(m)) continue;
+      seenInScene.add(m);
+      properNounCounts.set(m, (properNounCounts.get(m) ?? 0) + 1);
+    }
+  }
+  const registeredNames = new Set(
+    (project.subjects ?? []).map((s) => s.name.toLowerCase()),
+  );
+  const repeatedUnregistered = [...properNounCounts.entries()]
+    .filter(([name, count]) => count >= 2 && !registeredNames.has(name.toLowerCase()))
+    .slice(0, 3);
+  if (repeatedUnregistered.length > 0 && project.scenes.length >= 4) {
+    const list = repeatedUnregistered
+      .map(([name, count]) => `"${name}" (${count} scenes)`)
+      .join(", ");
+    gaps.push(
+      `- These names appear in 2+ scenes but aren't registered subjects: ${list}. Each generation will draw a different face. Call registerSubject(name, description) for each, then re-run generateImageForScene with subjectId so they look consistent.`,
+    );
+  }
+
   // Image dedup: same imageUrl repeated on consecutive scenes reads as
   // a stuck slideshow. Flag the first repeat so the agent regenerates
   // or routes to a different asset for the second occurrence.

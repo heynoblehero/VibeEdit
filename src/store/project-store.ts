@@ -5,6 +5,9 @@ import {
   type BRoll,
   type CaptionStyle,
   type CaptionWord,
+  type Cut,
+  type Keyframe,
+  type KeyframeProperty,
   type MusicBed,
   type Orientation,
   type Project,
@@ -67,6 +70,16 @@ interface ProjectStore {
   setGenerating: (v: boolean) => void;
   setRendering: (v: boolean) => void;
   setRenderProgress: (v: number) => void;
+  /** Insert or replace a cut by from/to scene id pair. */
+  upsertCut: (cut: Cut) => void;
+  /** Remove a cut by id. */
+  removeCut: (id: string) => void;
+  /** Insert or replace a keyframe at a given (sceneId, property, frame). */
+  upsertKeyframe: (sceneId: string, property: KeyframeProperty, kf: Keyframe) => void;
+  /** Remove a keyframe by sceneId + property + frame. */
+  removeKeyframe: (sceneId: string, property: KeyframeProperty, frame: number) => void;
+  /** Wipe all keyframes on a scene's property. */
+  clearKeyframes: (sceneId: string, property: KeyframeProperty) => void;
 
   undo: () => void;
   redo: () => void;
@@ -250,7 +263,29 @@ export const useProjectStore = create<ProjectStore>()(
         }),
       addScene: (scene) =>
         set((s) => {
-          const updated = { ...s.project, scenes: [...s.project.scenes, scene] };
+          const newScenes = [...s.project.scenes, scene];
+          // Auto-create a hard cut from the previous scene to this one so
+          // every boundary has a Cut entry the UI can render a marker for.
+          // Hard cut = durationFrames 0; renderer treats this as "no
+          // <Transition> node between Sequences" → identical to a clean cut.
+          const prev = s.project.scenes[s.project.scenes.length - 1];
+          const newCuts = prev
+            ? [
+                ...(s.project.cuts ?? []),
+                {
+                  id: createId(),
+                  fromSceneId: prev.id,
+                  toSceneId: scene.id,
+                  kind: "hard" as const,
+                  durationFrames: 0,
+                },
+              ]
+            : (s.project.cuts ?? []);
+          const updated = {
+            ...s.project,
+            scenes: newScenes,
+            cuts: newCuts.length > 0 ? newCuts : undefined,
+          };
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
@@ -571,6 +606,100 @@ export const useProjectStore = create<ProjectStore>()(
       setGenerating: (v) => set({ isGenerating: v }),
       setRendering: (v) => set({ isRendering: v }),
       setRenderProgress: (v) => set({ renderProgress: v }),
+
+      upsertCut: (cut) =>
+        set((s) => {
+          const existing = s.project.cuts ?? [];
+          // Match by from/to pair — cut id may change but the boundary
+          // is the natural identity. Allows re-saving the same cut after
+          // edits without growing the array.
+          const filtered = existing.filter(
+            (c) =>
+              !(c.fromSceneId === cut.fromSceneId && c.toSceneId === cut.toSceneId),
+          );
+          const updated = { ...s.project, cuts: [...filtered, cut] };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: pushHistory(s.history, s.project),
+            future: [],
+          };
+        }),
+      removeCut: (id) =>
+        set((s) => {
+          const updated = {
+            ...s.project,
+            cuts: (s.project.cuts ?? []).filter((c) => c.id !== id),
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: pushHistory(s.history, s.project),
+            future: [],
+          };
+        }),
+      upsertKeyframe: (sceneId, property, kf) =>
+        set((s) => {
+          const updated = {
+            ...s.project,
+            scenes: s.project.scenes.map((sc) => {
+              if (sc.id !== sceneId) return sc;
+              const existing = sc.keyframes?.[property] ?? [];
+              const filtered = existing.filter((k) => k.frame !== kf.frame);
+              const next = [...filtered, kf].sort((a, b) => a.frame - b.frame);
+              return {
+                ...sc,
+                keyframes: { ...(sc.keyframes ?? {}), [property]: next },
+              };
+            }),
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: pushHistory(s.history, s.project),
+            future: [],
+          };
+        }),
+      removeKeyframe: (sceneId, property, frame) =>
+        set((s) => {
+          const updated = {
+            ...s.project,
+            scenes: s.project.scenes.map((sc) => {
+              if (sc.id !== sceneId) return sc;
+              const existing = sc.keyframes?.[property];
+              if (!existing) return sc;
+              const filtered = existing.filter((k) => k.frame !== frame);
+              return {
+                ...sc,
+                keyframes: { ...(sc.keyframes ?? {}), [property]: filtered },
+              };
+            }),
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: pushHistory(s.history, s.project),
+            future: [],
+          };
+        }),
+      clearKeyframes: (sceneId, property) =>
+        set((s) => {
+          const updated = {
+            ...s.project,
+            scenes: s.project.scenes.map((sc) => {
+              if (sc.id !== sceneId) return sc;
+              const existing = { ...(sc.keyframes ?? {}) };
+              delete existing[property];
+              return { ...sc, keyframes: existing };
+            }),
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: pushHistory(s.history, s.project),
+            future: [],
+          };
+        }),
 
       undo: () =>
         set((s) => {

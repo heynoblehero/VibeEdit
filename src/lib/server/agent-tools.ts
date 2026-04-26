@@ -2801,6 +2801,62 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  snapshotProject: {
+    schema: {
+      name: "snapshotProject",
+      description:
+        "Save the current project state to a labeled snapshot the user can roll back to. Useful before risky bulk changes (apply palette, retroactively add scenes, switch workflow). Returns a snapshot id. The full snapshot stays in memory on the server until restart.",
+      input_schema: {
+        type: "object",
+        properties: {
+          label: { type: "string", description: "Human label, e.g. 'before color swap'." },
+        },
+      },
+    },
+    async execute(args, ctx) {
+      const label = String(args.label ?? `auto-${new Date().toISOString().slice(11, 19)}`);
+      const snapshots = (ctx.project as unknown as { _snapshots?: Array<{ id: string; label: string; ts: number; project: Project }> })._snapshots ?? [];
+      const id = createId();
+      // Deep clone via JSON to avoid mutation aliasing.
+      const cloned = JSON.parse(JSON.stringify(ctx.project)) as Project;
+      // Don't recurse into snapshots inside snapshots.
+      delete (cloned as unknown as { _snapshots?: unknown })._snapshots;
+      snapshots.push({ id, label, ts: Date.now(), project: cloned });
+      // Cap at 8 snapshots so memory doesn't grow unbounded.
+      while (snapshots.length > 8) snapshots.shift();
+      (ctx.project as unknown as { _snapshots: typeof snapshots })._snapshots = snapshots;
+      return {
+        ok: true,
+        message: `snapshot ${id.slice(0, 6)} saved as "${label}" (${snapshots.length}/8 slots used). Restore with restoreSnapshot.`,
+      };
+    },
+  },
+
+  restoreSnapshot: {
+    schema: {
+      name: "restoreSnapshot",
+      description:
+        "Restore a previously saved snapshot. Pass the id from snapshotProject. Replaces all scenes / spine / shotList / qualityScore. Snapshots survive only until server restart.",
+      input_schema: {
+        type: "object",
+        properties: { snapshotId: { type: "string" } },
+        required: ["snapshotId"],
+      },
+    },
+    async execute(args, ctx) {
+      const id = String(args.snapshotId);
+      const snapshots = (ctx.project as unknown as { _snapshots?: Array<{ id: string; project: Project; label: string }> })._snapshots ?? [];
+      // Allow short prefix match.
+      const snap = snapshots.find((s) => s.id === id || s.id.startsWith(id));
+      if (!snap) return { ok: false, message: `no snapshot matching "${id}". List with selfCritique or just don't pass an id.` };
+      // Restore everything but keep the snapshots list itself.
+      const list = snapshots;
+      Object.assign(ctx.project, snap.project);
+      (ctx.project as unknown as { _snapshots: typeof list })._snapshots = list;
+      return { ok: true, message: `restored "${snap.label}" — project rolled back.` };
+    },
+  },
+
   applyPaletteToProject: {
     schema: {
       name: "applyPaletteToProject",

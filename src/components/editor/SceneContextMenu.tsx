@@ -232,6 +232,36 @@ export function SceneContextMenu({ scene, index, x, y, onClose }: Props) {
         Move to end
       </button>
       <button
+        onClick={() => {
+          const project = useProjectStore.getState().project;
+          let overlay = project.tracks?.find((t) => t.kind === "overlay");
+          if (!overlay) {
+            // Create one and migrate the implicit V1 in the same step.
+            const overlayCount =
+              project.tracks?.filter((t) => t.kind === "overlay").length ?? 0;
+            const newTrack = {
+              id: `track-${Math.random().toString(36).slice(2, 8)}`,
+              kind: "overlay" as const,
+              name: `Overlay ${overlayCount + 1}`,
+              sceneIds: [],
+              opacity: 1,
+              blendMode: "normal" as const,
+            };
+            useProjectStore.getState().addTrack(newTrack);
+            overlay = newTrack;
+          }
+          useProjectStore
+            .getState()
+            .moveSceneToTrack(scene.id, overlay.id, overlay.sceneIds.length);
+          toast(`→ ${overlay.name}`, { duration: 700 });
+          onClose();
+        }}
+        className="w-full text-left px-3 py-1.5 text-neutral-200 hover:bg-neutral-800"
+        title="Move this scene to an overlay track (creates one if none exists)"
+      >
+        Move to overlay track
+      </button>
+      <button
         onClick={copyText}
         className="w-full text-left px-3 py-1.5 text-neutral-200 hover:bg-neutral-800"
       >

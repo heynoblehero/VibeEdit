@@ -145,6 +145,21 @@ export function Preview() {
     };
   }, []);
 
+  // Auto-pause when the tab loses focus — keeps the user from
+  // tab-switching to chat / docs and coming back to a finished
+  // playback they didn't watch. Also stops audio bleeding into
+  // background tabs.
+  useEffect(() => {
+    const onVis = () => {
+      if (document.hidden) {
+        playerRef.current?.pause();
+        setPaused(true);
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [setPaused]);
+
   // Loop range wrap-around. When the playhead crosses loopRange.end we
   // seek back to loopRange.start so the user can preview a tight clip
   // on repeat. Only active in full-project mode.

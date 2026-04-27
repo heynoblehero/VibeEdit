@@ -975,16 +975,35 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
               key={mk.id}
               style={{ left: `${pct}%`, borderColor: color }}
               className="absolute top-0 bottom-0 border-l-2 border-dashed group/marker"
-              title={`${mk.label ?? "marker"} · ${(mk.frame / project.fps).toFixed(2)}s — Alt-click to remove`}
+              title={`${mk.label ?? "marker"} · ${(mk.frame / project.fps).toFixed(2)}s — drag to move · Alt-click to remove`}
               onClick={(e) => {
                 if (e.altKey) {
                   e.stopPropagation();
                   useProjectStore.getState().removeMarker(mk.id);
                 }
               }}
+              onPointerDown={(e) => {
+                if (e.altKey) return;
+                e.stopPropagation();
+                const trackEl = trackRef.current;
+                if (!trackEl) return;
+                (e.target as HTMLElement).setPointerCapture(e.pointerId);
+                const rect = trackEl.getBoundingClientRect();
+                const onMove = (ev: PointerEvent) => {
+                  const ratio = (ev.clientX - rect.left) / rect.width;
+                  const frame = Math.max(0, Math.min(total - 1, Math.round(ratio * total)));
+                  useProjectStore.getState().updateMarker(mk.id, { frame });
+                };
+                const onUp = () => {
+                  window.removeEventListener("pointermove", onMove);
+                  window.removeEventListener("pointerup", onUp);
+                };
+                window.addEventListener("pointermove", onMove);
+                window.addEventListener("pointerup", onUp);
+              }}
             >
               <span
-                className="absolute -top-1 left-0 -translate-x-1/2 w-2 h-2 rounded-full"
+                className="absolute -top-1 left-0 -translate-x-1/2 w-2 h-2 rounded-full cursor-grab active:cursor-grabbing"
                 style={{ backgroundColor: color }}
               />
               {mk.label && (

@@ -66,6 +66,7 @@ interface ProjectStore {
   setAudioMix: (patch: Partial<NonNullable<Project["audioMix"]>>) => void;
   addMarker: (marker: NonNullable<Project["markers"]>[number]) => void;
   removeMarker: (id: string) => void;
+  updateMarker: (id: string, patch: Partial<NonNullable<Project["markers"]>[number]>) => void;
   addTrack: (track: Track) => void;
   removeTrack: (id: string) => void;
   updateTrack: (id: string, patch: Partial<Track>) => void;
@@ -620,6 +621,22 @@ export const useProjectStore = create<ProjectStore>()(
             projects: { ...s.projects, [updated.id]: updated },
             history: pushHistory(s.history, s.project),
             future: [],
+          };
+        }),
+      updateMarker: (id, patch) =>
+        set((s) => {
+          const updated = {
+            ...s.project,
+            markers: (s.project.markers ?? []).map((m) =>
+              m.id === id ? { ...m, ...patch } : m,
+            ),
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            // No history push — marker drag fires per pixel; would
+            // explode the undo stack. Final position lands on next
+            // user action that does push history.
           };
         }),
       // ----- Multi-track (M1) -----

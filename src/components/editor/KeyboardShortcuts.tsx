@@ -126,6 +126,23 @@ export function KeyboardShortcuts() {
         }
       }
 
+      // ⌘` cycles through projects in id order — quick way to jump
+      // back to the previously-edited project without opening the
+      // switcher.
+      if (mod && e.key === "`" && !isTextInput(e.target)) {
+        e.preventDefault();
+        const st = useProjectStore.getState();
+        const ids = Object.keys(st.projects);
+        if (ids.length < 2) return;
+        const idx = ids.indexOf(st.project.id);
+        const next = ids[(idx + 1) % ids.length];
+        if (next && next !== st.project.id) {
+          st.switchProject(next);
+          toast(`→ ${st.projects[next]?.name ?? "Project"}`, { duration: 700 });
+        }
+        return;
+      }
+
       // ⌘⇧N — create a new blank project.
       if (mod && e.shiftKey && e.key.toLowerCase() === "n" && !isTextInput(e.target)) {
         e.preventDefault();

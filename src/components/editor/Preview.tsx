@@ -1,7 +1,7 @@
 "use client";
 
 import { Player, type PlayerRef } from "@remotion/player";
-import { ArrowRight, MessageCircle, Pause, Play, Sparkles } from "lucide-react";
+import { ArrowRight, MessageCircle, Pause, Play, Plus, Sparkles, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AbsoluteFill } from "remotion";
 import { sceneDurationFrames, totalDurationFrames } from "@/lib/scene-schema";
@@ -318,128 +318,127 @@ export function Preview() {
 }
 
 /**
- * Shown when the project has no scenes yet. Instructs the user to chat
- * with the agent. Three example prompts pre-fill + auto-submit the
- * chat. Cmd+K shortcut hint is prominent. Surprise-me is demoted to a
- * tiny secondary link at the bottom.
+ * Shown when the project has no scenes yet. Editor-first: leads with
+ * "+ Add scene" and "drop files in Uploads" so the user starts editing
+ * manually by default. AI build remains available as a secondary
+ * affordance below.
  */
 function EmptyProjectInstruction() {
-  const sendToChat = async (text: string, autoSubmit: boolean) => {
-    // Open the chat sidebar (the page-level Cmd+K handler is the
-    // canonical way to open + focus). We dispatch a synthesized
-    // keyboard event so we don't have to wire a new prop through the
-    // editor layout.
-    const evt = new KeyboardEvent("keydown", {
-      key: "k",
-      metaKey: true,
-      ctrlKey: false,
-      bubbles: true,
-    });
+  const openChat = (prefab?: string) => {
+    const evt = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true });
     window.dispatchEvent(evt);
-    // Wait for the sidebar to mount + focus, then either pre-fill the
-    // textarea (so the user sees the prompt and can edit) or
-    // addUserMessage + submit for one-click suggestions.
-    setTimeout(async () => {
-      if (autoSubmit) {
+    if (prefab) {
+      setTimeout(async () => {
         const { useChatStore } = await import("@/store/chat-store");
-        useChatStore.getState().addUserMessage(text);
+        useChatStore.getState().addUserMessage(prefab);
         document.querySelector<HTMLFormElement>("aside form")?.requestSubmit();
-      } else {
-        const ta = document.querySelector<HTMLTextAreaElement>("aside textarea");
-        if (ta) {
-          ta.value = text;
-          ta.dispatchEvent(new Event("input", { bubbles: true }));
-          ta.focus();
-        }
-      }
-    }, 80);
+      }, 80);
+    }
+  };
+
+  const addBlankScene = async () => {
+    const { useProjectStore: store } = await import("@/store/project-store");
+    const { createId, DEFAULT_BG } = await import("@/lib/scene-schema");
+    const project = store.getState().project;
+    const portrait = project.height > project.width;
+    store.getState().addScene({
+      id: createId(),
+      type: "text_only",
+      duration: 2,
+      emphasisText: "edit me",
+      emphasisSize: portrait ? 96 : 72,
+      emphasisColor: "#ffffff",
+      textY: portrait ? 500 : 380,
+      transition: "beat_flash",
+      background: { ...DEFAULT_BG },
+    });
   };
 
   const PROMPTS = [
-    {
-      label: "60-second short about morning routines",
-      text: "Make a 9:16 short about a productive morning routine — 8 scenes, punchy hook, 5 specific tips, CTA at the end.",
-    },
-    {
-      label: "Product reveal video",
-      text: "Make a 30-second product reveal — tease scene, hero close-up, three feature highlights, dramatic reveal, CTA.",
-    },
-    {
-      label: "Educational explainer",
-      text: "Make a 45-second explainer answering 'why does X happen?' — question hook, setup, core explanation, two examples, takeaway.",
-    },
+    "Make a 9:16 short about a productive morning routine — 8 scenes, punchy hook, 5 tips, CTA.",
+    "Make a 30-second product reveal — tease, hero close-up, 3 features, dramatic reveal, CTA.",
+    "Make a 45-second explainer for 'why does X happen?' — hook, setup, core, two examples, takeaway.",
   ];
 
   return (
-    <div className="flex flex-col items-center justify-center h-full bg-black/50 rounded-lg border border-neutral-800 p-8 gap-6">
-      <div className="flex items-center gap-2 text-emerald-400">
-        <MessageCircle className="h-6 w-6" />
-        <ArrowRight className="h-4 w-4 animate-pulse" />
-        <Sparkles className="h-6 w-6" />
+    <div className="flex flex-col items-center justify-center h-full bg-black/50 rounded-lg border border-neutral-800 p-8 gap-5">
+      {/* Primary editor-first CTA */}
+      <div className="flex flex-col items-center gap-3 max-w-md">
+        <div className="text-center">
+          <h2 className="text-base font-semibold text-white mb-0.5">
+            Add your first scene
+          </h2>
+          <p className="text-[11px] text-neutral-500">
+            Build the video by hand, or hand the brief to the AI below.
+          </p>
+        </div>
+        <div className="flex flex-col items-stretch gap-2 w-full">
+          <button
+            type="button"
+            onClick={addBlankScene}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-md bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-sm transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Add a blank scene
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const evt = new KeyboardEvent("keydown", {
+                key: "u",
+                ctrlKey: true,
+                bubbles: true,
+              });
+              window.dispatchEvent(evt);
+            }}
+            className="flex items-center justify-center gap-2 px-3 py-1.5 rounded-md text-xs text-neutral-400 hover:text-white border border-neutral-800 hover:border-neutral-700 transition-colors"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Drop files in Uploads (header → Upload icon)
+          </button>
+        </div>
       </div>
-      <div className="text-center max-w-md">
-        <h2 className="text-base font-semibold text-white mb-1">
-          Tell the AI what to make
-        </h2>
-        <p className="text-xs text-neutral-400 leading-relaxed">
-          Open the chat (
-          <kbd className="px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-emerald-400 text-[10px]">
+
+      {/* Divider */}
+      <div className="flex items-center gap-3 w-full max-w-md text-[10px] uppercase tracking-wider text-neutral-600">
+        <div className="flex-1 h-px bg-neutral-800" />
+        <span>or have AI build the whole thing</span>
+        <div className="flex-1 h-px bg-neutral-800" />
+      </div>
+
+      {/* Secondary AI affordance */}
+      <div className="flex flex-col gap-1.5 w-full max-w-md">
+        {PROMPTS.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => openChat(p)}
+            className="group flex items-center gap-2 w-full text-left px-3 py-1.5 rounded bg-neutral-900 border border-neutral-800 hover:border-emerald-500/60 hover:bg-emerald-500/5 transition-colors"
+          >
+            <Sparkles className="h-3 w-3 text-emerald-400 shrink-0" />
+            <span className="text-[11px] text-neutral-400 group-hover:text-white flex-1 truncate">
+              {p}
+            </span>
+            <ArrowRight className="h-3 w-3 text-neutral-700 group-hover:text-emerald-400" />
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => openChat()}
+          className="flex items-center justify-center gap-1.5 mt-1 text-[11px] text-neutral-500 hover:text-emerald-300 transition-colors"
+        >
+          <MessageCircle className="h-3 w-3" />
+          Open AI chat ({" "}
+          <kbd className="px-1 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-emerald-400 text-[9px]">
             Cmd
           </kbd>{" "}
           +{" "}
-          <kbd className="px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-emerald-400 text-[10px]">
+          <kbd className="px-1 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-emerald-400 text-[9px]">
             K
           </kbd>
-          ) and describe the video you want. The agent will plan it,
-          generate visuals + narration + music, and render it for you.
-        </p>
-      </div>
-      <div className="flex flex-col gap-2 w-full max-w-md">
-        <span className="text-[10px] uppercase tracking-wider text-neutral-500 text-center">
-          Or pick a starter prompt
-        </span>
-        {PROMPTS.map((p) => (
-          <button
-            key={p.label}
-            type="button"
-            onClick={() => sendToChat(p.text, true)}
-            className="group flex items-center gap-2 w-full text-left px-3 py-2 rounded-md bg-neutral-900 border border-neutral-800 hover:border-emerald-500/60 hover:bg-emerald-500/5 transition-colors"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-            <span className="text-xs text-neutral-300 group-hover:text-white flex-1">
-              {p.label}
-            </span>
-            <ArrowRight className="h-3 w-3 text-neutral-600 group-hover:text-emerald-400" />
-          </button>
-        ))}
-      </div>
-      <button
-        type="button"
-        onClick={() => {
-          const evt = new KeyboardEvent("keydown", {
-            key: "k",
-            metaKey: true,
-            bubbles: true,
-          });
-          window.dispatchEvent(evt);
-        }}
-        className="flex items-center gap-2 px-5 py-2.5 rounded-md bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-sm transition-colors"
-      >
-        <MessageCircle className="h-4 w-4" />
-        Open the AI chat
-      </button>
-      <button
-        type="button"
-        onClick={() =>
-          sendToChat(
-            "Surprise me. Pick a fun workflow and make a fully-narrated 60s demo video.",
-            true,
           )
-        }
-        className="text-[10px] text-neutral-600 hover:text-neutral-400 underline decoration-dotted underline-offset-2"
-      >
-        or surprise me with a random demo
-      </button>
+        </button>
+      </div>
     </div>
   );
 }

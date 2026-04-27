@@ -523,6 +523,17 @@ export interface Project {
     voice?: number;
     sfx?: number;
   };
+  /**
+   * User-placed timeline markers. Render as vertical bars in the
+   * Timeline ruler. M key while editing sets a marker at the
+   * current playhead frame. No render-side semantics — purely UX.
+   */
+  markers?: Array<{
+    id: string;
+    frame: number;
+    label?: string;
+    color?: "red" | "amber" | "green" | "blue" | "purple" | "pink";
+  }>;
 }
 
 /* ============================================================

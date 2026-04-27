@@ -733,6 +733,44 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
             className="absolute top-0 bottom-0 w-[2px] bg-emerald-400 pointer-events-none"
           />
         )}
+        {(project.markers ?? []).map((mk) => {
+          const pct = Math.min(100, Math.max(0, (mk.frame / total) * 100));
+          const color = {
+            red: "#ef4444",
+            amber: "#f59e0b",
+            green: "#10b981",
+            blue: "#3b82f6",
+            purple: "#a855f7",
+            pink: "#ec4899",
+          }[mk.color ?? "amber"];
+          return (
+            <div
+              key={mk.id}
+              style={{ left: `${pct}%`, borderColor: color }}
+              className="absolute top-0 bottom-0 border-l-2 border-dashed group/marker"
+              title={`${mk.label ?? "marker"} · ${(mk.frame / project.fps).toFixed(2)}s — Alt-click to remove`}
+              onClick={(e) => {
+                if (e.altKey) {
+                  e.stopPropagation();
+                  useProjectStore.getState().removeMarker(mk.id);
+                }
+              }}
+            >
+              <span
+                className="absolute -top-1 left-0 -translate-x-1/2 w-2 h-2 rounded-full"
+                style={{ backgroundColor: color }}
+              />
+              {mk.label && (
+                <span
+                  className="absolute -top-3.5 left-1 text-[9px] whitespace-nowrap pointer-events-none"
+                  style={{ color }}
+                >
+                  {mk.label}
+                </span>
+              )}
+            </div>
+          );
+        })}
         {/* Insert (+) buttons at every boundary AND at the very start and
             end. Hover-revealed; click → blank scene at that index pushed
             via insertSceneAt. */}

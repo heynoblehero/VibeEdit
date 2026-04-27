@@ -35,6 +35,25 @@ export function KeyboardShortcuts() {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
 
+      // M — set marker at the current playhead frame. Plain key, gated
+      // against text inputs. Pulls previewFrame from the editor store
+      // (kept in sync by Preview's onFrameUpdate).
+      if (!mod && (e.key === "m" || e.key === "M") && !isTextInput(e.target)) {
+        e.preventDefault();
+        const frame = useEditorStore.getState().previewFrame;
+        const id = `mk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const colors = ["amber", "red", "green", "blue", "purple", "pink"] as const;
+        const existingCount =
+          useProjectStore.getState().project.markers?.length ?? 0;
+        useProjectStore.getState().addMarker({
+          id,
+          frame,
+          color: colors[existingCount % colors.length],
+        });
+        toast(`Marker @ ${(frame / 30).toFixed(2)}s`, { duration: 800 });
+        return;
+      }
+
       // C — toggle cut tool. V — selection mode (cut off). Premiere
       // convention. Plain keys; gated against text inputs so they don't
       // hijack typing in the chat / scene editor.

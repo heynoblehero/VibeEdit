@@ -63,6 +63,8 @@ interface ProjectStore {
   setSceneCaptions: (sceneId: string, captions: CaptionWord[] | undefined) => void;
   setMusic: (music: MusicBed | undefined) => void;
   setAudioMix: (patch: Partial<NonNullable<Project["audioMix"]>>) => void;
+  addMarker: (marker: NonNullable<Project["markers"]>[number]) => void;
+  removeMarker: (id: string) => void;
   setCaptionStyle: (patch: Partial<CaptionStyle>) => void;
   setStylePack: (pack: StylePack | undefined) => void;
   setWorkflowId: (workflowId: string) => void;
@@ -575,6 +577,32 @@ export const useProjectStore = create<ProjectStore>()(
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
             // Slider tweaks land in history so Cmd+Z works on mix moves.
+            history: pushHistory(s.history, s.project),
+            future: [],
+          };
+        }),
+      addMarker: (marker) =>
+        set((s) => {
+          const updated = {
+            ...s.project,
+            markers: [...(s.project.markers ?? []), marker],
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: pushHistory(s.history, s.project),
+            future: [],
+          };
+        }),
+      removeMarker: (id) =>
+        set((s) => {
+          const updated = {
+            ...s.project,
+            markers: (s.project.markers ?? []).filter((m) => m.id !== id),
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
             history: pushHistory(s.history, s.project),
             future: [],
           };

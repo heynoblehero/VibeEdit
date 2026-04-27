@@ -38,6 +38,7 @@ import { ScheduleRenderDialog } from "@/components/editor/ScheduleRenderDialog";
 import { SceneToolsPanel } from "@/components/editor/SceneToolsPanel";
 import { LeftSidebar } from "@/components/editor/LeftSidebar";
 import { ProjectDropImport } from "@/components/editor/ProjectDropImport";
+import { PageTitleSync } from "@/components/editor/PageTitleSync";
 import { SearchScenes } from "@/components/editor/SearchScenes";
 import { useEditorStore } from "@/store/editor-store";
 import { UploadsPanel } from "@/components/editor/UploadsPanel";
@@ -194,6 +195,7 @@ export default function Home() {
       <ShortcutHelp />
       <SearchScenes />
       <ProjectDropImport />
+      <PageTitleSync />
       {/* Top bar */}
       <header className="flex items-center justify-between px-2 sm:px-4 py-2 gap-2 border-b border-neutral-800 bg-neutral-950/80 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-2 min-w-0">

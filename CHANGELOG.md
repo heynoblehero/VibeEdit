@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — sprint 17 (10 commits)
+
+QoL part 2.
+
+- '?' button in header (always-visible shortcut entry).
+- '+ Black scene' / '+ White scene' quick adds in TracksPanel.
+- Playhead readout shows seconds + absolute frame + sub-frame.
+- Home / End seek to start / last frame.
+- SceneList card opacity 40% when muted (timeline parity).
+- 'Reverse scene order' + 'Shuffle order' bulks in TracksPanel.
+- BulkActionsBar shows total duration of selection.
+- ⌘\` cycles to previously-edited project.
+- Render progress chip + loop / marker chips in the toolbar.
+
 ## Unreleased — sprint 16 batch C — 6 more commits
 
 - 'Remove muted scenes' / 'Lock all' / 'Mute all' bulks in TracksPanel.

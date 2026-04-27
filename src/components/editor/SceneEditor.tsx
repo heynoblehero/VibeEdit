@@ -484,6 +484,21 @@ function EffectsPanel({ scene, update, sfx }: { scene: Scene; update: (p: Partia
         </Field>
       </div>
 
+      {scene.voiceover?.audioDurationSec && (
+        <button
+          type="button"
+          onClick={() => {
+            const targetSec = scene.voiceover?.audioDurationSec ?? scene.duration;
+            update({ duration: Math.max(0.5, Number(targetSec.toFixed(2))) });
+            toast(`Duration → ${targetSec.toFixed(2)}s`, { duration: 600 });
+          }}
+          className="w-full text-xs px-2 py-1.5 rounded border border-neutral-700 text-neutral-300 hover:border-emerald-500 hover:text-emerald-300"
+          title={`Set scene duration = voiceover length (${scene.voiceover.audioDurationSec.toFixed(2)}s)`}
+        >
+          Fit duration to VO
+        </button>
+      )}
+
       <div className="border-t border-neutral-800 pt-3 mt-2 space-y-2">
         <div className="text-[11px] uppercase tracking-wide text-neutral-500">
           Fade

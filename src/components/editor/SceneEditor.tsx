@@ -579,6 +579,86 @@ function BackgroundPanel({ scene, update }: { scene: Scene; update: (p: Partial<
         <input type="range" min={0} max={0.8} step={0.05} value={scene.background.vignette ?? 0.5} onChange={(e) => update({ background: { ...scene.background, vignette: Number(e.target.value) } })} className="w-full accent-purple-500 h-1.5" />
         <span className="text-[10px] text-neutral-500">{((scene.background.vignette ?? 0.5) * 100).toFixed(0)}%</span>
       </Field>
+
+      {/* Manual color-grading sliders. Compose on top of the
+          colorGrade preset (preset applied first, sliders multiply). */}
+      <div className="pt-2 mt-2 border-t border-neutral-800">
+        <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1.5">
+          Color grade
+        </div>
+        <Field label="Brightness">
+          <input
+            type="range"
+            min={0.5}
+            max={1.5}
+            step={0.02}
+            value={scene.background.brightness ?? 1}
+            onChange={(e) =>
+              update({
+                background: { ...scene.background, brightness: Number(e.target.value) },
+              })
+            }
+            className="w-full accent-purple-500 h-1.5"
+          />
+          <span className="text-[10px] text-neutral-500">
+            {(scene.background.brightness ?? 1).toFixed(2)}×
+          </span>
+        </Field>
+        <Field label="Contrast">
+          <input
+            type="range"
+            min={0.5}
+            max={1.5}
+            step={0.02}
+            value={scene.background.contrast ?? 1}
+            onChange={(e) =>
+              update({
+                background: { ...scene.background, contrast: Number(e.target.value) },
+              })
+            }
+            className="w-full accent-purple-500 h-1.5"
+          />
+          <span className="text-[10px] text-neutral-500">
+            {(scene.background.contrast ?? 1).toFixed(2)}×
+          </span>
+        </Field>
+        <Field label="Saturation">
+          <input
+            type="range"
+            min={0}
+            max={1.5}
+            step={0.02}
+            value={scene.background.saturation ?? 1}
+            onChange={(e) =>
+              update({
+                background: { ...scene.background, saturation: Number(e.target.value) },
+              })
+            }
+            className="w-full accent-purple-500 h-1.5"
+          />
+          <span className="text-[10px] text-neutral-500">
+            {(scene.background.saturation ?? 1).toFixed(2)}×
+          </span>
+        </Field>
+        <Field label="Temperature">
+          <input
+            type="range"
+            min={-1}
+            max={1}
+            step={0.05}
+            value={scene.background.temperature ?? 0}
+            onChange={(e) =>
+              update({
+                background: { ...scene.background, temperature: Number(e.target.value) },
+              })
+            }
+            className="w-full accent-purple-500 h-1.5"
+          />
+          <span className="text-[10px] text-neutral-500">
+            {(scene.background.temperature ?? 0) > 0 ? "warmer" : (scene.background.temperature ?? 0) < 0 ? "cooler" : "neutral"}
+          </span>
+        </Field>
+      </div>
     </>
   );
 }

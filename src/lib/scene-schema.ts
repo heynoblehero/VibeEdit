@@ -86,6 +86,18 @@ export interface SceneBackground {
   colorGrade?: "warm" | "cool" | "punchy" | "bw" | "neutral";
   /** Background blur in px (0-30). Use for focus-pull behind big text/numbers. */
   blur?: number;
+  /**
+   * Manual color-grading sliders. Compose with the named colorGrade
+   * preset (preset applied first, sliders multiply on top).
+   *  - brightness: 1.0 = neutral, 0.5 = half, 1.5 = +50%.
+   *  - contrast: 1.0 = neutral.
+   *  - saturation: 1.0 = neutral, 0 = grayscale.
+   *  - temperature: -1..1 → cool ↔ warm, maps to ±20° hue-rotate.
+   */
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  temperature?: number;
   imageOpacity?: number;
   /** Full-bleed background video. Used by commentary/movie-review/gaming. */
   videoUrl?: string;

@@ -23,6 +23,10 @@ interface GradientBgProps {
     | "ken_burns";
   colorGrade?: "warm" | "cool" | "punchy" | "bw" | "neutral";
   blur?: number;
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  temperature?: number;
   videoUrl?: string;
   videoStartSec?: number;
   videoMuted?: boolean;
@@ -83,6 +87,10 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   cameraMove,
   colorGrade = "neutral",
   blur = 0,
+  brightness = 1,
+  contrast = 1,
+  saturation = 1,
+  temperature = 0,
   videoUrl,
   videoStartSec = 0,
   videoMuted = true,
@@ -147,7 +155,16 @@ export const GradientBg: React.FC<GradientBgProps> = ({
               height: "100%",
               objectFit: "cover",
               transform: `scale(${cam.scale}) translate(${cam.tx}px, ${cam.ty}px)`,
-              filter: `${gradeFilter(colorGrade)}${blur > 0 ? ` blur(${blur}px)` : ""}`,
+              filter: [
+                gradeFilter(colorGrade),
+                brightness !== 1 ? `brightness(${brightness})` : null,
+                contrast !== 1 ? `contrast(${contrast})` : null,
+                saturation !== 1 ? `saturate(${saturation})` : null,
+                temperature !== 0 ? `hue-rotate(${(temperature * 20).toFixed(1)}deg)` : null,
+                blur > 0 ? `blur(${blur}px)` : null,
+              ]
+                .filter(Boolean)
+                .join(" "),
               transformOrigin: "center center",
             }}
           />

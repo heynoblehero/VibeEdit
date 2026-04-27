@@ -732,6 +732,39 @@ function BackgroundPanel({ scene, update }: { scene: Scene; update: (p: Partial<
 
       <KeyingSection scene={scene} update={update} />
 
+      <div className="border-t border-neutral-800 pt-3 mt-2">
+        <button
+          type="button"
+          onClick={() => {
+            // Copy this scene's color-grade bundle to every other scene.
+            const bundle = {
+              colorGrade: scene.background.colorGrade,
+              brightness: scene.background.brightness,
+              contrast: scene.background.contrast,
+              saturation: scene.background.saturation,
+              temperature: scene.background.temperature,
+              blur: scene.background.blur,
+              chromaKey: scene.background.chromaKey,
+              lumaKey: scene.background.lumaKey,
+            };
+            const all = useProjectStore.getState().project.scenes;
+            for (const sc of all) {
+              if (sc.id === scene.id) continue;
+              useProjectStore.getState().updateScene(sc.id, {
+                background: { ...sc.background, ...bundle },
+              });
+            }
+            toast(`Look applied to ${all.length - 1} other scene${all.length - 1 === 1 ? "" : "s"}`, {
+              duration: 1000,
+            });
+          }}
+          className="w-full text-xs px-2 py-1.5 rounded border border-neutral-700 text-neutral-300 hover:border-emerald-500 hover:text-emerald-300"
+          title="Copy this scene's color grade + keying to every other scene in the project"
+        >
+          Apply look to all scenes
+        </button>
+      </div>
+
       <div className="border-t border-neutral-800 pt-3 mt-2 space-y-2">
         <div className="text-[11px] uppercase tracking-wide text-neutral-500">
           Orientation

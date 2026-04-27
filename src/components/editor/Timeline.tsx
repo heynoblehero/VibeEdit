@@ -7,6 +7,7 @@ import type { Cut } from "@/lib/scene-schema";
 import { createId, DEFAULT_BG, sceneDurationFrames, totalDurationFrames } from "@/lib/scene-schema";
 import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
+import { AudioWaveform } from "./AudioWaveform";
 import { CutMarker } from "./CutMarker";
 
 interface TimelineProps {
@@ -276,9 +277,12 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
               }`}
               title={`Scene ${i + 1} · ${(m.frames / project.fps).toFixed(1)}s\nDrag body to reorder · drag right edge to trim · click to seek · right-click for menu`}
             >
-              <span className="absolute left-2 top-0 text-[9px] font-mono text-neutral-500 pointer-events-none">
+              <span className="absolute left-2 top-0 text-[9px] font-mono text-neutral-500 pointer-events-none z-10">
                 {i + 1}
               </span>
+              {scene.voiceover?.audioUrl && (
+                <AudioWaveform src={scene.voiceover.audioUrl} height={32} />
+              )}
               {/* Right-edge handle reveals on hover so the trim affordance
                   is visible without sniffing the cursor. The wider hit-area
                   span sits behind a thinner visible bar. */}

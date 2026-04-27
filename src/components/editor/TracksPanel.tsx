@@ -124,6 +124,31 @@ export function TracksPanel() {
         <p className="text-[10px] text-neutral-500 px-1 pt-2">
           Drag a scene from the timeline onto any row above to move it.
         </p>
+        <button
+          onClick={() => {
+            const all = useProjectStore.getState().project.scenes;
+            let touched = 0;
+            for (const sc of all) {
+              const d = sc.voiceover?.audioDurationSec;
+              if (d && Math.abs(d - sc.duration) > 0.05) {
+                useProjectStore.getState().updateScene(sc.id, {
+                  duration: Number(d.toFixed(2)),
+                });
+                touched += 1;
+              }
+            }
+            toast(
+              touched > 0
+                ? `Fit ${touched} scene${touched === 1 ? "" : "s"} to VO`
+                : "Already fitted",
+              { duration: 800 },
+            );
+          }}
+          className="w-full text-[11px] px-2 py-1.5 rounded border border-neutral-800 hover:border-emerald-500 text-neutral-300 hover:text-emerald-300 mt-1"
+          title="Set every scene's duration = its voiceover length (where one exists)"
+        >
+          Fit all durations to VO
+        </button>
       </div>
     </div>
   );

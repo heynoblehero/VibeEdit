@@ -223,6 +223,24 @@ export function KeyboardShortcuts() {
         return;
       }
 
+      // ⌘⇧↑ / ⌘⇧↓ — bump selected scene's duration ±0.25s.
+      if (
+        mod &&
+        e.shiftKey &&
+        (e.key === "ArrowUp" || e.key === "ArrowDown") &&
+        !isTextInput(e.target) &&
+        selectedSceneId
+      ) {
+        e.preventDefault();
+        const sc = scenes.find((s) => s.id === selectedSceneId);
+        if (!sc) return;
+        const delta = e.key === "ArrowUp" ? 0.25 : -0.25;
+        const next = Math.max(0.5, Math.min(60, Number((sc.duration + delta).toFixed(2))));
+        useProjectStore.getState().updateScene(sc.id, { duration: next });
+        toast(`${next.toFixed(2)}s`, { duration: 500 });
+        return;
+      }
+
       // ⌘[ / ⌘] AND ⌘↑ / ⌘↓ — move the selected scene one slot.
       const reorderUp =
         mod &&

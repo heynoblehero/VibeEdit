@@ -141,7 +141,110 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
     if (marker) selectScene(marker.id);
   };
 
-  if (project.scenes.length === 0) return null;
+  // Empty-timeline drop zone: lets the user create their first scene
+  // by dragging an upload / scene-type / title card onto the track.
+  // Without this, drops on an empty project silently fail because the
+  // track itself wouldn't be rendered.
+  if (project.scenes.length === 0) {
+    return (
+      <div
+        className="flex flex-col gap-1 shrink-0 pt-2"
+        onDragOver={(e) => {
+          const types = e.dataTransfer.types;
+          if (
+            types.includes("vibeedit/upload-url") ||
+            types.includes("vibeedit/scene-type") ||
+            types.includes("vibeedit/title")
+          ) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+          }
+        }}
+        onDrop={(e) => {
+          const portrait = project.height > project.width;
+          const url = e.dataTransfer.getData("vibeedit/upload-url");
+          if (url) {
+            e.preventDefault();
+            const type = e.dataTransfer.getData("vibeedit/upload-type");
+            const scene = type.startsWith("video/")
+              ? {
+                  id: createId(),
+                  type: "text_only" as const,
+                  duration: 3,
+                  background: { ...DEFAULT_BG, videoUrl: url },
+                  transition: "beat_flash" as const,
+                }
+              : {
+                  id: createId(),
+                  type: "text_only" as const,
+                  duration: 3,
+                  background: { ...DEFAULT_BG, imageUrl: url, kenBurns: true },
+                  emphasisText: "edit me",
+                  emphasisSize: portrait ? 96 : 72,
+                  emphasisColor: "#ffffff",
+                  textY: portrait ? 500 : 380,
+                  transition: "beat_flash" as const,
+                };
+            insertSceneAt(0, scene);
+            return;
+          }
+          const titlePayload = e.dataTransfer.getData("vibeedit/title");
+          if (titlePayload) {
+            e.preventDefault();
+            try {
+              const { params } = JSON.parse(titlePayload) as {
+                params?: Record<string, unknown>;
+              };
+              if (params) {
+                const base = {
+                  id: createId(),
+                  type: "text_only" as const,
+                  duration: 3,
+                  background: { ...DEFAULT_BG },
+                };
+                const merged = {
+                  ...base,
+                  ...(params as Record<string, unknown>),
+                  id: base.id,
+                  background: {
+                    ...base.background,
+                    ...((params as { background?: Record<string, unknown> }).background ??
+                      {}),
+                  },
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                } as any;
+                insertSceneAt(0, merged);
+              }
+            } catch {}
+            return;
+          }
+          const sceneTypePayload = e.dataTransfer.getData("vibeedit/scene-type");
+          if (sceneTypePayload) {
+            e.preventDefault();
+            try {
+              const { value } = JSON.parse(sceneTypePayload) as { value: string };
+              insertSceneAt(0, {
+                id: createId(),
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                type: value as any,
+                duration: 3,
+                background: { ...DEFAULT_BG },
+                transition: "beat_flash" as const,
+              });
+            } catch {}
+            return;
+          }
+        }}
+      >
+        <div className="text-[10px] uppercase tracking-wide text-neutral-500 px-1">
+          Timeline
+        </div>
+        <div className="h-16 rounded border-2 border-dashed border-neutral-700 bg-neutral-900/40 flex items-center justify-center text-xs text-neutral-500 hover:border-emerald-500 hover:text-emerald-400 transition-colors">
+          Drop a clip, scene, or title here to start
+        </div>
+      </div>
+    );
+  }
 
   // Always show the playhead. Preview computes a global currentFrame
   // (single-scene mode adds the selected scene's start offset) so the
@@ -377,6 +480,19 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                 }
               }}
               onDrop={(e) => {
+                // Outer-track MIME types (upload-url / scene-type /
+                // title) need to reach the track-level onDrop so the
+                // user can insert a clip near a scene block. Don't
+                // stopPropagation for these — let them bubble.
+                const types = e.dataTransfer.types;
+                const isOuterMime =
+                  types.includes("vibeedit/upload-url") ||
+                  types.includes("vibeedit/scene-type") ||
+                  types.includes("vibeedit/title");
+                if (isOuterMime && dragIndex === null) {
+                  setHoverIndex(null);
+                  return;
+                }
                 e.preventDefault();
                 e.stopPropagation();
                 // 1) Effect card → push onto scene.effects.

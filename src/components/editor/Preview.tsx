@@ -55,6 +55,7 @@ export function Preview() {
     : 1;
 
   const [currentFrame, setCurrentFrame] = useState(0);
+  const [previewSpeed, setPreviewSpeed] = useState(1);
   const isFullPreview = !selectedScene;
 
   // Compute scene boundaries once so the frameupdate handler can do an
@@ -214,6 +215,25 @@ export function Preview() {
 
       {/* Player + clickable overlay */}
       <div className="flex-1 min-h-0 relative bg-black rounded-lg overflow-hidden border border-neutral-800">
+        {!selectedScene && (
+          <div className="absolute top-2 right-2 z-30 flex items-center gap-1 px-1.5 py-1 rounded bg-neutral-900/80 backdrop-blur-sm border border-neutral-800 text-[10px] text-neutral-400">
+            <span className="text-neutral-500">×</span>
+            {[0.5, 1, 1.5, 2].map((r) => (
+              <button
+                key={r}
+                onClick={() => setPreviewSpeed(r)}
+                className={`px-1 rounded ${
+                  previewSpeed === r
+                    ? "text-emerald-300 bg-emerald-500/15"
+                    : "hover:text-white"
+                }`}
+                title={`Preview at ${r}× — render speed unchanged`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        )}
         {selectedScene ? (
           <Player
             ref={playerRef}
@@ -255,6 +275,7 @@ export function Preview() {
             fps={project.fps}
             compositionWidth={project.width}
             compositionHeight={project.height}
+            playbackRate={previewSpeed}
             style={{ width: "100%", height: "100%" }}
             controls
             loop

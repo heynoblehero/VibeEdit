@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased — sprint 14: pro-NLE quality of life (10 commits)
+
+A focused follow-up that unlocks the moves people learn in Premiere
+in the first week. Smaller in scope than sprint 13 but each item is
+visibly useful.
+
+- **Drop files from Finder/Explorer onto the timeline**. Bypasses
+  the Uploads panel — uploads + inserts as a scene in one drag.
+- **Loop range** (`[`, `]`, `\\`) — set in/out at playhead, cyan
+  band on the ruler, Preview wraps the player every 50ms.
+- **Rule-of-thirds + safe-area overlays** on the preview canvas,
+  toggled from a tiny bottom-right cluster (⌗ / ▣).
+- **SRT subtitle export** from voiceover captions. Walks scenes,
+  shifts ms by global frame offset, groups into 3-word cues. Muted
+  scenes excluded so SRT matches the rendered video.
+- **⌘J / ⌘⇧J** jump playhead to next / prev marker (wraps).
+- **'Apply look to all scenes'** button in BackgroundPanel — copies
+  color grade + keys to every other scene.
+- **⌘⇧E** opens the thumbnail / poster export dialog.
+- **Upload tile metadata**: byte size visible on each tile + richer
+  tooltip (MIME, upload time).
+- ShortcutHelp dialog updated with the new bindings.
+
 ## Unreleased — sprint 13: editor depth pass — 21 commits
 
 A focused 'real video editor' sprint with a single goal: every common

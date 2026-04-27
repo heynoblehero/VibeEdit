@@ -18,6 +18,7 @@ import { ExportPackButton } from "@/components/editor/ExportPackButton";
 import { HeaderOverflow } from "@/components/editor/HeaderOverflow";
 import { ImageEditor } from "@/components/editor/ImageEditor";
 import { KeyboardShortcuts } from "@/components/editor/KeyboardShortcuts";
+import { ShortcutHelp } from "@/components/editor/ShortcutHelp";
 import { ProjectIO } from "@/components/editor/ProjectIO";
 import { ProjectStats } from "@/components/editor/ProjectStats";
 import { ProjectSwitcher } from "@/components/editor/ProjectSwitcher";
@@ -184,6 +185,7 @@ export default function Home() {
   return (
     <div className="flex flex-col h-screen bg-neutral-950 text-neutral-100">
       <KeyboardShortcuts />
+      <ShortcutHelp />
       {/* Top bar */}
       <header className="flex items-center justify-between px-2 sm:px-4 py-2 gap-2 border-b border-neutral-800 bg-neutral-950/80 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-2 min-w-0">

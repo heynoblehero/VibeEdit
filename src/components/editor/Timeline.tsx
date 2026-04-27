@@ -901,6 +901,28 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                   </span>
                 );
               })()}
+              {(() => {
+                // Surfacing empty scenes — no media, no text, no VO.
+                // These render as a black void in the final video.
+                const empty =
+                  !scene.background.imageUrl &&
+                  !scene.background.videoUrl &&
+                  !scene.emphasisText &&
+                  !scene.voiceover?.audioUrl &&
+                  !scene.statValue &&
+                  !scene.quoteText &&
+                  !(scene.bulletItems && scene.bulletItems.length > 0) &&
+                  !(scene.montageUrls && scene.montageUrls.length > 0);
+                if (!empty) return null;
+                return (
+                  <span
+                    className="absolute right-1 bottom-0.5 text-[9px] text-amber-400 pointer-events-none z-10"
+                    title="Scene has no media, text, or voiceover — will render blank"
+                  >
+                    ⚠
+                  </span>
+                );
+              })()}
               {scene.locked && (
                 <Lock className="absolute right-1 bottom-0.5 h-2.5 w-2.5 text-amber-400 pointer-events-none z-10" />
               )}

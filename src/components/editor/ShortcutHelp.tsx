@@ -86,6 +86,7 @@ const SECTIONS: Array<{ title: string; rows: Array<[string, string]> }> = [
       ["⌘ S", "save (autosave is always on)"],
       ["⌘ K", "toggle AI chat sidebar"],
       ["⌘ R", "render with the current preset"],
+      ["⌘ ⇧ E", "export current frame as poster (PNG)"],
       ["⌘ ⇧ C", "copy selected scene's text"],
     ],
   },
@@ -95,12 +96,15 @@ const SECTIONS: Array<{ title: string; rows: Array<[string, string]> }> = [
       ["C", "cut tool — click to split"],
       ["V", "selection mode (cut off)"],
       ["M", "marker at the playhead"],
+      ["⌘ J / ⌘ ⇧ J", "next / prev marker"],
       ["⌘ =", "zoom in"],
       ["⌘ −", "zoom out"],
       ["⌘ 0", "fit-to-width"],
       ["Space", "play / pause"],
-      ["[", "set in-point on selected scene"],
-      ["]", "set out-point on selected scene"],
+      ["[", "loop in-point at playhead"],
+      ["]", "loop out-point at playhead"],
+      ["\\", "clear loop range"],
+      ["⌘ [ / ⌘ ]", "reorder selected scene up / down"],
     ],
   },
   {
@@ -121,6 +125,7 @@ const SECTIONS: Array<{ title: string; rows: Array<[string, string]> }> = [
   {
     title: "Drag & drop",
     rows: [
+      ["Drop file from Finder", "uploads + inserts as new scene"],
       ["Drag upload onto timeline", "insert as a new scene"],
       ["⇧ + drag upload onto scene", "swap that scene's bg media"],
       ["Drag effect / look / title", "drop on a scene"],

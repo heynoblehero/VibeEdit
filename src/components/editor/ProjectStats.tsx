@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, Film, Layers } from "lucide-react";
+import { Clock, Film, FolderUp, Layers } from "lucide-react";
 import { totalDurationFrames } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
 
@@ -44,6 +44,15 @@ export function ProjectStats() {
         >
           <Layers className="h-3 w-3" />
           {project.tracks.length}
+        </span>
+      )}
+      {(project.uploads?.length ?? 0) > 0 && (
+        <span
+          className="flex items-center gap-1 text-neutral-500"
+          title={`${project.uploads!.length} upload${project.uploads!.length === 1 ? "" : "s"} in this project`}
+        >
+          <FolderUp className="h-3 w-3" />
+          {project.uploads!.length}
         </span>
       )}
     </div>

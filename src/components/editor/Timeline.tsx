@@ -1,7 +1,7 @@
 "use client";
 
 import { Lock, Plus, Scissors } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerRef } from "@remotion/player";
 import type { Cut, Scene } from "@/lib/scene-schema";
 import { createId, DEFAULT_BG, sceneDurationFrames, totalDurationFrames } from "@/lib/scene-schema";
@@ -147,6 +147,34 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
   }, [project.scenes, project.fps]);
 
   const trackRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll the selected scene into view when zoomed in. Without
+  // this, ⌘1-9 / arrow-key navigation could land on a scene off-screen
+  // because the track is wider than the viewport at zoom > 1.
+  const selectedSceneId = useProjectStore((s) => s.selectedSceneId);
+  useEffect(() => {
+    if (!selectedSceneId || !trackRef.current) return;
+    if (timelineZoom <= 1) return;
+    const idx = project.scenes.findIndex((s) => s.id === selectedSceneId);
+    if (idx < 0) return;
+    const m = markers[idx];
+    if (!m) return;
+    const trackEl = trackRef.current;
+    const wrapper = trackEl.parentElement;
+    if (!wrapper) return;
+    const trackWidth = trackEl.clientWidth;
+    const blockLeft = (m.start / total) * trackWidth;
+    const blockRight = (m.endExclusive / total) * trackWidth;
+    const scroll = wrapper.scrollLeft;
+    const visibleLeft = scroll;
+    const visibleRight = scroll + wrapper.clientWidth;
+    if (blockLeft < visibleLeft || blockRight > visibleRight) {
+      wrapper.scrollTo({
+        left: blockLeft - wrapper.clientWidth / 2 + (blockRight - blockLeft) / 2,
+        behavior: "smooth",
+      });
+    }
+  }, [selectedSceneId, timelineZoom, markers, total, project.scenes]);
 
   const seekTo = useCallback(
     (frame: number) => {

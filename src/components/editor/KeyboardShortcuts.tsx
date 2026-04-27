@@ -222,6 +222,22 @@ export function KeyboardShortcuts() {
         input?.focus();
       }
 
+      // ←/→ — step the playhead by 1 frame (10 with Shift). Dispatched
+      // as a CustomEvent so the Preview's playerRef can pick it up
+      // without exposing the ref globally.
+      if (
+        (e.key === "ArrowLeft" || e.key === "ArrowRight") &&
+        !mod &&
+        !isTextInput(e.target)
+      ) {
+        e.preventDefault();
+        const delta = (e.key === "ArrowRight" ? 1 : -1) * (e.shiftKey ? 10 : 1);
+        window.dispatchEvent(
+          new CustomEvent("vibeedit:seek-by", { detail: delta }),
+        );
+        return;
+      }
+
       // Up/Down arrow and `,` / `.` navigate scene selection when not in an input.
       // Shift+Arrow extends the multi-selection in that direction.
       const isNavKey =

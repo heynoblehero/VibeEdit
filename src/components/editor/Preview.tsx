@@ -118,6 +118,22 @@ export function Preview() {
     }
   }, [isPaused, selectedSceneId, posedFrame]);
 
+  // ←/→ frame-step (and Shift+←/→ for 10-frame jumps) dispatched from
+  // KeyboardShortcuts. We pause first so the seek lands cleanly.
+  useEffect(() => {
+    const onSeekBy = (e: Event) => {
+      const detail = (e as CustomEvent<number>).detail ?? 0;
+      const p = playerRef.current;
+      if (!p) return;
+      p.pause();
+      const cur = p.getCurrentFrame?.() ?? 0;
+      p.seekTo(Math.max(0, cur + detail));
+    };
+    window.addEventListener("vibeedit:seek-by", onSeekBy as EventListener);
+    return () =>
+      window.removeEventListener("vibeedit:seek-by", onSeekBy as EventListener);
+  }, []);
+
   // When a scene with a voiceover is selected, auto-play so the creator
   // hears the narration without clicking Play.
   useEffect(() => {

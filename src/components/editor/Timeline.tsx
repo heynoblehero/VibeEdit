@@ -637,7 +637,9 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
         className={`group/timeline relative h-8 bg-neutral-900 rounded border ${
           trackHover
             ? "border-emerald-400 bg-emerald-500/10"
-            : "border-neutral-800"
+            : cutMode
+              ? "border-amber-400 ring-1 ring-amber-400/40"
+              : "border-neutral-800"
         } ${cutMode ? "cursor-crosshair" : "cursor-pointer"}`}
         title={cutMode ? "Click to cut at this frame" : "Click to jump · drop an upload to insert a scene"}
       >

@@ -118,12 +118,33 @@ export const useEditorStore = create<EditorStore>((set) => ({
       ].slice(0, 8);
       return { recentActions: next };
     }),
-  showThirds: false,
-  setShowThirds: (v) => set({ showThirds: v }),
-  showSafeArea: false,
-  setShowSafeArea: (v) => set({ showSafeArea: v }),
-  showLetterbox: false,
-  setShowLetterbox: (v) => set({ showLetterbox: v }),
+  showThirds: (() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("vibeedit:show-thirds") === "1";
+  })(),
+  setShowThirds: (v) => {
+    if (typeof window !== "undefined")
+      window.localStorage.setItem("vibeedit:show-thirds", v ? "1" : "0");
+    set({ showThirds: v });
+  },
+  showSafeArea: (() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("vibeedit:show-safe-area") === "1";
+  })(),
+  setShowSafeArea: (v) => {
+    if (typeof window !== "undefined")
+      window.localStorage.setItem("vibeedit:show-safe-area", v ? "1" : "0");
+    set({ showSafeArea: v });
+  },
+  showLetterbox: (() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("vibeedit:show-letterbox") === "1";
+  })(),
+  setShowLetterbox: (v) => {
+    if (typeof window !== "undefined")
+      window.localStorage.setItem("vibeedit:show-letterbox", v ? "1" : "0");
+    set({ showLetterbox: v });
+  },
   zenMode: false,
   setZenMode: (v) => set({ zenMode: v }),
   loopRange: null,

@@ -390,9 +390,9 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
   const seconds = (total / project.fps).toFixed(1);
 
   return (
-    <div className="flex flex-col gap-1.5 shrink-0 pt-2">
+    <div className="flex flex-col gap-1.5 shrink-0 pt-2 px-2 pb-2 mt-2 rounded-lg bg-neutral-950/40 border border-neutral-800/60">
       {/* Toolbar — three-column grid: [left tools] [center timecode] [right zoom] */}
-      <div className="grid grid-cols-3 items-center gap-2 px-1">
+      <div className="grid grid-cols-3 items-center gap-2 px-1 pb-1.5 border-b border-neutral-800/60">
         {/* Left cluster — cut + chips */}
         <div className="flex items-center gap-1.5 justify-self-start">
           <button
@@ -491,14 +491,14 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
       </div>
       {/* Scene-block row — same left-rail width (56px) as layer rows
           below so everything reads down a clean column. */}
-      <div className="flex items-stretch gap-1">
+      <div className="flex items-stretch gap-1.5">
         <div
-          className="w-14 shrink-0 flex items-center gap-1 px-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/40 text-[9px] font-medium text-emerald-300 uppercase tracking-wider"
+          className="w-14 shrink-0 flex items-center gap-1 px-2 rounded bg-neutral-900 border border-neutral-800/80 text-[9px] font-medium text-neutral-300 uppercase tracking-wider"
           title="Scene blocks — drag to reorder, drag right edge to trim"
         >
-          <span className="text-emerald-500">▾</span>
+          <span className="text-neutral-600 text-[8px]">▾</span>
           <span>Scenes</span>
-          <span className="ml-auto text-[8.5px] text-emerald-500/70 tabular-nums">
+          <span className="ml-auto text-[8.5px] text-neutral-600 tabular-nums">
             {project.scenes.length}
           </span>
         </div>

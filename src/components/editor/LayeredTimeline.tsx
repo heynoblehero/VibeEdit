@@ -38,38 +38,16 @@ interface Props {
   isFullPreview: boolean;
 }
 
-/** Solid-fill block colour — keeps the timeline calm. The previous
- *  vertical gradient + ring + scale was too loud across many rows. */
+/** Solid-fill block colour. Slightly desaturated 700-shade so blocks
+ *  don't fight the surrounding chrome. White text on every variant. */
 const COLOR_BG: Record<TimelineItem["color"], string> = {
-  neutral: "bg-neutral-600/85 hover:bg-neutral-500",
-  sky: "bg-sky-600/85 hover:bg-sky-500",
-  emerald: "bg-emerald-600/85 hover:bg-emerald-500",
-  amber: "bg-amber-600/85 hover:bg-amber-500",
-  purple: "bg-purple-600/85 hover:bg-purple-500",
-  cyan: "bg-cyan-600/85 hover:bg-cyan-500",
-  pink: "bg-pink-600/85 hover:bg-pink-500",
-};
-
-/** Faint accent rail painted on the left rail of each row — matches
- *  the block color so the eye groups them. */
-const COLOR_RAIL: Record<TimelineItem["color"], string> = {
-  neutral: "bg-neutral-500/40",
-  sky: "bg-sky-500/40",
-  emerald: "bg-emerald-500/40",
-  amber: "bg-amber-500/40",
-  purple: "bg-purple-500/40",
-  cyan: "bg-cyan-500/40",
-  pink: "bg-pink-500/40",
-};
-
-const COLOR_TEXT: Record<TimelineItem["color"], string> = {
-  neutral: "text-neutral-50",
-  sky: "text-white",
-  emerald: "text-white",
-  amber: "text-amber-50",
-  purple: "text-white",
-  cyan: "text-cyan-50",
-  pink: "text-pink-50",
+  neutral: "bg-neutral-600 hover:bg-neutral-500",
+  sky: "bg-sky-700 hover:bg-sky-600",
+  emerald: "bg-emerald-700 hover:bg-emerald-600",
+  amber: "bg-amber-700 hover:bg-amber-600",
+  purple: "bg-purple-700 hover:bg-purple-600",
+  cyan: "bg-cyan-700 hover:bg-cyan-600",
+  pink: "bg-pink-700 hover:bg-pink-600",
 };
 
 export function LayeredTimeline({ playerRef, currentFrame, isFullPreview }: Props) {
@@ -184,22 +162,16 @@ function LayerRow({
   onToggle: () => void;
   onClickItem: (item: TimelineItem) => void;
 }) {
-  // Use the first item's color as the row's accent — most rows have
-  // a single LayerKind whose items share a color anyway.
-  const accent = items[0]?.color ?? "neutral";
   return (
-    <div className="flex items-stretch gap-1">
+    <div className="flex items-stretch gap-1.5">
       <button
         onClick={onToggle}
-        className={`w-14 shrink-0 relative flex items-center gap-1 px-1.5 rounded-md bg-neutral-900/80 border border-neutral-800 hover:border-neutral-600 hover:bg-neutral-800/80 text-[9px] font-medium text-neutral-400 hover:text-white transition-colors overflow-hidden`}
-        title={`${LAYER_LABEL[kind]} · ${items.length} item${items.length === 1 ? "" : "s"} · click to ${isExpanded ? "collapse" : "expand"}`}
+        className="w-14 shrink-0 flex items-center gap-1 px-2 rounded bg-neutral-900 border border-neutral-800/80 hover:border-neutral-700 hover:bg-neutral-850 text-[9px] font-medium text-neutral-400 hover:text-neutral-200 transition-colors"
+        title={`${LAYER_LABEL[kind]} · ${items.length} item${items.length === 1 ? "" : "s"}`}
       >
-        <span
-          className={`absolute left-0 top-0 bottom-0 w-0.5 ${COLOR_RAIL[accent]}`}
-        />
-        <span className="text-neutral-600 ml-1">{isExpanded ? "▾" : "▸"}</span>
+        <span className="text-neutral-600 text-[8px]">{isExpanded ? "▾" : "▸"}</span>
         <span className="truncate uppercase tracking-wider">{LAYER_LABEL[kind]}</span>
-        <span className="ml-auto text-[8.5px] text-neutral-700 tabular-nums">
+        <span className="ml-auto text-[8.5px] text-neutral-600 tabular-nums">
           {items.length}
         </span>
       </button>
@@ -209,9 +181,9 @@ function LayerRow({
       >
         <div
           style={{ width: `${timelineZoom * 100}%`, minWidth: "100%" }}
-          className={`relative rounded-md border border-neutral-800/40 bg-neutral-900/20 ${
-            isExpanded ? "h-6" : "h-1.5"
-          } transition-[height] duration-150`}
+          className={`relative rounded border border-neutral-900/80 bg-neutral-900/40 ${
+            isExpanded ? "h-5" : "h-1"
+          } transition-[height] duration-100`}
         >
           {isExpanded &&
             items.map((item) => {
@@ -225,21 +197,22 @@ function LayerRow({
                   onClick={() => onClickItem(item)}
                   style={{ left: `${left}%`, width: `${width}%` }}
                   title={`${item.label} · ${(item.durationFrames / 30).toFixed(1)}s`}
-                  className={`absolute top-0.5 bottom-0.5 ${
+                  className={`absolute top-px bottom-px ${
                     COLOR_BG[item.color]
-                  } ${COLOR_TEXT[item.color]} rounded-sm ${
+                  } text-white rounded-[3px] ${
                     isSelected
-                      ? "ring-2 ring-white shadow-md shadow-black/40"
-                      : "hover:ring-1 hover:ring-white/40"
-                  } px-1.5 text-[9px] font-medium truncate text-left transition-all`}
+                      ? "ring-1 ring-white"
+                      : "hover:brightness-125"
+                  } px-1 text-[9px] font-medium truncate text-left transition-all`}
                 >
                   {item.label}
                 </button>
               );
             })}
-          {/* Per-row playhead — pure visual continuity across rows. */}
+          {/* Subtle playhead — narrow line, less prominent than the
+              main scene-row playhead which is what the user tracks. */}
           <div
-            className="absolute top-0 bottom-0 w-[1.5px] bg-emerald-400/80 pointer-events-none"
+            className="absolute top-0 bottom-0 w-px bg-emerald-400/40 pointer-events-none"
             style={{ left: `${playheadPct}%` }}
           />
         </div>

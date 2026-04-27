@@ -423,6 +423,27 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
               <span className="text-cyan-500/60">×</span>
             </button>
           )}
+          {project.markers && project.markers.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Remove all ${project.markers!.length} marker${project.markers!.length === 1 ? "" : "s"}?`,
+                  )
+                ) {
+                  for (const m of [...project.markers!]) {
+                    useProjectStore.getState().removeMarker(m.id);
+                  }
+                }
+              }}
+              className="ml-2 inline-flex items-center gap-1 text-amber-300 hover:text-white px-1.5 py-0.5 border border-amber-500/30 rounded"
+              title={`${project.markers.length} marker${project.markers.length === 1 ? "" : "s"} · click to clear all`}
+            >
+              <span className="text-[8px]">⌘</span>
+              <span className="tabular-nums">{project.markers.length}</span>
+            </button>
+          )}
           <span className="ml-2 inline-flex items-center gap-0.5 text-neutral-600">
             <button
               type="button"

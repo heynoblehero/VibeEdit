@@ -80,8 +80,20 @@ export default function Home() {
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("vibeedit:chat-open");
-      if (saved === "false") setChatOpenState(false);
+      if (saved !== null) {
+        // User has an explicit preference — respect it across sessions.
+        setChatOpenState(saved === "true");
+        return;
+      }
     } catch {}
+    // No saved preference: editor-first default. Open chat only when
+    // the project already has scenes (returning user mid-edit) — empty
+    // projects start with the chat collapsed so the user sees the
+    // editor's "Add your first scene" CTA first.
+    if (project.scenes.length === 0) {
+      setChatOpenState(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // First-run landing: show ProjectHome instead of the editor when the user
   // hasn't engaged yet (current project is empty + never dismissed).

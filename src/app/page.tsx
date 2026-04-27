@@ -19,6 +19,7 @@ import { HeaderOverflow } from "@/components/editor/HeaderOverflow";
 import { ImageEditor } from "@/components/editor/ImageEditor";
 import { KeyboardShortcuts } from "@/components/editor/KeyboardShortcuts";
 import { ProjectIO } from "@/components/editor/ProjectIO";
+import { ProjectStats } from "@/components/editor/ProjectStats";
 import { ProjectSwitcher } from "@/components/editor/ProjectSwitcher";
 import { RenderButton } from "@/components/editor/RenderButton";
 import { SaveIndicator } from "@/components/editor/SaveIndicator";
@@ -202,6 +203,7 @@ export default function Home() {
           </button>
           <DevBadge />
           <ProjectSwitcher />
+          <ProjectStats />
           <button
             onClick={() => setChatOpen((v) => !v)}
             title="Toggle vibe chat (Cmd/Ctrl+K)"

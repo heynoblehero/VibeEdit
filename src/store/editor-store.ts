@@ -62,6 +62,8 @@ interface EditorStore {
   setShowThirds: (v: boolean) => void;
   showSafeArea: boolean;
   setShowSafeArea: (v: boolean) => void;
+  showLetterbox: boolean;
+  setShowLetterbox: (v: boolean) => void;
   loopRange: { start: number; end: number } | null;
   setLoopStart: (frame: number) => void;
   setLoopEnd: (frame: number) => void;
@@ -102,6 +104,8 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setShowThirds: (v) => set({ showThirds: v }),
   showSafeArea: false,
   setShowSafeArea: (v) => set({ showSafeArea: v }),
+  showLetterbox: false,
+  setShowLetterbox: (v) => set({ showLetterbox: v }),
   loopRange: null,
   setLoopStart: (frame) =>
     set((s) => {

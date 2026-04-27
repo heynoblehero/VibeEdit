@@ -401,9 +401,25 @@ export function Preview() {
 function PreviewOverlays() {
   const showThirds = useEditorStore((s) => s.showThirds);
   const showSafeArea = useEditorStore((s) => s.showSafeArea);
-  if (!showThirds && !showSafeArea) return null;
+  const showLetterbox = useEditorStore((s) => s.showLetterbox);
+  if (!showThirds && !showSafeArea && !showLetterbox) return null;
   return (
     <div className="absolute inset-0 pointer-events-none z-25">
+      {showLetterbox && (
+        // 2.39:1 cinemascope. Bars are sized as the difference between
+        // the canvas's actual aspect and 2.39, rounded to the nearest
+        // integer % so they don't shimmer at fractional values.
+        <>
+          <div
+            className="absolute left-0 right-0 top-0 bg-black"
+            style={{ height: "12%" }}
+          />
+          <div
+            className="absolute left-0 right-0 bottom-0 bg-black"
+            style={{ height: "12%" }}
+          />
+        </>
+      )}
       {showThirds && (
         <>
           <div className="absolute left-1/3 top-0 bottom-0 w-px bg-white/30" />
@@ -423,10 +439,27 @@ function PreviewOverlays() {
 }
 
 function PreviewGuidesToggle() {
-  const { showThirds, setShowThirds, showSafeArea, setShowSafeArea } =
-    useEditorStore();
+  const {
+    showThirds,
+    setShowThirds,
+    showSafeArea,
+    setShowSafeArea,
+    showLetterbox,
+    setShowLetterbox,
+  } = useEditorStore();
   return (
     <div className="absolute bottom-2 right-2 z-30 flex items-center gap-1 px-1.5 py-1 rounded bg-neutral-900/80 backdrop-blur-sm border border-neutral-800 text-[10px]">
+      <button
+        onClick={() => setShowLetterbox(!showLetterbox)}
+        className={`px-1.5 py-0.5 rounded ${
+          showLetterbox
+            ? "bg-cyan-500/20 text-cyan-300"
+            : "text-neutral-400 hover:text-white"
+        }`}
+        title="Cinemascope (2.39:1) letterbox bars"
+      >
+        ▭
+      </button>
       <button
         onClick={() => setShowThirds(!showThirds)}
         className={`px-1.5 py-0.5 rounded ${

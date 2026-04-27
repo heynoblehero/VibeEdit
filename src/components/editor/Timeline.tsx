@@ -442,6 +442,15 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
         className="overflow-x-auto overflow-y-hidden"
         style={{ scrollbarWidth: "thin" }}
         onWheel={(e) => {
+          // Trackpad pinch on macOS / browsers fires wheel events with
+          // ctrlKey set. Translate vertical pinch into a zoom factor.
+          if (e.ctrlKey && e.deltaY !== 0) {
+            e.preventDefault();
+            const cur = useEditorStore.getState().timelineZoom;
+            const factor = Math.exp(-e.deltaY * 0.01);
+            useEditorStore.getState().setTimelineZoom(cur * factor);
+            return;
+          }
           // Horizontal scroll on shift+wheel — Premiere convention.
           // Also: wheel inside a zoomed-in track scrolls horizontally
           // by default (because the inner content is wider than the

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — sprint 16 batch C — 6 more commits
+
+- 'Remove muted scenes' / 'Lock all' / 'Mute all' bulks in TracksPanel.
+- 'Insert blank before/after' in scene context menu.
+- Cheat sheet updated with all sprint-16 keys.
+
 ## Unreleased — sprint 16: usability sprint B — 17 commits
 
 Continuation of the QoL pass.

@@ -189,7 +189,8 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
           const types = e.dataTransfer.types;
           if (
             types.includes("vibeedit/upload-url") ||
-            types.includes("vibeedit/scene-type")
+            types.includes("vibeedit/scene-type") ||
+            types.includes("vibeedit/title")
           ) {
             e.preventDefault();
             e.dataTransfer.dropEffect = "copy";
@@ -235,6 +236,42 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                   transition: "beat_flash" as const,
                 };
             insertSceneAt(insertIndex, scene);
+            return;
+          }
+          // 1.5) Title template → new scene with the template's full
+          //      bundle of fields. Distinct from scene-type because
+          //      titles include effects[], motion presets, transition,
+          //      pre-filled text content. Just a deeper bundle.
+          const titlePayload = e.dataTransfer.getData("vibeedit/title");
+          if (titlePayload) {
+            e.preventDefault();
+            try {
+              const { params } = JSON.parse(titlePayload) as {
+                params?: Record<string, unknown>;
+              };
+              if (params) {
+                // Merge over a base scene shape so id + minimal defaults
+                // are present even when the template omits them.
+                const base = {
+                  id: createId(),
+                  type: "text_only" as const,
+                  duration: 3,
+                  background: { ...DEFAULT_BG },
+                };
+                const merged = {
+                  ...base,
+                  ...(params as Record<string, unknown>),
+                  id: base.id,
+                  background: {
+                    ...base.background,
+                    ...((params as { background?: Record<string, unknown> }).background ??
+                      {}),
+                  },
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                } as any;
+                insertSceneAt(insertIndex, merged);
+              }
+            } catch {}
             return;
           }
           // 2) Scene-type card → blank scene with that type pre-set.

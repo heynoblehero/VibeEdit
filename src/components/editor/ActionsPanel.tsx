@@ -18,6 +18,7 @@
 
 import {
   BarChart3,
+  Heading,
   Layers,
   Palette,
   Quote,
@@ -30,7 +31,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-type CardKind = "transition" | "effect" | "scene_type" | "look";
+type CardKind = "transition" | "effect" | "scene_type" | "look" | "title";
 
 interface ActionCard {
   id: string;
@@ -130,6 +131,133 @@ const LOOKS: ActionCard[] = [
   },
 ];
 
+/**
+ * Title templates — drop on the timeline to insert a new scene with
+ * the title's text + styling baked in. Each carries a bundle of scene
+ * fields (text, sizes, colors, motion, transition, effects). The
+ * Timeline's vibeedit/title drop handler creates a blank scene and
+ * merges these fields onto it.
+ */
+const TITLES: ActionCard[] = [
+  {
+    id: "title_bold",
+    kind: "title",
+    value: "bold_opener",
+    label: "Bold opener",
+    description: "Massive ALL-CAPS punch",
+    params: {
+      type: "text_only",
+      duration: 3,
+      emphasisText: "BIG IDEA",
+      emphasisSize: 160,
+      emphasisColor: "#ffffff",
+      textY: 700,
+      zoomPunch: 1.18,
+      transition: "beat_flash",
+      background: { color: "#0a0a0a", colorGrade: "punchy" },
+      emphasisMotion: "bounce_in",
+    },
+  },
+  {
+    id: "title_minimalist",
+    kind: "title",
+    value: "minimalist",
+    label: "Minimalist",
+    description: "Thin serif, slow drift",
+    params: {
+      type: "text_only",
+      duration: 3.5,
+      text: "edit me",
+      textSize: 72,
+      textColor: "#e5e5e5",
+      textY: 800,
+      transition: "fade",
+      background: { color: "#0a0a0a" },
+      textMotion: "drift_up",
+    },
+  },
+  {
+    id: "title_kinetic",
+    kind: "title",
+    value: "kinetic",
+    label: "Kinetic typography",
+    description: "Word-by-word slam",
+    params: {
+      type: "text_only",
+      duration: 2.5,
+      text: "every word",
+      emphasisText: "SLAMS",
+      emphasisSize: 140,
+      emphasisColor: "#10b981",
+      textY: 600,
+      zoomPunch: 1.2,
+      transition: "smash_cut",
+      background: { color: "#0a0a0a" },
+      emphasisMotion: "shake",
+    },
+  },
+  {
+    id: "title_lower_third",
+    kind: "title",
+    value: "lower_third",
+    label: "Lower-third name",
+    description: "Speaker intro strap",
+    params: {
+      type: "text_only",
+      duration: 3,
+      effects: [
+        {
+          kind: "lower_third",
+          startFrame: 6,
+          text: "Sam Altman",
+          subtext: "OpenAI · CEO",
+          color: "#10b981",
+        },
+      ],
+      transition: "none",
+      background: { color: "#0a0a0a" },
+    },
+  },
+  {
+    id: "title_quote",
+    kind: "title",
+    value: "quote",
+    label: "Quote card",
+    description: "Pull-quote with attribution",
+    params: {
+      type: "quote",
+      duration: 4,
+      quoteText: "Edit this pull quote.",
+      quoteAttribution: "Author",
+      transition: "fade",
+      background: { color: "#0a0a0a", vignette: 0.5 },
+    },
+  },
+  {
+    id: "title_chapter",
+    kind: "title",
+    value: "chapter",
+    label: "Chapter card",
+    description: "Bar wipe + chapter label",
+    params: {
+      type: "text_only",
+      duration: 2.5,
+      effects: [
+        {
+          kind: "bar_wipe",
+          startFrame: 0,
+          color: "#10b981",
+          text: "PART 02",
+          y: "50%",
+          size: 110,
+        },
+      ],
+      transition: "slide_left",
+      background: { color: "#0a0a0a" },
+    },
+  },
+];
+
 const SCENE_TYPES: ActionCard[] = [
   { id: "text_only", kind: "scene_type", value: "text_only", label: "Text", description: "Punch line over color" },
   { id: "stat", kind: "scene_type", value: "stat", label: "Stat", description: "Hero number + label" },
@@ -142,6 +270,7 @@ const SCENE_TYPES: ActionCard[] = [
 ];
 
 const SECTIONS: Array<{ key: string; title: string; icon: typeof Wand2; cards: ActionCard[] }> = [
+  { key: "titles", title: "Titles", icon: Heading, cards: TITLES },
   { key: "transitions", title: "Transitions", icon: Scissors, cards: TRANSITIONS },
   { key: "looks", title: "Looks", icon: Palette, cards: LOOKS },
   { key: "effects", title: "Effects", icon: Zap, cards: EFFECTS },
@@ -198,7 +327,9 @@ export function ActionsPanel() {
                           ? "vibeedit/effect"
                           : card.kind === "look"
                             ? "vibeedit/look"
-                            : "vibeedit/scene-type";
+                            : card.kind === "title"
+                              ? "vibeedit/title"
+                              : "vibeedit/scene-type";
                     return (
                       <div
                         key={card.id}

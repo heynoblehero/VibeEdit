@@ -1,5 +1,48 @@
 # Changelog
 
+## Unreleased — sprint 12: editor depth — speed / volume / looks / titles / export presets (5 commits)
+
+Five focused additions toward "real editor for the 80% case" — each is
+a few commits and ships as a self-contained polish layer. Multi-track,
+chroma/luma key, and master mixer deferred to a focused follow-up.
+
+### Per-scene timing + audio (S1 + A1)
+- `Scene.speedFactor`: 0.25× → 4× per scene (slow-mo / fast-mo).
+  Schema-only in this sprint — visual playback respect lands when we
+  rewire SceneRenderer's frame counter to scale per-scene.
+- `Scene.audioGain`: 0 → 2.0. Multiplies voiceover + sfx volume in
+  Composition. Renderer side fully wired today.
+- SceneEditor EffectsPanel gains a "Speed & audio" section with both
+  sliders + live label.
+
+### Platform export presets (E1)
+- 4 new RenderPreset ids: `tiktok` (8 Mbps), `reels` (5 Mbps),
+  `yt_shorts` (12 Mbps), `yt_16x9` (12 Mbps). Each carries
+  `videoBitrateKbps` + `audioBitrateKbps` + `expectedRatio`. Hits
+  each platform's preferred input bitrate so re-encode quality holds.
+- `render-jobs.ts` reads `preset.audioBitrateKbps` / `videoBitrateKbps`,
+  falls through to existing defaults for the generic quality tiers.
+
+### "Looks" section in ActionsPanel (F1)
+- New CardKind `look` + MIME type `vibeedit/look`. 6 draggable preset
+  bundles: Cinematic / Punchy / Noir B&W / Dreamy / Vintage / Neon.
+  Each is a bundle of `colorGrade + brightness + contrast + saturation
+  + temperature + blur` values that flow through GradientBg's existing
+  CSS filter chain.
+- Drop on a scene block → wipes the prior look's keys cleanly + merges
+  the new bundle (so a second drop fully replaces, not stacks).
+
+### "Titles" section in ActionsPanel (T1)
+- New CardKind `title` + MIME type `vibeedit/title`. 6 templates:
+  Bold opener · Minimalist · Kinetic typography · Lower-third name ·
+  Quote card · Chapter card.
+- Each carries a deep bundle (type, duration, text, sizes, colors,
+  textMotion, emphasisMotion, effects[], transition, background) that
+  Timeline's outer onDrop merges over a base scene shape and inserts
+  via `insertSceneAt`.
+- Distinct from `vibeedit/scene-type` because titles pre-fill content
+  + motion + effects, not just the bare type field.
+
 ## Unreleased — sprint 11: left sidebar with Uploads / Actions / AI tabs (1 commit)
 
 UI restructure that moves all the "what can I drop here?" surfaces off

@@ -38,6 +38,23 @@ export function ProjectSwitcher() {
     return () => window.removeEventListener("mousedown", onClick);
   }, [open]);
 
+  // ⌘P opens the project switcher. Browser print dialog is a fair
+  // tradeoff inside an editor — most users want this for quick switch.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") {
+        const t = e.target as HTMLElement | null;
+        const inText =
+          t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+        if (inText) return;
+        e.preventDefault();
+        setOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const commitName = () => {
     const trimmed = name.trim() || "Untitled";
     renameProject(trimmed);

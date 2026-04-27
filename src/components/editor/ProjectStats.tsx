@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, Film } from "lucide-react";
+import { Clock, Film, Layers } from "lucide-react";
 import { totalDurationFrames } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
 
@@ -37,6 +37,15 @@ export function ProjectStats() {
         <Clock className="h-3 w-3" />
         {fmt}
       </span>
+      {project.tracks && project.tracks.length > 1 && (
+        <span
+          className="flex items-center gap-1 text-cyan-400"
+          title={`${project.tracks.length} tracks`}
+        >
+          <Layers className="h-3 w-3" />
+          {project.tracks.length}
+        </span>
+      )}
     </div>
   );
 }

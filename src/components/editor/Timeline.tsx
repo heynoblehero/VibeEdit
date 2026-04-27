@@ -349,6 +349,16 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
       <div
         className="overflow-x-auto overflow-y-hidden"
         style={{ scrollbarWidth: "thin" }}
+        onWheel={(e) => {
+          // Horizontal scroll on shift+wheel — Premiere convention.
+          // Also: wheel inside a zoomed-in track scrolls horizontally
+          // by default (because the inner content is wider than the
+          // container). This makes shift-wheel + plain wheel both work
+          // for power users with track-pads vs mice.
+          if (e.shiftKey && e.deltaY !== 0) {
+            e.currentTarget.scrollLeft += e.deltaY;
+          }
+        }}
       >
       <div
         ref={trackRef}

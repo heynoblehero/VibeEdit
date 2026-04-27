@@ -206,7 +206,13 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="flex flex-col h-screen bg-neutral-950 text-neutral-100">
+    <div
+      className="flex flex-col h-screen text-neutral-100"
+      style={{
+        background:
+          "linear-gradient(180deg, #0a0a0a 0%, #0a0a0a 60%, #060606 100%)",
+      }}
+    >
       <KeyboardShortcuts />
       <ShortcutHelp />
       <SearchScenes />
@@ -214,7 +220,13 @@ export default function Home() {
       <PasteImage />
       <PageTitleSync />
       {/* Top bar */}
-      <header className="flex items-center justify-between px-2 sm:px-4 py-2 gap-2 border-b border-neutral-800 bg-neutral-950/80 backdrop-blur-sm shrink-0">
+      <header
+        className="flex items-center justify-between px-2 sm:px-4 py-2 gap-2 border-b border-neutral-800/80 bg-neutral-950/70 backdrop-blur-md shrink-0"
+        style={{
+          backgroundImage:
+            "linear-gradient(180deg, rgba(16,185,129,0.025) 0%, transparent 100%)",
+        }}
+      >
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() => setHomeDismissed(false)}

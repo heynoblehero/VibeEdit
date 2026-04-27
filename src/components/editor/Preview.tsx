@@ -256,6 +256,14 @@ export function Preview() {
 
       {/* Player + clickable overlay */}
       <div className="flex-1 min-h-0 relative bg-black rounded-lg overflow-hidden border border-neutral-800">
+        {selectedScene && (
+          <div className="absolute top-2 left-2 z-30 px-1.5 py-1 rounded bg-neutral-900/70 backdrop-blur-sm border border-neutral-800 text-[10px] text-neutral-300 font-mono pointer-events-none">
+            Scene {project.scenes.findIndex((s) => s.id === selectedScene.id) + 1}
+            {selectedScene.label && (
+              <span className="text-neutral-500"> · {selectedScene.label}</span>
+            )}
+          </div>
+        )}
         {!selectedScene && (
           <div className="absolute top-2 right-2 z-30 flex items-center gap-1 px-1.5 py-1 rounded bg-neutral-900/80 backdrop-blur-sm border border-neutral-800 text-[10px] text-neutral-400">
             <span className="text-neutral-500">×</span>

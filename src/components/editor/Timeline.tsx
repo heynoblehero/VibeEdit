@@ -763,6 +763,24 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
               {scene.voiceover?.audioUrl && (
                 <AudioWaveform src={scene.voiceover.audioUrl} height={32} />
               )}
+              {(() => {
+                const fxCount = scene.effects?.length ?? 0;
+                const hasGrade =
+                  scene.background.colorGrade && scene.background.colorGrade !== "neutral";
+                const hasKey = scene.background.chromaKey || scene.background.lumaKey;
+                const items: string[] = [];
+                if (fxCount > 0) items.push(`fx${fxCount}`);
+                if (hasGrade) items.push("look");
+                if (hasKey) items.push("key");
+                if (scene.speedFactor && scene.speedFactor !== 1)
+                  items.push(`${scene.speedFactor}x`);
+                if (items.length === 0) return null;
+                return (
+                  <span className="absolute right-3 top-0 text-[8.5px] font-mono text-neutral-500 pointer-events-none z-10 truncate">
+                    {items.join(" · ")}
+                  </span>
+                );
+              })()}
               {/* Right-edge handle reveals on hover so the trim affordance
                   is visible without sniffing the cursor. The wider hit-area
                   span sits behind a thinner visible bar. */}

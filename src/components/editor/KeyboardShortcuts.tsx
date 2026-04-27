@@ -75,6 +75,20 @@ export function KeyboardShortcuts() {
         }
       }
 
+      // ⌘[ / ⌘] — move the selected scene one slot up / down. Mirrors
+      // the Premiere 'rotate clip' gesture and is faster than dragging
+      // for tiny order tweaks.
+      if (mod && (e.key === "[" || e.key === "]") && !isTextInput(e.target)) {
+        e.preventDefault();
+        if (!selectedSceneId) return;
+        const idx = scenes.findIndex((s) => s.id === selectedSceneId);
+        if (idx < 0) return;
+        const next = idx + (e.key === "]" ? 1 : -1);
+        if (next < 0 || next >= scenes.length) return;
+        useProjectStore.getState().moveScene(idx, next);
+        return;
+      }
+
       // Cmd+R — render with the current default preset. Browser's own
       // refresh shortcut is annoying inside an editor; we override it.
       if (mod && !e.shiftKey && e.key.toLowerCase() === "r" && !isTextInput(e.target)) {

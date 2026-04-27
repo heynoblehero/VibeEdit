@@ -103,6 +103,12 @@ export function BulkActionsBar() {
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-neutral-950 border border-emerald-500/40 rounded-full shadow-xl px-3 py-1.5">
       <span className="text-[11px] text-emerald-300 font-semibold">
         {selectedIds.length} selected
+        <span className="text-emerald-500/70 font-mono ml-1.5">
+          {(() => {
+            const total = selectedScenes.reduce((s, sc) => s + sc.duration, 0);
+            return `${total.toFixed(1)}s`;
+          })()}
+        </span>
       </span>
       <div className="h-4 w-px bg-neutral-800" />
       <button

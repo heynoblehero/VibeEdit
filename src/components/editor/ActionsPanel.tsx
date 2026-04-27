@@ -30,6 +30,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useState } from "react";
+import { useEditorStore } from "@/store/editor-store";
 
 type CardKind = "transition" | "effect" | "scene_type" | "look" | "title";
 
@@ -290,6 +291,21 @@ const ICON_FOR_VALUE: Record<string, typeof Wand2> = {
 
 export function ActionsPanel() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const recent = useEditorStore((s) => s.recentActions);
+
+  // Resolve each MRU entry back to its full ActionCard so we can re-emit
+  // the exact same payload the section card would.
+  const recentCards: Array<{ section: typeof SECTIONS[number]; card: ActionCard }> = [];
+  for (const r of recent) {
+    for (const s of SECTIONS) {
+      if (s.key === "scenes") continue;
+      const c = s.cards.find((c) => c.value === r.value);
+      if (c) {
+        recentCards.push({ section: s, card: c });
+        break;
+      }
+    }
+  }
 
   return (
     <div className="h-full flex flex-col">
@@ -299,6 +315,47 @@ export function ActionsPanel() {
         <span className="text-[10px] text-neutral-500 ml-auto">drag onto timeline</span>
       </div>
       <div className="flex-1 overflow-y-auto p-2 space-y-3">
+        {recentCards.length > 0 && (
+          <div className="rounded border border-amber-700/40 bg-amber-500/5">
+            <div className="px-2 py-1.5 flex items-center gap-2 text-[10px] uppercase tracking-wider text-amber-300/80">
+              <Wand2 className="h-3 w-3" />
+              <span>Recent</span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 p-1.5">
+              {recentCards.slice(0, 6).map(({ section, card }) => {
+                const dragMime =
+                  section.key === "transitions"
+                    ? "vibeedit/transition"
+                    : section.key === "effects"
+                      ? "vibeedit/effect"
+                      : section.key === "looks"
+                        ? "vibeedit/look"
+                        : section.key === "titles"
+                          ? "vibeedit/title"
+                          : "vibeedit/scene-type";
+                return (
+                  <div
+                    key={`${section.key}-${card.value}`}
+                    draggable
+                    onDragStart={(e) => {
+                      const payload = JSON.stringify({
+                        value: card.value,
+                        params: card.params,
+                      });
+                      e.dataTransfer.setData(dragMime, payload);
+                      e.dataTransfer.setData("text/plain", card.label);
+                      e.dataTransfer.effectAllowed = "copy";
+                    }}
+                    title={`${card.label} · ${section.title}`}
+                    className="group cursor-grab active:cursor-grabbing rounded border border-amber-700/30 hover:border-amber-400 bg-neutral-900 px-2 py-1.5 text-[10px] text-neutral-300 hover:text-amber-200 transition-colors"
+                  >
+                    {card.label}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {SECTIONS.map((section) => {
           const SectionIcon = section.icon;
           const isCollapsed = collapsed[section.key];

@@ -564,6 +564,7 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                       { kind: value as any, startFrame: 0, ...(params ?? {}) },
                     ];
                     updateScene(scene.id, { effects: updated });
+                    useEditorStore.getState().pushRecentAction("effect", value);
                   } catch {}
                   setDragIndex(null);
                   setHoverIndex(null);
@@ -598,6 +599,7 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                       // dedupes by from/to pair. We re-import inline.
                       void existing;
                       useProjectStore.getState().upsertCut(newCut);
+                      useEditorStore.getState().pushRecentAction("transition", value);
                     }
                   } catch {}
                   setDragIndex(null);
@@ -608,7 +610,8 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                 const lookPayload = e.dataTransfer.getData("vibeedit/look");
                 if (lookPayload) {
                   try {
-                    const { params } = JSON.parse(lookPayload) as {
+                    const { value, params } = JSON.parse(lookPayload) as {
+                      value?: string;
                       params?: Record<string, unknown>;
                     };
                     if (params) {
@@ -628,6 +631,7 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                       updateScene(scene.id, {
                         background: { ...cleanedBg, ...(params as Record<string, unknown>) } as Scene["background"],
                       });
+                      if (value) useEditorStore.getState().pushRecentAction("look", value);
                     }
                   } catch {}
                   setDragIndex(null);

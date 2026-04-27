@@ -46,6 +46,13 @@ interface EditorStore {
    */
   timelineZoom: number;
   setTimelineZoom: (v: number) => void;
+  /**
+   * MRU list of action card ids the user has used. Bumped to head
+   * each time the Timeline accepts an effect/transition/look/title/
+   * ai-action drop. ActionsPanel renders the top 5 as a quick tray.
+   */
+  recentActions: Array<{ kind: string; value: string; at: number }>;
+  pushRecentAction: (kind: string, value: string) => void;
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
@@ -67,4 +74,15 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setCutMode: (v) => set({ cutMode: v }),
   timelineZoom: 1,
   setTimelineZoom: (v) => set({ timelineZoom: Math.max(0.5, Math.min(8, v)) }),
+  recentActions: [],
+  pushRecentAction: (kind, value) =>
+    set((s) => {
+      const next = [
+        { kind, value, at: Date.now() },
+        ...s.recentActions.filter(
+          (r) => !(r.kind === kind && r.value === value),
+        ),
+      ].slice(0, 8);
+      return { recentActions: next };
+    }),
 }));

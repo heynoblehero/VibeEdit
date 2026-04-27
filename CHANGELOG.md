@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — sprint 17 batch B (10 more commits)
+
+- 'Move to overlay track' context menu (auto-creates overlay).
+- ProjectStats: track count + upload count chips.
+- TracksPanel: muted/locked counts in header.
+- 'Reverse' + 'Shuffle' scene order bulks.
+- BulkActionsBar: total selection duration.
+- Click TrackStrip block → select scene.
+- Persist composition guides (thirds/safe-area/letterbox).
+- ⌘Enter play from selected scene.
+- ⌘, opens Settings.
+- S solos selection.
+
 ## Unreleased — sprint 17 (10 commits)
 
 QoL part 2.

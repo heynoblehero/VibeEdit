@@ -7,6 +7,18 @@ import type { ProjectUpload } from "@/lib/scene-schema";
 import { createId, DEFAULT_BG } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
 
+function formatBytes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let i = 0;
+  let v = n;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i += 1;
+  }
+  return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
 /**
  * Per-project upload bin. Drag/drop or click to upload any file (image
  * / video / audio). Files persist server-side via /api/assets/upload
@@ -205,7 +217,7 @@ export function UploadsPanel({ open = true, onClose, inline = false }: Props) {
                       e.dataTransfer.effectAllowed = "copy";
                     }}
                     onDoubleClick={() => attachToSelected(u)}
-                    title={`${u.name}\n\nClick + → insert as new scene\nDouble-click → attach to selected scene\nDrag onto timeline → insert as a new scene`}
+                    title={`${u.name}\n${formatBytes(u.bytes)} · ${u.type ?? "?"}\nUploaded ${new Date(u.uploadedAt).toLocaleString()}\n\nClick + → insert as new scene\nDouble-click → attach to selected scene\nDrag onto timeline → insert as a new scene`}
                     className="group relative rounded border border-neutral-800 bg-neutral-900 overflow-hidden hover:border-emerald-500/60 cursor-grab active:cursor-grabbing"
                   >
                     {isImage ? (
@@ -229,6 +241,9 @@ export function UploadsPanel({ open = true, onClose, inline = false }: Props) {
                     )}
                     <div className="px-1.5 py-1 text-[10px] text-neutral-300 truncate">
                       {u.name}
+                    </div>
+                    <div className="px-1.5 pb-1 text-[9px] text-neutral-500 font-mono">
+                      {formatBytes(u.bytes)}
                     </div>
                     <button
                       type="button"

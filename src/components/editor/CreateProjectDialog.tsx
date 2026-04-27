@@ -38,9 +38,10 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
   const [assets, setAssets] = useState<PendingAsset[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [creating, setCreating] = useState(false);
-  // Default ON: kicks the autonomous spine→plan→render→watch loop. Toggle
-  // OFF for "express mode" where the agent just runs the raw goal text.
-  const [cinematicMode, setCinematicMode] = useState(true);
+  // Default OFF: lands the user in the editor for manual editing. Flip
+  // ON when the user explicitly opts into the autonomous AI build via
+  // the toggle below the goal field.
+  const [cinematicMode, setCinematicMode] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const goalRef = useRef<HTMLTextAreaElement>(null);
 
@@ -305,20 +306,30 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
           )}
         </div>
 
-        <div className="flex items-center gap-2 px-1 -mb-1">
-          <label className="flex items-center gap-2 cursor-pointer text-[11px] text-neutral-400 hover:text-white select-none">
-            <input
-              type="checkbox"
-              checked={cinematicMode}
-              onChange={(e) => setCinematicMode(e.target.checked)}
-              className="accent-emerald-500"
-            />
-            <span>
-              <span className="text-emerald-400 font-semibold">Cinematic mode</span>
-              <span className="text-neutral-500"> — autonomous spine → plan → research → render → watch loop. Off = express (just run the goal).</span>
-            </span>
-          </label>
-        </div>
+        <label
+          className={
+            cinematicMode
+              ? "flex items-start gap-3 px-3 py-2 rounded-md border-2 border-emerald-500/60 bg-emerald-500/10 cursor-pointer transition-colors"
+              : "flex items-start gap-3 px-3 py-2 rounded-md border-2 border-neutral-800 hover:border-neutral-700 cursor-pointer transition-colors"
+          }
+        >
+          <input
+            type="checkbox"
+            checked={cinematicMode}
+            onChange={(e) => setCinematicMode(e.target.checked)}
+            className="mt-0.5 accent-emerald-500 h-4 w-4"
+          />
+          <div className="flex-1 text-[11px]">
+            <div className={cinematicMode ? "text-emerald-300 font-semibold text-xs" : "text-white font-semibold text-xs"}>
+              ✨ Let AI build it autonomously
+            </div>
+            <div className="text-neutral-500 mt-0.5">
+              {cinematicMode
+                ? "Spine → plan → research → assets → narration → render → watch. Walk away while it ships."
+                : "Otherwise we'll create a blank project and you edit manually with the AI as a copilot."}
+            </div>
+          </div>
+        </label>
 
         <div className="flex items-center gap-2 pt-1">
           <button

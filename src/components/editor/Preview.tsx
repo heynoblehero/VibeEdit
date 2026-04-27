@@ -101,12 +101,22 @@ export function Preview() {
     return (bound?.start ?? 0) + currentFrame;
   }, [isFullPreview, currentFrame, sceneBounds, selectedSceneId]);
 
+  // Posed-preview frame: the static frame we seek to when paused so the
+  // editor shows a meaningful thumbnail rather than frame 0. Clamped to
+  // the scene's playable range — short scenes (e.g. after a cut at
+  // frame 6) would otherwise blow up the Remotion Player with
+  // "initialFrame must be ≤ durationInFrames - 1".
+  const posedFrame = useMemo(
+    () => Math.max(0, Math.min(18, sceneDur - 1)),
+    [sceneDur],
+  );
+
   useEffect(() => {
     if (isPaused && playerRef.current) {
       playerRef.current.pause();
-      playerRef.current.seekTo(18);
+      playerRef.current.seekTo(posedFrame);
     }
-  }, [isPaused, selectedSceneId]);
+  }, [isPaused, selectedSceneId, posedFrame]);
 
   // When a scene with a voiceover is selected, auto-play so the creator
   // hears the narration without clicking Play.
@@ -207,7 +217,7 @@ export function Preview() {
             controls={false}
             loop
             autoPlay={false}
-            initialFrame={18}
+            initialFrame={posedFrame}
           />
         ) : (
           <Player

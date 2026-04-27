@@ -38,6 +38,7 @@ import { ScheduleRenderDialog } from "@/components/editor/ScheduleRenderDialog";
 import { SceneToolsPanel } from "@/components/editor/SceneToolsPanel";
 import { LeftSidebar } from "@/components/editor/LeftSidebar";
 import { ProjectDropImport } from "@/components/editor/ProjectDropImport";
+import { SearchScenes } from "@/components/editor/SearchScenes";
 import { useEditorStore } from "@/store/editor-store";
 import { UploadsPanel } from "@/components/editor/UploadsPanel";
 import { useChatStore } from "@/store/chat-store";
@@ -191,6 +192,7 @@ export default function Home() {
     <div className="flex flex-col h-screen bg-neutral-950 text-neutral-100">
       <KeyboardShortcuts />
       <ShortcutHelp />
+      <SearchScenes />
       <ProjectDropImport />
       {/* Top bar */}
       <header className="flex items-center justify-between px-2 sm:px-4 py-2 gap-2 border-b border-neutral-800 bg-neutral-950/80 backdrop-blur-sm shrink-0">

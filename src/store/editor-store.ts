@@ -72,6 +72,17 @@ interface EditorStore {
   setLoopStart: (frame: number) => void;
   setLoopEnd: (frame: number) => void;
   clearLoopRange: () => void;
+  /**
+   * Layered-timeline state (sprint 19). `expandedLayers` controls
+   * which layer rows are open; default keeps a sensible baseline.
+   * `selectedItemId` tracks which TimelineItem block is highlighted —
+   * format `{sceneId}:{kind}[:{index}]`. Sprint 20 drag handlers
+   * read this.
+   */
+  expandedLayers: Record<string, boolean>;
+  toggleExpandedLayer: (kind: string) => void;
+  selectedItemId: string | null;
+  setSelectedItemId: (id: string | null) => void;
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
@@ -166,4 +177,54 @@ export const useEditorStore = create<EditorStore>((set) => ({
       return { loopRange: { start: Math.min(start, frame - 1), end: frame } };
     }),
   clearLoopRange: () => set({ loopRange: null }),
+  expandedLayers: (() => {
+    // Sensible default: scene blocks + bg + main text + voiceover are
+    // expanded so a typical scene shows its key moves at a glance
+    // without doubling the timeline's vertical height.
+    const fallback: Record<string, boolean> = {
+      scenes: true,
+      bg: true,
+      "text-main": true,
+      "text-emphasis": true,
+      voiceover: true,
+      character: true,
+      broll: true,
+      effects: true,
+      "text-subtitle": false,
+      montage: true,
+      stat: true,
+      bullets: true,
+      quote: true,
+      "bar-chart": true,
+      three: true,
+      split: true,
+      counter: true,
+    };
+    if (typeof window === "undefined") return fallback;
+    try {
+      const raw = window.localStorage.getItem("vibeedit:expanded-layers");
+      if (!raw) return fallback;
+      const parsed = JSON.parse(raw) as Record<string, boolean>;
+      return { ...fallback, ...parsed };
+    } catch {
+      return fallback;
+    }
+  })(),
+  toggleExpandedLayer: (kind) =>
+    set((s) => {
+      const next = { ...s.expandedLayers, [kind]: !s.expandedLayers[kind] };
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(
+            "vibeedit:expanded-layers",
+            JSON.stringify(next),
+          );
+        } catch {
+          // localStorage unavailable — non-critical
+        }
+      }
+      return { expandedLayers: next };
+    }),
+  selectedItemId: null,
+  setSelectedItemId: (id) => set({ selectedItemId: id }),
 }));

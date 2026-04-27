@@ -106,7 +106,7 @@ export function ProjectHome({
         <Sparkles className="h-6 w-6 text-emerald-400" />
         <h1 className="text-xl font-semibold text-white">VibeEdit</h1>
         <p className="text-xs text-neutral-500">
-          AI video editor. Describe it, the agent builds it.
+          Web video editor with an AI in your corner.
         </p>
       </div>
 
@@ -119,8 +119,7 @@ export function ProjectHome({
           Create a new project
         </button>
         <p className="text-[11px] text-neutral-500 text-center mt-1">
-          You&apos;ll describe the video, and the AI agent will plan,
-          generate, and render it for you.
+          Drop in clips and edit, or hand the brief to the AI.
         </p>
         <div className="flex items-center gap-3 text-[11px] text-neutral-600 mt-1">
           <button
@@ -128,6 +127,26 @@ export function ProjectHome({
             className="hover:text-neutral-300 underline decoration-dotted underline-offset-2"
           >
             blank project
+          </button>
+          <span className="text-neutral-800">·</span>
+          <button
+            onClick={async () => {
+              createProject();
+              onStart();
+              setTimeout(async () => {
+                const { useChatStore } = await import("@/store/chat-store");
+                useChatStore
+                  .getState()
+                  .addUserMessage(
+                    "Make a quick 30s demo video. Pick any topic and ship a complete result.",
+                  );
+                document.querySelector<HTMLFormElement>("aside form")?.requestSubmit();
+              }, 50);
+            }}
+            className="hover:text-neutral-300"
+            title="AI builds a complete video for you"
+          >
+            ✨ AI build
           </button>
           <span className="text-neutral-800">·</span>
           <button

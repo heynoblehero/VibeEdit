@@ -1,5 +1,44 @@
 # Changelog
 
+## Unreleased — sprint 16: usability sprint A — 22 commits
+
+Aggressive QoL pass. Each item is small but the cumulative effect
+should make the editor feel substantially more competent.
+
+### Scenes / context menu
+- Solo (mute all others, click again to clear).
+- Reset all effects (wipes fx/grade/keys/speed/fades but keeps media).
+- Letterbox 2.39:1 cinemascope overlay (▭ in preview cluster).
+- Empty-scene ⚠ icon when a scene has no media/text/VO.
+- 'Fit duration to VO' single-click button in EffectsPanel.
+- 'Fit all durations to VO' bulk button in TracksPanel.
+- 'Surprise me ✨' randomizes a Look across the whole project.
+
+### Looks / actions
+- 6 more Looks: Polaroid, Sunset, Cyberpunk, Anime, Documentary,
+  Moonlight (now 12 total).
+
+### Keyboard
+- ⌘⇧M toggle mute on selection.
+- ⌘C / ⌘V copy + paste scenes via clipboard JSON.
+- ⌘⇧S export project as JSON file.
+- ⌘P opens project switcher.
+- ⌘⇧N new blank project.
+- ⌘↑ / ⌘↓ also reorder selected scene.
+- L toggle lock on selection.
+- Z toggle zen mode (chrome-hidden preview).
+- ⌘F open scene search modal.
+
+### Timeline
+- Friendlier empty-state drop hint.
+- Drag markers to reposition them.
+
+### IO
+- Drop a `.vibeedit.json` file onto the window to import.
+
+### Layout
+- PageTitleSync — `document.title` follows project name.
+
 ## Unreleased — sprint 15: multi-track timeline (M1–M4) — 6 commits
 
 The structural follow-on to sprint 12. Closes the last open item

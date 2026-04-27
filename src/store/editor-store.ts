@@ -68,6 +68,14 @@ interface EditorStore {
    *  fills the screen. Z key toggles. */
   zenMode: boolean;
   setZenMode: (v: boolean) => void;
+  /**
+   * Top-level UI mode. 'agent' is default: chat sidebar wide and
+   * always-open, manual editor surfaces (LeftSidebar / SceneList /
+   * LayeredTimeline) hidden. 'manual' surfaces the full editor.
+   * Persisted across reloads.
+   */
+  editorMode: "agent" | "manual";
+  setEditorMode: (m: "agent" | "manual") => void;
   loopRange: { start: number; end: number } | null;
   setLoopStart: (frame: number) => void;
   setLoopEnd: (frame: number) => void;
@@ -164,6 +172,16 @@ export const useEditorStore = create<EditorStore>((set) => ({
     if (typeof window !== "undefined")
       window.localStorage.setItem("vibeedit:zen-mode", v ? "1" : "0");
     set({ zenMode: v });
+  },
+  editorMode: (() => {
+    if (typeof window === "undefined") return "agent";
+    const saved = window.localStorage.getItem("vibeedit:editor-mode");
+    return saved === "manual" ? "manual" : "agent";
+  })(),
+  setEditorMode: (m) => {
+    if (typeof window !== "undefined")
+      window.localStorage.setItem("vibeedit:editor-mode", m);
+    set({ editorMode: m });
   },
   loopRange: null,
   setLoopStart: (frame) =>

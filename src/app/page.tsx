@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Film, ListVideo, MessageCircle, Redo2, Settings, Smartphone, Undo2 } from "lucide-react";
+import { CalendarClock, Film, ListVideo, MessageCircle, Redo2, Scissors, Settings, Smartphone, Sparkles, Undo2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { AuthBar } from "@/components/editor/AuthBar";
@@ -70,6 +70,8 @@ export default function Home() {
   const selectedSceneId = useProjectStore((s) => s.selectedSceneId);
   const queueCount = useRenderQueueStore((s) => s.items.length);
   const toggleQueue = useRenderQueueStore((s) => s.togglePanel);
+  const editorMode = useEditorStore((s) => s.editorMode);
+  const setEditorMode = useEditorStore((s) => s.setEditorMode);
 
   // Chat-first: the modal picker no longer auto-opens. The chat sidebar's
   // empty state shows workflow cards inline. The picker is still reachable
@@ -97,11 +99,10 @@ export default function Home() {
         return;
       }
     } catch {}
-    // No saved preference: editor-first default. Open chat only when
-    // the project already has scenes (returning user mid-edit) — empty
-    // projects start with the chat collapsed so the user sees the
-    // editor's "Add your first scene" CTA first.
-    if (project.scenes.length === 0) {
+    // No saved preference: agent-first default keeps chat open. Manual
+    // mode falls back to "open only when there are scenes" so the empty
+    // editor doesn't feel busy on first run.
+    if (editorMode === "manual" && project.scenes.length === 0) {
       setChatOpenState(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -246,6 +247,39 @@ export default function Home() {
           <ProjectSwitcher />
           <ProjectStats />
           <AspectSwitcher />
+          {/* Agent / Manual mode toggle — agent is default, manual unlocks
+              the full editor surfaces (LeftSidebar, SceneList, timeline). */}
+          <div className="hidden sm:flex items-center gap-0.5 rounded-md bg-neutral-900/80 border border-neutral-800 p-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                setEditorMode("agent");
+                setChatOpen(true);
+              }}
+              title="Agent mode — chat-first editing"
+              className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                editorMode === "agent"
+                  ? "bg-emerald-500/20 text-emerald-300"
+                  : "text-neutral-500 hover:text-white"
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Agent</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditorMode("manual")}
+              title="Manual mode — full editor surfaces"
+              className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                editorMode === "manual"
+                  ? "bg-neutral-700 text-white"
+                  : "text-neutral-500 hover:text-white"
+              }`}
+            >
+              <Scissors className="h-3.5 w-3.5" />
+              <span>Edit</span>
+            </button>
+          </div>
           <button
             onClick={() => setChatOpen((v) => !v)}
             title="Toggle vibe chat (Cmd/Ctrl+K)"
@@ -362,10 +396,11 @@ export default function Home() {
         {!zenMode && (
           <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
         )}
-        {!zenMode && <LeftSidebar />}
-        {/* Left: scene list + tools — hidden until scenes exist so the empty
-            state is just chat + preview (way less busy). */}
-        {!zenMode && project.scenes.length > 0 && !leftCollapsed && (
+        {!zenMode && editorMode === "manual" && <LeftSidebar />}
+        {/* Left: scene list + tools — manual mode only. Agent mode keeps
+            the layout to chat + preview so the user focuses on the
+            conversation, not the editor surfaces. */}
+        {!zenMode && editorMode === "manual" && project.scenes.length > 0 && !leftCollapsed && (
           <div className="w-80 flex flex-col border-r border-neutral-800 shrink-0 overflow-hidden relative">
             <button
               onClick={() => setLeftCollapsed(true)}
@@ -389,7 +424,7 @@ export default function Home() {
         )}
 
         {/* A tiny "show scene list" tab when the left column is collapsed. */}
-        {project.scenes.length > 0 && leftCollapsed && (
+        {editorMode === "manual" && project.scenes.length > 0 && leftCollapsed && (
           <button
             onClick={() => setLeftCollapsed(false)}
             title="Show scene list"
@@ -414,8 +449,9 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Right: scene editor — only when a scene is selected */}
-        {selectedSceneId &&
+        {/* Right: scene editor — only when a scene is selected, manual mode. */}
+        {editorMode === "manual" &&
+          selectedSceneId &&
           project.scenes.some((s) => s.id === selectedSceneId) &&
           !rightCollapsed && (
             <div
@@ -433,7 +469,8 @@ export default function Home() {
             </div>
           )}
         {/* Tab to restore the scene editor when it was manually collapsed. */}
-        {selectedSceneId &&
+        {editorMode === "manual" &&
+          selectedSceneId &&
           project.scenes.some((s) => s.id === selectedSceneId) &&
           rightCollapsed && (
             <button

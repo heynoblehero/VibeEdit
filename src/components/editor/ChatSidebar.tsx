@@ -18,6 +18,7 @@ import { buildCinematicShortBrief } from "@/lib/agent-briefs";
 import type { Project } from "@/lib/scene-schema";
 import { useAssetStore } from "@/store/asset-store";
 import { useChatStore, type ChatMessage } from "@/store/chat-store";
+import { useEditLogStore } from "@/store/edit-log-store";
 import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 import { useVoiceStore } from "@/store/voice-store";
@@ -406,6 +407,11 @@ export function ChatSidebar({
     try {
       const abortCtrl = new AbortController();
       abortRef.current = abortCtrl;
+      // Recent manual edits — the agent uses these as a "user just
+      // changed X by hand, treat as deliberate" signal. Cleared on
+      // turn-finish below so each agent turn sees only the edits
+      // since its last response.
+      const recentManualEdits = useEditLogStore.getState().getRecent(8);
       const res = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -415,6 +421,7 @@ export function ChatSidebar({
           characters,
           sfx,
           focusedSceneId: useEditorStore.getState().focusedSceneId,
+          recentManualEdits,
         }),
         signal: abortCtrl.signal,
       });
@@ -484,6 +491,9 @@ export function ChatSidebar({
     } finally {
       finishAssistantMessage(msgId);
       setStreaming(false);
+      // Clear the manual-edit log — anything between now and the next
+      // user message is a fresh batch of intent.
+      useEditLogStore.getState().clear();
     }
   };
 

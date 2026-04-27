@@ -19,6 +19,15 @@ type ChatMessage =
   | { role: "user"; content: string }
   | { role: "assistant"; content: string };
 
+interface ManualEditLogEntry {
+  sceneId: string;
+  sceneIndex: number;
+  field: string;
+  oldValue: string | number | null;
+  newValue: string | number | null;
+  at: number;
+}
+
 interface AgentRequest {
   messages: ChatMessage[];
   project: Project;
@@ -26,6 +35,10 @@ interface AgentRequest {
   sfx: SfxAsset[];
   /** When set, the agent's edits are scoped to this scene only. */
   focusedSceneId?: string | null;
+  /** What the user manually edited since the last agent turn. The
+   *  agent treats these as deliberate intent — preserve unless asked
+   *  to change. Cleared client-side on turn finish. */
+  recentManualEdits?: ManualEditLogEntry[];
 }
 
 const SYSTEM_PROMPT = `You are the AI copilot inside VibeEdit, a manual web video editor. Most of the time, the user is editing scenes by hand and asking you for surgical help — re-narrate this scene, generate a new image for that one, fix the pacing of one beat. Default to focused, scene-scoped edits. The autonomous "build the whole video" loop only runs when:
@@ -645,6 +658,30 @@ export async function POST(request: NextRequest) {
                   text: `Round ${round} reminder:\n${anchor.join("\n")}`,
                 });
               }
+            }
+            // Manual-edit awareness: if the user touched specific fields
+            // by hand since the last agent turn, surface them so the
+            // agent treats those as locked intent rather than something
+            // to overwrite.
+            if (
+              body.recentManualEdits &&
+              body.recentManualEdits.length > 0
+            ) {
+              const truncate = (v: unknown) => {
+                const s = String(v ?? "");
+                return s.length > 60 ? `${s.slice(0, 57)}…` : s;
+              };
+              const lines = body.recentManualEdits.map(
+                (e) =>
+                  `· scene ${e.sceneIndex + 1} (${e.sceneId}) · ${e.field}: "${truncate(e.oldValue)}" → "${truncate(e.newValue)}"`,
+              );
+              systemBlocks.push({
+                type: "text",
+                text:
+                  `RECENT MANUAL EDITS — preserve unless the user explicitly asks you to change them. ` +
+                  `These are fields the user just edited by hand; treat them as deliberate intent. ` +
+                  `Don't revert, rewrite, or normalize them as a side effect of unrelated work.\n\n${lines.join("\n")}`,
+              });
             }
             // Per-project override appended at the end so it takes priority.
             if (project.systemPrompt?.trim()) {

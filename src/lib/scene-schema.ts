@@ -548,6 +548,80 @@ export interface Project {
     label?: string;
     color?: "red" | "amber" | "green" | "blue" | "purple" | "pink";
   }>;
+  /**
+   * Multi-track timeline. When undefined, the project renders as a
+   * single sequential track (legacy behaviour) using project.scenes
+   * verbatim. When defined, project.tracks ordered top-to-bottom is
+   * the visual stack: track[0] is the bottom-most "main" video, each
+   * subsequent track layers on top with optional opacity / blendMode.
+   * Each track's scenes are SEQUENTIAL on that track, starting at
+   * startOffsetSec on the global timeline. project.scenes is still
+   * the source of truth for scene definitions; tracks reference scene
+   * ids via sceneIds.
+   */
+  tracks?: Track[];
+}
+
+/* ============================================================
+ * Sprint 15: Multi-track timeline (M1-M4)
+ * ============================================================ */
+
+export type TrackKind =
+  /** Bottom-most full-frame video. The legacy behaviour. */
+  | "video"
+  /** Layered on top of video; honours opacity + blendMode. */
+  | "overlay"
+  /** Audio-only track — scene visuals are skipped, only voiceover/sfx mix in. */
+  | "audio";
+
+export interface Track {
+  id: string;
+  kind: TrackKind;
+  /** User-visible name shown in the track header (e.g. "V1", "Music"). */
+  name: string;
+  /** Ordered scene ids on this track. Scenes play back-to-back. */
+  sceneIds: string[];
+  /** Skip the entire track on render (visual + audio). */
+  muted?: boolean;
+  /** Block edits + drags affecting this track's scene list. */
+  locked?: boolean;
+  /** 0-1 alpha multiplier applied to the whole track (overlay only). */
+  opacity?: number;
+  /** CSS mix-blend-mode applied to the track (overlay only). */
+  blendMode?:
+    | "normal"
+    | "multiply"
+    | "screen"
+    | "overlay"
+    | "difference"
+    | "lighten"
+    | "darken";
+  /**
+   * When this track's first scene starts on the global timeline (s).
+   * 0 = aligns with project start. Lets an overlay come in late.
+   */
+  startOffsetSec?: number;
+}
+
+/**
+ * Migrate a legacy project (no tracks) to a default single-track
+ * layout. Pure helper — does NOT mutate the project.
+ */
+export function defaultTracksFromScenes(scenes: Scene[]): Track[] {
+  return [
+    {
+      id: `track-${Math.random().toString(36).slice(2, 8)}`,
+      kind: "video",
+      name: "V1",
+      sceneIds: scenes.map((s) => s.id),
+    },
+  ];
+}
+
+/** Resolve a project to its rendered track list — back-compat aware. */
+export function resolveTracks(project: Pick<Project, "scenes" | "tracks">): Track[] {
+  if (project.tracks && project.tracks.length > 0) return project.tracks;
+  return defaultTracksFromScenes(project.scenes);
 }
 
 /* ============================================================

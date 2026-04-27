@@ -1,6 +1,33 @@
 # Changelog
 
-## Unreleased — sprint 16: usability sprint A — 22 commits
+## Unreleased — sprint 16: usability sprint B — 17 commits
+
+Continuation of the QoL pass.
+
+### Keyboard / shortcuts
+- ⌘⇧↑ / ⌘⇧↓ trim selected scene's duration ±0.25s.
+- ⌘M opens master-mix popover.
+- L locks/unlocks selection.
+
+### IO / clipboard
+- Paste any clipboard image → uploads + adds as scene.
+
+### UX polish
+- Auto-pause preview when tab loses focus.
+- Unsaved-changes dot in document.title.
+- Trackpad pinch (⌃+wheel) zooms timeline.
+- Persist active LeftSidebar tab in localStorage.
+- Persist timelineZoom across reloads.
+- Cut tool draws an amber ring on the track when active.
+
+### Tracks panel
+- Per-track Solo button (mute all others, click again to clear).
+- 'Fit total to N seconds' proportional-scale bulk action.
+
+### Scene context menu
+- 'Move to start' / 'Move to end' actions.
+
+## Sprint 16: usability sprint A — 22 commits
 
 Aggressive QoL pass. Each item is small but the cumulative effect
 should make the editor feel substantially more competent.

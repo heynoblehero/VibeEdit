@@ -44,6 +44,19 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
     pxPerSec: number;
   } | null>(null);
 
+  /**
+   * Snap a duration in seconds to the nearest grid step. Steps:
+   * - 0.25s ("quarter") — default; fine enough for hooks, coarse enough
+   *   to not feel sticky.
+   * Hold Alt during the drag to bypass and free-snap to the original
+   * sub-frame precision.
+   */
+  const snapSec = useCallback((sec: number, alt: boolean) => {
+    if (alt) return Number(sec.toFixed(2));
+    const step = 0.25;
+    return Number((Math.round(sec / step) * step).toFixed(2));
+  }, []);
+
   const onResizeDown = useCallback(
     (e: React.PointerEvent, sceneId: string, startDuration: number) => {
       e.stopPropagation();
@@ -65,13 +78,12 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
       const st = resizeRef.current;
       if (!st) return;
       const dx = e.clientX - st.startX;
-      const next = Math.max(
-        0.5,
-        Math.min(10, +(st.startDuration + dx / st.pxPerSec).toFixed(1)),
-      );
+      const raw = st.startDuration + dx / st.pxPerSec;
+      const snapped = snapSec(raw, e.altKey);
+      const next = Math.max(0.5, Math.min(20, snapped));
       updateScene(st.sceneId, { duration: next });
     },
-    [updateScene],
+    [updateScene, snapSec],
   );
   const onResizeUp = useCallback((e: React.PointerEvent) => {
     resizeRef.current = null;
@@ -103,12 +115,21 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
     if (!trackRef.current) return;
     const rect = trackRef.current.getBoundingClientRect();
     const ratio = (e.clientX - rect.left) / rect.width;
-    const frame = Math.round(ratio * total);
+    let frame = Math.round(ratio * total);
     const marker = markers.find((m) => frame >= m.start && frame < m.endExclusive);
     if (cutMode) {
-      // Cut at this frame inside the marker's scene.
+      // Cut at this frame inside the marker's scene. Snap the cut to
+      // the nearest 0.25s relative to the scene's start so cuts land on
+      // a clean grid; Alt bypasses for free placement.
       if (marker) {
-        const within = frame - marker.start;
+        let within = frame - marker.start;
+        if (!e.altKey) {
+          const snappedSec = snapSec(within / project.fps, false);
+          within = Math.round(snappedSec * project.fps);
+          // Don't allow snap to land at exact 0 or end (splitScene rejects).
+          within = Math.max(2, Math.min(marker.frames - 2, within));
+          frame = marker.start + within;
+        }
         const newId = splitScene(marker.id, within);
         if (newId) selectScene(newId);
       }

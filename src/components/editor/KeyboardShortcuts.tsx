@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { toast } from "sonner";
+import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 
 function isTextInput(el: EventTarget | null): boolean {
@@ -28,9 +29,32 @@ export function KeyboardShortcuts() {
   const selectScene = useProjectStore((s) => s.selectScene);
   const selectAllScenes = useProjectStore((s) => s.selectAllScenes);
 
+  const setCutMode = useEditorStore((s) => s.setCutMode);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
+
+      // C — toggle cut tool. V — selection mode (cut off). Premiere
+      // convention. Plain keys; gated against text inputs so they don't
+      // hijack typing in the chat / scene editor.
+      if (!mod && !isTextInput(e.target)) {
+        if (e.key === "c" || e.key === "C") {
+          e.preventDefault();
+          const wasOn = useEditorStore.getState().cutMode;
+          setCutMode(!wasOn);
+          toast(wasOn ? "Selection mode" : "Cut tool active", { duration: 800 });
+          return;
+        }
+        if (e.key === "v" || e.key === "V") {
+          e.preventDefault();
+          if (useEditorStore.getState().cutMode) {
+            setCutMode(false);
+            toast("Selection mode", { duration: 800 });
+          }
+          return;
+        }
+      }
 
       if (mod && e.key.toLowerCase() === "z" && !isTextInput(e.target)) {
         e.preventDefault();

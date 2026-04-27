@@ -32,6 +32,13 @@ interface EditorStore {
    */
   proKeyframes: boolean;
   setProKeyframes: (v: boolean) => void;
+  /**
+   * Cut tool active state — when true, Timeline clicks split the scene
+   * under the cursor at that frame instead of seeking. Bound to the
+   * `C` key from KeyboardShortcuts; `V` turns it off.
+   */
+  cutMode: boolean;
+  setCutMode: (v: boolean) => void;
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
@@ -49,4 +56,6 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setFocusedSceneId: (id) => set({ focusedSceneId: id }),
   proKeyframes: false,
   setProKeyframes: (v) => set({ proKeyframes: v }),
+  cutMode: false,
+  setCutMode: (v) => set({ cutMode: v }),
 }));

@@ -23,7 +23,11 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
   const splitScene = useProjectStore((s) => s.splitScene);
   const insertSceneAt = useProjectStore((s) => s.insertSceneAt);
   const playingSceneId = useEditorStore((s) => s.playingSceneId);
-  const [cutMode, setCutMode] = useState(false);
+  // cutMode now lives on the store so the C/V keyboard shortcuts can
+  // toggle it from anywhere (KeyboardShortcuts.tsx). Preserve the
+  // setCutMode local alias so the rest of this component reads cleanly.
+  const cutMode = useEditorStore((s) => s.cutMode);
+  const setCutMode = useEditorStore((s) => s.setCutMode);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 

@@ -483,6 +483,40 @@ function EffectsPanel({ scene, update, sfx }: { scene: Scene; update: (p: Partia
           </span>
         </Field>
       </div>
+
+      <div className="border-t border-neutral-800 pt-3 mt-2 space-y-2">
+        <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+          Fade
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="In (frames)">
+            <input
+              type="number"
+              min={0}
+              max={120}
+              step={1}
+              value={scene.fadeInFrames ?? 4}
+              onChange={(e) =>
+                update({ fadeInFrames: Math.max(0, Number(e.target.value)) })
+              }
+              className="input-field w-full text-xs tabular-nums"
+            />
+          </Field>
+          <Field label="Out (frames)">
+            <input
+              type="number"
+              min={0}
+              max={120}
+              step={1}
+              value={scene.fadeOutFrames ?? 0}
+              onChange={(e) =>
+                update({ fadeOutFrames: Math.max(0, Number(e.target.value)) })
+              }
+              className="input-field w-full text-xs tabular-nums"
+            />
+          </Field>
+        </div>
+      </div>
     </>
   );
 }

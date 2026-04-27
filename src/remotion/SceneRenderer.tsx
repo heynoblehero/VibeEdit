@@ -57,7 +57,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
 }) => {
   const s = scene;
   const frame = useCurrentFrame();
-  const { fps, width: frameW, height: frameH } = useVideoConfig();
+  const { fps, width: frameW, height: frameH, durationInFrames } = useVideoConfig();
   // Default text Y: 28% from top. Lands cleanly above center on either AR
   // and lets us size emphasis/subtitle stacks below it without overflow.
   const defaultTextY = Math.round(frameH * 0.28);
@@ -111,10 +111,21 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
     durationInFrames: 22,
   });
 
-  // Soft 4-frame opacity ramp on scene entry so cuts breathe instead of pop.
-  const sceneOpacity = interpolate(frame, [0, 4], [0, 1], {
-    extrapolateRight: "clamp",
-  });
+  // Soft opacity ramp on scene entry / exit. Defaults match the prior
+  // 'breathe instead of pop' baseline (4-frame in, no fade-out). User
+  // can override per-scene to dial in cinematic fade transitions.
+  const fadeIn = Math.max(0, s.fadeInFrames ?? 4);
+  const fadeOut = Math.max(0, s.fadeOutFrames ?? 0);
+  const opIn = fadeIn === 0
+    ? 1
+    : interpolate(frame, [0, fadeIn], [0, 1], { extrapolateRight: "clamp" });
+  const opOut = fadeOut === 0
+    ? 1
+    : interpolate(frame, [durationInFrames - fadeOut, durationInFrames], [1, 0], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      });
+  const sceneOpacity = Math.min(opIn, opOut);
 
   let charTx = 0;
   let charTy = 0;

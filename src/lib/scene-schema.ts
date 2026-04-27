@@ -229,6 +229,13 @@ export interface Scene {
   colorTag?: "red" | "amber" | "green" | "blue" | "purple" | "pink";
   /** Optional short label shown on the timeline block (overrides 'Scene N'). */
   label?: string;
+  /**
+   * Visual fade-in length on scene entry (frames). Defaults to 4 (the
+   * existing 'soft cut' baked into SceneRenderer). 0 = hard cut.
+   */
+  fadeInFrames?: number;
+  /** Visual fade-out length on scene exit (frames). 0 = no fade. */
+  fadeOutFrames?: number;
   speedFactor?: number;
   /**
    * Per-scene audio level. 0 = mute, 1.0 = unity, 2.0 = +6 dB. Multiplies

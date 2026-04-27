@@ -352,9 +352,36 @@ export const useProjectStore = create<ProjectStore>()(
         }),
       removeScene: (id) =>
         set((s) => {
+          // Ripple-delete cuts: any cut going INTO id needs to retarget
+          // to the next scene; any cut going OUT of id retargets back to
+          // the previous scene's outgoing edge. Net effect: prev → next
+          // gets a fresh hard cut bridging the gap, and the orphaned
+          // cuts disappear.
+          const idx = s.project.scenes.findIndex((sc) => sc.id === id);
+          const prev = idx > 0 ? s.project.scenes[idx - 1] : null;
+          const next =
+            idx >= 0 && idx < s.project.scenes.length - 1
+              ? s.project.scenes[idx + 1]
+              : null;
+          const filtered = (s.project.cuts ?? []).filter(
+            (c) => c.fromSceneId !== id && c.toSceneId !== id,
+          );
+          const bridged = prev && next
+            ? [
+                ...filtered,
+                {
+                  id: createId(),
+                  fromSceneId: prev.id,
+                  toSceneId: next.id,
+                  kind: "hard" as const,
+                  durationFrames: 0,
+                },
+              ]
+            : filtered;
           const updated = {
             ...s.project,
             scenes: s.project.scenes.filter((sc) => sc.id !== id),
+            cuts: bridged.length > 0 ? bridged : undefined,
           };
           return {
             project: updated,
@@ -369,9 +396,17 @@ export const useProjectStore = create<ProjectStore>()(
         set((s) => {
           if (ids.length === 0) return s;
           const idSet = new Set(ids);
+          // For bulk removal, drop every cut that touches any deleted
+          // scene. We don't try to bridge multiple holes — the user
+          // chose multi-select-delete, so they likely want a fresh
+          // structure rather than a stitched-together one.
+          const filteredCuts = (s.project.cuts ?? []).filter(
+            (c) => !idSet.has(c.fromSceneId) && !idSet.has(c.toSceneId),
+          );
           const updated = {
             ...s.project,
             scenes: s.project.scenes.filter((sc) => !idSet.has(sc.id)),
+            cuts: filteredCuts.length > 0 ? filteredCuts : undefined,
           };
           return {
             project: updated,

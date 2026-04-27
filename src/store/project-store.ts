@@ -47,6 +47,7 @@ interface ProjectStore {
   setScript: (script: string) => void;
   setScenes: (scenes: Scene[]) => void;
   setOrientation: (o: Orientation) => void;
+  setDimensions: (width: number, height: number) => void;
   addScene: (scene: Scene) => void;
   duplicateScene: (id: string) => string | null;
   updateScene: (id: string, patch: Partial<Scene>) => void;
@@ -279,6 +280,20 @@ export const useProjectStore = create<ProjectStore>()(
             return s;
           }
           const updated = { ...s.project, ...dims };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: pushHistory(s.history, s.project),
+            future: [],
+          };
+        }),
+      setDimensions: (width, height) =>
+        set((s) => {
+          // Clamp to reasonable bounds. Even axes for codec compat.
+          const w = Math.max(64, Math.min(7680, Math.round(width / 2) * 2));
+          const h = Math.max(64, Math.min(7680, Math.round(height / 2) * 2));
+          if (s.project.width === w && s.project.height === h) return s;
+          const updated = { ...s.project, width: w, height: h };
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },

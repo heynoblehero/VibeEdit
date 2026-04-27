@@ -667,6 +667,25 @@ export async function POST(request: NextRequest) {
                 });
               }
             }
+            // Locked-scene awareness: surface any user-locked scenes so
+            // the agent plans around them. Tools targeting these scenes
+            // are rejected by the LOCK GATE below; this block lets the
+            // agent reroute proactively instead of failing first.
+            const lockedScenes = project.scenes.filter((s) => s.locked);
+            if (lockedScenes.length > 0) {
+              const lines = lockedScenes.map((s, i) => {
+                const idx = project.scenes.findIndex((x) => x.id === s.id);
+                return `· scene ${idx + 1} (${s.id})${s.label ? ` — ${s.label}` : ""}`;
+              });
+              systemBlocks.push({
+                type: "text",
+                text:
+                  `LOCKED SCENES — read-only by user request. DO NOT modify these scenes. ` +
+                  `Tools that target them will fail. If the user's request implies changing one, ` +
+                  `ask them to unlock it first; never silently work around the lock by deleting + recreating.\n\n${lines.join("\n")}`,
+              });
+            }
+
             // Manual-edit awareness: if the user touched specific fields
             // by hand since the last agent turn, surface them so the
             // agent treats those as locked intent rather than something
@@ -762,6 +781,52 @@ export async function POST(request: NextRequest) {
             const args = (tu.input ?? {}) as Record<string, unknown>;
             send({ type: "tool_start", id: tu.id, name: tu.name, args });
             const toolName = tu.name ?? "";
+
+            // LOCK GATE: scenes the user has marked locked are read-only.
+            // Excalidraw's pattern — guard at the chokepoint, not at every
+            // tool. The user uses this to pin a scene they've polished by
+            // hand and don't want the agent touching as a side effect of
+            // a vague request like "make the video punchier".
+            const sceneMutatingTools = new Set([
+              "updateScene",
+              "removeScene",
+              "duplicateScene",
+              "setSceneDuration",
+              "generateImageForScene",
+              "generateVideoForScene",
+              "generateSfxForScene",
+              "generateAvatarForScene",
+              "narrateScene",
+              "applyStylePresetToScene",
+              "addKeyframe",
+              "clearKeyframes",
+              "prepareUploadForScene",
+            ]);
+            if (sceneMutatingTools.has(toolName)) {
+              const sceneIdArg =
+                (args.sceneId as string | undefined) ??
+                (args.id as string | undefined);
+              if (typeof sceneIdArg === "string") {
+                const target = ctx.project.scenes.find((s) => s.id === sceneIdArg);
+                if (target?.locked) {
+                  const synthetic = `[locked] scene ${sceneIdArg} is locked — the user marked it read-only. Skip this scene or ask the user to unlock it before proceeding. DO NOT call ${toolName} on it again this turn.`;
+                  send({
+                    type: "tool_result",
+                    id: tu.id,
+                    name: toolName,
+                    ok: false,
+                    message: synthetic,
+                  });
+                  toolResultBlocks.push({
+                    type: "tool_result",
+                    tool_use_id: tu.id ?? "",
+                    content: [{ type: "text", text: synthetic }],
+                    is_error: true,
+                  });
+                  continue;
+                }
+              }
+            }
 
             // PLAN-MODE GATE: block expensive media tools until the agent
             // has committed to a spine + a plan. Forces the autoresearch/

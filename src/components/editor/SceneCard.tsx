@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, GripVertical, Play, Target, Trash2 } from "lucide-react";
+import { Copy, GripVertical, Lock, Play, Target, Trash2, Unlock } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useRef } from "react";
@@ -21,6 +21,7 @@ export function SceneCard({ scene, index }: SceneCardProps) {
   const selectScene = useProjectStore((s) => s.selectScene);
   const removeScene = useProjectStore((s) => s.removeScene);
   const duplicateScene = useProjectStore((s) => s.duplicateScene);
+  const updateScene = useProjectStore((s) => s.updateScene);
 
   const isActive = selectedSceneId === scene.id;
   const isInMulti = selectedSceneIds.includes(scene.id);
@@ -172,39 +173,58 @@ export function SceneCard({ scene, index }: SceneCardProps) {
           <Target className="h-3 w-3" />
         </button>
       )}
-      <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-        {!isFocused && (
+      <div className="flex items-center">
+        {/* Lock toggle is always visible — when locked, becomes the
+            scene's "this is finalized" badge so the user can see at a
+            glance which scenes the agent will refuse to touch. */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            updateScene(scene.id, { locked: !scene.locked });
+          }}
+          title={scene.locked ? "Unlock — agent can edit again" : "Lock — agent will skip this scene"}
+          className={`p-1 transition-colors ${
+            scene.locked
+              ? "text-amber-400 hover:text-amber-300"
+              : "text-neutral-600 opacity-0 group-hover:opacity-100 hover:text-amber-400"
+          }`}
+        >
+          {scene.locked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+        </button>
+        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+          {!isFocused && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setFocusedSceneId(scene.id);
+              }}
+              title="Focus agent on this scene only"
+              className="p-1 text-neutral-500 hover:text-emerald-400 transition-colors"
+            >
+              <Target className="h-3 w-3" />
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setFocusedSceneId(scene.id);
+              duplicateScene(scene.id);
             }}
-            title="Focus agent on this scene only"
+            title="Duplicate (Cmd/Ctrl+D)"
             className="p-1 text-neutral-500 hover:text-emerald-400 transition-colors"
           >
-            <Target className="h-3 w-3" />
+            <Copy className="h-3 w-3" />
           </button>
-        )}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            duplicateScene(scene.id);
-          }}
-          title="Duplicate (Cmd/Ctrl+D)"
-          className="p-1 text-neutral-500 hover:text-emerald-400 transition-colors"
-        >
-          <Copy className="h-3 w-3" />
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            removeScene(scene.id);
-          }}
-          title="Delete"
-          className="p-1 text-neutral-500 hover:text-red-400 transition-colors"
-        >
-          <Trash2 className="h-3 w-3" />
-        </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              removeScene(scene.id);
+            }}
+            title="Delete"
+            className="p-1 text-neutral-500 hover:text-red-400 transition-colors"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        </div>
       </div>
     </div>
   );

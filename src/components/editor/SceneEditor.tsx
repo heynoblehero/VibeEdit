@@ -821,6 +821,70 @@ function BackgroundPanel({ scene, update }: { scene: Scene; update: (p: Partial<
 
       <div className="border-t border-neutral-800 pt-3 mt-2 space-y-2">
         <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+          Frame fit
+        </div>
+        <div className="flex items-center gap-1">
+          {(["cover", "contain"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() =>
+                update({ background: { ...scene.background, objectFit: mode } })
+              }
+              className={`px-2 py-1 rounded text-[11px] border ${
+                (scene.background.objectFit ?? "cover") === mode
+                  ? "border-emerald-500 text-emerald-300 bg-emerald-500/10"
+                  : "border-neutral-700 text-neutral-400 hover:border-neutral-500"
+              }`}
+              title={mode === "cover" ? "Fill the frame, crop overflow" : "Fit fully (may letterbox)"}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+        <div>
+          <div className="text-[10px] text-neutral-500 mb-1">
+            Anchor (when cover crops)
+          </div>
+          <div className="grid grid-cols-3 gap-0.5 w-fit">
+            {([
+              ["top-left", "↖"],
+              ["top", "↑"],
+              ["top-right", "↗"],
+              ["left", "←"],
+              ["center", "•"],
+              ["right", "→"],
+              ["bottom-left", "↙"],
+              ["bottom", "↓"],
+              ["bottom-right", "↘"],
+            ] as const).map(([pos, glyph]) => {
+              const active = (scene.background.objectPosition ?? "center") === pos;
+              return (
+                <button
+                  key={pos}
+                  type="button"
+                  onClick={() =>
+                    update({
+                      background: { ...scene.background, objectPosition: pos },
+                    })
+                  }
+                  className={`w-7 h-7 text-xs rounded border ${
+                    active
+                      ? "border-emerald-500 text-emerald-300 bg-emerald-500/15"
+                      : "border-neutral-700 text-neutral-500 hover:border-neutral-500 hover:text-neutral-300"
+                  }`}
+                  title={pos}
+                >
+                  {glyph}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-neutral-800 pt-3 mt-2 space-y-2">
+        <div className="text-[11px] uppercase tracking-wide text-neutral-500">
           Orientation
         </div>
         <div className="flex items-center gap-2">

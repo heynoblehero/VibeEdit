@@ -14,6 +14,7 @@ import {
   type ProjectUpload,
   type Scene,
   type StylePack,
+  type Track,
   type Voiceover,
   DIMENSIONS,
   createId,
@@ -65,6 +66,10 @@ interface ProjectStore {
   setAudioMix: (patch: Partial<NonNullable<Project["audioMix"]>>) => void;
   addMarker: (marker: NonNullable<Project["markers"]>[number]) => void;
   removeMarker: (id: string) => void;
+  addTrack: (track: Track) => void;
+  removeTrack: (id: string) => void;
+  updateTrack: (id: string, patch: Partial<Track>) => void;
+  moveSceneToTrack: (sceneId: string, toTrackId: string, toIndex: number) => void;
   setCaptionStyle: (patch: Partial<CaptionStyle>) => void;
   setStylePack: (pack: StylePack | undefined) => void;
   setWorkflowId: (workflowId: string) => void;
@@ -610,6 +615,107 @@ export const useProjectStore = create<ProjectStore>()(
             ...s.project,
             markers: (s.project.markers ?? []).filter((m) => m.id !== id),
           };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: pushHistory(s.history, s.project),
+            future: [],
+          };
+        }),
+      // ----- Multi-track (M1) -----
+      addTrack: (track) =>
+        set((s) => {
+          // First ever track add: lift the implicit single-track legacy
+          // layout into project.tracks so we don't lose the existing
+          // scene order.
+          const existing =
+            s.project.tracks ??
+            (s.project.scenes.length > 0
+              ? [
+                  {
+                    id: `track-${createId().slice(-8)}`,
+                    kind: "video" as const,
+                    name: "V1",
+                    sceneIds: s.project.scenes.map((sc) => sc.id),
+                  },
+                ]
+              : []);
+          const updated = {
+            ...s.project,
+            tracks: [...existing, track],
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: pushHistory(s.history, s.project),
+            future: [],
+          };
+        }),
+      removeTrack: (id) =>
+        set((s) => {
+          const tracks = s.project.tracks;
+          if (!tracks) return s;
+          const target = tracks.find((t) => t.id === id);
+          if (!target || target.locked) return s;
+          // Drop the track AND every scene that lives only on it. A scene
+          // that's referenced by another track stays.
+          const otherIds = new Set<string>();
+          for (const t of tracks) {
+            if (t.id === id) continue;
+            for (const sid of t.sceneIds) otherIds.add(sid);
+          }
+          const orphaned = target.sceneIds.filter((sid) => !otherIds.has(sid));
+          const filteredTracks = tracks.filter((t) => t.id !== id);
+          const filteredScenes = s.project.scenes.filter(
+            (sc) => !orphaned.includes(sc.id),
+          );
+          const updated = {
+            ...s.project,
+            tracks: filteredTracks.length === 0 ? undefined : filteredTracks,
+            scenes: filteredScenes,
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: pushHistory(s.history, s.project),
+            future: [],
+          };
+        }),
+      updateTrack: (id, patch) =>
+        set((s) => {
+          const tracks = s.project.tracks;
+          if (!tracks) return s;
+          const updatedTracks = tracks.map((t) =>
+            t.id === id ? { ...t, ...patch } : t,
+          );
+          const updated = { ...s.project, tracks: updatedTracks };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: pushHistory(s.history, s.project),
+            future: [],
+          };
+        }),
+      moveSceneToTrack: (sceneId, toTrackId, toIndex) =>
+        set((s) => {
+          const tracks = s.project.tracks;
+          if (!tracks) return s;
+          const target = tracks.find((t) => t.id === toTrackId);
+          if (!target || target.locked) return s;
+          // Remove sceneId from any track it currently belongs to, then
+          // splice into the target at toIndex.
+          const cleaned = tracks.map((t) => ({
+            ...t,
+            sceneIds: t.sceneIds.filter((id) => id !== sceneId),
+          }));
+          const updatedTracks = cleaned.map((t) => {
+            if (t.id !== toTrackId) return t;
+            const next = [...t.sceneIds];
+            const idx = Math.max(0, Math.min(next.length, toIndex));
+            next.splice(idx, 0, sceneId);
+            return { ...t, sceneIds: next };
+          });
+          const updated = { ...s.project, tracks: updatedTracks };
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },

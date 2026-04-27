@@ -16,13 +16,14 @@
  * mutation (insert scene, set cut, push effect, focused-chat).
  */
 
-import { Sparkles, Upload, Wand2 } from "lucide-react";
+import { Layers, Sparkles, Upload, Wand2 } from "lucide-react";
 import { useState } from "react";
 import { ActionsPanel } from "./ActionsPanel";
 import { AIPanel } from "./AIPanel";
+import { TracksPanel } from "./TracksPanel";
 import { UploadsPanel } from "./UploadsPanel";
 
-type TabKey = "uploads" | "actions" | "ai";
+type TabKey = "uploads" | "actions" | "ai" | "tracks";
 
 interface TabDef {
   key: TabKey;
@@ -34,6 +35,7 @@ interface TabDef {
 const TABS: TabDef[] = [
   { key: "uploads", label: "Uploads", icon: Upload, color: "text-emerald-400" },
   { key: "actions", label: "Actions", icon: Wand2, color: "text-amber-400" },
+  { key: "tracks", label: "Tracks", icon: Layers, color: "text-cyan-400" },
   { key: "ai", label: "AI", icon: Sparkles, color: "text-sky-400" },
 ];
 
@@ -70,6 +72,7 @@ export function LeftSidebar() {
       <div className="flex-1 min-w-0 flex flex-col">
         {active === "uploads" && <UploadsPanel inline />}
         {active === "actions" && <ActionsPanel />}
+        {active === "tracks" && <TracksPanel />}
         {active === "ai" && <AIPanel />}
       </div>
     </div>

@@ -641,6 +641,9 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
               draggable
               onDragStart={(e) => {
                 setDragIndex(i);
+                // M4: also expose the scene id so it can be dragged
+                // onto the TracksPanel rows to switch tracks.
+                e.dataTransfer.setData("vibeedit/scene-id", scene.id);
                 e.dataTransfer.effectAllowed = "move";
               }}
               onDragOver={(e) => {

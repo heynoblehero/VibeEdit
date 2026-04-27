@@ -250,6 +250,8 @@ export function Preview() {
             ))}
           </div>
         )}
+        <PreviewOverlays />
+        <PreviewGuidesToggle />
         {selectedScene ? (
           <Player
             ref={playerRef}
@@ -377,6 +379,65 @@ export function Preview() {
         currentFrame={globalCurrentFrame}
         isFullPreview={isFullPreview}
       />
+    </div>
+  );
+}
+
+/**
+ * Composition guide overlays — rule-of-thirds and broadcast-safe area.
+ * Both are pointer-events: none so they don't block click hotspots.
+ */
+function PreviewOverlays() {
+  const showThirds = useEditorStore((s) => s.showThirds);
+  const showSafeArea = useEditorStore((s) => s.showSafeArea);
+  if (!showThirds && !showSafeArea) return null;
+  return (
+    <div className="absolute inset-0 pointer-events-none z-25">
+      {showThirds && (
+        <>
+          <div className="absolute left-1/3 top-0 bottom-0 w-px bg-white/30" />
+          <div className="absolute left-2/3 top-0 bottom-0 w-px bg-white/30" />
+          <div className="absolute top-1/3 left-0 right-0 h-px bg-white/30" />
+          <div className="absolute top-2/3 left-0 right-0 h-px bg-white/30" />
+        </>
+      )}
+      {showSafeArea && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-[90%] h-[90%] border border-amber-300/50" />
+          <div className="absolute w-[80%] h-[80%] border border-amber-300/70 border-dashed" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PreviewGuidesToggle() {
+  const { showThirds, setShowThirds, showSafeArea, setShowSafeArea } =
+    useEditorStore();
+  return (
+    <div className="absolute bottom-2 right-2 z-30 flex items-center gap-1 px-1.5 py-1 rounded bg-neutral-900/80 backdrop-blur-sm border border-neutral-800 text-[10px]">
+      <button
+        onClick={() => setShowThirds(!showThirds)}
+        className={`px-1.5 py-0.5 rounded ${
+          showThirds
+            ? "bg-emerald-500/20 text-emerald-300"
+            : "text-neutral-400 hover:text-white"
+        }`}
+        title="Rule-of-thirds grid"
+      >
+        ⌗
+      </button>
+      <button
+        onClick={() => setShowSafeArea(!showSafeArea)}
+        className={`px-1.5 py-0.5 rounded ${
+          showSafeArea
+            ? "bg-amber-500/20 text-amber-300"
+            : "text-neutral-400 hover:text-white"
+        }`}
+        title="Broadcast-safe / title-safe area"
+      >
+        ▣
+      </button>
     </div>
   );
 }

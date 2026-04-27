@@ -57,6 +57,11 @@ interface EditorStore {
    * Loop range on the global timeline. Set via [ and ] keys at the
    * playhead. Preview wraps to start when frame ≥ end. null = no loop.
    */
+  /** Composition guides toggled on the preview canvas. */
+  showThirds: boolean;
+  setShowThirds: (v: boolean) => void;
+  showSafeArea: boolean;
+  setShowSafeArea: (v: boolean) => void;
   loopRange: { start: number; end: number } | null;
   setLoopStart: (frame: number) => void;
   setLoopEnd: (frame: number) => void;
@@ -93,6 +98,10 @@ export const useEditorStore = create<EditorStore>((set) => ({
       ].slice(0, 8);
       return { recentActions: next };
     }),
+  showThirds: false,
+  setShowThirds: (v) => set({ showThirds: v }),
+  showSafeArea: false,
+  setShowSafeArea: (v) => set({ showSafeArea: v }),
   loopRange: null,
   setLoopStart: (frame) =>
     set((s) => {

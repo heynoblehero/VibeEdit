@@ -149,6 +149,30 @@ export function TracksPanel() {
         >
           Fit all durations to VO
         </button>
+        <button
+          onClick={() => {
+            const all = useProjectStore.getState().project.scenes;
+            const total = all.reduce((s, sc) => s + sc.duration, 0);
+            if (total <= 0) return;
+            const targetStr = window.prompt(
+              "Fit total project length to (seconds):",
+              "60",
+            );
+            const target = Number(targetStr);
+            if (!Number.isFinite(target) || target <= 0) return;
+            const ratio = target / total;
+            for (const sc of all) {
+              useProjectStore.getState().updateScene(sc.id, {
+                duration: Math.max(0.5, Number((sc.duration * ratio).toFixed(2))),
+              });
+            }
+            toast(`Total ≈ ${target}s`, { duration: 900 });
+          }}
+          className="w-full text-[11px] px-2 py-1.5 rounded border border-neutral-800 hover:border-emerald-500 text-neutral-300 hover:text-emerald-300 mt-1"
+          title="Scale every scene's duration proportionally so the project totals N seconds (good for 60s shorts)"
+        >
+          Fit total to N seconds…
+        </button>
       </div>
     </div>
   );

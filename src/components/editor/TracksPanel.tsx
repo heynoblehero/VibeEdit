@@ -224,6 +224,25 @@ function TrackRow({
             )}
           </button>
           <button
+            onClick={() => {
+              // Solo this track: mute all others. If already soloed,
+              // unmute everyone.
+              const all = useProjectStore.getState().project.tracks ?? [];
+              const isSolo = !track.muted && all.every((t) => t.id === track.id || t.muted);
+              for (const t of all) {
+                const wantMuted = isSolo ? false : t.id !== track.id;
+                if (!!t.muted !== wantMuted) {
+                  useProjectStore.getState().updateTrack(t.id, { muted: wantMuted });
+                }
+              }
+              toast(isSolo ? "Solo cleared" : "Soloed", { duration: 700 });
+            }}
+            title="Solo (mute all other tracks)"
+            className="p-1 rounded text-neutral-500 hover:text-white hover:bg-neutral-800 text-[9px] font-bold tabular-nums"
+          >
+            S
+          </button>
+          <button
             onClick={() => onUpdate({ locked: !track.locked })}
             title={track.locked ? "Unlock" : "Lock"}
             className="p-1 rounded text-neutral-500 hover:text-white hover:bg-neutral-800"

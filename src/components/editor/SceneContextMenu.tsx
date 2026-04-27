@@ -165,6 +165,52 @@ export function SceneContextMenu({ scene, index, x, y, onClose }: Props) {
         onClick={() => {
           const all = useProjectStore.getState().project.scenes;
           const idx = all.findIndex((s) => s.id === scene.id);
+          if (idx >= 0) {
+            useProjectStore.getState().insertSceneAt(idx, {
+              id: `scn-${Math.random().toString(36).slice(2, 10)}`,
+              type: "text_only",
+              duration: 2,
+              background: { color: "#111111" },
+              emphasisText: "edit me",
+              emphasisSize: 72,
+              emphasisColor: "#ffffff",
+              textY: 380,
+              transition: "beat_flash",
+            });
+          }
+          onClose();
+        }}
+        className="w-full text-left px-3 py-1.5 text-neutral-200 hover:bg-neutral-800"
+      >
+        Insert blank before
+      </button>
+      <button
+        onClick={() => {
+          const all = useProjectStore.getState().project.scenes;
+          const idx = all.findIndex((s) => s.id === scene.id);
+          if (idx >= 0) {
+            useProjectStore.getState().insertSceneAt(idx + 1, {
+              id: `scn-${Math.random().toString(36).slice(2, 10)}`,
+              type: "text_only",
+              duration: 2,
+              background: { color: "#111111" },
+              emphasisText: "edit me",
+              emphasisSize: 72,
+              emphasisColor: "#ffffff",
+              textY: 380,
+              transition: "beat_flash",
+            });
+          }
+          onClose();
+        }}
+        className="w-full text-left px-3 py-1.5 text-neutral-200 hover:bg-neutral-800"
+      >
+        Insert blank after
+      </button>
+      <button
+        onClick={() => {
+          const all = useProjectStore.getState().project.scenes;
+          const idx = all.findIndex((s) => s.id === scene.id);
           if (idx > 0) useProjectStore.getState().moveScene(idx, 0);
           onClose();
         }}

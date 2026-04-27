@@ -119,7 +119,7 @@ export function ProjectHome({
           Create a new project
         </button>
         <p className="text-[11px] text-neutral-500 text-center mt-1">
-          Drop in clips and edit, or hand the brief to the AI.
+          Drop in clips and edit. Pick aspect later from the header.
         </p>
         <div className="flex items-center gap-3 text-[11px] text-neutral-600 mt-1">
           <button
@@ -127,46 +127,6 @@ export function ProjectHome({
             className="hover:text-neutral-300 underline decoration-dotted underline-offset-2"
           >
             blank project
-          </button>
-          <span className="text-neutral-800">·</span>
-          <button
-            onClick={async () => {
-              createProject();
-              onStart();
-              setTimeout(async () => {
-                const { useChatStore } = await import("@/store/chat-store");
-                useChatStore
-                  .getState()
-                  .addUserMessage(
-                    "Make a quick 30s demo video. Pick any topic and ship a complete result.",
-                  );
-                document.querySelector<HTMLFormElement>("aside form")?.requestSubmit();
-              }, 50);
-            }}
-            className="hover:text-neutral-300"
-            title="AI builds a complete video for you"
-          >
-            ✨ AI build
-          </button>
-          <span className="text-neutral-800">·</span>
-          <button
-            onClick={async () => {
-              createProject();
-              onStart();
-              setTimeout(async () => {
-                const { useChatStore } = await import("@/store/chat-store");
-                useChatStore
-                  .getState()
-                  .addUserMessage(
-                    "Surprise me. Pick a fun workflow and make a fully-narrated 60s demo video.",
-                  );
-                document.querySelector<HTMLFormElement>("aside form")?.requestSubmit();
-              }, 50);
-            }}
-            className="hover:text-neutral-300"
-            title="Random demo video"
-          >
-            🎲 random demo
           </button>
         </div>
       </div>

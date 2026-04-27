@@ -4,7 +4,6 @@ import { Loader2, Paperclip, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useProjectStore } from "@/store/project-store";
-import { buildCinematicShortBrief, buildExpressBrief } from "@/lib/agent-briefs";
 
 interface Props {
   open: boolean;
@@ -13,45 +12,36 @@ interface Props {
   onCreated: () => void;
 }
 
-type Orientation = "landscape" | "portrait";
-
 interface PendingAsset {
   name: string;
   size: number;
   file: File;
 }
 
-// Proper "Create Project" dialog: name, orientation, goal / instructions,
-// and an asset drop zone. Replaces the old "just click Start and figure it
-// out" landing flow.
+// "Create Project" dialog: name, optional system prompt, optional asset
+// drop zone. Aspect ratio + AI build flows live OUTSIDE this dialog —
+// pick aspect from the header AspectSwitcher dropdown after creation;
+// summon the agent via ⌘K once you're in the editor.
 export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
   const createProject = useProjectStore((s) => s.createProject);
   const renameProject = useProjectStore((s) => s.renameProject);
-  const setOrientation = useProjectStore((s) => s.setOrientation);
   const setSystemPrompt = useProjectStore((s) => s.setSystemPrompt);
   const setWorkflowId = useProjectStore((s) => s.setWorkflowId);
 
   const [name, setName] = useState("");
-  // Default 9:16 — short-form is the dominant use case.
-  const [orientation, setOrient] = useState<Orientation>("portrait");
   const [goal, setGoal] = useState("");
   const [assets, setAssets] = useState<PendingAsset[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [creating, setCreating] = useState(false);
-  // Default OFF: lands the user in the editor for manual editing. Flip
-  // ON when the user explicitly opts into the autonomous AI build via
-  // the toggle below the goal field.
-  const [cinematicMode, setCinematicMode] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const goalRef = useRef<HTMLTextAreaElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
-      setTimeout(() => goalRef.current?.focus(), 30);
+      setTimeout(() => nameRef.current?.focus(), 30);
     } else {
       // Reset on close so the next open starts clean.
       setName("");
-      setOrient("portrait");
       setGoal("");
       setAssets([]);
     }
@@ -78,7 +68,9 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
     if (creating) return;
     setCreating(true);
     try {
-      // 1. Create the project + apply name/orientation/prompt.
+      // 1. Create the project + apply name + optional system prompt.
+      //    Aspect ratio is left at the project default — pick it later
+      //    from the header AspectSwitcher dropdown.
       const id = createProject();
       const finalName =
         name.trim() ||
@@ -88,11 +80,11 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
           .slice(0, 6)
           .join(" ")
           .replace(/[,.?!]+$/, "")
-          .slice(0, 60);
-      if (finalName) renameProject(finalName);
-      if (orientation !== "landscape") setOrientation(orientation);
+          .slice(0, 60) ||
+        "Untitled";
+      renameProject(finalName);
       if (goal.trim()) setSystemPrompt(goal.trim());
-      // Auto-pick workflow from goal text so character-style projects
+      // Auto-pick workflow from prompt text so character-style projects
       // don't default to faceless and pick up Isaac stick-figures.
       const goalLower = goal.toLowerCase();
       if (/\b(reaction|reacting|opinion|controversy|drama|tea)\b/.test(goalLower)) {
@@ -108,10 +100,12 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
       }
       void id;
 
-      // 2. Upload assets (if any) and hand their URLs to the chat.
-      const uploaded: Array<{ name: string; url: string; type: string }> = [];
+      // 2. Upload assets (if any). They land in project.uploads via the
+      //    existing /api/assets/upload pipe; the user can drag them onto
+      //    the timeline from the Uploads tab.
       if (assets.length > 0) {
         const toastId = toast.loading(`Uploading ${assets.length} asset(s)...`);
+        const addUpload = useProjectStore.getState().addUpload;
         try {
           for (const a of assets) {
             const form = new FormData();
@@ -122,9 +116,16 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error ?? "upload failed");
-            uploaded.push({ name: a.name, url: data.url, type: a.file.type });
+            addUpload({
+              id: `up-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              name: a.name,
+              url: data.url,
+              type: a.file.type,
+              bytes: a.size,
+              uploadedAt: Date.now(),
+            });
           }
-          toast.success(`Uploaded ${uploaded.length}`, { id: toastId });
+          toast.success(`Uploaded ${assets.length}`, { id: toastId });
         } catch (e) {
           toast.error("Upload failed", {
             id: toastId,
@@ -135,30 +136,7 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
         }
       }
 
-      // 3. Queue an opening user message into the chat so the agent can
-      //    start acting immediately after we land on the editor.
-      const { useChatStore } = await import("@/store/chat-store");
-      const chat = useChatStore.getState();
-      const trimmedGoal = goal.trim();
-      if (trimmedGoal) {
-        const brief = cinematicMode
-          ? buildCinematicShortBrief({
-              topic: trimmedGoal,
-              orientation,
-              uploads: uploaded,
-            })
-          : buildExpressBrief({ topic: trimmedGoal, uploads: uploaded });
-        chat.addUserMessage(brief);
-      } else if (uploaded.length > 0) {
-        // Goal-less project but with assets — at least surface them.
-        chat.addUserMessage(buildExpressBrief({ topic: "", uploads: uploaded }));
-      }
-
       onCreated();
-      // Fire a submit so the chat sends the queued message automatically.
-      setTimeout(() => {
-        document.querySelector<HTMLFormElement>("aside form")?.requestSubmit();
-      }, 80);
     } finally {
       setCreating(false);
     }
@@ -210,51 +188,29 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
           </button>
         </div>
 
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label className="text-[10px] uppercase tracking-wider text-neutral-500">
-              Project name
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. How I grew to $5K MRR"
-              className="w-full mt-1 bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] uppercase tracking-wider text-neutral-500">
-              Format
-            </label>
-            <div className="flex gap-1 mt-1 p-0.5 rounded bg-neutral-900 border border-neutral-700">
-              {(["landscape", "portrait"] as const).map((o) => (
-                <button
-                  key={o}
-                  onClick={() => setOrient(o)}
-                  className={`px-2 py-1 text-[11px] rounded ${
-                    orientation === o
-                      ? "bg-emerald-500/20 text-emerald-300"
-                      : "text-neutral-400 hover:text-white"
-                  }`}
-                >
-                  {o === "landscape" ? "16:9" : "9:16"}
-                </button>
-              ))}
-            </div>
-          </div>
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-neutral-500">
+            Project name
+          </label>
+          <input
+            ref={nameRef}
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. How I grew to $5K MRR"
+            className="w-full mt-1 bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500"
+          />
         </div>
 
         <div>
           <label className="text-[10px] uppercase tracking-wider text-neutral-500">
-            What are we making? (instructions the agent will follow)
+            System prompt (optional)
           </label>
           <textarea
-            ref={goalRef}
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
-            placeholder={`Describe the video. e.g. "A 60-second TikTok about morning routines for coders — punchy, self-deprecating, ends on a call to action."\n\nYou can also write a system prompt here that steers the agent across every turn in this project.`}
-            rows={6}
+            placeholder={`Describe the project tone / style / constraints. The agent (when you summon it via \u2318K) reads this every turn. Leave blank to start with no preset behaviour.`}
+            rows={4}
             className="w-full mt-1 bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-[13px] text-white resize-none focus:outline-none focus:border-emerald-500 placeholder:text-neutral-600"
           />
         </div>
@@ -306,31 +262,6 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
           )}
         </div>
 
-        <label
-          className={
-            cinematicMode
-              ? "flex items-start gap-3 px-3 py-2 rounded-md border-2 border-emerald-500/60 bg-emerald-500/10 cursor-pointer transition-colors"
-              : "flex items-start gap-3 px-3 py-2 rounded-md border-2 border-neutral-800 hover:border-neutral-700 cursor-pointer transition-colors"
-          }
-        >
-          <input
-            type="checkbox"
-            checked={cinematicMode}
-            onChange={(e) => setCinematicMode(e.target.checked)}
-            className="mt-0.5 accent-emerald-500 h-4 w-4"
-          />
-          <div className="flex-1 text-[11px]">
-            <div className={cinematicMode ? "text-emerald-300 font-semibold text-xs" : "text-white font-semibold text-xs"}>
-              ✨ Let AI build it autonomously
-            </div>
-            <div className="text-neutral-500 mt-0.5">
-              {cinematicMode
-                ? "Spine → plan → research → assets → narration → render → watch. Walk away while it ships."
-                : "Otherwise we'll create a blank project and you edit manually with the AI as a copilot."}
-            </div>
-          </div>
-        </label>
-
         <div className="flex items-center gap-2 pt-1">
           <button
             onClick={onClose}
@@ -345,7 +276,7 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
             className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black font-semibold px-4 py-2 rounded transition-colors"
           >
             {creating && <Loader2 className="h-4 w-4 animate-spin" />}
-            {cinematicMode ? "Create + auto-build video" : "Create project"}
+            Create project
           </button>
         </div>
       </div>

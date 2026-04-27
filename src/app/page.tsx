@@ -37,6 +37,7 @@ import { ShortcutsOverlay } from "@/components/editor/ShortcutsOverlay";
 import { ScheduleRenderDialog } from "@/components/editor/ScheduleRenderDialog";
 import { SceneToolsPanel } from "@/components/editor/SceneToolsPanel";
 import { LeftSidebar } from "@/components/editor/LeftSidebar";
+import { useEditorStore } from "@/store/editor-store";
 import { UploadsPanel } from "@/components/editor/UploadsPanel";
 import { useChatStore } from "@/store/chat-store";
 import { useProjectStore } from "@/store/project-store";
@@ -126,6 +127,7 @@ export default function Home() {
   // Layout: users can collapse the scene list / editor panels for focused
   // work. Persisted to localStorage so preference survives reloads.
   const [leftCollapsed, setLeftCollapsedState] = useState(false);
+  const zenMode = useEditorStore((s) => s.zenMode);
   const [rightCollapsed, setRightCollapsedState] = useState(false);
   const setLeftCollapsed = (v: boolean) => {
     setLeftCollapsedState(v);
@@ -312,11 +314,13 @@ export default function Home() {
       {/* Main layout */}
       {!showHome && (
       <div className="flex flex-1 min-h-0">
-        <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
-        <LeftSidebar />
+        {!zenMode && (
+          <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
+        )}
+        {!zenMode && <LeftSidebar />}
         {/* Left: scene list + tools — hidden until scenes exist so the empty
             state is just chat + preview (way less busy). */}
-        {project.scenes.length > 0 && !leftCollapsed && (
+        {!zenMode && project.scenes.length > 0 && !leftCollapsed && (
           <div className="w-80 flex flex-col border-r border-neutral-800 shrink-0 overflow-hidden relative">
             <button
               onClick={() => setLeftCollapsed(true)}

@@ -35,6 +35,16 @@ export function KeyboardShortcuts() {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
 
+      // Z (no modifier) — toggle zen mode (chrome-hidden full-preview).
+      if (!mod && (e.key === "z" || e.key === "Z") && !isTextInput(e.target)) {
+        // Don't conflict with ⌘Z undo (handled below).
+        e.preventDefault();
+        const cur = useEditorStore.getState().zenMode;
+        useEditorStore.getState().setZenMode(!cur);
+        toast(cur ? "Editor restored" : "Zen mode (Z to exit)", { duration: 800 });
+        return;
+      }
+
       // [ / ] (no modifier) — set loop in / out at playhead.
       // \ clears the loop range. Gated against text inputs.
       if (!mod && !isTextInput(e.target)) {

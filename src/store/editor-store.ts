@@ -64,6 +64,10 @@ interface EditorStore {
   setShowSafeArea: (v: boolean) => void;
   showLetterbox: boolean;
   setShowLetterbox: (v: boolean) => void;
+  /** Hides the chrome (sidebars / chat / config tabs) so the preview
+   *  fills the screen. Z key toggles. */
+  zenMode: boolean;
+  setZenMode: (v: boolean) => void;
   loopRange: { start: number; end: number } | null;
   setLoopStart: (frame: number) => void;
   setLoopEnd: (frame: number) => void;
@@ -106,6 +110,8 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setShowSafeArea: (v) => set({ showSafeArea: v }),
   showLetterbox: false,
   setShowLetterbox: (v) => set({ showLetterbox: v }),
+  zenMode: false,
+  setZenMode: (v) => set({ zenMode: v }),
   loopRange: null,
   setLoopStart: (frame) =>
     set((s) => {

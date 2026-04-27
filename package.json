@@ -19,7 +19,12 @@
     "cap:run:android": "cap run android",
     "cap:run:ios": "cap run ios",
     "cap:build:android": "./scripts/build-android.sh",
-    "cap:build:ios": "./scripts/build-ios.sh"
+    "cap:build:ios": "./scripts/build-ios.sh",
+    "eval:run": "bun run eval/runner/run.ts",
+    "eval:gen": "bun run eval/cases/generator.ts",
+    "eval:iterate": "bun run eval/iterate/ab-test.ts",
+    "eval:report": "bun run eval/report/generate.ts",
+    "eval:typecheck": "tsc --noEmit -p eval/tsconfig.json"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.1",

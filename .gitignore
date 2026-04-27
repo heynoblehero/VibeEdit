@@ -59,3 +59,10 @@ Thumbs.db
 /ios/
 /android/
 .capacitor/
+
+# Eval harness — case fixtures (78MB Isaac Pack), results, generated cases
+/eval/fixtures/isaac-pack/
+/eval/fixtures/reference_transcript_clean.txt
+/eval/results/
+/eval/cases/generated/
+/eval/iterate/experiment-log.jsonl

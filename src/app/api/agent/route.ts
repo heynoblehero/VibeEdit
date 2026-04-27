@@ -604,7 +604,15 @@ export async function POST(request: NextRequest) {
               text: string;
               cache_control?: { type: "ephemeral" };
             }> = [
-              { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+              {
+                type: "text",
+                // SYSTEM_PROMPT_OVERRIDE: harness escape hatch for the
+                // eval/iterate/ab-test loop. Lets the eval harness swap
+                // in a candidate prompt without code changes; production
+                // never sets this env var.
+                text: process.env.SYSTEM_PROMPT_OVERRIDE ?? SYSTEM_PROMPT,
+                cache_control: { type: "ephemeral" },
+              },
               ...(process.env.SEARCH_PROVIDER && process.env.SEARCH_PROVIDER !== "none"
                 ? [
                     {

@@ -9,7 +9,6 @@ import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 import { AudioWaveform } from "./AudioWaveform";
 import { CutMarker } from "./CutMarker";
-import { TrackStrip } from "./TrackStrip";
 
 // Two- or three-letter abbrev for the scene block label so the user
 // can tell at-a-glance what kind of scene each block is at low zoom.
@@ -1159,7 +1158,6 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
         })}
       </div>
       </div>
-      <TrackStrip />
     </div>
   );
 }

@@ -1,5 +1,76 @@
 # Changelog
 
+## Unreleased — sprint 13: editor depth pass — 21 commits
+
+A focused 'real video editor' sprint with a single goal: every common
+NLE move should have an obvious answer in VibeEdit. Drag-drop fixes,
+zoom, markers, mute/lock/tag, fades, keying, master mix, all wired.
+
+### Drag-and-drop fixes
+- Empty-timeline drop zone — Timeline used to return null at
+  scenes.length === 0 so drops on a fresh project did nothing. Now
+  shows a dashed-border target with the same outer onDrop.
+- Scene-block drops bubble outer-track payloads — drops of upload-url
+  / scene-type / title onto an existing block now bubble to the
+  track-level handler instead of being eaten.
+- Shift+drag upload onto scene → swap that scene's bg media in place.
+- Track-wide emerald glow during a valid drag-over so the drop is
+  visibly accepted.
+
+### Uploads
+- Hover '+' button on each tile inserts the upload as a new scene
+  in one click (alternative to drag).
+
+### Timeline
+- ⌘= / ⌘− / ⌘0 horizontal zoom (0.5×–8×). Track wraps in a
+  scrollable container at zoom > 1; selected scene auto-scrolls into
+  view; shift-wheel scrolls horizontally.
+- M drops a marker at the playhead. Markers render as colored dashed
+  lines on the ruler; alt-click to remove.
+- Magnetic snap to playhead when resizing scene right-edge (within
+  ±0.15s; alt to bypass).
+- Scene blocks gain colorTag bar, label override, type-abbrev,
+  effect/look/key/speed badges, lock icon.
+- Double-click a block to rename.
+- Ripple-delete bridges cuts (already in sprint 12, retained).
+
+### Scenes
+- Mute toggle (skipped on render, dimmed in timeline).
+- 6-color tag system.
+- Lock toggle (read-only — block move/resize/delete).
+- Per-scene fadeInFrames / fadeOutFrames for visual fades.
+
+### Background
+- Chroma + luma key (sprint 12.5, retained).
+- Flip H / Flip V / rotate 90° toggles in BackgroundPanel.
+
+### Audio
+- speedFactor → playbackRate on voiceover/sfx Audio (sprint 12.5).
+- Master mix popover (sprint 12.5) — header Sliders icon → 0–200%
+  music/voice/sfx gains.
+
+### Header
+- Live scene-count + total-duration chip (deducts muted scenes).
+- Aspect-ratio quick-switcher (16:9 / 9:16).
+- Persistent autosave indicator with relative-time pill.
+
+### Keyboard
+- ⌘R quick-render with the active preset.
+- ⌘[ / ⌘] reorder selected scene up/down.
+- ←/→ frame-step playhead (Shift = 10).
+- ? opens a 5-section keyboard cheat-sheet dialog.
+
+### Actions panel
+- 'Recent' tray showing the last 6 used effects/looks/transitions/
+  titles, draggable like the section cards.
+
+### Preview
+- 0.5× / 1× / 1.5× / 2× playback-rate selector overlay (live preview
+  only — render speed unchanged).
+
+### Safety
+- Confirm before deleting >3 selected scenes.
+
 ## Unreleased — sprint 12.5: speed-warp audio, master mix, keying (4 commits)
 
 Closes the gaps the previous sprint deferred: speed warp now retimes

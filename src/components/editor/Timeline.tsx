@@ -33,6 +33,7 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
   const setTimelineZoom = useEditorStore((s) => s.setTimelineZoom);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [trackHover, setTrackHover] = useState(false);
 
   const total = useMemo(
     () => Math.max(1, totalDurationFrames(project.scenes, project.fps)),
@@ -325,9 +326,12 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
           ) {
             e.preventDefault();
             e.dataTransfer.dropEffect = "copy";
+            setTrackHover(true);
           }
         }}
+        onDragLeave={() => setTrackHover(false)}
         onDrop={(e) => {
+          setTrackHover(false);
           if (!trackRef.current) return;
           const rect = trackRef.current.getBoundingClientRect();
           const ratio = (e.clientX - rect.left) / rect.width;
@@ -463,9 +467,11 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
             return;
           }
         }}
-        className={`group/timeline relative h-8 bg-neutral-900 rounded border border-neutral-800 ${
-          cutMode ? "cursor-crosshair" : "cursor-pointer"
-        }`}
+        className={`group/timeline relative h-8 bg-neutral-900 rounded border ${
+          trackHover
+            ? "border-emerald-400 bg-emerald-500/10"
+            : "border-neutral-800"
+        } ${cutMode ? "cursor-crosshair" : "cursor-pointer"}`}
         title={cutMode ? "Click to cut at this frame" : "Click to jump · drop an upload to insert a scene"}
       >
         {markers.map((m, i) => {

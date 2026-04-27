@@ -3,7 +3,7 @@
 import { Plus, Scissors } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { PlayerRef } from "@remotion/player";
-import type { Cut } from "@/lib/scene-schema";
+import type { Cut, Scene } from "@/lib/scene-schema";
 import { createId, DEFAULT_BG, sceneDurationFrames, totalDurationFrames } from "@/lib/scene-schema";
 import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
@@ -182,22 +182,24 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
         ref={trackRef}
         onClick={handleClick}
         onDragOver={(e) => {
-          if (e.dataTransfer.types.includes("vibeedit/upload-url")) {
+          // Accept any of the four "insert new scene" payloads. Drop
+          // targets that mutate an existing scene (effect / ai-action /
+          // transition) are handled by per-block onDrop below — those
+          // calls stopPropagation so they never reach this outer handler.
+          const types = e.dataTransfer.types;
+          if (
+            types.includes("vibeedit/upload-url") ||
+            types.includes("vibeedit/scene-type")
+          ) {
             e.preventDefault();
             e.dataTransfer.dropEffect = "copy";
           }
         }}
         onDrop={(e) => {
-          const url = e.dataTransfer.getData("vibeedit/upload-url");
-          const type = e.dataTransfer.getData("vibeedit/upload-type");
-          if (!url || !trackRef.current) return;
-          e.preventDefault();
+          if (!trackRef.current) return;
           const rect = trackRef.current.getBoundingClientRect();
           const ratio = (e.clientX - rect.left) / rect.width;
           const frame = Math.round(ratio * total);
-          // Find which scene index the drop landed in; insert AFTER it
-          // (if the drop is in the second half of the scene block) or
-          // BEFORE it (first half). End-of-track → append.
           let insertIndex = markers.length;
           for (let i = 0; i < markers.length; i++) {
             const m = markers[i];
@@ -208,26 +210,90 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
             }
           }
           const portrait = project.height > project.width;
-          const scene = type.startsWith("video/")
-            ? {
+          // 1) Upload URL → media-backed scene.
+          const url = e.dataTransfer.getData("vibeedit/upload-url");
+          if (url) {
+            e.preventDefault();
+            const type = e.dataTransfer.getData("vibeedit/upload-type");
+            const scene = type.startsWith("video/")
+              ? {
+                  id: createId(),
+                  type: "text_only" as const,
+                  duration: 3,
+                  background: { ...DEFAULT_BG, videoUrl: url },
+                  transition: "beat_flash" as const,
+                }
+              : {
+                  id: createId(),
+                  type: "text_only" as const,
+                  duration: 3,
+                  background: { ...DEFAULT_BG, imageUrl: url, kenBurns: true },
+                  emphasisText: "edit me",
+                  emphasisSize: portrait ? 96 : 72,
+                  emphasisColor: "#ffffff",
+                  textY: portrait ? 500 : 380,
+                  transition: "beat_flash" as const,
+                };
+            insertSceneAt(insertIndex, scene);
+            return;
+          }
+          // 2) Scene-type card → blank scene with that type pre-set.
+          const sceneTypePayload = e.dataTransfer.getData("vibeedit/scene-type");
+          if (sceneTypePayload) {
+            e.preventDefault();
+            try {
+              const { value } = JSON.parse(sceneTypePayload) as { value: string };
+              const baseScene = {
                 id: createId(),
-                type: "text_only" as const,
+                type: value as "text_only",
                 duration: 3,
-                background: { ...DEFAULT_BG, videoUrl: url },
-                transition: "beat_flash" as const,
-              }
-            : {
-                id: createId(),
-                type: "text_only" as const,
-                duration: 3,
-                background: { ...DEFAULT_BG, imageUrl: url, kenBurns: true },
-                emphasisText: "edit me",
-                emphasisSize: portrait ? 96 : 72,
-                emphasisColor: "#ffffff",
-                textY: portrait ? 500 : 380,
+                background: { ...DEFAULT_BG },
                 transition: "beat_flash" as const,
               };
-          insertSceneAt(insertIndex, scene);
+              // Per-type sensible defaults so the dropped scene isn't
+              // a blank rectangle the user has to configure from zero.
+              type SceneShape = typeof baseScene & {
+                emphasisText?: string;
+                emphasisSize?: number;
+                emphasisColor?: string;
+                textY?: number;
+                statValue?: string;
+                statLabel?: string;
+                quoteText?: string;
+                quoteAttribution?: string;
+                bulletItems?: string[];
+                montageUrls?: string[];
+                chartBars?: Array<{ label: string; value: number }>;
+                splitLeftUrl?: string;
+                splitRightUrl?: string;
+              };
+              const scene: SceneShape = baseScene;
+              if (value === "text_only") {
+                scene.emphasisText = "edit me";
+                scene.emphasisSize = portrait ? 96 : 72;
+                scene.emphasisColor = "#ffffff";
+                scene.textY = portrait ? 500 : 380;
+              } else if (value === "stat") {
+                scene.statValue = "100%";
+                scene.statLabel = "edit this label";
+              } else if (value === "quote") {
+                scene.quoteText = "Edit this quote";
+                scene.quoteAttribution = "Author";
+              } else if (value === "bullet_list") {
+                scene.bulletItems = ["Point one", "Point two", "Point three"];
+              } else if (value === "bar_chart") {
+                scene.chartBars = [
+                  { label: "A", value: 30 },
+                  { label: "B", value: 60 },
+                  { label: "C", value: 45 },
+                ];
+              }
+              insertSceneAt(insertIndex, scene);
+            } catch {
+              // bad payload — silently ignore
+            }
+            return;
+          }
         }}
         className={`group/timeline relative h-8 bg-neutral-900 rounded border border-neutral-800 ${
           cutMode ? "cursor-crosshair" : "cursor-pointer"
@@ -250,12 +316,97 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                 e.dataTransfer.effectAllowed = "move";
               }}
               onDragOver={(e) => {
-                e.preventDefault();
-                setHoverIndex(i);
-                e.dataTransfer.dropEffect = "move";
+                // Accept the existing reorder drag AND new vibeedit/* card
+                // drops so users can drop effects / transitions / ai-
+                // actions onto a specific scene.
+                const types = e.dataTransfer.types;
+                if (
+                  dragIndex !== null ||
+                  types.includes("vibeedit/effect") ||
+                  types.includes("vibeedit/transition") ||
+                  types.includes("vibeedit/ai-action")
+                ) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setHoverIndex(i);
+                  e.dataTransfer.dropEffect = types.includes("vibeedit/effect") || types.includes("vibeedit/transition") || types.includes("vibeedit/ai-action") ? "copy" : "move";
+                }
               }}
               onDrop={(e) => {
                 e.preventDefault();
+                e.stopPropagation();
+                // 1) Effect card → push onto scene.effects.
+                const effectPayload = e.dataTransfer.getData("vibeedit/effect");
+                if (effectPayload) {
+                  try {
+                    const { value, params } = JSON.parse(effectPayload) as { value: string; params?: Record<string, unknown> };
+                    const updated: Scene["effects"] = [
+                      ...((scene.effects ?? []) as NonNullable<Scene["effects"]>),
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      { kind: value as any, startFrame: 0, ...(params ?? {}) },
+                    ];
+                    updateScene(scene.id, { effects: updated });
+                  } catch {}
+                  setDragIndex(null);
+                  setHoverIndex(null);
+                  return;
+                }
+                // 2) Transition card → set the cut going INTO this scene
+                //    from its predecessor. End-of-track scene 0 has no
+                //    predecessor; we silently no-op.
+                const transPayload = e.dataTransfer.getData("vibeedit/transition");
+                if (transPayload) {
+                  try {
+                    const { value, params } = JSON.parse(transPayload) as {
+                      value: string;
+                      params?: { durationFrames?: number; color?: string };
+                    };
+                    const prev = project.scenes[i - 1];
+                    if (prev) {
+                      const existing = (project.cuts ?? []).filter(
+                        (c) => !(c.fromSceneId === prev.id && c.toSceneId === scene.id),
+                      );
+                      const newCut: Cut = {
+                        id: createId(),
+                        fromSceneId: prev.id,
+                        toSceneId: scene.id,
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        kind: value as any,
+                        durationFrames: params?.durationFrames ?? 12,
+                        color: params?.color,
+                      };
+                      // No public store action for raw "set cuts list" so
+                      // fall through the upsertCut helper which already
+                      // dedupes by from/to pair. We re-import inline.
+                      void existing;
+                      useProjectStore.getState().upsertCut(newCut);
+                    }
+                  } catch {}
+                  setDragIndex(null);
+                  setHoverIndex(null);
+                  return;
+                }
+                // 3) AI action → focus this scene + run prefab prompt.
+                const aiPayload = e.dataTransfer.getData("vibeedit/ai-action");
+                if (aiPayload) {
+                  try {
+                    const { prompt } = JSON.parse(aiPayload) as { prompt: string };
+                    void import("@/store/editor-store").then(({ useEditorStore }) => {
+                      useEditorStore.getState().setFocusedSceneId(scene.id);
+                    });
+                    const evt = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true });
+                    window.dispatchEvent(evt);
+                    setTimeout(async () => {
+                      const { useChatStore } = await import("@/store/chat-store");
+                      useChatStore.getState().addUserMessage(prompt);
+                      document.querySelector<HTMLFormElement>("aside form")?.requestSubmit();
+                    }, 80);
+                  } catch {}
+                  setDragIndex(null);
+                  setHoverIndex(null);
+                  return;
+                }
+                // 4) Existing reorder behavior.
                 if (dragIndex !== null && dragIndex !== i) {
                   moveScene(dragIndex, i);
                 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Film, ListVideo, MessageCircle, Redo2, Settings, Smartphone, Sparkles, Undo2, Upload } from "lucide-react";
+import { CalendarClock, Film, ListVideo, MessageCircle, Redo2, Settings, Smartphone, Undo2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { AuthBar } from "@/components/editor/AuthBar";
@@ -31,6 +31,7 @@ import { SceneList } from "@/components/editor/SceneList";
 import { ShortcutsOverlay } from "@/components/editor/ShortcutsOverlay";
 import { ScheduleRenderDialog } from "@/components/editor/ScheduleRenderDialog";
 import { SceneToolsPanel } from "@/components/editor/SceneToolsPanel";
+import { LeftSidebar } from "@/components/editor/LeftSidebar";
 import { UploadsPanel } from "@/components/editor/UploadsPanel";
 import { useChatStore } from "@/store/chat-store";
 import { useProjectStore } from "@/store/project-store";
@@ -67,7 +68,7 @@ export default function Home() {
   // Always start `true` so SSR and first client render agree. A post-mount
   // effect collapses the sidebar on narrow screens — avoids hydration mismatch.
   const [chatOpen, setChatOpenState] = useState(true);
-  const [uploadsOpen, setUploadsOpen] = useState(false);
+  // uploadsOpen removed — uploads now live in the LeftSidebar's Uploads tab.
   const setChatOpen = (v: boolean | ((prev: boolean) => boolean)) => {
     setChatOpenState((prev) => {
       const next = typeof v === "function" ? v(prev) : v;
@@ -243,43 +244,10 @@ export default function Home() {
             <Smartphone className="h-3.5 w-3.5" />
             <span>Get the app</span>
           </a>
-          <button
-            onClick={() => {
-              // Open the chat (or focus it if already open) and let the
-              // user issue an AI command. Editor-first means the chat is
-              // accessed on demand from this fixed location, not always
-              // open in the sidebar.
-              const evt = new KeyboardEvent("keydown", {
-                key: "k",
-                metaKey: true,
-                bubbles: true,
-              });
-              window.dispatchEvent(evt);
-            }}
-            title="Open AI chat (Cmd+K)"
-            aria-label="AI"
-            className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 hover:text-emerald-200 border border-emerald-500/40 hover:border-emerald-400 transition-colors"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span className="text-xs font-semibold">AI</span>
-          </button>
-          <button
-            onClick={() => setUploadsOpen((v) => !v)}
-            title="Project uploads (drag onto timeline to insert)"
-            aria-label="Uploads"
-            className={
-              uploadsOpen
-                ? "p-1.5 rounded-md text-emerald-400 bg-neutral-800 transition-colors relative"
-                : "p-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors relative"
-            }
-          >
-            <Upload className="h-4 w-4" />
-            {(project.uploads?.length ?? 0) > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 text-[9px] font-bold bg-emerald-500 text-black rounded-full min-w-3.5 h-3.5 px-0.5 flex items-center justify-center">
-                {project.uploads!.length}
-              </span>
-            )}
-          </button>
+          {/* Upload + AI buttons removed from header — they now live as
+              tabs in the LeftSidebar (sprint 11). Only chat-toggle stays
+              accessible via Cmd+K, and the LeftSidebar's AI tab provides
+              a "chat" button itself. */}
           <button
             onClick={() => setSettingsOpen(true)}
             title="Settings (API keys)"
@@ -335,7 +303,7 @@ export default function Home() {
       {!showHome && (
       <div className="flex flex-1 min-h-0">
         <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
-        <UploadsPanel open={uploadsOpen} onClose={() => setUploadsOpen(false)} />
+        <LeftSidebar />
         {/* Left: scene list + tools — hidden until scenes exist so the empty
             state is just chat + preview (way less busy). */}
         {project.scenes.length > 0 && !leftCollapsed && (

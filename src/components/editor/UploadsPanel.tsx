@@ -15,11 +15,15 @@ import { useProjectStore } from "@/store/project-store";
  * background of the currently-selected scene.
  */
 interface Props {
-  open: boolean;
-  onClose: () => void;
+  /** Legacy fixed-drawer mode (sprint 9). When `inline` is true the
+   *  panel renders without the drawer chrome (no fixed positioning, no
+   *  header X) so it can mount inside LeftSidebar's tab content. */
+  open?: boolean;
+  onClose?: () => void;
+  inline?: boolean;
 }
 
-export function UploadsPanel({ open, onClose }: Props) {
+export function UploadsPanel({ open = true, onClose, inline = false }: Props) {
   const project = useProjectStore((s) => s.project);
   const addUpload = useProjectStore((s) => s.addUpload);
   const removeUpload = useProjectStore((s) => s.removeUpload);
@@ -98,18 +102,24 @@ export function UploadsPanel({ open, onClose }: Props) {
 
   if (!open) return null;
 
+  const wrapperClass = inline
+    ? "h-full w-full bg-neutral-950 flex flex-col"
+    : "fixed top-0 right-0 bottom-0 w-80 bg-neutral-950 border-l border-neutral-800 z-40 flex flex-col shadow-2xl";
+
   return (
-    <div className="fixed top-0 right-0 bottom-0 w-80 bg-neutral-950 border-l border-neutral-800 z-40 flex flex-col shadow-2xl">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800">
-        <div className="flex items-center gap-2">
-          <Upload className="h-4 w-4 text-emerald-400" />
-          <h2 className="text-sm font-semibold text-white">Uploads</h2>
-          <span className="text-[10px] text-neutral-500">{uploads.length}</span>
+    <div className={wrapperClass}>
+      {!inline && (
+        <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800">
+          <div className="flex items-center gap-2">
+            <Upload className="h-4 w-4 text-emerald-400" />
+            <h2 className="text-sm font-semibold text-white">Uploads</h2>
+            <span className="text-[10px] text-neutral-500">{uploads.length}</span>
+          </div>
+          <button onClick={onClose} className="text-neutral-500 hover:text-white">
+            <X className="h-4 w-4" />
+          </button>
         </div>
-        <button onClick={onClose} className="text-neutral-500 hover:text-white">
-          <X className="h-4 w-4" />
-        </button>
-      </div>
+      )}
 
       <div
         onDragOver={(e) => {

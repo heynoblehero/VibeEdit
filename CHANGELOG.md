@@ -1,5 +1,59 @@
 # Changelog
 
+## Unreleased — sprint 11: left sidebar with Uploads / Actions / AI tabs (1 commit)
+
+UI restructure that moves all the "what can I drop here?" surfaces off
+the topbar into a persistent left sidebar — Premiere/AE pattern. Three
+tabs share the same drag-onto-timeline / drag-onto-scene drop targets.
+
+### LeftSidebar.tsx
+Vertical 12px tab bar + 60px content panel. Three tabs:
+- 📁 **Uploads** — existing UploadsPanel, refactored with an `inline`
+  prop so the same component now renders both inside the sidebar
+  (chrome-less) and as a fixed drawer (legacy callers).
+- ⚡ **Actions** — three sections of draggable cards:
+  · **Transitions** (12 cards): fade / dip-to-black / dip-to-white /
+    iris / clock_wipe / flip / slide_left / whip_pan / smash_cut /
+    glitch / zoom_blur / jump_cut. Each carries a default
+    durationFrames (and color where relevant).
+  · **Effects** (11 cards): circle_ping / radial_pulse / scan_line /
+    bar_wipe / corner_brackets / reveal_box / lower_third / typewriter
+    / glitch / particles / progress_bar.
+  · **Scene types** (8 cards): text_only / stat / big_number /
+    bullet_list / quote / split / montage / bar_chart, each with
+    sensible defaults so the dropped scene isn't blank.
+- ✨ **AI** — two sections:
+  · **Project-wide** click-to-run cards: Auto-build / Review /
+    Score / Generate publish metadata / Find match cuts / Export
+    subtitles. Each opens chat + auto-submits the prefab prompt.
+  · **Drop on a scene** drag cards: Improve / Re-narrate /
+    New background image / Match style to next / Critique this
+    scene. Drop on a scene block → focusedSceneId set + chat
+    opens + prompt submits.
+
+### MIME types + drop handlers
+- `vibeedit/upload-url` (existing) → Timeline outer onDrop creates a
+  scene with the upload as bg.
+- `vibeedit/scene-type` (new) → Timeline outer onDrop creates a scene
+  with that type pre-set + sensible content defaults.
+- `vibeedit/effect` (new) → per-scene-block onDrop pushes onto
+  scene.effects.
+- `vibeedit/transition` (new) → per-scene-block onDrop upserts the cut
+  going INTO this scene from its predecessor.
+- `vibeedit/ai-action` (new) → per-scene-block onDrop sets
+  focusedSceneId + opens chat + submits the prefab.
+
+The per-scene-block handler stopPropagation()s so it never falls
+through to the Timeline outer handler. Reorder dragging still works
+(no MIME type → falls through to the existing dragIndex logic).
+
+### Page restructure
+- Header buttons removed: ✨ AI quick-action + Uploads icon (with the
+  count badge). Both moved into LeftSidebar tabs. Render queue +
+  Settings stay in the header.
+- Right-side UploadsPanel drawer retired in favor of the inline tab.
+- Chat sidebar (Cmd+K) unchanged — still slides in from the right.
+
 ## Unreleased — sprint 10: pivot to AI-augmented manual editor (13 commits)
 
 Strategic pivot: lead with the editor, demote the AI to a copilot.

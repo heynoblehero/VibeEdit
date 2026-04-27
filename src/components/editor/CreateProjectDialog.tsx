@@ -146,7 +146,7 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4"
       onClick={onClose}
     >
       <div
@@ -168,28 +168,47 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
           setDragOver(false);
           if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
         }}
-        className={`w-full max-w-xl bg-neutral-950 border border-neutral-800 rounded-xl p-5 flex flex-col gap-4 shadow-2xl relative ${
+        className={`w-full max-w-xl rounded-2xl p-6 flex flex-col gap-5 relative overflow-hidden ${
           dragOver ? "ring-2 ring-emerald-400/60" : ""
         }`}
+        style={{
+          background:
+            "linear-gradient(180deg, #131313 0%, #0c0c0c 100%)",
+          border: "1px solid rgba(64,64,64,0.6)",
+          boxShadow:
+            "0 25px 60px rgba(0,0,0,0.8), 0 0 80px rgba(16,185,129,0.06), inset 0 1px 0 rgba(255,255,255,0.04)",
+        }}
       >
+        {/* subtle emerald top-glow */}
+        <div
+          className="absolute -top-24 left-1/2 -translate-x-1/2 w-[400px] h-[200px] rounded-full pointer-events-none"
+          style={{
+            background:
+              "radial-gradient(ellipse, rgba(16,185,129,0.18), transparent 70%)",
+          }}
+        />
         {dragOver && (
-          <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center rounded-xl bg-emerald-500/10">
-            <span className="text-sm font-semibold text-emerald-300">Drop to attach</span>
+          <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center rounded-2xl bg-emerald-500/10">
+            <span className="text-sm font-semibold text-emerald-300">
+              Drop to attach
+            </span>
           </div>
         )}
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Create a new project</h2>
+        <div className="flex items-center justify-between relative">
+          <h2 className="text-lg font-semibold text-white tracking-tight">
+            Create a new project
+          </h2>
           <button
             onClick={onClose}
-            title="Close"
-            className="text-neutral-500 hover:text-white"
+            title="Close (Esc)"
+            className="p-1.5 rounded text-neutral-500 hover:text-white hover:bg-neutral-800/80 transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <div>
-          <label className="text-[10px] uppercase tracking-wider text-neutral-500">
+          <label className="text-[10px] uppercase tracking-[0.15em] text-neutral-500 font-medium">
             Project name
           </label>
           <input
@@ -198,35 +217,40 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. How I grew to $5K MRR"
-            className="w-full mt-1 bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500"
+            className="w-full mt-1.5 bg-neutral-900/80 border border-neutral-800 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-emerald-500 focus:bg-neutral-900 transition-colors"
           />
         </div>
 
         <div>
-          <label className="text-[10px] uppercase tracking-wider text-neutral-500">
-            System prompt (optional)
+          <label className="text-[10px] uppercase tracking-[0.15em] text-neutral-500 font-medium">
+            System prompt
+            <span className="text-neutral-700 normal-case ml-1.5">optional</span>
           </label>
           <textarea
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
-            placeholder={`Describe the project tone / style / constraints. The agent (when you summon it via \u2318K) reads this every turn. Leave blank to start with no preset behaviour.`}
+            placeholder={`Tone, style, constraints — the agent (\u2318K) reads this every turn. Leave blank to start clean.`}
             rows={4}
-            className="w-full mt-1 bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-[13px] text-white resize-none focus:outline-none focus:border-emerald-500 placeholder:text-neutral-600"
+            className="w-full mt-1.5 bg-neutral-900/80 border border-neutral-800 rounded-lg px-3 py-2.5 text-[13px] text-white placeholder:text-neutral-600 resize-none focus:outline-none focus:border-emerald-500 focus:bg-neutral-900 transition-colors"
           />
         </div>
 
         <div>
-          <label className="text-[10px] uppercase tracking-wider text-neutral-500 flex items-center justify-between">
-            <span>Assets (optional)</span>
-            <span className="text-neutral-600 normal-case">Drop files here or click</span>
+          <label className="text-[10px] uppercase tracking-[0.15em] text-neutral-500 font-medium flex items-center justify-between">
+            <span>
+              Assets <span className="text-neutral-700 normal-case ml-1">optional</span>
+            </span>
+            <span className="text-neutral-600 normal-case font-normal text-[10px]">
+              Drop files anywhere
+            </span>
           </label>
           <button
             onClick={() => fileRef.current?.click()}
-            className="mt-1 flex items-center justify-center gap-2 w-full h-20 border-2 border-dashed border-neutral-800 hover:border-emerald-500/60 rounded text-xs text-neutral-500 hover:text-white transition-colors"
+            className="mt-1.5 flex items-center justify-center gap-2 w-full h-20 border-2 border-dashed border-neutral-800 hover:border-emerald-500/60 hover:bg-emerald-500/5 rounded-lg text-xs text-neutral-500 hover:text-white transition-all"
           >
             <Paperclip className="h-4 w-4" />
             {assets.length === 0
-              ? "Drag in images, clips, audio, comic panels — anything the agent should use"
+              ? "Drag in images, clips, audio — anything for this project"
               : `${assets.length} file${assets.length === 1 ? "" : "s"} queued`}
           </button>
           <input
@@ -265,18 +289,21 @@ export function CreateProjectDialog({ open, onClose, onCreated }: Props) {
         <div className="flex items-center gap-2 pt-1">
           <button
             onClick={onClose}
-            className="text-sm text-neutral-500 hover:text-white px-3 py-2"
+            className="text-[13px] text-neutral-400 hover:text-white px-3 py-2.5 rounded-lg hover:bg-neutral-800/60 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={submit}
             disabled={creating}
-            title="Create (Cmd/Ctrl+Enter)"
-            className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black font-semibold px-4 py-2 rounded transition-colors"
+            title="Create (⌘⏎)"
+            className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-b from-emerald-400 to-emerald-500 hover:from-emerald-300 hover:to-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-black font-semibold text-[14px] px-4 py-2.5 rounded-lg shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 transition-all hover:-translate-y-px"
           >
             {creating && <Loader2 className="h-4 w-4 animate-spin" />}
             Create project
+            <kbd className="ml-1 text-[10px] font-mono bg-black/15 text-black/60 px-1.5 py-0.5 rounded">
+              ⌘⏎
+            </kbd>
           </button>
         </div>
       </div>

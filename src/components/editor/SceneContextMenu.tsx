@@ -233,6 +233,53 @@ export function SceneContextMenu({ scene, index, x, y, onClose }: Props) {
       </button>
       <button
         onClick={() => {
+          // Find this scene's incoming cut (or fall back to scene.transition).
+          const project = useProjectStore.getState().project;
+          const idx = project.scenes.findIndex((s) => s.id === scene.id);
+          let template: { kind: string; durationFrames: number; color?: string } | null = null;
+          if (idx > 0) {
+            const prev = project.scenes[idx - 1];
+            const inCut = (project.cuts ?? []).find(
+              (c) => c.fromSceneId === prev.id && c.toSceneId === scene.id,
+            );
+            if (inCut) {
+              template = {
+                kind: inCut.kind,
+                durationFrames: inCut.durationFrames,
+                color: inCut.color,
+              };
+            }
+          }
+          if (!template && scene.transition && scene.transition !== "none") {
+            template = { kind: scene.transition, durationFrames: 12 };
+          }
+          if (!template) {
+            toast("No transition on this scene to copy", { duration: 800 });
+            return;
+          }
+          for (let i = 0; i < project.scenes.length - 1; i++) {
+            const a = project.scenes[i];
+            const b = project.scenes[i + 1];
+            useProjectStore.getState().upsertCut({
+              id: `cut-${a.id}-${b.id}`,
+              fromSceneId: a.id,
+              toSceneId: b.id,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              kind: template.kind as any,
+              durationFrames: template.durationFrames,
+              color: template.color,
+            });
+          }
+          toast(`Applied to ${project.scenes.length - 1} cuts`, { duration: 900 });
+          onClose();
+        }}
+        className="w-full text-left px-3 py-1.5 text-neutral-200 hover:bg-neutral-800"
+        title="Copy this scene's incoming transition to every consecutive scene-pair"
+      >
+        Apply transition to all cuts
+      </button>
+      <button
+        onClick={() => {
           const project = useProjectStore.getState().project;
           let overlay = project.tracks?.find((t) => t.kind === "overlay");
           if (!overlay) {

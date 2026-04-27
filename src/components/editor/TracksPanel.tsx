@@ -195,6 +195,38 @@ export function TracksPanel() {
         >
           Remove muted scenes…
         </button>
+        <div className="grid grid-cols-2 gap-1 mt-1">
+          <button
+            onClick={() => {
+              const all = useProjectStore.getState().project.scenes;
+              const anyUnlocked = all.some((s) => !s.locked);
+              for (const s of all) {
+                useProjectStore
+                  .getState()
+                  .updateScene(s.id, { locked: anyUnlocked });
+              }
+              toast(anyUnlocked ? "All locked" : "All unlocked", { duration: 700 });
+            }}
+            className="text-[10px] px-1.5 py-1 rounded border border-neutral-800 hover:border-amber-500 text-neutral-400 hover:text-amber-300"
+          >
+            Lock / unlock all
+          </button>
+          <button
+            onClick={() => {
+              const all = useProjectStore.getState().project.scenes;
+              const anyUnmuted = all.some((s) => !s.muted);
+              for (const s of all) {
+                useProjectStore
+                  .getState()
+                  .updateScene(s.id, { muted: anyUnmuted });
+              }
+              toast(anyUnmuted ? "All muted" : "All unmuted", { duration: 700 });
+            }}
+            className="text-[10px] px-1.5 py-1 rounded border border-neutral-800 hover:border-amber-500 text-neutral-400 hover:text-amber-300"
+          >
+            Mute / unmute all
+          </button>
+        </div>
       </div>
     </div>
   );

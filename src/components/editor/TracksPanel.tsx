@@ -271,19 +271,39 @@ export function TracksPanel() {
             Mute / unmute all
           </button>
         </div>
-        <button
-          onClick={() => {
-            const all = useProjectStore.getState().project.scenes;
-            if (all.length < 2) return;
-            const reversed = [...all].reverse();
-            useProjectStore.getState().setScenes(reversed);
-            toast(`Reversed ${all.length} scenes`, { duration: 700 });
-          }}
-          className="w-full text-[10px] px-1.5 py-1 rounded border border-neutral-800 hover:border-purple-500 text-neutral-400 hover:text-purple-300 mt-1"
-          title="Reverse the entire scene order — useful for outro-first builds"
-        >
-          Reverse scene order
-        </button>
+        <div className="grid grid-cols-2 gap-1 mt-1">
+          <button
+            onClick={() => {
+              const all = useProjectStore.getState().project.scenes;
+              if (all.length < 2) return;
+              const reversed = [...all].reverse();
+              useProjectStore.getState().setScenes(reversed);
+              toast(`Reversed ${all.length}`, { duration: 700 });
+            }}
+            className="text-[10px] px-1.5 py-1 rounded border border-neutral-800 hover:border-purple-500 text-neutral-400 hover:text-purple-300"
+            title="Reverse the scene order"
+          >
+            Reverse order
+          </button>
+          <button
+            onClick={() => {
+              const all = useProjectStore.getState().project.scenes;
+              if (all.length < 2) return;
+              // Fisher-Yates shuffle.
+              const arr = [...all];
+              for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+              }
+              useProjectStore.getState().setScenes(arr);
+              toast(`Shuffled ${all.length}`, { duration: 700 });
+            }}
+            className="text-[10px] px-1.5 py-1 rounded border border-neutral-800 hover:border-purple-500 text-neutral-400 hover:text-purple-300"
+            title="Random scene order — useful for variant exploration"
+          >
+            Shuffle order
+          </button>
+        </div>
       </div>
     </div>
   );

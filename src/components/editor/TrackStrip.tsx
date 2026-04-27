@@ -137,11 +137,13 @@ function TrackRow({
           const left = (start / total) * 100;
           const width = (frames / total) * 100;
           return (
-            <div
+            <button
               key={sc.id}
+              type="button"
+              onClick={() => useProjectStore.getState().selectScene(sc.id)}
               style={{ left: `${left}%`, width: `${width}%` }}
-              title={`${sc.label ?? sc.type} · ${(frames / fps).toFixed(2)}s`}
-              className="absolute top-0 bottom-0 bg-neutral-200/80 border border-neutral-900 rounded-sm"
+              title={`${sc.label ?? sc.type} · ${(frames / fps).toFixed(2)}s — click to select`}
+              className="absolute top-0 bottom-0 bg-neutral-200/80 hover:bg-white border border-neutral-900 rounded-sm cursor-pointer"
             />
           );
         })}

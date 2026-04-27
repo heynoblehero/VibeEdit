@@ -102,6 +102,46 @@ export function KeyboardShortcuts() {
         }
       }
 
+      // ⌘C / ⌘V — copy / paste scene(s) as JSON via the clipboard.
+      // Gated so we don't intercept regular copy when text is selected.
+      if (mod && e.key.toLowerCase() === "c" && !e.shiftKey && !isTextInput(e.target)) {
+        const sel = window.getSelection();
+        if (sel && sel.toString().length > 0) return; // user is copying text
+        const ids = selectedSceneIds.length > 0 ? selectedSceneIds : (selectedSceneId ? [selectedSceneId] : []);
+        if (ids.length === 0) return;
+        e.preventDefault();
+        const all = useProjectStore.getState().project.scenes;
+        const picked = all.filter((s) => ids.includes(s.id));
+        navigator.clipboard
+          .writeText(JSON.stringify({ kind: "vibeedit:scenes", scenes: picked }))
+          .then(() => toast(`Copied ${picked.length} scene${picked.length === 1 ? "" : "s"}`, { duration: 700 }))
+          .catch(() => toast.error("Clipboard unavailable"));
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "v" && !e.shiftKey && !isTextInput(e.target)) {
+        e.preventDefault();
+        navigator.clipboard
+          .readText()
+          .then((text) => {
+            try {
+              const parsed = JSON.parse(text);
+              if (parsed?.kind !== "vibeedit:scenes" || !Array.isArray(parsed.scenes)) {
+                toast.error("Clipboard isn't a scene snippet");
+                return;
+              }
+              for (const sc of parsed.scenes) {
+                const fresh = { ...sc, id: `scn-${Math.random().toString(36).slice(2, 10)}` };
+                useProjectStore.getState().addScene(fresh);
+              }
+              toast(`Pasted ${parsed.scenes.length} scene${parsed.scenes.length === 1 ? "" : "s"}`, { duration: 800 });
+            } catch {
+              toast.error("Clipboard isn't valid JSON");
+            }
+          })
+          .catch(() => toast.error("Clipboard unavailable"));
+        return;
+      }
+
       // ⌘⇧M — toggle mute on the selected scene(s).
       if (mod && e.shiftKey && e.key.toLowerCase() === "m" && !isTextInput(e.target)) {
         e.preventDefault();

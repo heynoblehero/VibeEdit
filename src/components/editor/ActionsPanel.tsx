@@ -19,6 +19,7 @@
 import {
   BarChart3,
   Layers,
+  Palette,
   Quote,
   Scissors,
   Sparkles,
@@ -29,7 +30,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-type CardKind = "transition" | "effect" | "scene_type";
+type CardKind = "transition" | "effect" | "scene_type" | "look";
 
 interface ActionCard {
   id: string;
@@ -71,6 +72,64 @@ const EFFECTS: ActionCard[] = [
   { id: "progress_bar", kind: "effect", value: "progress_bar", label: "Progress bar", description: "Fills toward target %" },
 ];
 
+/**
+ * "Looks" — preset bundles of scene.background overrides. Each card
+ * carries the exact field values to merge onto scene.background when
+ * dropped. No new schema — these are just sugar over the colorGrade
+ * preset + the brightness/contrast/saturation/temperature/blur sliders
+ * we already ship.
+ */
+const LOOKS: ActionCard[] = [
+  {
+    id: "look_cinematic",
+    kind: "look",
+    value: "cinematic",
+    label: "Cinematic",
+    description: "Warm grade · slight contrast lift",
+    params: { colorGrade: "warm", contrast: 1.12, saturation: 1.08, brightness: 0.98 },
+  },
+  {
+    id: "look_punchy",
+    kind: "look",
+    value: "punchy",
+    label: "Punchy",
+    description: "High contrast · saturated",
+    params: { colorGrade: "punchy", contrast: 1.25, saturation: 1.2 },
+  },
+  {
+    id: "look_noir",
+    kind: "look",
+    value: "noir",
+    label: "Noir B&W",
+    description: "Monochrome · deep shadows",
+    params: { colorGrade: "bw", contrast: 1.3, brightness: 0.92 },
+  },
+  {
+    id: "look_dreamy",
+    kind: "look",
+    value: "dreamy",
+    label: "Dreamy",
+    description: "Soft blur · low contrast · pastel",
+    params: { blur: 4, contrast: 0.88, saturation: 0.85, brightness: 1.06 },
+  },
+  {
+    id: "look_vintage",
+    kind: "look",
+    value: "vintage",
+    label: "Vintage",
+    description: "Sepia tone · faded contrast",
+    params: { colorGrade: "warm", saturation: 0.7, contrast: 0.9, temperature: 0.4 },
+  },
+  {
+    id: "look_neon",
+    kind: "look",
+    value: "neon",
+    label: "Neon",
+    description: "Punched saturation · cool tone",
+    params: { saturation: 1.5, contrast: 1.15, temperature: -0.5, brightness: 0.95 },
+  },
+];
+
 const SCENE_TYPES: ActionCard[] = [
   { id: "text_only", kind: "scene_type", value: "text_only", label: "Text", description: "Punch line over color" },
   { id: "stat", kind: "scene_type", value: "stat", label: "Stat", description: "Hero number + label" },
@@ -84,6 +143,7 @@ const SCENE_TYPES: ActionCard[] = [
 
 const SECTIONS: Array<{ key: string; title: string; icon: typeof Wand2; cards: ActionCard[] }> = [
   { key: "transitions", title: "Transitions", icon: Scissors, cards: TRANSITIONS },
+  { key: "looks", title: "Looks", icon: Palette, cards: LOOKS },
   { key: "effects", title: "Effects", icon: Zap, cards: EFFECTS },
   { key: "scenes", title: "Scene types", icon: Layers, cards: SCENE_TYPES },
 ];
@@ -136,7 +196,9 @@ export function ActionsPanel() {
                         ? "vibeedit/transition"
                         : card.kind === "effect"
                           ? "vibeedit/effect"
-                          : "vibeedit/scene-type";
+                          : card.kind === "look"
+                            ? "vibeedit/look"
+                            : "vibeedit/scene-type";
                     return (
                       <div
                         key={card.id}
@@ -155,8 +217,10 @@ export function ActionsPanel() {
                           card.kind === "transition"
                             ? "· a cut diamond between scenes"
                             : card.kind === "effect"
-                              ? "· any scene block"
-                              : "· timeline gap or empty area"
+                              ? "· any scene block (overlay)"
+                              : card.kind === "look"
+                                ? "· any scene block (color/look)"
+                                : "· timeline gap or empty area"
                         }`}
                         className="group cursor-grab active:cursor-grabbing rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/60 hover:bg-amber-500/5 px-2 py-1.5 transition-colors select-none"
                       >

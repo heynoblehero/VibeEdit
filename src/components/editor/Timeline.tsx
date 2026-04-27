@@ -324,12 +324,19 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                   dragIndex !== null ||
                   types.includes("vibeedit/effect") ||
                   types.includes("vibeedit/transition") ||
-                  types.includes("vibeedit/ai-action")
+                  types.includes("vibeedit/ai-action") ||
+                  types.includes("vibeedit/look")
                 ) {
                   e.preventDefault();
                   e.stopPropagation();
                   setHoverIndex(i);
-                  e.dataTransfer.dropEffect = types.includes("vibeedit/effect") || types.includes("vibeedit/transition") || types.includes("vibeedit/ai-action") ? "copy" : "move";
+                  e.dataTransfer.dropEffect =
+                    types.includes("vibeedit/effect") ||
+                    types.includes("vibeedit/transition") ||
+                    types.includes("vibeedit/ai-action") ||
+                    types.includes("vibeedit/look")
+                      ? "copy"
+                      : "move";
                 }
               }}
               onDrop={(e) => {
@@ -380,6 +387,36 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                       // dedupes by from/to pair. We re-import inline.
                       void existing;
                       useProjectStore.getState().upsertCut(newCut);
+                    }
+                  } catch {}
+                  setDragIndex(null);
+                  setHoverIndex(null);
+                  return;
+                }
+                // 3a) Look → merge bundled background fields onto the scene.
+                const lookPayload = e.dataTransfer.getData("vibeedit/look");
+                if (lookPayload) {
+                  try {
+                    const { params } = JSON.parse(lookPayload) as {
+                      params?: Record<string, unknown>;
+                    };
+                    if (params) {
+                      // Reset the keys we're setting to the new bundle so a
+                      // second look fully replaces the first (vs additive).
+                      const cleanedBg = { ...scene.background };
+                      for (const k of [
+                        "colorGrade",
+                        "brightness",
+                        "contrast",
+                        "saturation",
+                        "temperature",
+                        "blur",
+                      ] as const) {
+                        delete (cleanedBg as Record<string, unknown>)[k];
+                      }
+                      updateScene(scene.id, {
+                        background: { ...cleanedBg, ...(params as Record<string, unknown>) } as Scene["background"],
+                      });
                     }
                   } catch {}
                   setDragIndex(null);

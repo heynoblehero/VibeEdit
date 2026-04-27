@@ -1,6 +1,48 @@
 # Changelog
 
-## Unreleased — sprint 12: editor depth — speed / volume / looks / titles / export presets (5 commits)
+## Unreleased — sprint 12.5: speed-warp audio, master mix, keying (4 commits)
+
+Closes the gaps the previous sprint deferred: speed warp now retimes
+audio (not just visuals), the master mixer ships as a header popover,
+and both chroma and luma keying land for scene backgrounds. Multi-
+track is the only sprint-12 deferral that remains outstanding.
+
+### Speed warp audio wiring (S1 follow-up)
+- Composition.tsx now passes `playbackRate={scene.speedFactor}` to
+  voiceover + sfx Audio elements. 0.5× → slow-mo dialogue, 2× →
+  chipmunk audio. Pitch shift is intentional (matches every NLE).
+  Visual animations were already scene-locked via durationFrames-
+  scaled springs/interpolates, so audio was the only remaining gap.
+
+### Master mix popover (A2)
+- `Project.audioMix?: { music?, voice?, sfx? }` schema field — each a
+  0–2× multiplier, default 1. Renderer multiplies it through every
+  audio rail (voiceover envelope, sfx, music ducking).
+- Header `<Sliders>` icon opens a 3-slider popover (0–200% each) with
+  reset button + dirty indicator dot. Double-click any slider → 100%.
+
+### Chroma + luma key (K1 + K2)
+- `SceneBackground.chromaKey?: { color, tolerance, softness }` and
+  `lumaKey?: { threshold, softness, invert }`. Both optional — old
+  scenes render identically.
+- GradientBg emits a per-scene `<svg><defs><filter>` that's chained
+  onto the bg image/video's CSS filter alongside the color-grade
+  chain. Filter ids use `chroma-${scene.id}` / `luma-${scene.id}` so
+  multiple keyed scenes don't collide.
+- Chroma matrix is dominant-channel-based — greenscreen / bluescreen
+  / redscreen all work. tolerance shifts the cutoff; softness widens
+  a feathered alpha tableValues band.
+- Luma uses `feColorMatrix type=luminanceToAlpha` plus a 16-step
+  feFuncA ramp. Invert flag flips which side of the threshold gets
+  culled (useful for dark logos on bright frames).
+- BackgroundPanel ships a "Keying" section with checkboxes to toggle
+  each key + sliders for tolerance / softness / threshold.
+
+### Outstanding
+- Multi-track (M1-M4): structural; ~10-12 commits. Deferred to a
+  dedicated sprint.
+
+## Sprint 12: editor depth — speed / volume / looks / titles / export presets (5 commits)
 
 Five focused additions toward "real editor for the 80% case" — each is
 a few commits and ships as a self-contained polish layer. Multi-track,

@@ -145,8 +145,15 @@ export const useEditorStore = create<EditorStore>((set) => ({
       window.localStorage.setItem("vibeedit:show-letterbox", v ? "1" : "0");
     set({ showLetterbox: v });
   },
-  zenMode: false,
-  setZenMode: (v) => set({ zenMode: v }),
+  zenMode: (() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("vibeedit:zen-mode") === "1";
+  })(),
+  setZenMode: (v) => {
+    if (typeof window !== "undefined")
+      window.localStorage.setItem("vibeedit:zen-mode", v ? "1" : "0");
+    set({ zenMode: v });
+  },
   loopRange: null,
   setLoopStart: (frame) =>
     set((s) => {

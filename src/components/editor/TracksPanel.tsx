@@ -173,6 +173,28 @@ export function TracksPanel() {
         >
           Fit total to N seconds…
         </button>
+        <button
+          onClick={() => {
+            const muted = useProjectStore
+              .getState()
+              .project.scenes.filter((s) => s.muted)
+              .map((s) => s.id);
+            if (muted.length === 0) {
+              toast("No muted scenes", { duration: 700 });
+              return;
+            }
+            const ok = window.confirm(
+              `Permanently delete ${muted.length} muted scene${muted.length === 1 ? "" : "s"}? Undoable with ⌘Z.`,
+            );
+            if (!ok) return;
+            useProjectStore.getState().removeScenes(muted);
+            toast(`Removed ${muted.length}`, { duration: 800 });
+          }}
+          className="w-full text-[11px] px-2 py-1.5 rounded border border-neutral-800 hover:border-red-500 text-neutral-400 hover:text-red-400 mt-1"
+          title="Delete every scene that's currently muted"
+        >
+          Remove muted scenes…
+        </button>
       </div>
     </div>
   );

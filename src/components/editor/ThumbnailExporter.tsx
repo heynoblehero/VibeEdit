@@ -31,6 +31,19 @@ export function ThumbnailExporter() {
     }
   }, [open, sceneId, project.scenes]);
 
+  // ⌘⇧E opens the thumbnail dialog. Wired here so the button can stay
+  // in HeaderOverflow without being unconditionally mounted.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey && e.shiftKey && e.key.toLowerCase() === "e") {
+        e.preventDefault();
+        setOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const scene = useMemo(
     () => project.scenes.find((s) => s.id === sceneId),
     [project.scenes, sceneId],

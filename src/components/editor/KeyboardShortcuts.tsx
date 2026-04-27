@@ -452,6 +452,21 @@ export function KeyboardShortcuts() {
         input?.focus();
       }
 
+      // ⌘Enter — seek to selected scene's start + play.
+      if (mod && e.key === "Enter" && !isTextInput(e.target) && selectedSceneId) {
+        e.preventDefault();
+        let acc = 0;
+        for (const sc of scenes) {
+          if (sc.id === selectedSceneId) break;
+          acc += Math.round(sc.duration * useProjectStore.getState().project.fps);
+        }
+        window.dispatchEvent(
+          new CustomEvent("vibeedit:seek-to", { detail: acc }),
+        );
+        useEditorStore.getState().setPaused(false);
+        return;
+      }
+
       // Home / End — seek to start / end of timeline. Plain keys, gated.
       if (
         (e.key === "Home" || e.key === "End") &&

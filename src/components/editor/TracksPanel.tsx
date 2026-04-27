@@ -271,6 +271,19 @@ export function TracksPanel() {
             Mute / unmute all
           </button>
         </div>
+        <button
+          onClick={() => {
+            const all = useProjectStore.getState().project.scenes;
+            if (all.length < 2) return;
+            const reversed = [...all].reverse();
+            useProjectStore.getState().setScenes(reversed);
+            toast(`Reversed ${all.length} scenes`, { duration: 700 });
+          }}
+          className="w-full text-[10px] px-1.5 py-1 rounded border border-neutral-800 hover:border-purple-500 text-neutral-400 hover:text-purple-300 mt-1"
+          title="Reverse the entire scene order — useful for outro-first builds"
+        >
+          Reverse scene order
+        </button>
       </div>
     </div>
   );

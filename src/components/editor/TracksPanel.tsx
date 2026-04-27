@@ -77,6 +77,17 @@ export function TracksPanel() {
       <div className="px-3 py-2 border-b border-neutral-800 flex items-center gap-2">
         <Layers className="h-3.5 w-3.5 text-emerald-400" />
         <h2 className="text-xs font-semibold text-white">Tracks</h2>
+        {(() => {
+          const m = project.scenes.filter((s) => s.muted).length;
+          const l = project.scenes.filter((s) => s.locked).length;
+          return (
+            <span className="text-[9px] text-neutral-600 font-mono ml-2">
+              {m > 0 && <span className="text-amber-400">{m} muted</span>}
+              {m > 0 && l > 0 && " · "}
+              {l > 0 && <span className="text-amber-300">{l} locked</span>}
+            </span>
+          );
+        })()}
         <span className="text-[10px] text-neutral-500 ml-auto">
           {tracks.length}
         </span>

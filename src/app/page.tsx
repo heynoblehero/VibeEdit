@@ -266,6 +266,16 @@ export default function Home() {
               tabs in the LeftSidebar (sprint 11). Only chat-toggle stays
               accessible via Cmd+K, and the LeftSidebar's AI tab provides
               a "chat" button itself. */}
+          <button
+            onClick={() =>
+              window.dispatchEvent(new KeyboardEvent("keydown", { key: "?" }))
+            }
+            title="Keyboard shortcuts (?)"
+            aria-label="Keyboard shortcuts"
+            className="hidden md:flex items-center justify-center w-7 h-7 rounded-md text-neutral-500 hover:text-white hover:bg-neutral-800 transition-colors text-sm font-mono"
+          >
+            ?
+          </button>
           <MasterMixButton />
           <button
             onClick={() => setSettingsOpen(true)}

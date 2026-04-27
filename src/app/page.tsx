@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Film, ListVideo, MessageCircle, Redo2, Settings, Smartphone, Undo2, Upload } from "lucide-react";
+import { CalendarClock, Film, ListVideo, MessageCircle, Redo2, Settings, Smartphone, Sparkles, Undo2, Upload } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { AuthBar } from "@/components/editor/AuthBar";
@@ -243,6 +243,26 @@ export default function Home() {
             <Smartphone className="h-3.5 w-3.5" />
             <span>Get the app</span>
           </a>
+          <button
+            onClick={() => {
+              // Open the chat (or focus it if already open) and let the
+              // user issue an AI command. Editor-first means the chat is
+              // accessed on demand from this fixed location, not always
+              // open in the sidebar.
+              const evt = new KeyboardEvent("keydown", {
+                key: "k",
+                metaKey: true,
+                bubbles: true,
+              });
+              window.dispatchEvent(evt);
+            }}
+            title="Open AI chat (Cmd+K)"
+            aria-label="AI"
+            className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 hover:text-emerald-200 border border-emerald-500/40 hover:border-emerald-400 transition-colors"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span className="text-xs font-semibold">AI</span>
+          </button>
           <button
             onClick={() => setUploadsOpen((v) => !v)}
             title="Project uploads (drag onto timeline to insert)"

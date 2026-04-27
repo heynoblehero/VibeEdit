@@ -408,6 +408,21 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
             <span className="text-[10px]">cut</span>
           </button>
           <span className="text-neutral-600">0.0s</span>
+          {loopRange && (
+            <button
+              type="button"
+              onClick={() => useEditorStore.getState().clearLoopRange()}
+              className="ml-2 inline-flex items-center gap-1 text-cyan-300 hover:text-white px-1.5 py-0.5 border border-cyan-500/40 rounded"
+              title={`Loop ${(loopRange.start / project.fps).toFixed(2)}s → ${(loopRange.end / project.fps).toFixed(2)}s · click to clear (\\)`}
+            >
+              <span className="text-[8px]">↻</span>
+              <span className="tabular-nums">
+                {(loopRange.start / project.fps).toFixed(1)}–
+                {(loopRange.end / project.fps).toFixed(1)}s
+              </span>
+              <span className="text-cyan-500/60">×</span>
+            </button>
+          )}
           <span className="ml-2 inline-flex items-center gap-0.5 text-neutral-600">
             <button
               type="button"

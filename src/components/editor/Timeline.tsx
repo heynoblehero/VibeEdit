@@ -102,10 +102,33 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
       const dx = e.clientX - st.startX;
       const raw = st.startDuration + dx / st.pxPerSec;
       const snapped = snapSec(raw, e.altKey);
-      const next = Math.max(0.5, Math.min(20, snapped));
+      let next = Math.max(0.5, Math.min(20, snapped));
+      // Magnetic snap to the playhead: if the resized end is within
+      // 0.15s of the playhead's projection onto this scene's duration,
+      // snap exactly to it. Alt bypasses (free-snap).
+      if (!e.altKey) {
+        const sceneStart = (() => {
+          let acc = 0;
+          for (const sc of project.scenes) {
+            if (sc.id === st.sceneId) return acc;
+            acc += sceneDurationFrames(sc, project.fps);
+          }
+          return null;
+        })();
+        if (sceneStart !== null) {
+          const playheadInScene = (currentFrame - sceneStart) / project.fps;
+          if (
+            playheadInScene > 0 &&
+            playheadInScene < 20 &&
+            Math.abs(playheadInScene - next) < 0.15
+          ) {
+            next = Number(playheadInScene.toFixed(2));
+          }
+        }
+      }
       updateScene(st.sceneId, { duration: next });
     },
-    [updateScene, snapSec],
+    [updateScene, snapSec, project.scenes, project.fps, currentFrame],
   );
   const onResizeUp = useCallback((e: React.PointerEvent) => {
     resizeRef.current = null;

@@ -953,6 +953,21 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                 );
               })()}
               {(() => {
+                // Surfacing scenes whose duration cuts off the VO.
+                const voDur = scene.voiceover?.audioDurationSec ?? 0;
+                if (voDur > 0 && scene.duration < voDur - 0.1) {
+                  return (
+                    <span
+                      className="absolute right-1 bottom-0.5 text-[9px] text-orange-400 pointer-events-none z-10"
+                      title={`Scene is ${(voDur - scene.duration).toFixed(1)}s shorter than its VO — VO will be cut off`}
+                    >
+                      ✂
+                    </span>
+                  );
+                }
+                return null;
+              })()}
+              {(() => {
                 // Surfacing empty scenes — no media, no text, no VO.
                 // These render as a black void in the final video.
                 const empty =

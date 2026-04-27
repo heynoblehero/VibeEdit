@@ -39,8 +39,22 @@ const TABS: TabDef[] = [
   { key: "ai", label: "AI", icon: Sparkles, color: "text-sky-400" },
 ];
 
+const STORAGE_KEY = "vibeedit:leftsidebar-tab";
+
 export function LeftSidebar() {
-  const [active, setActive] = useState<TabKey>("uploads");
+  const [active, setActiveRaw] = useState<TabKey>(() => {
+    if (typeof window === "undefined") return "uploads";
+    const saved = window.localStorage.getItem(STORAGE_KEY) as TabKey | null;
+    return saved && TABS.some((t) => t.key === saved) ? saved : "uploads";
+  });
+  const setActive = (k: TabKey) => {
+    setActiveRaw(k);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, k);
+    } catch {
+      // localStorage unavailable — non-critical, ignore.
+    }
+  };
 
   return (
     <div className="w-72 flex shrink-0 border-r border-neutral-800 bg-neutral-950 overflow-hidden">

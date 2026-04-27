@@ -261,7 +261,16 @@ export interface Scene {
 
 export type Orientation = "landscape" | "portrait";
 
-export type RenderPresetId = "1080p" | "4k" | "720p" | "gif" | "webm";
+export type RenderPresetId =
+  | "1080p"
+  | "4k"
+  | "720p"
+  | "gif"
+  | "webm"
+  | "tiktok"
+  | "reels"
+  | "yt_shorts"
+  | "yt_16x9";
 
 export interface RenderPreset {
   id: RenderPresetId;
@@ -270,14 +279,76 @@ export interface RenderPreset {
   scale: number; // relative to canvas width/height (1080p is the default canvas)
   codec: "h264" | "vp9" | "gif";
   extension: "mp4" | "webm" | "gif";
+  /**
+   * Platform-tuned video bitrate hint, in kbps. The render route can
+   * pass this through to the underlying ffmpeg call. Undefined = use
+   * the default for the codec.
+   */
+  videoBitrateKbps?: number;
+  /** Audio bitrate hint, in kbps. Defaults to 192 elsewhere. */
+  audioBitrateKbps?: number;
+  /**
+   * Optional expected aspect ratio. UI uses this to warn the user when
+   * their project canvas doesn't match the preset (e.g. trying to
+   * export a 16:9 project with the TikTok preset). Renderer doesn't
+   * crop — just emits the warning.
+   */
+  expectedRatio?: "9:16" | "16:9" | "1:1";
 }
 
 export const RENDER_PRESETS: RenderPreset[] = [
+  // Generic / quality-tier presets.
   { id: "1080p", label: "1080p MP4", description: "YouTube / default", scale: 1, codec: "h264", extension: "mp4" },
   { id: "4k", label: "4K MP4", description: "2× upscale, slower", scale: 2, codec: "h264", extension: "mp4" },
   { id: "720p", label: "720p MP4", description: "Fast / preview", scale: 2 / 3, codec: "h264", extension: "mp4" },
   { id: "webm", label: "WebM", description: "Web-native, smaller", scale: 1, codec: "vp9", extension: "webm" },
   { id: "gif", label: "GIF", description: "Silent loop", scale: 0.5, codec: "gif", extension: "gif" },
+  // Platform-tuned presets. Bitrates land on each platform's preferred
+  // input range so re-encode at the platform side keeps quality.
+  {
+    id: "tiktok",
+    label: "TikTok",
+    description: "9:16 · H.264 · 8 Mbps · 192k AAC",
+    scale: 1,
+    codec: "h264",
+    extension: "mp4",
+    videoBitrateKbps: 8000,
+    audioBitrateKbps: 192,
+    expectedRatio: "9:16",
+  },
+  {
+    id: "reels",
+    label: "Instagram Reels",
+    description: "9:16 · H.264 · 5 Mbps · 192k AAC",
+    scale: 1,
+    codec: "h264",
+    extension: "mp4",
+    videoBitrateKbps: 5000,
+    audioBitrateKbps: 192,
+    expectedRatio: "9:16",
+  },
+  {
+    id: "yt_shorts",
+    label: "YouTube Shorts",
+    description: "9:16 · H.264 · 12 Mbps · 192k AAC",
+    scale: 1,
+    codec: "h264",
+    extension: "mp4",
+    videoBitrateKbps: 12000,
+    audioBitrateKbps: 192,
+    expectedRatio: "9:16",
+  },
+  {
+    id: "yt_16x9",
+    label: "YouTube 16:9",
+    description: "16:9 · H.264 · 12 Mbps · 192k AAC",
+    scale: 1,
+    codec: "h264",
+    extension: "mp4",
+    videoBitrateKbps: 12000,
+    audioBitrateKbps: 192,
+    expectedRatio: "16:9",
+  },
 ];
 
 export function getRenderPreset(id: RenderPresetId): RenderPreset {

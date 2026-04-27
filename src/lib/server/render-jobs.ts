@@ -300,7 +300,11 @@ async function runJob(job: RenderJob): Promise<void> {
     // higher audio bitrate so platform re-encodes don't gut quality.
     crf: 18,
     jpegQuality: 95,
-    audioBitrate: "192k",
+    // Platform presets override the defaults so bitrates land on each
+    // target's preferred range. Generic 1080p / 4k / 720p keep the
+    // sane defaults.
+    audioBitrate: preset.audioBitrateKbps ? `${preset.audioBitrateKbps}k` : "192k",
+    videoBitrate: preset.videoBitrateKbps ? `${preset.videoBitrateKbps}k` : undefined,
     x264Preset: "slow",
     onProgress: ({ progress, renderedFrames, stitchStage }) => {
       job.progress = progress;

@@ -458,14 +458,19 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
               onDragOver={(e) => {
                 // Accept the existing reorder drag AND new vibeedit/* card
                 // drops so users can drop effects / transitions / ai-
-                // actions onto a specific scene.
+                // actions onto a specific scene. Also intercept Shift-
+                // held upload drops so they swap the scene's bg media
+                // (instead of bubbling to the track for an insert).
                 const types = e.dataTransfer.types;
+                const wantsSwap =
+                  e.shiftKey && types.includes("vibeedit/upload-url");
                 if (
                   dragIndex !== null ||
                   types.includes("vibeedit/effect") ||
                   types.includes("vibeedit/transition") ||
                   types.includes("vibeedit/ai-action") ||
-                  types.includes("vibeedit/look")
+                  types.includes("vibeedit/look") ||
+                  wantsSwap
                 ) {
                   e.preventDefault();
                   e.stopPropagation();
@@ -474,7 +479,8 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                     types.includes("vibeedit/effect") ||
                     types.includes("vibeedit/transition") ||
                     types.includes("vibeedit/ai-action") ||
-                    types.includes("vibeedit/look")
+                    types.includes("vibeedit/look") ||
+                    wantsSwap
                       ? "copy"
                       : "move";
                 }
@@ -483,12 +489,36 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                 // Outer-track MIME types (upload-url / scene-type /
                 // title) need to reach the track-level onDrop so the
                 // user can insert a clip near a scene block. Don't
-                // stopPropagation for these — let them bubble.
+                // stopPropagation for these — let them bubble. EXCEPT
+                // when Shift is held with an upload: that's the "swap
+                // this scene's bg media" gesture, handled here.
                 const types = e.dataTransfer.types;
                 const isOuterMime =
                   types.includes("vibeedit/upload-url") ||
                   types.includes("vibeedit/scene-type") ||
                   types.includes("vibeedit/title");
+                const wantsSwap =
+                  e.shiftKey && types.includes("vibeedit/upload-url");
+                if (wantsSwap) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const url = e.dataTransfer.getData("vibeedit/upload-url");
+                  const utype = e.dataTransfer.getData("vibeedit/upload-type");
+                  if (url) {
+                    const isVid = utype.startsWith("video/");
+                    updateScene(scene.id, {
+                      background: {
+                        ...scene.background,
+                        ...(isVid
+                          ? { videoUrl: url, imageUrl: undefined }
+                          : { imageUrl: url, videoUrl: undefined, kenBurns: true }),
+                      },
+                    });
+                  }
+                  setDragIndex(null);
+                  setHoverIndex(null);
+                  return;
+                }
                 if (isOuterMime && dragIndex === null) {
                   setHoverIndex(null);
                   return;

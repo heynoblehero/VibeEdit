@@ -190,15 +190,21 @@ export function KeyboardShortcuts() {
         return;
       }
 
-      // ⌘[ / ⌘] — move the selected scene one slot up / down. Mirrors
-      // the Premiere 'rotate clip' gesture and is faster than dragging
-      // for tiny order tweaks.
-      if (mod && (e.key === "[" || e.key === "]") && !isTextInput(e.target)) {
+      // ⌘[ / ⌘] AND ⌘↑ / ⌘↓ — move the selected scene one slot.
+      const reorderUp =
+        mod &&
+        !isTextInput(e.target) &&
+        (e.key === "[" || (e.key === "ArrowUp" && !e.shiftKey));
+      const reorderDown =
+        mod &&
+        !isTextInput(e.target) &&
+        (e.key === "]" || (e.key === "ArrowDown" && !e.shiftKey));
+      if (reorderUp || reorderDown) {
         e.preventDefault();
         if (!selectedSceneId) return;
         const idx = scenes.findIndex((s) => s.id === selectedSceneId);
         if (idx < 0) return;
-        const next = idx + (e.key === "]" ? 1 : -1);
+        const next = idx + (reorderDown ? 1 : -1);
         if (next < 0 || next >= scenes.length) return;
         useProjectStore.getState().moveScene(idx, next);
         return;

@@ -99,6 +99,29 @@ export interface SceneBackground {
   saturation?: number;
   temperature?: number;
   imageOpacity?: number;
+  /**
+   * How the bg media should be sized inside the frame.
+   *  - cover (default): fill the frame, crop overflow.
+   *  - contain: fit fully inside, may letterbox.
+   * Useful when re-aiming a 16:9 clip into a 9:16 project.
+   */
+  objectFit?: "cover" | "contain";
+  /**
+   * 9-position alignment grid OR a custom "x% y%" string. Defaults to
+   * "center". Affects how the bg media is anchored inside the frame
+   * once objectFit is applied. Same semantics as CSS object-position.
+   */
+  objectPosition?:
+    | "center"
+    | "top"
+    | "bottom"
+    | "left"
+    | "right"
+    | "top-left"
+    | "top-right"
+    | "bottom-left"
+    | "bottom-right"
+    | string;
   /** Mirror the bg image/video horizontally. */
   flipH?: boolean;
   /** Mirror the bg image/video vertically. */

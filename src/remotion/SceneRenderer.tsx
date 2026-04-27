@@ -169,6 +169,8 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       flipH={s.background.flipH}
       flipV={s.background.flipV}
       rotate={s.background.rotate}
+      objectFit={s.background.objectFit}
+      objectPosition={s.background.objectPosition}
     >
       {s.type === "montage" && s.montageUrls && s.montageUrls.length > 0 && (
         <Montage urls={s.montageUrls} />

@@ -42,7 +42,26 @@ interface GradientBgProps {
   flipV?: boolean;
   /** Rotate bg image/video by 90/180/270 degrees. */
   rotate?: 0 | 90 | 180 | 270;
+  /** CSS object-fit / object-position passed through to bg media. */
+  objectFit?: "cover" | "contain";
+  objectPosition?: string;
   children?: React.ReactNode;
+}
+
+/** 9-grid alignment names → CSS object-position percentages. */
+function resolveObjectPosition(p?: string): string {
+  if (!p || p === "center") return "center center";
+  switch (p) {
+    case "top": return "center top";
+    case "bottom": return "center bottom";
+    case "left": return "left center";
+    case "right": return "right center";
+    case "top-left": return "left top";
+    case "top-right": return "right top";
+    case "bottom-left": return "left bottom";
+    case "bottom-right": return "right bottom";
+    default: return p; // free-form "x% y%"
+  }
 }
 
 /**
@@ -173,8 +192,11 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   flipH = false,
   flipV = false,
   rotate = 0,
+  objectFit = "cover",
+  objectPosition,
   children,
 }) => {
+  const resolvedObjectPosition = resolveObjectPosition(objectPosition);
   const orientationTransform = (() => {
     const parts: string[] = [];
     if (rotate) parts.push(`rotate(${rotate}deg)`);
@@ -267,7 +289,8 @@ export const GradientBg: React.FC<GradientBgProps> = ({
             inset: 0,
             width: "100%",
             height: "100%",
-            objectFit: "cover",
+            objectFit,
+            objectPosition: resolvedObjectPosition,
             filter: keyFilters.length ? keyFilters.join(" ") : undefined,
             transform: orientationTransform || undefined,
             transformOrigin: "center center",
@@ -288,7 +311,8 @@ export const GradientBg: React.FC<GradientBgProps> = ({
             style={{
               width: "100%",
               height: "100%",
-              objectFit: "cover",
+              objectFit,
+              objectPosition: resolvedObjectPosition,
               transform: `scale(${cam.scale}) translate(${cam.tx}px, ${cam.ty}px) ${orientationTransform}`,
               filter: [
                 gradeFilter(colorGrade),

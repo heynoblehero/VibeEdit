@@ -416,6 +416,27 @@ export function KeyboardShortcuts() {
         input?.focus();
       }
 
+      // Home / End — seek to start / end of timeline. Plain keys, gated.
+      if (
+        (e.key === "Home" || e.key === "End") &&
+        !mod &&
+        !isTextInput(e.target)
+      ) {
+        e.preventDefault();
+        // Dispatch via the existing seek-to channel.
+        const target =
+          e.key === "Home"
+            ? 0
+            : Math.max(0, useProjectStore.getState().project.scenes.reduce(
+                (sum, s) => sum + Math.round(s.duration * useProjectStore.getState().project.fps),
+                0,
+              ) - 1);
+        window.dispatchEvent(
+          new CustomEvent("vibeedit:seek-to", { detail: target }),
+        );
+        return;
+      }
+
       // ←/→ — step the playhead by 1 frame (10 with Shift). Dispatched
       // as a CustomEvent so the Preview's playerRef can pick it up
       // without exposing the ref globally.

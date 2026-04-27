@@ -89,6 +89,10 @@ const SECTIONS: Array<{ title: string; rows: Array<[string, string]> }> = [
       ["⌘ P", "project switcher"],
       ["⌘ ⇧ N", "new blank project"],
       ["⌘ R", "render with the current preset"],
+      ["⌘ ⏎", "play from selected scene"],
+      ["⌘ ,", "open Settings"],
+      ["⌘ \\`", "cycle to next project"],
+      ["Home / End", "seek to start / end"],
       ["⌘ ⇧ E", "export current frame as poster (PNG)"],
       ["⌘ ⇧ C", "copy selected scene's text"],
       ["⌘ C / ⌘ V", "copy / paste scenes via clipboard"],
@@ -97,6 +101,7 @@ const SECTIONS: Array<{ title: string; rows: Array<[string, string]> }> = [
       ["⌘ F", "search scene text"],
       ["Z", "zen mode (chrome-hidden preview)"],
       ["L", "toggle lock on selection"],
+      ["S", "solo selection (mute all others)"],
     ],
   },
   {

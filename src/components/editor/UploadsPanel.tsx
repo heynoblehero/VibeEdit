@@ -7,8 +7,8 @@ import type { ProjectUpload } from "@/lib/scene-schema";
 import { createId, DEFAULT_BG } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
 
-function formatBytes(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return "0 B";
+function formatBytes(n: number | undefined): string {
+  if (n === undefined || !Number.isFinite(n) || n <= 0) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
   let i = 0;
   let v = n;

@@ -227,6 +227,8 @@ export const VideoComposition: React.FC<CompositionProps> = ({
       : sceneDur;
     const audioDur = Math.max(1, sceneDur + trailFrames);
     if (scene.voiceover?.audioUrl) {
+      // Per-scene audioGain multiplies the fade envelope. Defaults to 1.
+      const gain = Math.max(0, Math.min(2, scene.audioGain ?? 1));
       audioRails.push(
         <Sequence
           key={`vo-${scene.id}`}
@@ -238,10 +240,11 @@ export const VideoComposition: React.FC<CompositionProps> = ({
             startFrom={0}
             volume={(f) => {
               const fade = 3;
-              if (f < fade) return f / fade;
-              if (f > voDurFrames - fade)
-                return Math.max(0, (voDurFrames - f) / fade);
-              return 1;
+              let env = 1;
+              if (f < fade) env = f / fade;
+              else if (f > voDurFrames - fade)
+                env = Math.max(0, (voDurFrames - f) / fade);
+              return env * gain;
             }}
           />
         </Sequence>,
@@ -249,13 +252,14 @@ export const VideoComposition: React.FC<CompositionProps> = ({
     }
     const sfxSrc = scene.sceneSfxUrl ?? (scene.sfxId ? sfx[scene.sfxId] : null);
     if (sfxSrc) {
+      const gain = Math.max(0, Math.min(2, scene.audioGain ?? 1));
       audioRails.push(
         <Sequence
           key={`sfx-${scene.id}`}
           from={audioStart}
           durationInFrames={audioDur}
         >
-          <Audio src={sfxSrc} startFrom={0} volume={0.7} />
+          <Audio src={sfxSrc} startFrom={0} volume={0.7 * gain} />
         </Sequence>,
       );
     }

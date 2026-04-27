@@ -447,6 +447,42 @@ function EffectsPanel({ scene, update, sfx }: { scene: Scene; update: (p: Partia
           ))}
         </div>
       </Field>
+
+      {/* Speed warp + audio gain — separated so users see them as
+          two distinct knobs rather than buried under a "media" submenu. */}
+      <div className="pt-2 mt-2 border-t border-neutral-800">
+        <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1.5">
+          Speed & audio
+        </div>
+        <Field label="Speed">
+          <input
+            type="range"
+            min={0.25}
+            max={4}
+            step={0.05}
+            value={scene.speedFactor ?? 1}
+            onChange={(e) => update({ speedFactor: Number(e.target.value) })}
+            className="w-full accent-amber-500 h-1.5"
+          />
+          <span className="text-[10px] text-neutral-500">
+            {(scene.speedFactor ?? 1).toFixed(2)}× {(scene.speedFactor ?? 1) < 1 ? "(slow)" : (scene.speedFactor ?? 1) > 1 ? "(fast)" : "(normal)"}
+          </span>
+        </Field>
+        <Field label="Volume">
+          <input
+            type="range"
+            min={0}
+            max={2}
+            step={0.05}
+            value={scene.audioGain ?? 1}
+            onChange={(e) => update({ audioGain: Number(e.target.value) })}
+            className="w-full accent-amber-500 h-1.5"
+          />
+          <span className="text-[10px] text-neutral-500">
+            {(scene.audioGain ?? 1) === 0 ? "muted" : `${((scene.audioGain ?? 1) * 100).toFixed(0)}%`}
+          </span>
+        </Field>
+      </div>
     </>
   );
 }

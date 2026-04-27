@@ -180,6 +180,19 @@ export interface Scene {
    */
   subjectId?: string;
   /**
+   * Speed warp. 1.0 = normal. 0.5 = half-speed (slow-mo). 2.0 = 2× fast.
+   * Range 0.25 → 4.0. Renderer compresses/expands the visual sequence
+   * accordingly; voiceover speed defaults to match unless audioFollowsSpeed
+   * is explicitly false (preserves real time even when visuals warp).
+   */
+  speedFactor?: number;
+  /**
+   * Per-scene audio level. 0 = mute, 1.0 = unity, 2.0 = +6 dB. Multiplies
+   * voiceover + sfx volume in the composition. Music stays on its own
+   * project-level master.
+   */
+  audioGain?: number;
+  /**
    * Per-element motion preset names. Each renders by expanding to a
    * Keyframe[] from lib/motion-presets.ts and feeding the renderer.
    * Keyframes set explicitly via `keyframes` override these.

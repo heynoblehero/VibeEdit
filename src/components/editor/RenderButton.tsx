@@ -137,6 +137,23 @@ export function RenderButton() {
     void runRender(presetId);
   };
 
+  // Cmd+R global shortcut → render with the current default preset.
+  // Emitted by KeyboardShortcuts so the binding can be discovered
+  // alongside the rest of the editor keys.
+  useEffect(() => {
+    const onTrigger = () => {
+      if (project.scenes.length === 0) {
+        toast.error("Add a scene first");
+        return;
+      }
+      void runRender(presetId);
+    };
+    window.addEventListener("vibeedit:render-now", onTrigger);
+    return () => window.removeEventListener("vibeedit:render-now", onTrigger);
+    // runRender is stable enough; presetId changes are intentionally captured.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetId, project.scenes.length]);
+
   const handlePresetClick = (id: RenderPresetId) => {
     setPresetId(id);
     setMenuOpen(false);

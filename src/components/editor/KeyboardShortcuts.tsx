@@ -75,6 +75,15 @@ export function KeyboardShortcuts() {
         }
       }
 
+      // Cmd+R — render with the current default preset. Browser's own
+      // refresh shortcut is annoying inside an editor; we override it.
+      if (mod && !e.shiftKey && e.key.toLowerCase() === "r" && !isTextInput(e.target)) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("vibeedit:render-now"));
+        toast("Rendering…", { duration: 1000 });
+        return;
+      }
+
       // Cmd+= / Cmd+- / Cmd+0 — timeline zoom in/out/fit. Gate against
       // text inputs so the user can still type a literal "+" in chat.
       if (mod && !isTextInput(e.target) && (e.key === "=" || e.key === "+")) {

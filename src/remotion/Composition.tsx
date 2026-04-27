@@ -140,7 +140,7 @@ function buildSwellFrames(scenes: Scene[], fps: number): number[] {
 }
 
 export const VideoComposition: React.FC<CompositionProps> = ({
-  scenes,
+  scenes: rawScenes,
   fps,
   characters,
   sfx,
@@ -152,6 +152,10 @@ export const VideoComposition: React.FC<CompositionProps> = ({
   filmGrain = true,
   audioMix,
 }) => {
+  // Muted scenes are skipped at the comp level: they don't contribute
+  // visuals OR audio to the render, but the Timeline UI still shows
+  // them dimmed so the user can re-enable later.
+  const scenes = rawScenes.filter((s) => !s.muted);
   // Master mix gains — clamp to the same 0–2 window the per-scene
   // audioGain uses so a runaway Project.audioMix can't blow the bus.
   const mixVoice = Math.max(0, Math.min(2, audioMix?.voice ?? 1));

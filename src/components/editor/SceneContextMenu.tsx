@@ -55,6 +55,7 @@ const AI_SUGGESTIONS: AISuggestion[] = [
 export function SceneContextMenu({ scene, index, x, y, onClose }: Props) {
   const removeScene = useProjectStore((s) => s.removeScene);
   const duplicateScene = useProjectStore((s) => s.duplicateScene);
+  const updateScene = useProjectStore((s) => s.updateScene);
   const setFocusedSceneId = useEditorStore((s) => s.setFocusedSceneId);
   const ref = useRef<HTMLDivElement>(null);
   const [aiOpen, setAiOpen] = useState(false);
@@ -166,6 +167,50 @@ export function SceneContextMenu({ scene, index, x, y, onClose }: Props) {
       >
         Copy text
       </button>
+      <button
+        onClick={() => {
+          updateScene(scene.id, { muted: !scene.muted });
+          toast(scene.muted ? "Unmuted" : "Muted (skipped on render)", {
+            duration: 800,
+          });
+          onClose();
+        }}
+        className="w-full text-left px-3 py-1.5 text-neutral-200 hover:bg-neutral-800"
+      >
+        {scene.muted ? "Unmute scene" : "Mute scene (skip render)"}
+      </button>
+      <div className="px-3 py-1.5 flex items-center gap-1 text-[11px] text-neutral-400">
+        <span className="mr-1">Tag:</span>
+        {(["red", "amber", "green", "blue", "purple", "pink"] as const).map(
+          (c) => (
+            <button
+              key={c}
+              onClick={() => {
+                updateScene(scene.id, {
+                  colorTag: scene.colorTag === c ? undefined : c,
+                });
+                onClose();
+              }}
+              className={`w-4 h-4 rounded-full border ${
+                scene.colorTag === c
+                  ? "ring-2 ring-white border-transparent"
+                  : "border-neutral-700"
+              }`}
+              style={{
+                backgroundColor: {
+                  red: "#ef4444",
+                  amber: "#f59e0b",
+                  green: "#10b981",
+                  blue: "#3b82f6",
+                  purple: "#a855f7",
+                  pink: "#ec4899",
+                }[c],
+              }}
+              title={c}
+            />
+          ),
+        )}
+      </div>
       <div className="my-1 border-t border-neutral-800" />
       <button
         onClick={() => {

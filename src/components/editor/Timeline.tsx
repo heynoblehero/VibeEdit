@@ -665,6 +665,19 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                 setDragIndex(null);
                 setHoverIndex(null);
               }}
+              onDoubleClick={(e) => {
+                if (cutMode) return;
+                e.stopPropagation();
+                const next = window.prompt(
+                  "Scene label",
+                  scene.label ?? `Scene ${i + 1}`,
+                );
+                if (next !== null) {
+                  updateScene(scene.id, {
+                    label: next.trim() === "" ? undefined : next.trim(),
+                  });
+                }
+              }}
               className={`absolute top-0 bottom-0 border-l border-neutral-800/70 cursor-grab active:cursor-grabbing transition-colors ${
                 playingSceneId === m.id
                   ? "bg-sky-500/40 ring-1 ring-sky-400 ring-inset"
@@ -673,11 +686,27 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                     : "hover:bg-neutral-800/60"
               } ${isHoverTarget ? "ring-2 ring-sky-400 ring-inset" : ""} ${
                 dragIndex === i ? "opacity-50" : ""
-              }`}
-              title={`Scene ${i + 1} · ${(m.frames / project.fps).toFixed(1)}s\nDrag body to reorder · drag right edge to trim · click to seek · right-click for menu`}
+              } ${scene.muted ? "opacity-30 saturate-50" : ""}`}
+              title={`${scene.label ?? `Scene ${i + 1}`} · ${(m.frames / project.fps).toFixed(1)}s${scene.muted ? " · muted (skipped on render)" : ""}\nDouble-click to rename · Drag body to reorder · drag right edge to trim · click to seek · right-click for menu`}
             >
-              <span className="absolute left-2 top-0 text-[9px] font-mono text-neutral-500 pointer-events-none z-10">
-                {i + 1}
+              {scene.colorTag && (
+                <span
+                  className="absolute left-0 top-0 bottom-0 w-1 pointer-events-none"
+                  style={{
+                    backgroundColor: {
+                      red: "#ef4444",
+                      amber: "#f59e0b",
+                      green: "#10b981",
+                      blue: "#3b82f6",
+                      purple: "#a855f7",
+                      pink: "#ec4899",
+                    }[scene.colorTag],
+                  }}
+                />
+              )}
+              <span className="absolute left-2 top-0 text-[9px] font-mono text-neutral-500 pointer-events-none z-10 truncate max-w-[80%]">
+                {scene.label ?? `${i + 1}`}
+                {scene.muted && " · M"}
               </span>
               {scene.voiceover?.audioUrl && (
                 <AudioWaveform src={scene.voiceover.audioUrl} height={32} />

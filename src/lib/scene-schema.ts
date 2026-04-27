@@ -208,6 +208,21 @@ export interface Scene {
    * accordingly; voiceover speed defaults to match unless audioFollowsSpeed
    * is explicitly false (preserves real time even when visuals warp).
    */
+  /**
+   * If true, the scene is hidden from the rendered output AND skipped
+   * in the live preview. Useful for "park" scenes you're keeping for
+   * later but don't want in the next export. Distinct from delete —
+   * the scene stays in the timeline and is visually dimmed.
+   */
+  muted?: boolean;
+  /**
+   * One of 6 colour tags shown as a left bar on the timeline block.
+   * Helps the user quickly group / triage scenes (red = needs work,
+   * green = locked, etc.). No render-side semantics — purely UI.
+   */
+  colorTag?: "red" | "amber" | "green" | "blue" | "purple" | "pink";
+  /** Optional short label shown on the timeline block (overrides 'Scene N'). */
+  label?: string;
   speedFactor?: number;
   /**
    * Per-scene audio level. 0 = mute, 1.0 = unity, 2.0 = +6 dB. Multiplies

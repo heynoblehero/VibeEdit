@@ -229,6 +229,12 @@ export const VideoComposition: React.FC<CompositionProps> = ({
     if (scene.voiceover?.audioUrl) {
       // Per-scene audioGain multiplies the fade envelope. Defaults to 1.
       const gain = Math.max(0, Math.min(2, scene.audioGain ?? 1));
+      // Speed warp: voiceover playback rate follows the scene's speed
+      // factor. 0.5 = half-speed playback (slow-mo dialogue); 2.0 =
+      // chipmunk audio. Pitch shift is intentional — matches every
+      // other NLE's behavior. Visual animations stay scene-locked
+      // (durationFrames-scaled springs / interpolates already adapt).
+      const speed = Math.max(0.25, Math.min(4, scene.speedFactor ?? 1));
       audioRails.push(
         <Sequence
           key={`vo-${scene.id}`}
@@ -238,6 +244,7 @@ export const VideoComposition: React.FC<CompositionProps> = ({
           <Audio
             src={scene.voiceover.audioUrl}
             startFrom={0}
+            playbackRate={speed}
             volume={(f) => {
               const fade = 3;
               let env = 1;
@@ -253,13 +260,14 @@ export const VideoComposition: React.FC<CompositionProps> = ({
     const sfxSrc = scene.sceneSfxUrl ?? (scene.sfxId ? sfx[scene.sfxId] : null);
     if (sfxSrc) {
       const gain = Math.max(0, Math.min(2, scene.audioGain ?? 1));
+      const speed = Math.max(0.25, Math.min(4, scene.speedFactor ?? 1));
       audioRails.push(
         <Sequence
           key={`sfx-${scene.id}`}
           from={audioStart}
           durationInFrames={audioDur}
         >
-          <Audio src={sfxSrc} startFrom={0} volume={0.7 * gain} />
+          <Audio src={sfxSrc} startFrom={0} playbackRate={speed} volume={0.7 * gain} />
         </Sequence>,
       );
     }

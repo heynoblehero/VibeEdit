@@ -152,6 +152,9 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       videoUrl={s.background.videoUrl}
       videoStartSec={s.background.videoStartSec}
       videoMuted={s.background.videoMuted}
+      chromaKey={s.background.chromaKey}
+      lumaKey={s.background.lumaKey}
+      filterIdSuffix={s.id}
     >
       {s.type === "montage" && s.montageUrls && s.montageUrls.length > 0 && (
         <Montage urls={s.montageUrls} />

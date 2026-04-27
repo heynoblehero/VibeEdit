@@ -695,7 +695,174 @@ function BackgroundPanel({ scene, update }: { scene: Scene; update: (p: Partial<
           </span>
         </Field>
       </div>
+
+      <KeyingSection scene={scene} update={update} />
     </>
+  );
+}
+
+function KeyingSection({
+  scene,
+  update,
+}: {
+  scene: Scene;
+  update: (p: Partial<Scene>) => void;
+}) {
+  const chroma = scene.background.chromaKey;
+  const luma = scene.background.lumaKey;
+  const setChroma = (
+    patch: Partial<NonNullable<Scene["background"]["chromaKey"]>> | null,
+  ) => {
+    if (patch === null) {
+      update({ background: { ...scene.background, chromaKey: undefined } });
+      return;
+    }
+    update({
+      background: {
+        ...scene.background,
+        chromaKey: {
+          color: chroma?.color ?? "#00ff00",
+          tolerance: chroma?.tolerance ?? 0.4,
+          softness: chroma?.softness ?? 0.3,
+          ...patch,
+        },
+      },
+    });
+  };
+  const setLuma = (
+    patch: Partial<NonNullable<Scene["background"]["lumaKey"]>> | null,
+  ) => {
+    if (patch === null) {
+      update({ background: { ...scene.background, lumaKey: undefined } });
+      return;
+    }
+    update({
+      background: {
+        ...scene.background,
+        lumaKey: {
+          threshold: luma?.threshold ?? 0.3,
+          softness: luma?.softness ?? 0.05,
+          invert: luma?.invert ?? false,
+          ...patch,
+        },
+      },
+    });
+  };
+
+  return (
+    <div className="border-t border-neutral-800 pt-3 mt-2 space-y-3">
+      <div className="flex items-baseline justify-between">
+        <h4 className="text-[11px] uppercase tracking-wide text-neutral-500">
+          Keying
+        </h4>
+        <span className="text-[10px] text-neutral-600">chroma · luma</span>
+      </div>
+
+      <div className="space-y-2">
+        <label className="flex items-center justify-between text-xs">
+          <span className="text-neutral-300">Chroma key</span>
+          <input
+            type="checkbox"
+            checked={!!chroma}
+            onChange={(e) => (e.target.checked ? setChroma({}) : setChroma(null))}
+            className="accent-emerald-500"
+          />
+        </label>
+        {chroma && (
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Color">
+              <input
+                type="color"
+                value={chroma.color}
+                onChange={(e) => setChroma({ color: e.target.value })}
+                className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+              />
+            </Field>
+            <Field label="Tolerance">
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.02}
+                value={chroma.tolerance}
+                onChange={(e) => setChroma({ tolerance: Number(e.target.value) })}
+                className="w-full accent-emerald-500 h-1.5"
+              />
+              <span className="text-[10px] text-neutral-500">
+                {(chroma.tolerance * 100).toFixed(0)}%
+              </span>
+            </Field>
+            <Field label="Softness">
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={chroma.softness}
+                onChange={(e) => setChroma({ softness: Number(e.target.value) })}
+                className="w-full accent-emerald-500 h-1.5"
+              />
+              <span className="text-[10px] text-neutral-500">
+                {(chroma.softness * 100).toFixed(0)}%
+              </span>
+            </Field>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <label className="flex items-center justify-between text-xs">
+          <span className="text-neutral-300">Luma key</span>
+          <input
+            type="checkbox"
+            checked={!!luma}
+            onChange={(e) => (e.target.checked ? setLuma({}) : setLuma(null))}
+            className="accent-emerald-500"
+          />
+        </label>
+        {luma && (
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Threshold">
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.02}
+                value={luma.threshold}
+                onChange={(e) => setLuma({ threshold: Number(e.target.value) })}
+                className="w-full accent-emerald-500 h-1.5"
+              />
+              <span className="text-[10px] text-neutral-500">
+                {(luma.threshold * 100).toFixed(0)}%
+              </span>
+            </Field>
+            <Field label="Softness">
+              <input
+                type="range"
+                min={0}
+                max={0.5}
+                step={0.02}
+                value={luma.softness}
+                onChange={(e) => setLuma({ softness: Number(e.target.value) })}
+                className="w-full accent-emerald-500 h-1.5"
+              />
+              <span className="text-[10px] text-neutral-500">
+                {(luma.softness * 100).toFixed(0)}%
+              </span>
+            </Field>
+            <label className="col-span-2 flex items-center gap-2 text-[11px] text-neutral-300">
+              <input
+                type="checkbox"
+                checked={!!luma.invert}
+                onChange={(e) => setLuma({ invert: e.target.checked })}
+                className="accent-emerald-500"
+              />
+              Invert (cull bright pixels instead of dark)
+            </label>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

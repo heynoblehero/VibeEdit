@@ -31,7 +31,74 @@ interface GradientBgProps {
   videoStartSec?: number;
   videoMuted?: boolean;
   drift?: boolean;
+  /** Chroma-key the bg image/video. See SceneBackground.chromaKey. */
+  chromaKey?: { color: string; tolerance: number; softness: number };
+  /** Luma-key the bg image/video. See SceneBackground.lumaKey. */
+  lumaKey?: { threshold: number; softness: number; invert?: boolean };
+  /** Stable suffix used when generating SVG filter ids (per-scene). */
+  filterIdSuffix?: string;
   children?: React.ReactNode;
+}
+
+/**
+ * Builds an SVG <filter> for chroma-keying a single dominant-channel
+ * color (greenscreen / bluescreen / redscreen). Pixels close to the key
+ * color along the dominant axis are made transparent; the rest pass
+ * through unchanged. tolerance shifts the cutoff; softness widens the
+ * feathered band.
+ */
+function chromaKeyMatrix(color: string): [number, number, number] {
+  const r = parseInt(color.slice(1, 3), 16) / 255;
+  const g = parseInt(color.slice(3, 5), 16) / 255;
+  const b = parseInt(color.slice(5, 7), 16) / 255;
+  if (g >= r && g >= b) return [-1, 2, -1];
+  if (b >= r && b >= g) return [-1, -1, 2];
+  return [2, -1, -1];
+}
+
+/**
+ * tableValues for luma-key feFuncA. We want pixels with luminance below
+ * `threshold` to be culled (alpha=0). softness widens the feather band
+ * around the threshold. invert flips the direction (cull bright pixels).
+ */
+function lumaTable(threshold: number, softness: number, invert: boolean): string {
+  const t = Math.max(0, Math.min(1, threshold));
+  const s = Math.max(0, Math.min(0.5, softness));
+  // Build 16 evenly-spaced samples across [0..1] luminance.
+  const N = 16;
+  const vals: number[] = [];
+  for (let i = 0; i < N; i++) {
+    const x = i / (N - 1);
+    let alpha: number;
+    if (s === 0) alpha = x >= t ? 1 : 0;
+    else {
+      // Smooth ramp from (t-s) → (t+s).
+      const lo = t - s;
+      const hi = t + s;
+      if (x <= lo) alpha = 0;
+      else if (x >= hi) alpha = 1;
+      else alpha = (x - lo) / (hi - lo);
+    }
+    if (invert) alpha = 1 - alpha;
+    vals.push(alpha);
+  }
+  return vals.map((v) => v.toFixed(3)).join(" ");
+}
+
+function chromaTable(softness: number): string {
+  const s = Math.max(0, Math.min(1, softness));
+  // soft=0 → "1 0" (hard step). soft=1 → smooth gradient with 8 steps.
+  const steps = Math.max(2, Math.round(2 + s * 6));
+  const half = Math.floor(steps / 2);
+  const vals: number[] = [];
+  for (let i = 0; i < half; i++) vals.push(1);
+  for (let i = half; i < steps; i++) {
+    // Smooth tail when soft > 0 — interpolate from 1 → 0 across remaining
+    // steps so edges feather instead of hard-cutting.
+    if (s === 0) vals.push(0);
+    else vals.push(Math.max(0, 1 - (i - half + 1) / (steps - half)));
+  }
+  return vals.join(" ");
 }
 
 function gradeFilter(grade: NonNullable<GradientBgProps["colorGrade"]>): string {
@@ -95,6 +162,9 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   videoStartSec = 0,
   videoMuted = true,
   drift = true,
+  chromaKey,
+  lumaKey,
+  filterIdSuffix = "default",
   children,
 }) => {
   const frame = useCurrentFrame();
@@ -113,8 +183,55 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   // gradient that pulses ±8% lightness so the scene reads alive.
   const noMedia = !videoUrl && !imageUrl;
 
+  // Per-scene SVG filter ids — collide-free across composition since the
+  // suffix is the scene id when called from SceneRenderer.
+  const chromaId = chromaKey ? `chroma-${filterIdSuffix}` : null;
+  const lumaId = lumaKey ? `luma-${filterIdSuffix}` : null;
+  const keyFilters: string[] = [];
+  if (chromaId) keyFilters.push(`url(#${chromaId})`);
+  if (lumaId) keyFilters.push(`url(#${lumaId})`);
+
   return (
     <AbsoluteFill style={{ backgroundColor: color, overflow: "hidden" }}>
+      {(chromaKey || lumaKey) && (
+        <svg
+          width="0"
+          height="0"
+          style={{ position: "absolute", pointerEvents: "none" }}
+          aria-hidden
+        >
+          <defs>
+            {chromaKey && chromaId && (
+              <filter id={chromaId} colorInterpolationFilters="sRGB">
+                <feColorMatrix
+                  type="matrix"
+                  values={`1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  ${chromaKeyMatrix(chromaKey.color).join(" ")} 0 ${(-Math.max(0, Math.min(1, chromaKey.tolerance))).toFixed(3)}`}
+                  result="keyed"
+                />
+                <feComponentTransfer in="keyed" result="mask">
+                  <feFuncA type="table" tableValues={chromaTable(chromaKey.softness)} />
+                </feComponentTransfer>
+                <feComposite operator="in" in="SourceGraphic" in2="mask" />
+              </filter>
+            )}
+            {lumaKey && lumaId && (
+              <filter id={lumaId} colorInterpolationFilters="sRGB">
+                <feColorMatrix
+                  type="luminanceToAlpha"
+                  result="lum"
+                />
+                <feComponentTransfer in="lum" result="mask">
+                  <feFuncA
+                    type="table"
+                    tableValues={lumaTable(lumaKey.threshold, lumaKey.softness, !!lumaKey.invert)}
+                  />
+                </feComponentTransfer>
+                <feComposite operator="in" in="SourceGraphic" in2="mask" />
+              </filter>
+            )}
+          </defs>
+        </svg>
+      )}
       {noMedia && (
         <div
           style={{
@@ -136,6 +253,7 @@ export const GradientBg: React.FC<GradientBgProps> = ({
             width: "100%",
             height: "100%",
             objectFit: "cover",
+            filter: keyFilters.length ? keyFilters.join(" ") : undefined,
           }}
         />
       )}
@@ -162,6 +280,7 @@ export const GradientBg: React.FC<GradientBgProps> = ({
                 saturation !== 1 ? `saturate(${saturation})` : null,
                 temperature !== 0 ? `hue-rotate(${(temperature * 20).toFixed(1)}deg)` : null,
                 blur > 0 ? `blur(${blur}px)` : null,
+                ...keyFilters,
               ]
                 .filter(Boolean)
                 .join(" "),

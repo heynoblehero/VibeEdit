@@ -103,6 +103,29 @@ export interface SceneBackground {
   videoUrl?: string;
   videoStartSec?: number;
   videoMuted?: boolean;
+  /**
+   * Chroma-key the background image/video — pixels close to `color` are
+   * removed (replaced with transparency). Implemented via SVG
+   * feColorMatrix so it works at preview AND in Remotion frame-render.
+   *  - color: target color in #rrggbb (default "#00ff00" greenscreen).
+   *  - tolerance: 0–1, half-width of the keyed-out band. 0.4 ≈ standard.
+   *  - softness: 0–1, how soft the edge falloff is. 0 = hard, 1 = feather.
+   */
+  chromaKey?: {
+    color: string;
+    tolerance: number;
+    softness: number;
+  };
+  /**
+   * Luma-key the background — pixels darker than `threshold` (0–1) are
+   * removed. Inverts when `invert` is true (cull bright pixels instead).
+   * Useful for compositing dark logos onto bright frames.
+   */
+  lumaKey?: {
+    threshold: number;
+    softness: number;
+    invert?: boolean;
+  };
 }
 
 export interface CaptionWord {

@@ -253,20 +253,24 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
               } ${isHoverTarget ? "ring-2 ring-sky-400 ring-inset" : ""} ${
                 dragIndex === i ? "opacity-50" : ""
               }`}
-              title={`Scene ${i + 1} · ${(m.frames / project.fps).toFixed(1)}s — drag body to reorder, drag right edge to resize`}
+              title={`Scene ${i + 1} · ${(m.frames / project.fps).toFixed(1)}s\nDrag body to reorder · drag right edge to trim · click to seek · right-click for menu`}
             >
-              <span className="absolute left-1 top-0 text-[9px] font-mono text-neutral-500 pointer-events-none">
+              <span className="absolute left-2 top-0 text-[9px] font-mono text-neutral-500 pointer-events-none">
                 {i + 1}
               </span>
-              {/* Resize handle on the right edge — widens on hover for easier grab. */}
+              {/* Right-edge handle reveals on hover so the trim affordance
+                  is visible without sniffing the cursor. The wider hit-area
+                  span sits behind a thinner visible bar. */}
               <span
                 onPointerDown={(e) => onResizeDown(e, m.id, scene.duration)}
                 onPointerMove={onResizeMove}
                 onPointerUp={onResizeUp}
                 onClick={(e) => e.stopPropagation()}
-                className="absolute right-0 top-0 bottom-0 w-1 hover:w-1.5 hover:bg-emerald-400/70 cursor-ew-resize"
-                aria-label="Resize scene duration"
-              />
+                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize group"
+                aria-label="Trim end of scene"
+              >
+                <span className="block absolute right-0 top-0 bottom-0 w-1 bg-emerald-400/0 group-hover:bg-emerald-400/70 transition-colors" />
+              </span>
             </div>
           );
         })}

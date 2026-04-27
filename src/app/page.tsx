@@ -20,6 +20,7 @@ import { ImageEditor } from "@/components/editor/ImageEditor";
 import { KeyboardShortcuts } from "@/components/editor/KeyboardShortcuts";
 import { ShortcutHelp } from "@/components/editor/ShortcutHelp";
 import { ProjectIO } from "@/components/editor/ProjectIO";
+import { AspectSwitcher } from "@/components/editor/AspectSwitcher";
 import { ProjectStats } from "@/components/editor/ProjectStats";
 import { ProjectSwitcher } from "@/components/editor/ProjectSwitcher";
 import { RenderButton } from "@/components/editor/RenderButton";
@@ -206,6 +207,7 @@ export default function Home() {
           <DevBadge />
           <ProjectSwitcher />
           <ProjectStats />
+          <AspectSwitcher />
           <button
             onClick={() => setChatOpen((v) => !v)}
             title="Toggle vibe chat (Cmd/Ctrl+K)"

@@ -124,6 +124,50 @@ export function TracksPanel() {
         <p className="text-[10px] text-neutral-500 px-1 pt-2">
           Drag a scene from the timeline onto any row above to move it.
         </p>
+        <div className="grid grid-cols-2 gap-1 pt-1">
+          <button
+            onClick={() =>
+              useProjectStore.getState().addScene({
+                id: createId(),
+                type: "text_only",
+                duration: 1.5,
+                background: { color: "#000000" },
+                fadeInFrames: 12,
+                fadeOutFrames: 12,
+                transition: "beat_flash",
+                emphasisText: "",
+                emphasisSize: 0,
+                emphasisColor: "#000000",
+                textY: 0,
+              })
+            }
+            className="text-[10px] px-1.5 py-1 rounded border border-neutral-800 bg-black hover:border-neutral-600 text-neutral-400 hover:text-white"
+            title="1.5s pure-black breath / breath / outro"
+          >
+            + Black scene
+          </button>
+          <button
+            onClick={() =>
+              useProjectStore.getState().addScene({
+                id: createId(),
+                type: "text_only",
+                duration: 1.5,
+                background: { color: "#ffffff" },
+                fadeInFrames: 12,
+                fadeOutFrames: 12,
+                transition: "beat_flash",
+                emphasisText: "",
+                emphasisSize: 0,
+                emphasisColor: "#ffffff",
+                textY: 0,
+              })
+            }
+            className="text-[10px] px-1.5 py-1 rounded border border-neutral-800 bg-white text-black hover:border-neutral-400"
+            title="1.5s pure-white flash / divider"
+          >
+            + White scene
+          </button>
+        </div>
         <button
           onClick={() => {
             const all = useProjectStore.getState().project.scenes;

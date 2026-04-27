@@ -35,6 +35,20 @@ export function KeyboardShortcuts() {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
 
+      // L (no modifier) — toggle lock on selected scene(s).
+      if (!mod && (e.key === "l" || e.key === "L") && !isTextInput(e.target)) {
+        const ids = selectedSceneIds.length > 0 ? selectedSceneIds : (selectedSceneId ? [selectedSceneId] : []);
+        if (ids.length === 0) return;
+        e.preventDefault();
+        const scenes = useProjectStore.getState().project.scenes;
+        const anyUnlocked = ids.some((id) => !scenes.find((s) => s.id === id)?.locked);
+        for (const id of ids) {
+          useProjectStore.getState().updateScene(id, { locked: anyUnlocked });
+        }
+        toast(anyUnlocked ? `Locked ${ids.length}` : `Unlocked ${ids.length}`, { duration: 700 });
+        return;
+      }
+
       // Z (no modifier) — toggle zen mode (chrome-hidden full-preview).
       if (!mod && (e.key === "z" || e.key === "Z") && !isTextInput(e.target)) {
         // Don't conflict with ⌘Z undo (handled below).

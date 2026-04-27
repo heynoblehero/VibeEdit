@@ -10,6 +10,24 @@ import { useProjectStore } from "@/store/project-store";
 import { AudioWaveform } from "./AudioWaveform";
 import { CutMarker } from "./CutMarker";
 
+// Two- or three-letter abbrev for the scene block label so the user
+// can tell at-a-glance what kind of scene each block is at low zoom.
+const SCENE_TYPE_ABBR: Record<string, string> = {
+  text_only: "txt",
+  character_text: "char",
+  character_pop: "pop",
+  big_number: "num",
+  stat: "stat",
+  montage: "mtg",
+  split: "spl",
+  bullet_list: "list",
+  quote: "quo",
+  bar_chart: "bar",
+  three_text: "3tx",
+  three_card: "3cd",
+  three_particles: "3p",
+};
+
 interface TimelineProps {
   playerRef: React.RefObject<PlayerRef | null>;
   currentFrame: number;
@@ -716,6 +734,7 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
               )}
               <span className="absolute left-2 top-0 text-[9px] font-mono text-neutral-500 pointer-events-none z-10 truncate max-w-[80%]">
                 {scene.label ?? `${i + 1}`}
+                <span className="text-neutral-700"> · {SCENE_TYPE_ABBR[scene.type] ?? scene.type.slice(0, 3)}</span>
                 {scene.muted && " · M"}
               </span>
               {scene.voiceover?.audioUrl && (

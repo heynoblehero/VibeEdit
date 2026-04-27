@@ -467,7 +467,11 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
           </span>
         </span>
         <span>
-          {`${(currentFrame / project.fps).toFixed(1)}s`}
+          {(() => {
+            const totalSec = currentFrame / project.fps;
+            const f = Math.round(currentFrame % project.fps);
+            return `${totalSec.toFixed(1)}s · f${currentFrame.toString().padStart(3, "0")} (${f.toString().padStart(2, "0")}/${project.fps})`;
+          })()}
           {cutMode && (
             <span className="ml-2 text-amber-300">click on a scene block to split</span>
           )}

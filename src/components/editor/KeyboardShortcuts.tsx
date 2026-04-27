@@ -102,6 +102,23 @@ export function KeyboardShortcuts() {
         }
       }
 
+      // ⌘⇧S — export the entire project as a downloadable JSON file.
+      if (mod && e.shiftKey && e.key.toLowerCase() === "s" && !isTextInput(e.target)) {
+        e.preventDefault();
+        const project = useProjectStore.getState().project;
+        const blob = new Blob([JSON.stringify(project, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${project.name.replace(/[^a-z0-9_-]+/gi, "_")}.vibeedit.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success("Project exported", { duration: 800 });
+        return;
+      }
+
       // ⌘C / ⌘V — copy / paste scene(s) as JSON via the clipboard.
       // Gated so we don't intercept regular copy when text is selected.
       if (mod && e.key.toLowerCase() === "c" && !e.shiftKey && !isTextInput(e.target)) {

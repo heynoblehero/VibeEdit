@@ -46,7 +46,7 @@ export function SceneCard({ scene, index }: SceneCardProps) {
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.5 : scene.muted ? 0.4 : 1,
     zIndex: isDragging ? 10 : undefined,
   };
 

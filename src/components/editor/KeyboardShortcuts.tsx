@@ -35,6 +35,25 @@ export function KeyboardShortcuts() {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
 
+      // S (no modifier) — solo selected scene(s) (mute every other).
+      // Press again with same selection → unmute everyone.
+      if (!mod && (e.key === "s" || e.key === "S") && !isTextInput(e.target)) {
+        const ids = selectedSceneIds.length > 0 ? selectedSceneIds : (selectedSceneId ? [selectedSceneId] : []);
+        if (ids.length === 0) return;
+        e.preventDefault();
+        const all = useProjectStore.getState().project.scenes;
+        const sel = new Set(ids);
+        const isSoloed = all.every((sc) => (sel.has(sc.id) ? !sc.muted : sc.muted));
+        for (const sc of all) {
+          const wantMuted = isSoloed ? false : !sel.has(sc.id);
+          if (!!sc.muted !== wantMuted) {
+            useProjectStore.getState().updateScene(sc.id, { muted: wantMuted });
+          }
+        }
+        toast(isSoloed ? "Solo cleared" : `Soloed ${ids.length}`, { duration: 700 });
+        return;
+      }
+
       // L (no modifier) — toggle lock on selected scene(s).
       if (!mod && (e.key === "l" || e.key === "L") && !isTextInput(e.target)) {
         const ids = selectedSceneIds.length > 0 ? selectedSceneIds : (selectedSceneId ? [selectedSceneId] : []);

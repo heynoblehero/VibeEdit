@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Scissors } from "lucide-react";
+import { Lock, Plus, Scissors } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { PlayerRef } from "@remotion/player";
 import type { Cut, Scene } from "@/lib/scene-schema";
@@ -781,19 +781,24 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                   </span>
                 );
               })()}
+              {scene.locked && (
+                <Lock className="absolute right-1 bottom-0.5 h-2.5 w-2.5 text-amber-400 pointer-events-none z-10" />
+              )}
               {/* Right-edge handle reveals on hover so the trim affordance
-                  is visible without sniffing the cursor. The wider hit-area
-                  span sits behind a thinner visible bar. */}
-              <span
-                onPointerDown={(e) => onResizeDown(e, m.id, scene.duration)}
-                onPointerMove={onResizeMove}
-                onPointerUp={onResizeUp}
-                onClick={(e) => e.stopPropagation()}
-                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize group"
-                aria-label="Trim end of scene"
-              >
-                <span className="block absolute right-0 top-0 bottom-0 w-1 bg-emerald-400/0 group-hover:bg-emerald-400/70 transition-colors" />
-              </span>
+                  is visible without sniffing the cursor. Hidden when the
+                  scene is locked. */}
+              {!scene.locked && (
+                <span
+                  onPointerDown={(e) => onResizeDown(e, m.id, scene.duration)}
+                  onPointerMove={onResizeMove}
+                  onPointerUp={onResizeUp}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize group"
+                  aria-label="Trim end of scene"
+                >
+                  <span className="block absolute right-0 top-0 bottom-0 w-1 bg-emerald-400/0 group-hover:bg-emerald-400/70 transition-colors" />
+                </span>
+              )}
             </div>
           );
         })}

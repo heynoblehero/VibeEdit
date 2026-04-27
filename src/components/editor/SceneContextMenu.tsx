@@ -179,6 +179,16 @@ export function SceneContextMenu({ scene, index, x, y, onClose }: Props) {
       >
         {scene.muted ? "Unmute scene" : "Mute scene (skip render)"}
       </button>
+      <button
+        onClick={() => {
+          updateScene(scene.id, { locked: !scene.locked });
+          toast(scene.locked ? "Unlocked" : "Locked", { duration: 800 });
+          onClose();
+        }}
+        className="w-full text-left px-3 py-1.5 text-neutral-200 hover:bg-neutral-800"
+      >
+        {scene.locked ? "Unlock scene" : "Lock scene (read-only)"}
+      </button>
       <div className="px-3 py-1.5 flex items-center gap-1 text-[11px] text-neutral-400">
         <span className="mr-1">Tag:</span>
         {(["red", "amber", "green", "blue", "purple", "pink"] as const).map(

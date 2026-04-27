@@ -236,6 +236,13 @@ export interface Scene {
   fadeInFrames?: number;
   /** Visual fade-out length on scene exit (frames). 0 = no fade. */
   fadeOutFrames?: number;
+  /**
+   * Locked scenes are read-only on the timeline: trim handle hidden,
+   * drag-to-reorder ignored, delete blocked. Lets users 'finalize' a
+   * scene so accidental edits don't sneak in. Lock icon shows on the
+   * block; context menu still has 'Unlock'.
+   */
+  locked?: boolean;
   speedFactor?: number;
   /**
    * Per-scene audio level. 0 = mute, 1.0 = unity, 2.0 = +6 dB. Multiplies

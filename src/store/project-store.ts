@@ -355,6 +355,10 @@ export const useProjectStore = create<ProjectStore>()(
         }),
       removeScene: (id) =>
         set((s) => {
+          // Locked scenes can't be deleted by ordinary actions. Returning
+          // the unchanged state is a no-op for the store.
+          const target = s.project.scenes.find((sc) => sc.id === id);
+          if (target?.locked) return s;
           // Ripple-delete cuts: any cut going INTO id needs to retarget
           // to the next scene; any cut going OUT of id retargets back to
           // the previous scene's outgoing edge. Net effect: prev → next
@@ -425,6 +429,12 @@ export const useProjectStore = create<ProjectStore>()(
         }),
       moveScene: (fromIdx, toIdx) =>
         set((s) => {
+          // Locked scenes don't move and locked landing slots aren't
+          // displaced — the move is silently ignored if either side is
+          // locked. Keeps undo history clean.
+          const from = s.project.scenes[fromIdx];
+          const to = s.project.scenes[toIdx];
+          if (from?.locked || to?.locked) return s;
           const scenes = [...s.project.scenes];
           const [moved] = scenes.splice(fromIdx, 1);
           scenes.splice(toIdx, 0, moved);

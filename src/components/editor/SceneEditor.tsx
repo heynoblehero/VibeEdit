@@ -732,7 +732,7 @@ function BackgroundPanel({ scene, update }: { scene: Scene; update: (p: Partial<
 
       <KeyingSection scene={scene} update={update} />
 
-      <div className="border-t border-neutral-800 pt-3 mt-2">
+      <div className="border-t border-neutral-800 pt-3 mt-2 grid grid-cols-2 gap-2">
         <button
           type="button"
           onClick={() => {
@@ -758,10 +758,49 @@ function BackgroundPanel({ scene, update }: { scene: Scene; update: (p: Partial<
               duration: 1000,
             });
           }}
-          className="w-full text-xs px-2 py-1.5 rounded border border-neutral-700 text-neutral-300 hover:border-emerald-500 hover:text-emerald-300"
+          className="text-xs px-2 py-1.5 rounded border border-neutral-700 text-neutral-300 hover:border-emerald-500 hover:text-emerald-300"
           title="Copy this scene's color grade + keying to every other scene in the project"
         >
-          Apply look to all scenes
+          Apply to all
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            // Random Look bundles. Pulled inline so we don't import
+            // ActionsPanel (would be a circular dep).
+            const looks = [
+              { colorGrade: "warm", contrast: 1.12, saturation: 1.08, brightness: 0.98 },
+              { colorGrade: "punchy", contrast: 1.25, saturation: 1.2 },
+              { colorGrade: "bw", contrast: 1.3, brightness: 0.92 },
+              { blur: 4, contrast: 0.88, saturation: 0.85, brightness: 1.06 },
+              { colorGrade: "warm", saturation: 0.7, contrast: 0.9, temperature: 0.4 },
+              { saturation: 1.5, contrast: 1.15, temperature: -0.5, brightness: 0.95 },
+              { colorGrade: "cool", brightness: 0.88, contrast: 1.1, blur: 1, temperature: -0.3 },
+            ] as const;
+            const pick = looks[Math.floor(Math.random() * looks.length)];
+            const all = useProjectStore.getState().project.scenes;
+            for (const sc of all) {
+              const cleaned = { ...sc.background };
+              for (const k of [
+                "colorGrade",
+                "brightness",
+                "contrast",
+                "saturation",
+                "temperature",
+                "blur",
+              ] as const) {
+                delete (cleaned as Record<string, unknown>)[k];
+              }
+              useProjectStore.getState().updateScene(sc.id, {
+                background: { ...cleaned, ...pick } as Scene["background"],
+              });
+            }
+            toast(`Random look applied to ${all.length} scene${all.length === 1 ? "" : "s"}`, { duration: 800 });
+          }}
+          className="text-xs px-2 py-1.5 rounded border border-neutral-700 text-neutral-300 hover:border-amber-500 hover:text-amber-300"
+          title="Pick a random Look and apply to every scene"
+        >
+          Surprise me ✨
         </button>
       </div>
 

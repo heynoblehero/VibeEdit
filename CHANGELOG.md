@@ -1,5 +1,64 @@
 # Changelog
 
+## Unreleased — sprint 19: layered timeline (5 commits)
+
+User feedback: "Why are tracks a separate panel? Each item in a scene
+should be visible on the timeline itself — text, image, broll all
+laid out individually. Why do we even need scenes?"
+
+Strategic answer: Scene becomes a GROUP, not a BUNDLE. The agent
+keeps thinking in scenes (one narrative beat = one scene); the editor
+expands each scene into its constituent items as Premiere-style
+clip-blocks on layered rows. No schema changes, fully back-compat.
+
+### What ships
+- **`src/lib/timeline-items.ts`** — `deriveItemsFromScene(scene,
+  start, fps)` walks every Scene field that the renderer treats as
+  its own visible/audible layer and emits a flat `TimelineItem[]`
+  with start/duration/color/label. Frame positions mirror the
+  hardcoded values inside SceneRenderer (text=3, emphasis=12,
+  subtitle=25, character=3, counter=5). LayerKind enum + LAYER_LABEL
+  + LAYER_ROW_ORDER + kindToEditTarget exported alongside.
+
+- **`src/components/editor/LayeredTimeline.tsx`** — replaces
+  `<Timeline />` as the editor's primary timeline view. Top row
+  preserves the existing scene blocks (cuts / transitions / drag-drop
+  ecosystem / audio waveforms / markers / loop range / marker drag).
+  Below: per-layer rows for `bg / character / text-* / broll /
+  effects / voiceover / montage / stat / bullets / quote / bar-chart
+  / three / split / counter`, color-coded. Click any block →
+  `selectScene(item.sceneId)` + `setEditTarget(kindToEditTarget(...))`
+  + `setSelectedItemId(item.id)` so the right-side editor jumps to
+  that layer's panel. Track.startOffsetSec is honoured so overlay
+  tracks line up with the renderer.
+
+- **EditorStore additions** — `expandedLayers: Record<string, boolean>`
+  controls per-row collapse, persists to localStorage. `selectedItemId`
+  tracks the highlighted item (`{sceneId}:{kind}[:{index}]` format)
+  so sprint-20 drag handlers can find which item is being moved.
+
+- **TracksPanel slim** — title becomes "Track props". Drop the
+  '+ Black/+ White scene', 'Fit-VO', 'Fit total', 'Remove muted',
+  Lock-all/Mute-all/Reverse/Shuffle bulk actions, and the muted/locked
+  count chip. Keep track rows (name/mute/lock/opacity/blend/startOffset/
+  remove) + Add Video/Overlay/Audio buttons + drag-target for moving
+  scenes between tracks.
+
+- **TrackStrip deleted** — the compact stacked-rows visualisation
+  from sprint 15 was redundant; LayeredTimeline owns the multi-track
+  viz now.
+
+### Renderer untouched
+Sprint 19 is pure visualization. `src/remotion/SceneRenderer.tsx`,
+`src/remotion/Composition.tsx`, and the agent route are unchanged.
+Saved projects render bit-identical.
+
+### What's next
+Sprint 20 wires drag/resize on layer-row item blocks: drag-middle
+moves startFrame, drag right-edge changes durationFrames. Adds
+`Scene.itemOverrides?: Partial<Record<ItemKind, { startFrame?,
+durationFrames? }>>` and consults it inside SceneRenderer.
+
 ## Unreleased — sprint 18: frame fit & flexible aspects (3 commits)
 
 User feedback: 'why even need separate projects for 16:9 / 9:16

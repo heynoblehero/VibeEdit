@@ -49,6 +49,52 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
   const setCutMode = useEditorStore((s) => s.setCutMode);
   const timelineZoom = useEditorStore((s) => s.timelineZoom);
   const setTimelineZoom = useEditorStore((s) => s.setTimelineZoom);
+  const addUpload = useProjectStore((s) => s.addUpload);
+
+  // Upload a real File from a Finder/Explorer drop, then insert it as a
+  // new scene. Reuses the same /api/assets/upload pipe and addUpload
+  // store action so the file shows up in the Uploads bin afterwards.
+  const uploadAndInsert = useCallback(
+    async (file: File, insertIndex: number) => {
+      if (file.size > 200 * 1024 * 1024) return;
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/assets/upload", { method: "POST", body: form });
+      if (!res.ok) return;
+      const data = await res.json();
+      const upload = {
+        id: `up-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        name: data.name ?? file.name,
+        url: data.url as string,
+        type: (data.type ?? file.type) as string,
+        bytes: data.bytes ?? file.size,
+        uploadedAt: Date.now(),
+      };
+      addUpload(upload);
+      const portrait = project.height > project.width;
+      const scene = upload.type.startsWith("video/")
+        ? {
+            id: createId(),
+            type: "text_only" as const,
+            duration: 3,
+            background: { ...DEFAULT_BG, videoUrl: upload.url },
+            transition: "beat_flash" as const,
+          }
+        : {
+            id: createId(),
+            type: "text_only" as const,
+            duration: 3,
+            background: { ...DEFAULT_BG, imageUrl: upload.url, kenBurns: true },
+            emphasisText: "edit me",
+            emphasisSize: portrait ? 96 : 72,
+            emphasisColor: "#ffffff",
+            textY: portrait ? 500 : 380,
+            transition: "beat_flash" as const,
+          };
+      insertSceneAt(insertIndex, scene);
+    },
+    [addUpload, insertSceneAt, project.height, project.width],
+  );
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [trackHover, setTrackHover] = useState(false);
@@ -226,7 +272,8 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
           if (
             types.includes("vibeedit/upload-url") ||
             types.includes("vibeedit/scene-type") ||
-            types.includes("vibeedit/title")
+            types.includes("vibeedit/title") ||
+            types.includes("Files")
           ) {
             e.preventDefault();
             e.dataTransfer.dropEffect = "copy";
@@ -234,6 +281,18 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
         }}
         onDrop={(e) => {
           const portrait = project.height > project.width;
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            e.preventDefault();
+            const files = Array.from(e.dataTransfer.files);
+            (async () => {
+              let target = 0;
+              for (const f of files) {
+                await uploadAndInsert(f, target);
+                target += 1;
+              }
+            })();
+            return;
+          }
           const url = e.dataTransfer.getData("vibeedit/upload-url");
           if (url) {
             e.preventDefault();
@@ -401,7 +460,8 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
           if (
             types.includes("vibeedit/upload-url") ||
             types.includes("vibeedit/scene-type") ||
-            types.includes("vibeedit/title")
+            types.includes("vibeedit/title") ||
+            types.includes("Files")
           ) {
             e.preventDefault();
             e.dataTransfer.dropEffect = "copy";
@@ -425,6 +485,20 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
             }
           }
           const portrait = project.height > project.width;
+          // 0) Real files dragged in from Finder/Explorer. Upload them
+          //    first then insert as scenes at the dropped position.
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            e.preventDefault();
+            const files = Array.from(e.dataTransfer.files);
+            (async () => {
+              let target = insertIndex;
+              for (const f of files) {
+                await uploadAndInsert(f, target);
+                target += 1;
+              }
+            })();
+            return;
+          }
           // 1) Upload URL → media-backed scene.
           const url = e.dataTransfer.getData("vibeedit/upload-url");
           if (url) {

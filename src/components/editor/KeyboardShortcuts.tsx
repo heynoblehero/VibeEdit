@@ -102,6 +102,22 @@ export function KeyboardShortcuts() {
         }
       }
 
+      // ⌘J / ⌘⇧J — jump playhead to next / prev marker. Wraps around.
+      if (mod && e.key.toLowerCase() === "j" && !isTextInput(e.target)) {
+        e.preventDefault();
+        const markers = useProjectStore.getState().project.markers ?? [];
+        if (markers.length === 0) return;
+        const cur = useEditorStore.getState().previewFrame;
+        const sorted = [...markers].sort((a, b) => a.frame - b.frame);
+        const target = e.shiftKey
+          ? [...sorted].reverse().find((m) => m.frame < cur) ?? sorted[sorted.length - 1]
+          : sorted.find((m) => m.frame > cur) ?? sorted[0];
+        window.dispatchEvent(
+          new CustomEvent("vibeedit:seek-to", { detail: target.frame }),
+        );
+        return;
+      }
+
       // ⌘[ / ⌘] — move the selected scene one slot up / down. Mirrors
       // the Premiere 'rotate clip' gesture and is faster than dragging
       // for tiny order tweaks.

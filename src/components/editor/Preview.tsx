@@ -130,9 +130,19 @@ export function Preview() {
       const cur = p.getCurrentFrame?.() ?? 0;
       p.seekTo(Math.max(0, cur + detail));
     };
+    const onSeekTo = (e: Event) => {
+      const detail = (e as CustomEvent<number>).detail ?? 0;
+      const p = playerRef.current;
+      if (!p) return;
+      p.pause();
+      p.seekTo(Math.max(0, detail));
+    };
     window.addEventListener("vibeedit:seek-by", onSeekBy as EventListener);
-    return () =>
+    window.addEventListener("vibeedit:seek-to", onSeekTo as EventListener);
+    return () => {
       window.removeEventListener("vibeedit:seek-by", onSeekBy as EventListener);
+      window.removeEventListener("vibeedit:seek-to", onSeekTo as EventListener);
+    };
   }, []);
 
   // Loop range wrap-around. When the playhead crosses loopRange.end we

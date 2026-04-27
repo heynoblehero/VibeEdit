@@ -102,6 +102,21 @@ export function KeyboardShortcuts() {
         }
       }
 
+      // ⌘⇧M — toggle mute on the selected scene(s).
+      if (mod && e.shiftKey && e.key.toLowerCase() === "m" && !isTextInput(e.target)) {
+        e.preventDefault();
+        const ids = selectedSceneIds.length > 0 ? selectedSceneIds : (selectedSceneId ? [selectedSceneId] : []);
+        if (ids.length === 0) return;
+        const scenes = useProjectStore.getState().project.scenes;
+        // If any selected scene is un-muted, mute them all; else unmute.
+        const anyUnmuted = ids.some((id) => !scenes.find((s) => s.id === id)?.muted);
+        for (const id of ids) {
+          useProjectStore.getState().updateScene(id, { muted: anyUnmuted });
+        }
+        toast(anyUnmuted ? `Muted ${ids.length}` : `Unmuted ${ids.length}`, { duration: 700 });
+        return;
+      }
+
       // ⌘J / ⌘⇧J — jump playhead to next / prev marker. Wraps around.
       if (mod && e.key.toLowerCase() === "j" && !isTextInput(e.target)) {
         e.preventDefault();

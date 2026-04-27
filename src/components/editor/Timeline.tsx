@@ -29,6 +29,8 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
   // setCutMode local alias so the rest of this component reads cleanly.
   const cutMode = useEditorStore((s) => s.cutMode);
   const setCutMode = useEditorStore((s) => s.setCutMode);
+  const timelineZoom = useEditorStore((s) => s.timelineZoom);
+  const setTimelineZoom = useEditorStore((s) => s.setTimelineZoom);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
@@ -272,6 +274,27 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
             <span className="text-[10px]">cut</span>
           </button>
           <span className="text-neutral-600">0.0s</span>
+          <span className="ml-2 inline-flex items-center gap-0.5 text-neutral-600">
+            <button
+              type="button"
+              onClick={() => setTimelineZoom(timelineZoom / 1.5)}
+              title="Zoom out (⌘−)"
+              className="px-1 hover:text-neutral-300"
+            >−</button>
+            <span className="tabular-nums w-8 text-center">{timelineZoom.toFixed(1)}×</span>
+            <button
+              type="button"
+              onClick={() => setTimelineZoom(timelineZoom * 1.5)}
+              title="Zoom in (⌘=)"
+              className="px-1 hover:text-neutral-300"
+            >+</button>
+            <button
+              type="button"
+              onClick={() => setTimelineZoom(1)}
+              title="Fit (⌘0)"
+              className="px-1 hover:text-neutral-300"
+            >fit</button>
+          </span>
         </span>
         <span>
           {`${(currentFrame / project.fps).toFixed(1)}s`}
@@ -282,7 +305,12 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
         <span>{seconds}s</span>
       </div>
       <div
+        className="overflow-x-auto overflow-y-hidden"
+        style={{ scrollbarWidth: "thin" }}
+      >
+      <div
         ref={trackRef}
+        style={{ width: `${timelineZoom * 100}%`, minWidth: "100%" }}
         onClick={handleClick}
         onDragOver={(e) => {
           // Accept any of the four "insert new scene" payloads. Drop
@@ -750,6 +778,7 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );

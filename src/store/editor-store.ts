@@ -39,6 +39,13 @@ interface EditorStore {
    */
   cutMode: boolean;
   setCutMode: (v: boolean) => void;
+  /**
+   * Timeline horizontal zoom multiplier. 1 = fit-to-width (current
+   * default behaviour). > 1 stretches the track so longer videos can
+   * be edited frame-accurately. Cmd+= / Cmd+- bind to inc/dec.
+   */
+  timelineZoom: number;
+  setTimelineZoom: (v: number) => void;
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
@@ -58,4 +65,6 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setProKeyframes: (v) => set({ proKeyframes: v }),
   cutMode: false,
   setCutMode: (v) => set({ cutMode: v }),
+  timelineZoom: 1,
+  setTimelineZoom: (v) => set({ timelineZoom: Math.max(0.5, Math.min(8, v)) }),
 }));

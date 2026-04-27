@@ -56,6 +56,26 @@ export function KeyboardShortcuts() {
         }
       }
 
+      // Cmd+= / Cmd+- / Cmd+0 — timeline zoom in/out/fit. Gate against
+      // text inputs so the user can still type a literal "+" in chat.
+      if (mod && !isTextInput(e.target) && (e.key === "=" || e.key === "+")) {
+        e.preventDefault();
+        const cur = useEditorStore.getState().timelineZoom;
+        useEditorStore.getState().setTimelineZoom(cur * 1.5);
+        return;
+      }
+      if (mod && !isTextInput(e.target) && e.key === "-") {
+        e.preventDefault();
+        const cur = useEditorStore.getState().timelineZoom;
+        useEditorStore.getState().setTimelineZoom(cur / 1.5);
+        return;
+      }
+      if (mod && !isTextInput(e.target) && e.key === "0") {
+        e.preventDefault();
+        useEditorStore.getState().setTimelineZoom(1);
+        return;
+      }
+
       if (mod && e.key.toLowerCase() === "z" && !isTextInput(e.target)) {
         e.preventDefault();
         if (e.shiftKey) {

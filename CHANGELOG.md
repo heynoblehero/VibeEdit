@@ -1,5 +1,70 @@
 # Changelog
 
+## Unreleased — sprint 10: pivot to AI-augmented manual editor (13 commits)
+
+Strategic pivot: lead with the editor, demote the AI to a copilot.
+Previous direction (AI-first autonomous video generation) puts us in
+the Pika / Runway lane; "web video editor with AI woven through the
+primitives" is more defensible since most editors bolt AI on as a
+marketing feature. Existing autonomous-loop investment becomes the
+moat instead of being thrown out.
+
+### Reposition
+- ProjectHome subhead: "AI video editor. Describe it, the agent
+  builds it." → "Web video editor with an AI in your corner."
+- CreateProjectDialog cinematic-mode default flips true → false. New
+  bordered toggle card with active/inactive copy. Submit label still
+  reflects mode ("Create project" vs "Create + auto-build video").
+- Empty-project Preview reorders: leads with "+ Add a blank scene"
+  primary green button, "Drop files in Uploads" secondary, AI prompts
+  + Cmd+K hint demoted below a divider as "Or have AI build the
+  whole thing".
+
+### Default surface
+- Chat sidebar starts collapsed for new/empty projects (no saved
+  preference + scenes.length === 0). Returning users keep their last
+  layout via the existing `vibeedit:chat-open` localStorage key.
+- New always-visible ✨ AI button in the page header (between Get-the-
+  app and the Uploads icon). Click → toggles chat via the same Cmd+K
+  event the keyboard shortcut uses.
+
+### Editor depth
+- C/V keyboard shortcuts in the central registry: C toggles cut tool,
+  V switches to selection. Toast feedback. Gated against text inputs.
+- cutMode lives on useEditorStore so the keyboard handler can toggle
+  it from anywhere.
+- Ripple delete: removeScene now retargets cuts when a scene is
+  deleted from the middle of the timeline. prev → next gets a fresh
+  hard cut so the cuts graph stays consistent. removeScenes (bulk)
+  drops every cut touching a deleted scene without bridging.
+- ✨ AI suggestions submenu in the right-click scene menu. 5 prefab
+  actions ("Improve this scene", "Re-narrate", "Generate new image",
+  "Match style to next scene", "Run selfCritique here") that set
+  focusedSceneId and submit the chat with a focused-scope prompt.
+- Manual color-grading sliders: scene.background.brightness /
+  contrast / saturation / temperature. Compose on top of the
+  colorGrade preset in GradientBg's CSS filter chain. SceneEditor
+  BackgroundPanel gets a "Color grade" section after vignette.
+- Wider trim hit-area on the right edge of timeline scene blocks
+  (4 → 8 px) with a thinner visible bar revealed on hover.
+- Snap-to-grid (0.25 s steps) on cut + trim. Hold Alt to bypass.
+  Resize cap raised 10s → 20s.
+- Audio waveform inside every voiceover-bearing scene block on the
+  timeline. New AudioWaveform.tsx decodes once via Web Audio API
+  decodeAudioData, pre-buckets to 1024 min/max envelope, caches in a
+  module-level Map. ResizeObserver + DPR-aware canvas. Reuses the
+  AudioContext pattern from src/lib/silence-detect.ts.
+
+### SYSTEM_PROMPT
+- Phase-0 reframing block at the top: "AI copilot inside VibeEdit, a
+  manual web video editor. Default to focused, scene-scoped edits.
+  The autonomous loop only runs when explicitly invoked." Existing
+  autonomous-loop instructions stay below verbatim.
+
+### Deferred to follow-up
+- Left trim handle (needs Scene.offsetSec + renderer wiring).
+- [ ] / J / K / L keyboard shortcuts (need playhead-frame plumbing).
+
 ## Unreleased — sprint 8: cuts, focus mode, motion presets, keyframe graph (29 commits)
 
 The largest single sprint to date. Closes three structural gaps the

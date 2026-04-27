@@ -1,5 +1,55 @@
 # Changelog
 
+## Unreleased — sprint 15: multi-track timeline (M1–M4) — 6 commits
+
+The structural follow-on to sprint 12. Closes the last open item
+from the original editor-pivot plan.
+
+### Schema (M1)
+- `Project.tracks?: Track[]` (optional — undefined = legacy single-
+  track behaviour, bit-exact unchanged).
+- `Track { id, kind, name, sceneIds[], muted?, locked?, opacity?,
+  blendMode?, startOffsetSec? }`. `TrackKind = "video" | "overlay" |
+  "audio"`.
+- Helpers: `defaultTracksFromScenes`, `resolveTracks`,
+  `projectTotalFrames` (track-aware).
+- Store actions: `addTrack` / `removeTrack` / `updateTrack` /
+  `moveSceneToTrack`. addTrack auto-migrates legacy projects to
+  capture the existing scene order as 'V1' on first call.
+
+### Renderer (M2)
+- `MultiTrackRender` component dispatched from `VideoComposition`
+  when `project.tracks` is defined. Each track is its own
+  TransitionSeries inside a Sequence at startOffsetSec * fps.
+  Tracks render in array order — track[0] is the bottom layer.
+- Overlay tracks honour opacity + mix-blend-mode via an
+  AbsoluteFill wrapper. Audio-only tracks skip visual but still
+  emit voiceover/sfx Audio rails.
+- Music ducking + swell drive off the first non-empty video
+  track ('driver') so competing tracks can't double-duck.
+- Root.tsx + Preview.tsx + render-jobs.ts now pass
+  `project.tracks` and use `projectTotalFrames` so durations
+  are right-sized.
+
+### Timeline UI (M3)
+- New 'Tracks' tab in the LeftSidebar (between Actions and AI).
+  Each track row has editable name, kind icon, scene count,
+  duration, mute / lock toggles, opacity slider (overlay), blend
+  dropdown (overlay), startOffsetSec input (overlay + audio),
+  remove (forbidden on the implicit V1).
+- Add-track buttons: Video / Overlay / Audio.
+- `TrackStrip` renders a compact 'All tracks' visual below the
+  main timeline showing each track as a one-line row with
+  scene blocks at their global positions, color-coded by kind.
+  Hidden for single-track projects.
+
+### Drag between tracks (M4)
+- Timeline scene blocks now expose `vibeedit/scene-id` on
+  dragStart. Both TracksPanel rows and TrackStrip rows accept
+  this MIME type and call `moveSceneToTrack` to relocate.
+- Locked tracks reject drops; the implicit-V1 row can't be
+  removed but accepts drops in.
+
 ## Unreleased — sprint 14: pro-NLE quality of life (10 commits)
 
 A focused follow-up that unlocks the moves people learn in Premiere

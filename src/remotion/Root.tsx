@@ -1,7 +1,7 @@
 import React from "react";
 import { Composition } from "remotion";
-import type { CaptionStyle, MusicBed, Scene } from "@/lib/scene-schema";
-import { totalDurationFrames } from "@/lib/scene-schema";
+import type { CaptionStyle, MusicBed, Scene, Track } from "@/lib/scene-schema";
+import { projectTotalFrames } from "@/lib/scene-schema";
 import { VideoComposition } from "./Composition";
 
 export interface RootProps extends Record<string, unknown> {
@@ -13,6 +13,7 @@ export interface RootProps extends Record<string, unknown> {
   height: number;
   music?: MusicBed;
   captionStyle?: CaptionStyle;
+  tracks?: Track[];
 }
 
 const defaultProps: RootProps = {
@@ -35,7 +36,14 @@ export const RemotionRoot: React.FC = () => {
       height={1080}
       defaultProps={defaultProps}
       calculateMetadata={({ props }) => {
-        const duration = Math.max(1, totalDurationFrames(props.scenes, props.fps));
+        const duration = Math.max(
+          1,
+          projectTotalFrames({
+            scenes: props.scenes,
+            tracks: props.tracks,
+            fps: props.fps,
+          }),
+        );
         return {
           durationInFrames: duration,
           fps: props.fps,

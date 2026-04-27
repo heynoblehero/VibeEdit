@@ -1,7 +1,7 @@
 import React from "react";
 import { AbsoluteFill, Audio, Sequence, useCurrentFrame } from "remotion";
 import { TransitionSeries, linearTiming } from "@remotion/transitions";
-import type { CaptionStyle, Cut, MusicBed, Scene } from "@/lib/scene-schema";
+import type { CaptionStyle, Cut, MusicBed, Scene, Track } from "@/lib/scene-schema";
 import { sceneDurationFrames } from "@/lib/scene-schema";
 import { SceneRenderer } from "./SceneRenderer";
 import { presentationFor } from "./cut-presentations";
@@ -21,6 +21,14 @@ interface CompositionProps {
   filmGrain?: boolean;
   /** Project-wide audio mix gains (0–2). Each defaults to 1. */
   audioMix?: { music?: number; voice?: number; sfx?: number };
+  /**
+   * Multi-track timeline (M2). When undefined, falls back to the
+   * single-track behaviour using the `scenes` prop directly. When
+   * defined, each track is rendered as its own layer at trackStartSec
+   * with optional opacity / blendMode (overlay only). Audio-only
+   * tracks contribute their audio rails but skip visuals.
+   */
+  tracks?: Track[];
 }
 
 const FilmGrain: React.FC = () => {
@@ -151,7 +159,28 @@ export const VideoComposition: React.FC<CompositionProps> = ({
   height,
   filmGrain = true,
   audioMix,
+  tracks,
 }) => {
+  // Multi-track path (M2). Defined tracks → render each as its own
+  // layer; legacy single-track render is the fallback.
+  if (tracks && tracks.length > 0) {
+    return (
+      <MultiTrackRender
+        rawScenes={rawScenes}
+        tracks={tracks}
+        fps={fps}
+        characters={characters}
+        sfx={sfx}
+        music={music}
+        captionStyle={captionStyle}
+        cuts={cuts}
+        width={width}
+        height={height}
+        filmGrain={filmGrain}
+        audioMix={audioMix}
+      />
+    );
+  }
   // Muted scenes are skipped at the comp level: they don't contribute
   // visuals OR audio to the render, but the Timeline UI still shows
   // them dimmed so the user can re-enable later.
@@ -354,6 +383,255 @@ export const VideoComposition: React.FC<CompositionProps> = ({
           position: "absolute",
           inset: 0,
           background: "radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.25) 100%)",
+          pointerEvents: "none",
+        }}
+      />
+      {filmGrain && <FilmGrain />}
+    </AbsoluteFill>
+  );
+};
+
+/**
+ * Multi-track render path (M2). Each Track is its own TransitionSeries
+ * inside a Sequence positioned at startOffsetSec on the global
+ * timeline. Tracks render in array order — track[0] is the bottom-most
+ * layer; later tracks stack on top with opacity + mix-blend-mode.
+ *
+ * Audio-only tracks emit Audio components for their scenes' VO/sfx
+ * but skip the visual TransitionSeries entirely.
+ *
+ * Music ducking + swell still drive off track[0] only since that's
+ * where the narrative VO usually lives — keeps the algorithm simple
+ * and avoids overlapping ducking ranges from competing tracks.
+ */
+const MultiTrackRender: React.FC<
+  Omit<CompositionProps, "scenes" | "tracks"> & {
+    rawScenes: Scene[];
+    tracks: Track[];
+  }
+> = ({
+  rawScenes,
+  tracks,
+  fps,
+  characters,
+  sfx,
+  music,
+  captionStyle,
+  cuts,
+  width: _w,
+  height: _h,
+  filmGrain = true,
+  audioMix,
+}) => {
+  void _w;
+  void _h;
+  const sceneById = new Map<string, Scene>(rawScenes.map((s) => [s.id, s]));
+  const mixVoice = Math.max(0, Math.min(2, audioMix?.voice ?? 1));
+  const mixSfx = Math.max(0, Math.min(2, audioMix?.sfx ?? 1));
+  const mixMusic = Math.max(0, Math.min(2, audioMix?.music ?? 1));
+
+  // Resolve each track to its scene list (skip muted tracks + scenes).
+  const resolved = tracks.map((t) => {
+    if (t.muted) return { track: t, scenes: [] as Scene[], frames: 0, startFrame: 0 };
+    const scenes = t.sceneIds
+      .map((id) => sceneById.get(id))
+      .filter((s): s is Scene => !!s && !s.muted);
+    const frames = scenes.reduce((sum, s) => sum + sceneDurationFrames(s, fps), 0);
+    const startFrame = Math.round((t.startOffsetSec ?? 0) * fps);
+    return { track: t, scenes, frames, startFrame };
+  });
+  const totalFrames = resolved.reduce(
+    (m, r) => Math.max(m, r.startFrame + r.frames),
+    1,
+  );
+
+  // Driver track for ducking: the first non-empty video track.
+  const driver = resolved.find((r) => r.track.kind === "video" && r.scenes.length > 0);
+  const duckRanges = music && driver ? buildDuckingRanges(driver.scenes, fps, cuts) : [];
+  const swellFrames = music && driver ? buildSwellFrames(driver.scenes, fps) : [];
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: "#000" }}>
+      {resolved.map((r) => {
+        if (r.scenes.length === 0) return null;
+        const isAudioOnly = r.track.kind === "audio";
+        const isOverlay = r.track.kind === "overlay";
+        const opacity = Math.max(0, Math.min(1, r.track.opacity ?? 1));
+        const blend = r.track.blendMode ?? "normal";
+
+        // Per-track visual TransitionSeries.
+        const seriesChildren: React.ReactNode[] = [];
+        if (!isAudioOnly) {
+          const cutByPair = new Map<string, Cut>();
+          for (const c of cuts ?? []) cutByPair.set(`${c.fromSceneId}->${c.toSceneId}`, c);
+          for (let i = 0; i < r.scenes.length; i++) {
+            const scene = r.scenes[i];
+            const dur = sceneDurationFrames(scene, fps);
+            seriesChildren.push(
+              <TransitionSeries.Sequence
+                key={`seq-${r.track.id}-${scene.id}`}
+                durationInFrames={dur}
+              >
+                <SceneRenderer
+                  scene={scene}
+                  characters={characters}
+                  sfx={sfx}
+                  captionStyle={captionStyle}
+                  renderAudio={false}
+                />
+              </TransitionSeries.Sequence>,
+            );
+            const next = r.scenes[i + 1];
+            if (next) {
+              const cut = cutByPair.get(`${scene.id}->${next.id}`);
+              const cutDur = cut?.durationFrames ?? 0;
+              if (cutDur > 0) {
+                seriesChildren.push(
+                  <TransitionSeries.Transition
+                    key={`trans-${r.track.id}-${scene.id}-${next.id}`}
+                    presentation={presentationFor(cut!.kind, {
+                      width: _w,
+                      height: _h,
+                      color: cut?.color,
+                    })}
+                    timing={linearTiming({ durationInFrames: cutDur })}
+                  />,
+                );
+              }
+            }
+          }
+        }
+
+        // Per-track audio rails.
+        const audioRails: React.ReactNode[] = [];
+        let acc = 0;
+        for (const scene of r.scenes) {
+          const sceneDur = sceneDurationFrames(scene, fps);
+          const audioStart = acc;
+          if (scene.voiceover?.audioUrl) {
+            const gain = Math.max(0, Math.min(2, scene.audioGain ?? 1));
+            const speed = Math.max(0.25, Math.min(4, scene.speedFactor ?? 1));
+            const voDur = scene.voiceover.audioDurationSec
+              ? Math.round(scene.voiceover.audioDurationSec * fps)
+              : sceneDur;
+            audioRails.push(
+              <Sequence
+                key={`vo-${r.track.id}-${scene.id}`}
+                from={audioStart}
+                durationInFrames={Math.max(1, sceneDur)}
+              >
+                <Audio
+                  src={scene.voiceover.audioUrl}
+                  startFrom={0}
+                  playbackRate={speed}
+                  volume={(f) => {
+                    const fade = 3;
+                    let env = 1;
+                    if (f < fade) env = f / fade;
+                    else if (f > voDur - fade)
+                      env = Math.max(0, (voDur - f) / fade);
+                    return env * gain * mixVoice;
+                  }}
+                />
+              </Sequence>,
+            );
+          }
+          const sfxSrc = scene.sceneSfxUrl ?? (scene.sfxId ? sfx[scene.sfxId] : null);
+          if (sfxSrc) {
+            const gain = Math.max(0, Math.min(2, scene.audioGain ?? 1));
+            const speed = Math.max(0.25, Math.min(4, scene.speedFactor ?? 1));
+            audioRails.push(
+              <Sequence
+                key={`sfx-${r.track.id}-${scene.id}`}
+                from={audioStart}
+                durationInFrames={Math.max(1, sceneDur)}
+              >
+                <Audio
+                  src={sfxSrc}
+                  startFrom={0}
+                  playbackRate={speed}
+                  volume={0.7 * gain * mixSfx}
+                />
+              </Sequence>,
+            );
+          }
+          acc += sceneDur;
+        }
+
+        return (
+          <Sequence
+            key={`track-${r.track.id}`}
+            from={r.startFrame}
+            durationInFrames={Math.max(1, r.frames)}
+          >
+            {!isAudioOnly && (
+              <AbsoluteFill
+                style={{
+                  opacity,
+                  mixBlendMode: isOverlay ? blend : "normal",
+                }}
+              >
+                <TransitionSeries>{seriesChildren}</TransitionSeries>
+              </AbsoluteFill>
+            )}
+            {audioRails}
+          </Sequence>
+        );
+      })}
+
+      {music?.url && totalFrames > 0 && (
+        <Audio
+          src={music.url}
+          startFrom={0}
+          loop
+          volume={(frame) => {
+            const lead = 6;
+            const tail = 10;
+            const baseVol = music.volume ?? 0.55;
+            const duckVol = music.duckedVolume ?? 0.18;
+            let target = baseVol;
+            for (const r of duckRanges) {
+              const start = r.from - lead;
+              const end = r.from + r.duration + tail;
+              if (frame >= start && frame < end) {
+                if (frame < r.from) {
+                  const t = (frame - start) / lead;
+                  target = baseVol + (duckVol - baseVol) * t;
+                } else if (frame >= r.from + r.duration) {
+                  const t = (frame - (r.from + r.duration)) / tail;
+                  target = duckVol + (baseVol - duckVol) * t;
+                } else {
+                  target = duckVol;
+                }
+                break;
+              }
+            }
+            const swellWindow = 14;
+            for (const sf of swellFrames) {
+              if (frame >= sf && frame < sf + swellWindow) {
+                const tw = frame - sf;
+                const peak = swellWindow / 2;
+                const swellAmt = tw < peak ? tw / peak : (swellWindow - tw) / peak;
+                target = Math.min(1, target * (1 + swellAmt * 0.35));
+                break;
+              }
+            }
+            const fadeFrames = Math.min(Math.round(fps * 0.6), Math.floor(totalFrames / 4));
+            let envelope = 1;
+            if (frame < fadeFrames) envelope = frame / fadeFrames;
+            else if (frame > totalFrames - fadeFrames)
+              envelope = Math.max(0, (totalFrames - frame) / fadeFrames);
+            return target * envelope * mixMusic;
+          }}
+        />
+      )}
+
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.25) 100%)",
           pointerEvents: "none",
         }}
       />

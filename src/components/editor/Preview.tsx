@@ -4,7 +4,7 @@ import { Player, type PlayerRef } from "@remotion/player";
 import { ArrowRight, MessageCircle, Pause, Play, Plus, Sparkles, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AbsoluteFill } from "remotion";
-import { sceneDurationFrames, totalDurationFrames } from "@/lib/scene-schema";
+import { sceneDurationFrames, projectTotalFrames } from "@/lib/scene-schema";
 import { SceneRenderer } from "@/remotion/SceneRenderer";
 import { VideoComposition } from "@/remotion/Composition";
 import { useAssetStore } from "@/store/asset-store";
@@ -46,7 +46,7 @@ export function Preview() {
   const selectedScene = project.scenes.find((s) => s.id === selectedSceneId);
 
   const totalFrames = useMemo(
-    () => Math.max(1, totalDurationFrames(project.scenes, project.fps)),
+    () => Math.max(1, projectTotalFrames(project)),
     [project.scenes, project.fps],
   );
 
@@ -298,6 +298,7 @@ export function Preview() {
               width: project.width,
               height: project.height,
               audioMix: project.audioMix,
+              tracks: project.tracks,
             }}
             durationInFrames={totalFrames}
             fps={project.fps}

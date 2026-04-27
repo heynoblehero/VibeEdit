@@ -196,6 +196,7 @@ async function runJob(job: RenderJob): Promise<void> {
     captionStyle: project.captionStyle,
     cuts: project.cuts,
     audioMix: project.audioMix,
+    tracks: project.tracks,
   };
 
   job.state = "rendering";

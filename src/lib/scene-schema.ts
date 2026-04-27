@@ -890,3 +890,33 @@ export function totalDurationFrames(scenes: Scene[], fps: number): number {
 export function totalDurationSeconds(scenes: Scene[]): number {
   return scenes.reduce((sum, s) => sum + s.duration, 0);
 }
+
+/**
+ * Multi-track aware total. When tracks are defined, returns the latest
+ * end frame across all tracks (track.startOffsetSec + sum of its
+ * scenes' durations). Falls back to the legacy sum-of-scenes when
+ * tracks is undefined / empty.
+ */
+export function projectTotalFrames(
+  project: Pick<Project, "scenes" | "tracks" | "fps">,
+): number {
+  const fps = project.fps;
+  if (!project.tracks || project.tracks.length === 0) {
+    return totalDurationFrames(project.scenes, fps);
+  }
+  const sceneById = new Map<string, Scene>(
+    project.scenes.map((s) => [s.id, s]),
+  );
+  let max = 0;
+  for (const t of project.tracks) {
+    if (t.muted) continue;
+    const start = Math.round((t.startOffsetSec ?? 0) * fps);
+    let frames = 0;
+    for (const id of t.sceneIds) {
+      const sc = sceneById.get(id);
+      if (sc && !sc.muted) frames += sceneDurationFrames(sc, fps);
+    }
+    max = Math.max(max, start + frames);
+  }
+  return Math.max(1, max);
+}

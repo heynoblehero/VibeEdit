@@ -35,6 +35,33 @@ export function KeyboardShortcuts() {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
 
+      // [ / ] (no modifier) — set loop in / out at playhead.
+      // \ clears the loop range. Gated against text inputs.
+      if (!mod && !isTextInput(e.target)) {
+        if (e.key === "[") {
+          e.preventDefault();
+          const f = useEditorStore.getState().previewFrame;
+          useEditorStore.getState().setLoopStart(f);
+          toast(`Loop in @ ${(f / 30).toFixed(2)}s`, { duration: 700 });
+          return;
+        }
+        if (e.key === "]") {
+          e.preventDefault();
+          const f = useEditorStore.getState().previewFrame;
+          useEditorStore.getState().setLoopEnd(f);
+          toast(`Loop out @ ${(f / 30).toFixed(2)}s`, { duration: 700 });
+          return;
+        }
+        if (e.key === "\\") {
+          e.preventDefault();
+          if (useEditorStore.getState().loopRange) {
+            useEditorStore.getState().clearLoopRange();
+            toast("Loop cleared", { duration: 700 });
+          }
+          return;
+        }
+      }
+
       // M — set marker at the current playhead frame. Plain key, gated
       // against text inputs. Pulls previewFrame from the editor store
       // (kept in sync by Preview's onFrameUpdate).

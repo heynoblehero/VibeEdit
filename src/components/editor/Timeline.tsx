@@ -49,6 +49,7 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
   const setCutMode = useEditorStore((s) => s.setCutMode);
   const timelineZoom = useEditorStore((s) => s.timelineZoom);
   const setTimelineZoom = useEditorStore((s) => s.setTimelineZoom);
+  const loopRange = useEditorStore((s) => s.loopRange);
   const addUpload = useProjectStore((s) => s.addUpload);
 
   // Upload a real File from a Finder/Explorer drop, then insert it as a
@@ -918,6 +919,16 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
           <div
             style={{ left: `${playheadPct}%` }}
             className="absolute top-0 bottom-0 w-[2px] bg-emerald-400 pointer-events-none"
+          />
+        )}
+        {loopRange && (
+          <div
+            className="absolute top-0 bottom-0 bg-cyan-400/20 border-x border-cyan-300 pointer-events-none"
+            style={{
+              left: `${Math.max(0, Math.min(100, (loopRange.start / total) * 100))}%`,
+              width: `${Math.max(0, Math.min(100, (loopRange.end / total) * 100) - Math.max(0, Math.min(100, (loopRange.start / total) * 100)))}%`,
+            }}
+            title={`Loop ${(loopRange.start / project.fps).toFixed(2)}s → ${(loopRange.end / project.fps).toFixed(2)}s`}
           />
         )}
         {(project.markers ?? []).map((mk) => {

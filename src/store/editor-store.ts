@@ -53,6 +53,14 @@ interface EditorStore {
    */
   recentActions: Array<{ kind: string; value: string; at: number }>;
   pushRecentAction: (kind: string, value: string) => void;
+  /**
+   * Loop range on the global timeline. Set via [ and ] keys at the
+   * playhead. Preview wraps to start when frame ≥ end. null = no loop.
+   */
+  loopRange: { start: number; end: number } | null;
+  setLoopStart: (frame: number) => void;
+  setLoopEnd: (frame: number) => void;
+  clearLoopRange: () => void;
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
@@ -85,4 +93,16 @@ export const useEditorStore = create<EditorStore>((set) => ({
       ].slice(0, 8);
       return { recentActions: next };
     }),
+  loopRange: null,
+  setLoopStart: (frame) =>
+    set((s) => {
+      const end = s.loopRange?.end ?? frame + 30;
+      return { loopRange: { start: frame, end: Math.max(end, frame + 1) } };
+    }),
+  setLoopEnd: (frame) =>
+    set((s) => {
+      const start = s.loopRange?.start ?? Math.max(0, frame - 30);
+      return { loopRange: { start: Math.min(start, frame - 1), end: frame } };
+    }),
+  clearLoopRange: () => set({ loopRange: null }),
 }));

@@ -135,6 +135,22 @@ export function Preview() {
       window.removeEventListener("vibeedit:seek-by", onSeekBy as EventListener);
   }, []);
 
+  // Loop range wrap-around. When the playhead crosses loopRange.end we
+  // seek back to loopRange.start so the user can preview a tight clip
+  // on repeat. Only active in full-project mode.
+  const loopRange = useEditorStore((s) => s.loopRange);
+  useEffect(() => {
+    if (!loopRange || selectedScene) return;
+    const id = setInterval(() => {
+      const p = playerRef.current;
+      if (!p) return;
+      const cur = p.getCurrentFrame?.() ?? 0;
+      if (cur >= loopRange.end) p.seekTo(loopRange.start);
+      else if (cur < loopRange.start - 1) p.seekTo(loopRange.start);
+    }, 50);
+    return () => clearInterval(id);
+  }, [loopRange, selectedScene]);
+
   // When a scene with a voiceover is selected, auto-play so the creator
   // hears the narration without clicking Play.
   useEffect(() => {

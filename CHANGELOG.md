@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — sprint 17 batch C (3 more commits)
+
+- ✂ orange warning when scene is shorter than its VO.
+- Persist zen mode across reloads.
+- 'Apply transition to all cuts' context-menu action.
+
 ## Unreleased — sprint 17 batch B (10 more commits)
 
 - 'Move to overlay track' context menu (auto-creates overlay).

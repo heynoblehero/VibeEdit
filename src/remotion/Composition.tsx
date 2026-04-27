@@ -19,6 +19,8 @@ interface CompositionProps {
   height: number;
   /** Subtle filmic grain overlay. Defaults on. */
   filmGrain?: boolean;
+  /** Project-wide audio mix gains (0–2). Each defaults to 1. */
+  audioMix?: { music?: number; voice?: number; sfx?: number };
 }
 
 const FilmGrain: React.FC = () => {
@@ -148,7 +150,13 @@ export const VideoComposition: React.FC<CompositionProps> = ({
   width,
   height,
   filmGrain = true,
+  audioMix,
 }) => {
+  // Master mix gains — clamp to the same 0–2 window the per-scene
+  // audioGain uses so a runaway Project.audioMix can't blow the bus.
+  const mixVoice = Math.max(0, Math.min(2, audioMix?.voice ?? 1));
+  const mixSfx = Math.max(0, Math.min(2, audioMix?.sfx ?? 1));
+  const mixMusic = Math.max(0, Math.min(2, audioMix?.music ?? 1));
   const totalFrames = scenes.reduce(
     (sum, s) => sum + sceneDurationFrames(s, fps),
     0,
@@ -251,7 +259,7 @@ export const VideoComposition: React.FC<CompositionProps> = ({
               if (f < fade) env = f / fade;
               else if (f > voDurFrames - fade)
                 env = Math.max(0, (voDurFrames - f) / fade);
-              return env * gain;
+              return env * gain * mixVoice;
             }}
           />
         </Sequence>,
@@ -267,7 +275,7 @@ export const VideoComposition: React.FC<CompositionProps> = ({
           from={audioStart}
           durationInFrames={audioDur}
         >
-          <Audio src={sfxSrc} startFrom={0} playbackRate={speed} volume={0.7 * gain} />
+          <Audio src={sfxSrc} startFrom={0} playbackRate={speed} volume={0.7 * gain * mixSfx} />
         </Sequence>,
       );
     }
@@ -332,7 +340,7 @@ export const VideoComposition: React.FC<CompositionProps> = ({
             if (frame < fadeFrames) envelope = frame / fadeFrames;
             else if (frame > totalFrames - fadeFrames)
               envelope = Math.max(0, (totalFrames - frame) / fadeFrames);
-            return target * envelope;
+            return target * envelope * mixMusic;
           }}
         />
       )}

@@ -468,6 +468,17 @@ export interface Project {
     description?: string;
     hashtags?: string[];
   };
+  /**
+   * Project-wide audio mix. Each gain is a 0–2 multiplier (default 1)
+   * applied on top of any per-scene audioGain and the renderer's bed
+   * volumes. Lets the user dim music under VO, push sfx, etc. without
+   * touching every scene.
+   */
+  audioMix?: {
+    music?: number;
+    voice?: number;
+    sfx?: number;
+  };
 }
 
 /* ============================================================

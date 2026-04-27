@@ -62,6 +62,7 @@ interface ProjectStore {
   setSceneVoiceover: (sceneId: string, voiceover: Voiceover | undefined) => void;
   setSceneCaptions: (sceneId: string, captions: CaptionWord[] | undefined) => void;
   setMusic: (music: MusicBed | undefined) => void;
+  setAudioMix: (patch: Partial<NonNullable<Project["audioMix"]>>) => void;
   setCaptionStyle: (patch: Partial<CaptionStyle>) => void;
   setStylePack: (pack: StylePack | undefined) => void;
   setWorkflowId: (workflowId: string) => void;
@@ -559,6 +560,21 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
+            history: pushHistory(s.history, s.project),
+            future: [],
+          };
+        }),
+      setAudioMix: (patch) =>
+        set((s) => {
+          const current = s.project.audioMix ?? {};
+          const updated = {
+            ...s.project,
+            audioMix: { ...current, ...patch },
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            // Slider tweaks land in history so Cmd+Z works on mix moves.
             history: pushHistory(s.history, s.project),
             future: [],
           };

@@ -233,6 +233,7 @@ export function Preview() {
               cuts: project.cuts,
               width: project.width,
               height: project.height,
+              audioMix: project.audioMix,
             }}
             durationInFrames={totalFrames}
             fps={project.fps}

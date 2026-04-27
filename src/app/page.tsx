@@ -9,6 +9,7 @@ import { BridgeIndicator } from "@/components/editor/BridgeIndicator";
 import { DevBadge } from "@/components/editor/DevBadge";
 import { ProjectHome } from "@/components/editor/ProjectHome";
 import { SettingsDialog } from "@/components/editor/SettingsDialog";
+import { MasterMixButton } from "@/components/editor/MasterMixButton";
 import { BulkActionsBar } from "@/components/editor/BulkActionsBar";
 import { ChatSidebar } from "@/components/editor/ChatSidebar";
 import { CreateProjectDialog } from "@/components/editor/CreateProjectDialog";
@@ -248,6 +249,7 @@ export default function Home() {
               tabs in the LeftSidebar (sprint 11). Only chat-toggle stays
               accessible via Cmd+K, and the LeftSidebar's AI tab provides
               a "chat" button itself. */}
+          <MasterMixButton />
           <button
             onClick={() => setSettingsOpen(true)}
             title="Settings (API keys)"

@@ -241,6 +241,38 @@ export function SceneContextMenu({ scene, index, x, y, onClose }: Props) {
           ),
         )}
       </div>
+      <button
+        onClick={() => {
+          // Reset every visual / audio knob without touching media or text.
+          updateScene(scene.id, {
+            effects: undefined,
+            speedFactor: 1,
+            audioGain: 1,
+            fadeInFrames: 4,
+            fadeOutFrames: 0,
+            background: {
+              ...scene.background,
+              colorGrade: undefined,
+              brightness: 1,
+              contrast: 1,
+              saturation: 1,
+              temperature: 0,
+              blur: 0,
+              chromaKey: undefined,
+              lumaKey: undefined,
+              flipH: false,
+              flipV: false,
+              rotate: 0,
+            },
+          });
+          toast("Effects reset", { duration: 700 });
+          onClose();
+        }}
+        className="w-full text-left px-3 py-1.5 text-neutral-200 hover:bg-neutral-800"
+        title="Wipe effects, color grade, keying, speed, gain, fades, orientation"
+      >
+        Reset all effects
+      </button>
       <div className="my-1 border-t border-neutral-800" />
       <button
         onClick={() => {

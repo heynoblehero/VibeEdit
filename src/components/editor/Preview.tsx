@@ -10,7 +10,7 @@ import { VideoComposition } from "@/remotion/Composition";
 import { useAssetStore } from "@/store/asset-store";
 import { useEditorStore, type EditTarget } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
-import { Timeline } from "./Timeline";
+import { LayeredTimeline } from "./LayeredTimeline";
 
 function SingleSceneWrapper({ scene, characters, sfx, captionStyle }: any) {
   return (
@@ -408,7 +408,7 @@ export function Preview() {
           </div>
         )}
       </div>
-      <Timeline
+      <LayeredTimeline
         playerRef={playerRef}
         currentFrame={globalCurrentFrame}
         isFullPreview={isFullPreview}

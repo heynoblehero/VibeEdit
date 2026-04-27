@@ -390,36 +390,36 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
   const seconds = (total / project.fps).toFixed(1);
 
   return (
-    <div className="flex flex-col gap-1 shrink-0 pt-2">
-      <div className="flex items-center justify-between text-[10px] text-neutral-500 font-mono">
-        <span className="flex items-center gap-2">
+    <div className="flex flex-col gap-1.5 shrink-0 pt-2">
+      {/* Toolbar — three-column grid: [left tools] [center timecode] [right zoom] */}
+      <div className="grid grid-cols-3 items-center gap-2 px-1">
+        {/* Left cluster — cut + chips */}
+        <div className="flex items-center gap-1.5 justify-self-start">
           <button
             type="button"
             onClick={() => setCutMode(!cutMode)}
-            title={cutMode ? "Cut mode active — click on a scene to split" : "Cut tool — click to enable, then click on a scene at the frame to split"}
-            className={
+            title={cutMode ? "Cut mode — click a scene to split" : "Cut tool (C)"}
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
               cutMode
-                ? "flex items-center gap-1 px-1.5 py-0.5 rounded border border-amber-400 bg-amber-500/20 text-amber-300"
-                : "flex items-center gap-1 px-1.5 py-0.5 rounded border border-neutral-800 hover:border-amber-400 hover:text-amber-300"
-            }
+                ? "bg-amber-500 text-black shadow-sm shadow-amber-500/40"
+                : "bg-neutral-900/60 border border-neutral-800 text-neutral-400 hover:border-amber-400 hover:text-amber-300"
+            }`}
           >
             <Scissors className="h-3 w-3" />
-            <span className="text-[10px]">cut</span>
+            <span>cut</span>
           </button>
-          <span className="text-neutral-600">0.0s</span>
           {loopRange && (
             <button
               type="button"
               onClick={() => useEditorStore.getState().clearLoopRange()}
-              className="ml-2 inline-flex items-center gap-1 text-cyan-300 hover:text-white px-1.5 py-0.5 border border-cyan-500/40 rounded"
-              title={`Loop ${(loopRange.start / project.fps).toFixed(2)}s → ${(loopRange.end / project.fps).toFixed(2)}s · click to clear (\\)`}
+              className="inline-flex items-center gap-1 text-cyan-300 hover:text-white px-2 py-1 border border-cyan-500/40 bg-cyan-500/10 rounded-md text-[10px] font-medium transition-colors"
+              title={`Loop ${(loopRange.start / project.fps).toFixed(2)}s → ${(loopRange.end / project.fps).toFixed(2)}s — click to clear (\\)`}
             >
-              <span className="text-[8px]">↻</span>
+              <span className="text-[9px]">↻</span>
               <span className="tabular-nums">
                 {(loopRange.start / project.fps).toFixed(1)}–
                 {(loopRange.end / project.fps).toFixed(1)}s
               </span>
-              <span className="text-cyan-500/60">×</span>
             </button>
           )}
           {project.markers && project.markers.length > 0 && (
@@ -436,49 +436,74 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                   }
                 }
               }}
-              className="ml-2 inline-flex items-center gap-1 text-amber-300 hover:text-white px-1.5 py-0.5 border border-amber-500/30 rounded"
+              className="inline-flex items-center gap-1 text-amber-300 hover:text-white px-2 py-1 border border-amber-500/30 bg-amber-500/5 rounded-md text-[10px] font-medium transition-colors"
               title={`${project.markers.length} marker${project.markers.length === 1 ? "" : "s"} · click to clear all`}
             >
-              <span className="text-[8px]">⌘</span>
-              <span className="tabular-nums">{project.markers.length}</span>
+              <span className="tabular-nums">M{project.markers.length}</span>
             </button>
           )}
-          <span className="ml-2 inline-flex items-center gap-0.5 text-neutral-600">
-            <button
-              type="button"
-              onClick={() => setTimelineZoom(timelineZoom / 1.5)}
-              title="Zoom out (⌘−)"
-              className="px-1 hover:text-neutral-300"
-            >−</button>
-            <span className="tabular-nums w-8 text-center">{timelineZoom.toFixed(1)}×</span>
-            <button
-              type="button"
-              onClick={() => setTimelineZoom(timelineZoom * 1.5)}
-              title="Zoom in (⌘=)"
-              className="px-1 hover:text-neutral-300"
-            >+</button>
-            <button
-              type="button"
-              onClick={() => setTimelineZoom(1)}
-              title="Fit (⌘0)"
-              className="px-1 hover:text-neutral-300"
-            >fit</button>
-          </span>
-        </span>
-        <span>
-          {(() => {
-            const totalSec = currentFrame / project.fps;
-            const f = Math.round(currentFrame % project.fps);
-            return `${totalSec.toFixed(1)}s · f${currentFrame.toString().padStart(3, "0")} (${f.toString().padStart(2, "0")}/${project.fps})`;
-          })()}
           {cutMode && (
-            <span className="ml-2 text-amber-300">click on a scene block to split</span>
+            <span className="text-[10px] text-amber-300 ml-1">
+              click a scene to split
+            </span>
           )}
-        </span>
-        <span>{seconds}s</span>
+        </div>
+
+        {/* Center — timecode */}
+        <div className="flex items-baseline gap-2 justify-self-center text-[11px] font-mono">
+          <span className="tabular-nums text-emerald-300 text-[14px] font-semibold">
+            {(currentFrame / project.fps).toFixed(2)}s
+          </span>
+          <span className="tabular-nums text-neutral-600">
+            f{currentFrame.toString().padStart(3, "0")}
+          </span>
+          <span className="text-neutral-700">/</span>
+          <span className="tabular-nums text-neutral-500">{seconds}s</span>
+        </div>
+
+        {/* Right cluster — zoom pill */}
+        <div className="justify-self-end inline-flex items-center bg-neutral-900/60 border border-neutral-800 rounded-md overflow-hidden text-[10px] font-mono">
+          <button
+            type="button"
+            onClick={() => setTimelineZoom(timelineZoom / 1.5)}
+            title="Zoom out (⌘−)"
+            className="px-2 py-1 text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            onClick={() => setTimelineZoom(1)}
+            title="Fit (⌘0)"
+            className="px-2 py-1 tabular-nums text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors border-x border-neutral-800"
+          >
+            {timelineZoom.toFixed(1)}×
+          </button>
+          <button
+            type="button"
+            onClick={() => setTimelineZoom(timelineZoom * 1.5)}
+            title="Zoom in (⌘=)"
+            className="px-2 py-1 text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+          >
+            +
+          </button>
+        </div>
       </div>
+      {/* Scene-block row — same left-rail width (56px) as layer rows
+          below so everything reads down a clean column. */}
+      <div className="flex items-stretch gap-1">
+        <div
+          className="w-14 shrink-0 flex items-center gap-1 px-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/40 text-[9px] font-medium text-emerald-300 uppercase tracking-wider"
+          title="Scene blocks — drag to reorder, drag right edge to trim"
+        >
+          <span className="text-emerald-500">▾</span>
+          <span>Scenes</span>
+          <span className="ml-auto text-[8.5px] text-emerald-500/70 tabular-nums">
+            {project.scenes.length}
+          </span>
+        </div>
       <div
-        className="overflow-x-auto overflow-y-hidden"
+        className="flex-1 overflow-x-auto overflow-y-hidden"
         style={{ scrollbarWidth: "thin" }}
         onWheel={(e) => {
           // Trackpad pinch on macOS / browsers fires wheel events with
@@ -1156,6 +1181,7 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
             </div>
           );
         })}
+      </div>
       </div>
       </div>
     </div>

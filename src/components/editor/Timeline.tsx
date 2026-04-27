@@ -135,7 +135,7 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
         <span className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setCutMode((v) => !v)}
+            onClick={() => setCutMode(!cutMode)}
             title={cutMode ? "Cut mode active — click on a scene to split" : "Cut tool — click to enable, then click on a scene at the frame to split"}
             className={
               cutMode

@@ -30,6 +30,52 @@ export function Preview() {
   const { characters, sfx } = useAssetStore();
   const { isPaused, setPaused, setEditTarget, setPlayingSceneId } = useEditorStore();
   const playerRef = useRef<PlayerRef>(null);
+  // Resizable split between the player area and the timeline below.
+  // Persisted as a 0..1 fraction of the available vertical space.
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+  const [previewFraction, setPreviewFractionRaw] = useState<number>(() => {
+    if (typeof window === "undefined") return 0.65;
+    const saved = Number(window.localStorage.getItem("vibeedit:preview-fraction"));
+    return saved >= 0.25 && saved <= 0.85 ? saved : 0.65;
+  });
+  const setPreviewFraction = useCallback((v: number) => {
+    const clamped = Math.max(0.25, Math.min(0.85, v));
+    setPreviewFractionRaw(clamped);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(
+          "vibeedit:preview-fraction",
+          String(clamped),
+        );
+      } catch {
+        // localStorage unavailable — non-critical
+      }
+    }
+  }, []);
+  const onSplitPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+      const onMove = (ev: PointerEvent) => {
+        const wrapper = splitContainerRef.current;
+        if (!wrapper) return;
+        const rect = wrapper.getBoundingClientRect();
+        // Subtract the controls row height (~36px) so the fraction
+        // represents (player share) / (player + timeline).
+        const offset = 36;
+        const usable = Math.max(1, rect.height - offset);
+        const local = ev.clientY - rect.top - offset;
+        setPreviewFraction(local / usable);
+      };
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [setPreviewFraction],
+  );
 
   const charMap = useMemo(() => {
     const m: Record<string, string> = {};
@@ -233,7 +279,7 @@ export function Preview() {
   const hasNumber = selectedScene?.type === "big_number";
 
   return (
-    <div className="flex flex-col h-full gap-2">
+    <div ref={splitContainerRef} className="flex flex-col h-full gap-2">
       {/* Controls */}
       <div className="flex items-center gap-2 shrink-0">
         <button
@@ -254,8 +300,11 @@ export function Preview() {
         )}
       </div>
 
-      {/* Player + clickable overlay */}
-      <div className="flex-1 min-h-0 relative bg-black rounded-lg overflow-hidden border border-neutral-800">
+      {/* Player + clickable overlay (top half of the split). */}
+      <div
+        className="min-h-0 relative bg-black rounded-lg overflow-hidden border border-neutral-800"
+        style={{ flex: previewFraction }}
+      >
         {selectedScene && (
           <div className="absolute top-2 left-2 z-30 px-1.5 py-1 rounded bg-neutral-900/70 backdrop-blur-sm border border-neutral-800 text-[10px] text-neutral-300 font-mono pointer-events-none">
             Scene {project.scenes.findIndex((s) => s.id === selectedScene.id) + 1}
@@ -408,11 +457,29 @@ export function Preview() {
           </div>
         )}
       </div>
-      <LayeredTimeline
-        playerRef={playerRef}
-        currentFrame={globalCurrentFrame}
-        isFullPreview={isFullPreview}
-      />
+      {/* Resize handle — drag up/down to give more space to the
+          preview or the timeline. Persists per-user. */}
+      <div
+        onPointerDown={onSplitPointerDown}
+        onDoubleClick={() => setPreviewFraction(0.65)}
+        title="Drag to resize · double-click to reset"
+        className="shrink-0 h-1.5 -my-1 cursor-row-resize group flex items-center justify-center relative z-20"
+      >
+        <span className="block w-12 h-px bg-neutral-700 group-hover:bg-emerald-400 group-active:bg-emerald-300 transition-colors" />
+      </div>
+
+      {/* Timeline (bottom half of the split). Vertical overflow lets
+          the layered rows scroll when collapsed. */}
+      <div
+        className="min-h-0 overflow-y-auto"
+        style={{ flex: 1 - previewFraction }}
+      >
+        <LayeredTimeline
+          playerRef={playerRef}
+          currentFrame={globalCurrentFrame}
+          isFullPreview={isFullPreview}
+        />
+      </div>
     </div>
   );
 }

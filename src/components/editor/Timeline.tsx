@@ -372,8 +372,11 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
         <div className="text-[10px] uppercase tracking-wide text-neutral-500 px-1">
           Timeline
         </div>
-        <div className="h-16 rounded border-2 border-dashed border-neutral-700 bg-neutral-900/40 flex items-center justify-center text-xs text-neutral-500 hover:border-emerald-500 hover:text-emerald-400 transition-colors">
-          Drop a clip, scene, or title here to start
+        <div className="h-20 rounded border-2 border-dashed border-neutral-700 bg-neutral-900/40 flex flex-col items-center justify-center gap-0.5 text-xs text-neutral-500 hover:border-emerald-500 hover:text-emerald-400 transition-colors">
+          <span className="text-sm">+ Drop to start</span>
+          <span className="text-[10px] text-neutral-600">
+            Files from Finder · Uploads tile · Scene type · Title template
+          </span>
         </div>
       </div>
     );

@@ -31,6 +31,24 @@ export function MasterMixButton() {
     };
   }, [open]);
 
+  // Global ⌘M toggle. Gated against text inputs so users can still
+  // type 'm' inside chat / scene editor.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.shiftKey) return; // ⌘⇧M is mute toggle
+      if (e.key.toLowerCase() !== "m") return;
+      const t = e.target as HTMLElement | null;
+      const inText =
+        t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+      if (inText) return;
+      e.preventDefault();
+      setOpen((v) => !v);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const music = audioMix?.music ?? 1;
   const voice = audioMix?.voice ?? 1;
   const sfx = audioMix?.sfx ?? 1;

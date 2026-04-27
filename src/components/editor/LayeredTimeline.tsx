@@ -38,19 +38,20 @@ interface Props {
   isFullPreview: boolean;
 }
 
-/** Tailwind class lookup keyed by TimelineItem.color. */
+/** Tailwind class lookup keyed by TimelineItem.color. Each block uses
+ *  a gradient bg + soft inset shadow for depth without overpowering. */
 const COLOR_BG: Record<TimelineItem["color"], string> = {
-  neutral: "bg-neutral-700/80 hover:bg-neutral-600",
-  sky: "bg-sky-500/80 hover:bg-sky-400",
-  emerald: "bg-emerald-500/80 hover:bg-emerald-400",
-  amber: "bg-amber-500/80 hover:bg-amber-400",
-  purple: "bg-purple-500/80 hover:bg-purple-400",
-  cyan: "bg-cyan-500/80 hover:bg-cyan-400",
-  pink: "bg-pink-500/80 hover:bg-pink-400",
+  neutral: "bg-gradient-to-b from-neutral-600 to-neutral-700 hover:from-neutral-500 hover:to-neutral-600",
+  sky: "bg-gradient-to-b from-sky-400 to-sky-600 hover:from-sky-300 hover:to-sky-500",
+  emerald: "bg-gradient-to-b from-emerald-400 to-emerald-600 hover:from-emerald-300 hover:to-emerald-500",
+  amber: "bg-gradient-to-b from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500",
+  purple: "bg-gradient-to-b from-purple-400 to-purple-600 hover:from-purple-300 hover:to-purple-500",
+  cyan: "bg-gradient-to-b from-cyan-400 to-cyan-600 hover:from-cyan-300 hover:to-cyan-500",
+  pink: "bg-gradient-to-b from-pink-400 to-pink-600 hover:from-pink-300 hover:to-pink-500",
 };
 
 const COLOR_TEXT: Record<TimelineItem["color"], string> = {
-  neutral: "text-neutral-100",
+  neutral: "text-neutral-50",
   sky: "text-sky-50",
   emerald: "text-emerald-50",
   amber: "text-amber-50",
@@ -126,8 +127,8 @@ export function LayeredTimeline({ playerRef, currentFrame, isFullPreview }: Prop
           inside are positioned absolutely via left%/width%. We share
           the same `total` denominator + timelineZoom multiplier as
           the main Timeline so vertical alignment matches. */}
-      <div className="border-t border-neutral-800 pt-1.5 mt-1">
-        <div className="text-[10px] uppercase tracking-wide text-neutral-600 px-1 mb-1">
+      <div className="border-t border-neutral-800/60 pt-2 mt-1.5">
+        <div className="text-[9px] uppercase tracking-[0.18em] text-neutral-600 font-medium px-1 mb-1.5">
           Layers
         </div>
         <div
@@ -189,16 +190,19 @@ function LayerRow({
     <div className="flex items-stretch gap-1 mb-0.5">
       <button
         onClick={onToggle}
-        className="w-12 shrink-0 flex items-center gap-1 px-1 rounded bg-neutral-900 border border-neutral-800 hover:border-neutral-600 text-[9px] text-neutral-400"
+        className="w-14 shrink-0 flex items-center gap-1 px-1.5 rounded-md bg-neutral-900/80 border border-neutral-800 hover:border-neutral-600 hover:bg-neutral-800/80 text-[9px] font-medium text-neutral-400 hover:text-white transition-colors"
         title={`${LAYER_LABEL[kind]} · ${items.length} item${items.length === 1 ? "" : "s"} · click to ${isExpanded ? "collapse" : "expand"}`}
       >
-        <span className="text-neutral-500">{isExpanded ? "▾" : "▸"}</span>
-        <span className="truncate text-neutral-300">{LAYER_LABEL[kind]}</span>
+        <span className="text-neutral-600">{isExpanded ? "▾" : "▸"}</span>
+        <span className="truncate uppercase tracking-wider">{LAYER_LABEL[kind]}</span>
+        <span className="ml-auto text-[8.5px] text-neutral-700 tabular-nums">
+          {items.length}
+        </span>
       </button>
       <div
-        className={`relative flex-1 rounded border border-neutral-800/60 bg-neutral-900/30 ${
-          isExpanded ? "h-5" : "h-1.5"
-        } transition-[height] duration-100`}
+        className={`relative flex-1 rounded-md border border-neutral-800/40 bg-neutral-900/20 ${
+          isExpanded ? "h-6" : "h-1.5"
+        } transition-[height] duration-150`}
       >
         {isExpanded &&
           items.map((item) => {
@@ -212,15 +216,13 @@ function LayerRow({
                 onClick={() => onClickItem(item)}
                 style={{ left: `${left}%`, width: `${width}%` }}
                 title={`${item.label} · ${(item.durationFrames / 30).toFixed(1)}s`}
-                className={`absolute top-0 bottom-0 ${
+                className={`absolute top-0.5 bottom-0.5 ${
                   COLOR_BG[item.color]
-                } ${
-                  COLOR_TEXT[item.color]
-                } rounded-sm border ${
+                } ${COLOR_TEXT[item.color]} rounded-sm shadow-sm ring-1 ${
                   isSelected
-                    ? "border-white ring-1 ring-white"
-                    : "border-black/30 hover:border-white/60"
-                } px-1 text-[8.5px] font-medium truncate text-left transition-colors`}
+                    ? "ring-white shadow-md scale-y-105"
+                    : "ring-black/40 hover:ring-white/50 hover:shadow-md"
+                } px-1.5 text-[9px] font-medium truncate text-left transition-all`}
               >
                 {item.label}
               </button>

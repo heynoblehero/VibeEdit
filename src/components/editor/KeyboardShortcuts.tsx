@@ -202,6 +202,14 @@ export function KeyboardShortcuts() {
       ) {
         if (selectedSceneIds.length > 1) {
           e.preventDefault();
+          // Confirm large deletes since Cmd+Z is the only escape hatch
+          // and a misfire-while-having-many-scenes-selected wipes work.
+          if (selectedSceneIds.length > 3) {
+            const ok = window.confirm(
+              `Delete ${selectedSceneIds.length} scenes? This is undoable with ⌘Z.`,
+            );
+            if (!ok) return;
+          }
           removeScenes(selectedSceneIds);
           toast(`Deleted ${selectedSceneIds.length} scenes`, { duration: 900 });
           return;

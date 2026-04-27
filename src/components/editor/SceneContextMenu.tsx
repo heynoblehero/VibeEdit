@@ -162,6 +162,30 @@ export function SceneContextMenu({ scene, index, x, y, onClose }: Props) {
         Duplicate
       </button>
       <button
+        onClick={() => {
+          const all = useProjectStore.getState().project.scenes;
+          const idx = all.findIndex((s) => s.id === scene.id);
+          if (idx > 0) useProjectStore.getState().moveScene(idx, 0);
+          onClose();
+        }}
+        className="w-full text-left px-3 py-1.5 text-neutral-200 hover:bg-neutral-800"
+      >
+        Move to start
+      </button>
+      <button
+        onClick={() => {
+          const all = useProjectStore.getState().project.scenes;
+          const idx = all.findIndex((s) => s.id === scene.id);
+          if (idx >= 0 && idx < all.length - 1) {
+            useProjectStore.getState().moveScene(idx, all.length - 1);
+          }
+          onClose();
+        }}
+        className="w-full text-left px-3 py-1.5 text-neutral-200 hover:bg-neutral-800"
+      >
+        Move to end
+      </button>
+      <button
         onClick={copyText}
         className="w-full text-left px-3 py-1.5 text-neutral-200 hover:bg-neutral-800"
       >

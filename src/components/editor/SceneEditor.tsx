@@ -697,6 +697,66 @@ function BackgroundPanel({ scene, update }: { scene: Scene; update: (p: Partial<
       </div>
 
       <KeyingSection scene={scene} update={update} />
+
+      <div className="border-t border-neutral-800 pt-3 mt-2 space-y-2">
+        <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+          Orientation
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              update({
+                background: {
+                  ...scene.background,
+                  flipH: !scene.background.flipH,
+                },
+              })
+            }
+            className={`px-2 py-1 rounded text-xs border ${
+              scene.background.flipH
+                ? "border-emerald-500 text-emerald-300 bg-emerald-500/10"
+                : "border-neutral-700 text-neutral-300 hover:border-neutral-500"
+            }`}
+            title="Mirror horizontally"
+          >
+            Flip H
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              update({
+                background: {
+                  ...scene.background,
+                  flipV: !scene.background.flipV,
+                },
+              })
+            }
+            className={`px-2 py-1 rounded text-xs border ${
+              scene.background.flipV
+                ? "border-emerald-500 text-emerald-300 bg-emerald-500/10"
+                : "border-neutral-700 text-neutral-300 hover:border-neutral-500"
+            }`}
+            title="Mirror vertically"
+          >
+            Flip V
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const cur = scene.background.rotate ?? 0;
+              const next = (cur + 90) % 360 as 0 | 90 | 180 | 270;
+              update({
+                background: { ...scene.background, rotate: next },
+              });
+            }}
+            className="px-2 py-1 rounded text-xs border border-neutral-700 text-neutral-300 hover:border-neutral-500"
+            title="Rotate 90° clockwise"
+          >
+            ↻ {scene.background.rotate ?? 0}°
+          </button>
+        </div>
+      </div>
     </>
   );
 }

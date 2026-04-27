@@ -155,6 +155,9 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       chromaKey={s.background.chromaKey}
       lumaKey={s.background.lumaKey}
       filterIdSuffix={s.id}
+      flipH={s.background.flipH}
+      flipV={s.background.flipV}
+      rotate={s.background.rotate}
     >
       {s.type === "montage" && s.montageUrls && s.montageUrls.length > 0 && (
         <Montage urls={s.montageUrls} />

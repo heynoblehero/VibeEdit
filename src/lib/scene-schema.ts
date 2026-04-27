@@ -99,6 +99,12 @@ export interface SceneBackground {
   saturation?: number;
   temperature?: number;
   imageOpacity?: number;
+  /** Mirror the bg image/video horizontally. */
+  flipH?: boolean;
+  /** Mirror the bg image/video vertically. */
+  flipV?: boolean;
+  /** Rotate bg image/video by 90 / 180 / 270 degrees. */
+  rotate?: 0 | 90 | 180 | 270;
   /** Full-bleed background video. Used by commentary/movie-review/gaming. */
   videoUrl?: string;
   videoStartSec?: number;

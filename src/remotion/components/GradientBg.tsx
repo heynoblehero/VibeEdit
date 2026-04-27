@@ -37,6 +37,11 @@ interface GradientBgProps {
   lumaKey?: { threshold: number; softness: number; invert?: boolean };
   /** Stable suffix used when generating SVG filter ids (per-scene). */
   filterIdSuffix?: string;
+  /** Mirror bg image/video horizontally / vertically. */
+  flipH?: boolean;
+  flipV?: boolean;
+  /** Rotate bg image/video by 90/180/270 degrees. */
+  rotate?: 0 | 90 | 180 | 270;
   children?: React.ReactNode;
 }
 
@@ -165,8 +170,18 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   chromaKey,
   lumaKey,
   filterIdSuffix = "default",
+  flipH = false,
+  flipV = false,
+  rotate = 0,
   children,
 }) => {
+  const orientationTransform = (() => {
+    const parts: string[] = [];
+    if (rotate) parts.push(`rotate(${rotate}deg)`);
+    if (flipH) parts.push("scaleX(-1)");
+    if (flipV) parts.push("scaleY(-1)");
+    return parts.join(" ");
+  })();
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
   const driftX = drift ? bob(frame, 8, 200) : 0;
@@ -254,6 +269,8 @@ export const GradientBg: React.FC<GradientBgProps> = ({
             height: "100%",
             objectFit: "cover",
             filter: keyFilters.length ? keyFilters.join(" ") : undefined,
+            transform: orientationTransform || undefined,
+            transformOrigin: "center center",
           }}
         />
       )}
@@ -272,7 +289,7 @@ export const GradientBg: React.FC<GradientBgProps> = ({
               width: "100%",
               height: "100%",
               objectFit: "cover",
-              transform: `scale(${cam.scale}) translate(${cam.tx}px, ${cam.ty}px)`,
+              transform: `scale(${cam.scale}) translate(${cam.tx}px, ${cam.ty}px) ${orientationTransform}`,
               filter: [
                 gradeFilter(colorGrade),
                 brightness !== 1 ? `brightness(${brightness})` : null,

@@ -91,8 +91,22 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setProKeyframes: (v) => set({ proKeyframes: v }),
   cutMode: false,
   setCutMode: (v) => set({ cutMode: v }),
-  timelineZoom: 1,
-  setTimelineZoom: (v) => set({ timelineZoom: Math.max(0.5, Math.min(8, v)) }),
+  timelineZoom: (() => {
+    if (typeof window === "undefined") return 1;
+    const saved = Number(window.localStorage.getItem("vibeedit:timeline-zoom"));
+    return saved >= 0.5 && saved <= 8 ? saved : 1;
+  })(),
+  setTimelineZoom: (v) => {
+    const clamped = Math.max(0.5, Math.min(8, v));
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem("vibeedit:timeline-zoom", String(clamped));
+      } catch {
+        // ignore quota / private mode
+      }
+    }
+    set({ timelineZoom: clamped });
+  },
   recentActions: [],
   pushRecentAction: (kind, value) =>
     set((s) => {

@@ -1,9 +1,10 @@
 "use client";
 
-import { FileImage, FileVideo, Music, Trash2, Upload, X } from "lucide-react";
+import { FileImage, FileVideo, Music, Plus, Trash2, Upload, X } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { ProjectUpload } from "@/lib/scene-schema";
+import { createId, DEFAULT_BG } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
 
 /**
@@ -28,6 +29,7 @@ export function UploadsPanel({ open = true, onClose, inline = false }: Props) {
   const addUpload = useProjectStore((s) => s.addUpload);
   const removeUpload = useProjectStore((s) => s.removeUpload);
   const updateScene = useProjectStore((s) => s.updateScene);
+  const addScene = useProjectStore((s) => s.addScene);
   const selectedSceneId = useProjectStore((s) => s.selectedSceneId);
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDropping, setIsDropping] = useState(false);
@@ -98,6 +100,32 @@ export function UploadsPanel({ open = true, onClose, inline = false }: Props) {
       });
     }
     toast(`Attached to scene · ${u.name.slice(0, 40)}`);
+  };
+
+  const insertAsScene = (u: ProjectUpload) => {
+    const portrait = project.height > project.width;
+    const isVideo = u.type?.startsWith("video/");
+    const scene = isVideo
+      ? {
+          id: createId(),
+          type: "text_only" as const,
+          duration: 3,
+          background: { ...DEFAULT_BG, videoUrl: u.url },
+          transition: "beat_flash" as const,
+        }
+      : {
+          id: createId(),
+          type: "text_only" as const,
+          duration: 3,
+          background: { ...DEFAULT_BG, imageUrl: u.url, kenBurns: true },
+          emphasisText: "edit me",
+          emphasisSize: portrait ? 96 : 72,
+          emphasisColor: "#ffffff",
+          textY: portrait ? 500 : 380,
+          transition: "beat_flash" as const,
+        };
+    addScene(scene);
+    toast(`Inserted scene · ${u.name.slice(0, 40)}`);
   };
 
   if (!open) return null;
@@ -177,7 +205,7 @@ export function UploadsPanel({ open = true, onClose, inline = false }: Props) {
                       e.dataTransfer.effectAllowed = "copy";
                     }}
                     onDoubleClick={() => attachToSelected(u)}
-                    title={`${u.name}\n\nDouble-click → attach to selected scene\nDrag onto timeline → insert as a new scene`}
+                    title={`${u.name}\n\nClick + → insert as new scene\nDouble-click → attach to selected scene\nDrag onto timeline → insert as a new scene`}
                     className="group relative rounded border border-neutral-800 bg-neutral-900 overflow-hidden hover:border-emerald-500/60 cursor-grab active:cursor-grabbing"
                   >
                     {isImage ? (
@@ -202,6 +230,17 @@ export function UploadsPanel({ open = true, onClose, inline = false }: Props) {
                     <div className="px-1.5 py-1 text-[10px] text-neutral-300 truncate">
                       {u.name}
                     </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        insertAsScene(u);
+                      }}
+                      title="Insert as a new scene at the end of the timeline"
+                      className="absolute top-1 left-1 p-1 rounded bg-emerald-500 text-black opacity-0 group-hover:opacity-100 hover:bg-emerald-400 transition-opacity"
+                    >
+                      <Plus className="h-3 w-3" />
+                    </button>
                     <button
                       type="button"
                       onClick={(e) => {

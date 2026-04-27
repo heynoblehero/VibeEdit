@@ -112,6 +112,15 @@ export function KeyboardShortcuts() {
         }
       }
 
+      // ⌘⇧N — create a new blank project.
+      if (mod && e.shiftKey && e.key.toLowerCase() === "n" && !isTextInput(e.target)) {
+        e.preventDefault();
+        const newId = useProjectStore.getState().createProject();
+        useProjectStore.getState().switchProject(newId);
+        toast("New project", { duration: 700 });
+        return;
+      }
+
       // ⌘⇧S — export the entire project as a downloadable JSON file.
       if (mod && e.shiftKey && e.key.toLowerCase() === "s" && !isTextInput(e.target)) {
         e.preventDefault();

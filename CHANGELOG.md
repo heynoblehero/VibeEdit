@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased — sprint 18: frame fit & flexible aspects (3 commits)
+
+User feedback: 'why even need separate projects for 16:9 / 9:16
+when we could shift the frame and align videos properly inside?'.
+
+### Aspect ratio
+- AspectSwitcher is now a 7-option dropdown:
+  16:9 Landscape, 9:16 Portrait, 1:1 Square, 4:5 IG Feed, 21:9
+  Cinemascope, 2:3 Vertical print, Custom (free-form W×H modal).
+- New store action `setDimensions(width, height)`: clamped 64..7680,
+  rounded to even axes for codec compatibility. Single-step undo.
+
+### Per-scene frame fit
+- New schema fields: `SceneBackground.objectFit` ('cover' | 'contain')
+  and `objectPosition` (9-name anchor or free-form 'x% y%').
+- GradientBg threads both through to <Img> and <OffthreadVideo> so
+  it works for image AND video backgrounds.
+- BackgroundPanel gains a 'Frame fit' section: cover/contain pill
+  toggles + 3×3 arrow grid (↖ ↑ ↗ ← • → ↙ ↓ ↘) for anchor.
+- Defaults to cover/center → existing projects render bit-exact.
+
+### Why this matters
+Drop a 16:9 phone clip into a 9:16 portrait project. Click ↖ to
+keep the speaker's head in frame. Switch the project to 21:9 for
+a theatrical cut. All without re-editing scenes — just shift the
+frame.
+
 ## Unreleased — sprint 17 batch C (3 more commits)
 
 - ✂ orange warning when scene is shorter than its VO.

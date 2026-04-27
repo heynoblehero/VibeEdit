@@ -15,6 +15,7 @@ import { ChatSidebar } from "@/components/editor/ChatSidebar";
 import { CreateProjectDialog } from "@/components/editor/CreateProjectDialog";
 import { ConfigTabs } from "@/components/editor/ConfigTabs";
 import { ExportPackButton } from "@/components/editor/ExportPackButton";
+import { SubtitleExportButton } from "@/components/editor/SubtitleExportButton";
 import { HeaderOverflow } from "@/components/editor/HeaderOverflow";
 import { ImageEditor } from "@/components/editor/ImageEditor";
 import { KeyboardShortcuts } from "@/components/editor/KeyboardShortcuts";
@@ -284,6 +285,7 @@ export default function Home() {
             <ProjectIO />
             <ThumbnailExporter />
             <ExportPackButton />
+            <SubtitleExportButton />
             <ReviewPanel />
             <BatchVariantsButton />
             <button

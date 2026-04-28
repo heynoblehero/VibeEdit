@@ -10,6 +10,7 @@ import { VideoComposition } from "@/remotion/Composition";
 import { useAssetStore } from "@/store/asset-store";
 import { useEditorStore, type EditTarget } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
+import { AspectPicker } from "./AspectPicker";
 import { CanvasManipulator, type ManipulatorTarget } from "./CanvasManipulator";
 
 function SingleSceneWrapper({ scene, characters, sfx, captionStyle }: any) {
@@ -578,18 +579,23 @@ function PreviewGuidesToggle() {
 }
 
 /**
- * Fallback when the user has deleted every scene. New projects ship
- * with demo scenes via blankProject(), so this only renders if the
- * user manually empties the timeline. Single button — add a scene
- * back; the editor stays out of their way otherwise.
+ * Empty-state shown inside the player frame when the project has no
+ * scenes. Uses the same AspectPicker as the SceneList so the user
+ * picks aspect once + an optional "use this for every new scene"
+ * tickbox. Pick a row → first scene is added at that ratio and the
+ * project's dimensions are set.
  */
 function EmptyProjectInstruction() {
-  const addBlankScene = async () => {
-    const { useProjectStore: store } = await import("@/store/project-store");
+  const project = useProjectStore((s) => s.project);
+  const setDimensions = useProjectStore((s) => s.setDimensions);
+  const addScene = useProjectStore((s) => s.addScene);
+
+  const onPick = async (opt: { width: number; height: number }) => {
     const { createId, DEFAULT_BG } = await import("@/lib/scene-schema");
-    const project = store.getState().project;
-    const portrait = project.height > project.width;
-    store.getState().addScene({
+    const { setDefaultAspect } = await import("@/lib/aspect-prefs");
+    if (project.scenes.length === 0) setDimensions(opt.width, opt.height);
+    const portrait = opt.height > opt.width;
+    addScene({
       id: createId(),
       type: "text_only",
       duration: 2,
@@ -600,18 +606,25 @@ function EmptyProjectInstruction() {
       transition: "beat_flash",
       background: { ...DEFAULT_BG },
     });
+    setDefaultAspect(opt as never);
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full bg-black/50 rounded-lg border border-neutral-800 p-8">
-      <button
-        type="button"
-        onClick={addBlankScene}
-        className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-md bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-sm transition-colors"
-      >
-        <Plus className="h-4 w-4" />
-        Add a scene
-      </button>
+    <div className="flex items-center justify-center h-full p-8">
+      <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-950 shadow-2xl overflow-hidden">
+        <div className="flex flex-col items-center text-center gap-1 px-5 py-4 border-b border-neutral-800/60">
+          <Plus className="h-5 w-5 text-emerald-400 mb-1" />
+          <h2 className="text-base font-semibold text-white">Add a scene</h2>
+          <p className="text-[11px] text-neutral-500">
+            Pick an aspect ratio to start. Sets the project canvas.
+          </p>
+        </div>
+        <AspectPicker
+          currentWidth={project.width}
+          currentHeight={project.height}
+          onPick={(opt) => onPick(opt)}
+        />
+      </div>
     </div>
   );
 }

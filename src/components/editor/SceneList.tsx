@@ -16,27 +16,19 @@ import {
 import React, { useEffect, useRef, useState } from "react";
 import { createId, DEFAULT_BG, type Cut, type Scene } from "@/lib/scene-schema";
 import { totalDurationSeconds } from "@/lib/scene-schema";
+import {
+  ASPECT_OPTIONS,
+  type AspectOption,
+  getDefaultAspect,
+  getRememberAspect,
+  setDefaultAspect,
+} from "@/lib/aspect-prefs";
 import { getWorkflow } from "@/lib/workflows/registry";
 import { useProjectStore } from "@/store/project-store";
+import { AspectPicker } from "./AspectPicker";
 import { CutMarker } from "./CutMarker";
 import { SceneCard } from "./SceneCard";
 import { SceneContextMenu } from "./SceneContextMenu";
-
-interface AspectOption {
-  id: string;
-  label: string;
-  description: string;
-  width: number;
-  height: number;
-}
-
-const ASPECT_OPTIONS: AspectOption[] = [
-  { id: "9:16", label: "9:16", description: "Reels / TikTok / Shorts", width: 1080, height: 1920 },
-  { id: "16:9", label: "16:9", description: "YouTube / landscape", width: 1920, height: 1080 },
-  { id: "1:1", label: "1:1", description: "Square — Instagram feed", width: 1080, height: 1080 },
-  { id: "4:5", label: "4:5", description: "Vertical feed post", width: 1080, height: 1350 },
-  { id: "21:9", label: "21:9", description: "Cinematic widescreen", width: 2520, height: 1080 },
-];
 
 export function SceneList() {
   const { project, addScene, moveScene } = useProjectStore();
@@ -116,10 +108,18 @@ export function SceneList() {
     }
     const portrait = opt.height > opt.width;
     addScene(buildScene(portrait));
+    setDefaultAspect(opt);
     setAspectPickerOpenState(false);
   };
 
+  /** Skip the popover when the user has saved a preferred aspect AND
+   *  ticked "use this for every scene". Otherwise open the picker. */
   const handleAdd = () => {
+    const remembered = getRememberAspect() ? getDefaultAspect() : null;
+    if (remembered && project.scenes.length > 0) {
+      addAtAspect(remembered);
+      return;
+    }
     setAspectPickerOpenState((v) => !v);
   };
 
@@ -190,35 +190,11 @@ export function SceneList() {
                   </span>
                 )}
               </div>
-              <div className="flex flex-col">
-                {ASPECT_OPTIONS.map((opt) => {
-                  const isCurrent =
-                    project.width === opt.width && project.height === opt.height;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => addAtAspect(opt)}
-                      className={`flex items-center gap-2.5 px-3 py-2 text-left hover:bg-emerald-500/10 transition-colors border-b border-neutral-900 last:border-b-0 ${
-                        isCurrent ? "bg-emerald-500/5" : ""
-                      }`}
-                    >
-                      <AspectGlyph w={opt.width} h={opt.height} />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[12px] font-medium text-white">
-                          {opt.label}
-                        </div>
-                        <div className="text-[10px] text-neutral-500 truncate">
-                          {opt.description}
-                        </div>
-                      </div>
-                      <span className="text-[9px] font-mono text-neutral-600">
-                        {opt.width}×{opt.height}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+              <AspectPicker
+                currentWidth={project.width}
+                currentHeight={project.height}
+                onPick={addAtAspect}
+              />
             </div>
           )}
         </div>
@@ -306,20 +282,5 @@ export function SceneList() {
         />
       )}
     </div>
-  );
-}
-
-/** Tiny rectangle glyph that visually communicates an aspect ratio. */
-function AspectGlyph({ w, h }: { w: number; h: number }) {
-  const ratio = w / h;
-  // Fit inside a 22x22 box. Take the longer side as 22.
-  const max = 22;
-  const boxW = ratio >= 1 ? max : Math.max(8, Math.round(max * ratio));
-  const boxH = ratio >= 1 ? Math.max(8, Math.round(max / ratio)) : max;
-  return (
-    <div
-      className="shrink-0 rounded-sm border border-neutral-600 bg-neutral-800"
-      style={{ width: boxW, height: boxH }}
-    />
   );
 }

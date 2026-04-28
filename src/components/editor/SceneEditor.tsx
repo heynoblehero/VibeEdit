@@ -87,10 +87,29 @@ export function SceneEditor() {
         <div className="pt-3 border-t border-neutral-800">
           <div className="flex items-center gap-2">
             <label className="text-[10px] text-neutral-500 w-14">Duration</label>
-            <input type="range" min={0.5} max={8} step={0.5} value={scene.duration}
+            <input
+              type="range"
+              min={0.5}
+              max={Math.max(60, scene.duration + 1)}
+              step={0.25}
+              value={scene.duration}
               onChange={(e) => update({ duration: Number(e.target.value) })}
-              className="flex-1 accent-emerald-500 h-1" />
-            <span className="text-[11px] text-white font-mono w-8">{scene.duration}s</span>
+              className="flex-1 accent-emerald-500 h-1"
+            />
+            <input
+              type="number"
+              min={0.1}
+              step={0.1}
+              value={scene.duration}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                if (!Number.isFinite(v) || v <= 0) return;
+                update({ duration: v });
+              }}
+              className="input-field w-14 text-[11px] py-0.5 px-1 text-right"
+              title="Scene duration in seconds — type any positive number"
+            />
+            <span className="text-[10px] text-neutral-500">s</span>
           </div>
           <div className="flex items-center gap-2 mt-2">
             <label className="text-[10px] text-neutral-500 w-14">Type</label>

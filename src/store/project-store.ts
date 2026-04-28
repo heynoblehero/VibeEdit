@@ -121,39 +121,11 @@ function pushHistory(history: Project[], current: Project): Project[] {
 }
 
 function blankProject(name = "Draft"): Project {
-  // Ship a tiny demo timeline so the editor opens onto something real
-  // — no empty-state landing page. The user can edit / replace these
-  // immediately; uploading a file onto either scene swaps in the
-  // user's media without a reset.
   return {
     id: createId(),
     name,
     script: "",
-    scenes: [
-      {
-        id: createId(),
-        type: "text_only",
-        duration: 2,
-        emphasisText: "Welcome to VibeEdit",
-        emphasisSize: 96,
-        emphasisColor: "#ffffff",
-        textY: 380,
-        transition: "beat_flash",
-        background: { color: "#0a0a14", vignette: 0.5 },
-      },
-      {
-        id: createId(),
-        type: "text_only",
-        duration: 2.5,
-        text: "Drop a file on a scene · click + Upload",
-        textColor: "#10b981",
-        emphasisText: "Edit me",
-        emphasisSize: 110,
-        emphasisColor: "#ffffff",
-        textY: 320,
-        background: { color: "#101820", vignette: 0.5 },
-      },
-    ],
+    scenes: [],
     fps: 30,
     width: 1920,
     height: 1080,
@@ -1146,7 +1118,7 @@ export const useProjectStore = create<ProjectStore>()(
     }),
     {
       name: "vibeedit-project",
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => throttledLocalStorage()),
       partialize: (s) => ({
         project: s.project,
@@ -1160,22 +1132,12 @@ export const useProjectStore = create<ProjectStore>()(
         if (version < 2 && p.project && !p.projects) {
           return { ...p, projects: { [p.project.id]: p.project } };
         }
-        if (version < 3) {
-          // Backfill demo scenes onto any 0-scene project so the editor
-          // never opens onto the empty-state landing page. Existing
-          // projects with content are untouched.
-          const demos = blankProject().scenes;
-          if (p.project && p.project.scenes.length === 0) {
-            p.project = { ...p.project, scenes: demos };
-          }
-          if (p.projects) {
-            const next: Record<string, Project> = {};
-            for (const [id, proj] of Object.entries(p.projects)) {
-              next[id] =
-                proj.scenes.length === 0 ? { ...proj, scenes: demos } : proj;
-            }
-            p.projects = next;
-          }
+        if (version < 4) {
+          // v3 (now reverted) shipped demo scenes by default; v4 strips
+          // them so users land on a clean Add-a-scene picker instead.
+          // We can't tell user content from demo content reliably, so
+          // we leave existing projects alone — the user can delete the
+          // demos manually if they want.
         }
         return persisted;
       },

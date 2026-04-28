@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Film, Layers, ListVideo, MessageCircle, Redo2, Settings, Smartphone, Undo2, Upload, X } from "lucide-react";
+import { CalendarClock, Film, ListVideo, MessageCircle, Redo2, Settings, Smartphone, Undo2, Upload, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { AuthBar } from "@/components/editor/AuthBar";
@@ -34,7 +34,6 @@ import { SceneList } from "@/components/editor/SceneList";
 import { ShortcutsOverlay } from "@/components/editor/ShortcutsOverlay";
 import { ScheduleRenderDialog } from "@/components/editor/ScheduleRenderDialog";
 import { SceneToolsPanel } from "@/components/editor/SceneToolsPanel";
-import { TracksPanel } from "@/components/editor/TracksPanel";
 import { ProjectDropImport } from "@/components/editor/ProjectDropImport";
 import { PasteImage } from "@/components/editor/PasteImage";
 import { PageTitleSync } from "@/components/editor/PageTitleSync";
@@ -105,10 +104,11 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
-  // Topbar pop-out panels — one of "uploads" / "tracks" / null.
+  // Topbar pop-out panels — uploads only. Tracks were replaced by the
+  // per-scene Layers panel that lives under the preview.
   // Replaces the old persistent LeftSidebar; clicking the button toggles
   // a floating overlay below the header instead of stealing column width.
-  const [topPanel, setTopPanel] = useState<"uploads" | "tracks" | null>(null);
+  const [topPanel, setTopPanel] = useState<"uploads" | null>(null);
   useEffect(() => {
     const handler = () => setTemplatePickerOpen(true);
     window.addEventListener("vibeedit:open-template-picker", handler);
@@ -248,19 +248,6 @@ export default function Home() {
               <Upload className="h-3.5 w-3.5" />
               <span>Uploads</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setTopPanel((v) => (v === "tracks" ? null : "tracks"))}
-              title="Tracks"
-              className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors border ${
-                topPanel === "tracks"
-                  ? "bg-cyan-500/15 text-cyan-300 border-cyan-500/40"
-                  : "text-neutral-400 hover:text-white bg-neutral-900/80 border-neutral-800"
-              }`}
-            >
-              <Layers className="h-3.5 w-3.5" />
-              <span>Tracks</span>
-            </button>
           </div>
           {/* Mode toggle removed: properties panel + chat agent are
               always available together. User edits manually if they
@@ -365,14 +352,14 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Topbar pop-out: Uploads / Tracks. Floating drawer that
-          overlays the editor without stealing column width. Closes via
-          its own X button or by toggling the same topbar button again. */}
-      {topPanel && !zenMode && (
+      {/* Topbar pop-out: Uploads. Floating drawer that overlays the
+          editor without stealing column width. Tracks have been
+          replaced by the per-scene Layers panel below the preview. */}
+      {topPanel === "uploads" && !zenMode && (
         <div className="absolute top-12 left-2 z-40 w-80 max-h-[calc(100vh-4rem)] flex flex-col border border-neutral-800 rounded-lg bg-neutral-950/95 backdrop-blur-md shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800/80 bg-neutral-900/60">
             <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-medium">
-              {topPanel === "uploads" ? "Uploads" : "Tracks"}
+              Uploads
             </span>
             <button
               onClick={() => setTopPanel(null)}
@@ -383,8 +370,7 @@ export default function Home() {
             </button>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto">
-            {topPanel === "uploads" && <UploadsPanel inline />}
-            {topPanel === "tracks" && <TracksPanel />}
+            <UploadsPanel inline />
           </div>
         </div>
       )}

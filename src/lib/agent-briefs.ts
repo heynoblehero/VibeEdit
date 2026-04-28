@@ -16,7 +16,8 @@ function detectTemplateHint(topic: string): string | null {
   return null;
 }
 
-// Shared so /cinematic-short and CreateProjectDialog can't drift.
+// Shared so /cinematic-short and any other autonomous-loop entry point
+// can't drift.
 export function buildCinematicShortBrief({
   topic,
   orientation,

@@ -3,27 +3,19 @@
 /**
  * LeftSidebar — vertical tab bar on the left edge of the editor.
  *
- * Replaces the right-side Uploads drawer + the topbar AI button with a
- * persistent left panel containing three tabs:
- *
- *   📁 Uploads — per-project upload bin (drag tiles onto the timeline).
- *   ⚡ Actions — draggable transition / effect / scene-type cards.
- *   ✨ AI       — prefab agent commands as draggable cards + open-chat.
- *
- * All three tabs use the same drag-onto-timeline / drag-onto-scene
- * pattern. Each card sets a vibeedit/* dataTransfer MIME type that
- * Timeline.tsx and SceneCard.tsx interpret to perform the right
- * mutation (insert scene, set cut, push effect, focused-chat).
+ * Tabs: Uploads (per-project upload bin), Tracks (multi-track layout),
+ * AI (prefab agent commands as drag cards + open-chat). The old Actions
+ * tab is gone — chat covers that surface, and the topbar still has the
+ * one-shot buttons (render, undo, export, settings).
  */
 
-import { Layers, Sparkles, Upload, Wand2 } from "lucide-react";
+import { Layers, Sparkles, Upload } from "lucide-react";
 import { useState } from "react";
-import { ActionsPanel } from "./ActionsPanel";
 import { AIPanel } from "./AIPanel";
 import { TracksPanel } from "./TracksPanel";
 import { UploadsPanel } from "./UploadsPanel";
 
-type TabKey = "uploads" | "actions" | "ai" | "tracks";
+type TabKey = "uploads" | "ai" | "tracks";
 
 interface TabDef {
   key: TabKey;
@@ -34,7 +26,6 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   { key: "uploads", label: "Uploads", icon: Upload, color: "text-emerald-400" },
-  { key: "actions", label: "Actions", icon: Wand2, color: "text-amber-400" },
   { key: "tracks", label: "Tracks", icon: Layers, color: "text-cyan-400" },
   { key: "ai", label: "AI", icon: Sparkles, color: "text-sky-400" },
 ];
@@ -92,7 +83,6 @@ export function LeftSidebar() {
       {/* Tab content */}
       <div className="flex-1 min-w-0 flex flex-col">
         {active === "uploads" && <UploadsPanel inline />}
-        {active === "actions" && <ActionsPanel />}
         {active === "tracks" && <TracksPanel />}
         {active === "ai" && <AIPanel />}
       </div>

@@ -859,8 +859,6 @@ function BackgroundPanel({ scene, update }: { scene: Scene; update: (p: Partial<
         <button
           type="button"
           onClick={() => {
-            // Random Look bundles. Pulled inline so we don't import
-            // ActionsPanel (would be a circular dep).
             const looks = [
               { colorGrade: "warm", contrast: 1.12, saturation: 1.08, brightness: 0.98 },
               { colorGrade: "punchy", contrast: 1.25, saturation: 1.2 },

@@ -47,9 +47,9 @@ interface EditorStore {
   timelineZoom: number;
   setTimelineZoom: (v: number) => void;
   /**
-   * MRU list of action card ids the user has used. Bumped to head
-   * each time the Timeline accepts an effect/transition/look/title/
-   * ai-action drop. ActionsPanel renders the top 5 as a quick tray.
+   * MRU list of effect/transition/look ids the user has applied via
+   * Timeline drops. Currently no consumer renders this, but Timeline
+   * keeps writing to it for future "recently used" surfaces.
    */
   recentActions: Array<{ kind: string; value: string; at: number }>;
   pushRecentAction: (kind: string, value: string) => void;

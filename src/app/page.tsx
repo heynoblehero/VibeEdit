@@ -12,7 +12,6 @@ import { SettingsDialog } from "@/components/editor/SettingsDialog";
 import { MasterMixButton } from "@/components/editor/MasterMixButton";
 import { BulkActionsBar } from "@/components/editor/BulkActionsBar";
 import { ChatSidebar } from "@/components/editor/ChatSidebar";
-import { CreateProjectDialog } from "@/components/editor/CreateProjectDialog";
 import { ConfigTabs } from "@/components/editor/ConfigTabs";
 import { ExportPackButton } from "@/components/editor/ExportPackButton";
 import { SubtitleExportButton } from "@/components/editor/SubtitleExportButton";
@@ -61,6 +60,7 @@ const Preview = dynamic(
 
 export default function Home() {
   const project = useProjectStore((s) => s.project);
+  const createProject = useProjectStore((s) => s.createProject);
   const undo = useProjectStore((s) => s.undo);
   const redo = useProjectStore((s) => s.redo);
   const historyLen = useProjectStore((s) => s.history.length);
@@ -117,7 +117,6 @@ export default function Home() {
     return () =>
       window.removeEventListener("vibeedit:open-template-picker", handler);
   }, []);
-  const [createOpen, setCreateOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // ⌘, opens Settings — Mac convention.
   useEffect(() => {
@@ -138,12 +137,13 @@ export default function Home() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "n") {
         e.preventDefault();
-        setCreateOpen(true);
+        createProject();
+        setHomeDismissed(true);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [createProject]);
   // Layout: users can collapse the scene list / editor panels for focused
   // work. Persisted to localStorage so preference survives reloads.
   const [leftCollapsed, setLeftCollapsedState] = useState(false);
@@ -492,14 +492,6 @@ export default function Home() {
       <WorkflowPicker
         open={templatePickerOpen}
         onClose={() => setTemplatePickerOpen(false)}
-      />
-      <CreateProjectDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onCreated={() => {
-          setCreateOpen(false);
-          setHomeDismissed(true);
-        }}
       />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>

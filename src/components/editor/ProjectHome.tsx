@@ -5,7 +5,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { totalDurationSeconds } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
-import { CreateProjectDialog } from "./CreateProjectDialog";
 
 // Shown when the user has no content in the current project AND there's
 // either only one empty project or no meaningful work yet. Replaces the
@@ -50,7 +49,6 @@ export function ProjectHome({
   };
 
   const [query, setQuery] = useState("");
-  const [createOpen, setCreateOpen] = useState(false);
 
   const raw = Object.values(projects).map((p) => ({
     ...p,
@@ -67,9 +65,7 @@ export function ProjectHome({
     })
     .sort((a, b) => (a.name === "Draft" ? 1 : b.name === "Draft" ? -1 : 0));
 
-  const handleNew = () => setCreateOpen(true);
-
-  const handleQuickNew = () => {
+  const handleNew = () => {
     createProject();
     onStart();
     toast.success("New project", { duration: 800 });
@@ -136,12 +132,6 @@ export function ProjectHome({
         <p className="text-[11px] text-neutral-500 text-center">
           Drop in clips and edit. Pick aspect later from the header.
         </p>
-        <button
-          onClick={handleQuickNew}
-          className="text-[11px] text-neutral-500 hover:text-neutral-300 underline decoration-dotted underline-offset-4 mt-1 transition-colors"
-        >
-          or skip — start with a blank project
-        </button>
       </div>
 
       {(list.length > 0 || query) && (
@@ -207,14 +197,6 @@ export function ProjectHome({
         </div>
       )}
 
-      <CreateProjectDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onCreated={() => {
-          setCreateOpen(false);
-          onStart();
-        }}
-      />
     </div>
   );
 }

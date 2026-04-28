@@ -16,7 +16,6 @@ import {
   type Track,
   type TrackKind,
   createId,
-  resolveTracks,
   sceneDurationFrames,
 } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
@@ -50,9 +49,11 @@ export function TracksPanel() {
   const updateTrack = useProjectStore((s) => s.updateTrack);
   const moveSceneToTrack = useProjectStore((s) => s.moveSceneToTrack);
 
-  // Resolve to handle the legacy implicit-V1 case.
-  const tracks = resolveTracks(project);
-  const isImplicit = !project.tracks || project.tracks.length === 0;
+  // Empty until the user OR the agent explicitly adds a track. The
+  // renderer still falls back to an implicit V1 via resolveTracks() at
+  // playback time, but the panel surface only shows things the user
+  // intentionally created.
+  const tracks: Track[] = project.tracks ?? [];
 
   const newTrack = (kind: TrackKind) => {
     const count = tracks.filter((t) => t.kind === kind).length;
@@ -82,12 +83,18 @@ export function TracksPanel() {
         </span>
       </div>
       <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+        {tracks.length === 0 && (
+          <div className="text-center text-[11px] text-neutral-600 py-6 px-3 leading-relaxed">
+            No tracks yet. Add one below — or ask the agent to make stacked
+            video / overlay / audio tracks for you.
+          </div>
+        )}
         {tracks.map((t) => (
           <TrackRow
             key={t.id}
             track={t}
             scenes={project.scenes}
-            isImplicit={isImplicit && t === tracks[0]}
+            isImplicit={false}
             onUpdate={(patch) => updateTrack(t.id, patch)}
             onRemove={() => removeTrack(t.id)}
             onMoveSceneIn={(sceneId, idx) =>

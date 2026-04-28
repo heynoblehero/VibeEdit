@@ -15,7 +15,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { buildCinematicShortBrief } from "@/lib/agent-briefs";
-import type { Project } from "@/lib/scene-schema";
+import type { Project, ProjectUpload } from "@/lib/scene-schema";
 import { useAssetStore } from "@/store/asset-store";
 import { useChatStore, type ChatMessage } from "@/store/chat-store";
 import { useEditLogStore } from "@/store/edit-log-store";
@@ -167,6 +167,30 @@ export function ChatSidebar({
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, messages.length]);
+
+  // Auto-analyze on upload completion. UploadsPanel batches arrivals
+  // into a single CustomEvent (debounced 800ms) so dropping 5 files
+  // produces ONE agent turn, not five. We bail if a turn is already
+  // streaming — the user (or a previous batch) is mid-conversation
+  // and we don't want to step on them.
+  useEffect(() => {
+    const onUploadDone = (event: Event) => {
+      const detail = (event as CustomEvent<{ uploads: ProjectUpload[] }>).detail;
+      const uploads = detail?.uploads ?? [];
+      if (uploads.length === 0) return;
+      if (useChatStore.getState().isStreaming) return;
+      const list = uploads.map((u) => `${u.name} (${u.type ?? "?"})`).join(", ");
+      const prompt =
+        `I just uploaded ${uploads.length} file${uploads.length === 1 ? "" : "s"}: ${list}. ` +
+        `Run analyzeAssets so we both know what's in them, then briefly summarize. ` +
+        `Don't place them on scenes yet — just take stock.`;
+      void send(prompt);
+    };
+    window.addEventListener("vibeedit:upload-complete", onUploadDone);
+    return () =>
+      window.removeEventListener("vibeedit:upload-complete", onUploadDone);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const showEmptyState =
     messages.length === 0 && project.scenes.length === 0 && !project.script;

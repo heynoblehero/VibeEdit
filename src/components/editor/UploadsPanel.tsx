@@ -1,11 +1,24 @@
 "use client";
 
-import { FileImage, FileVideo, Music, Plus, Trash2, Upload, X } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { FileImage, FileVideo, Loader2, Music, Plus, Trash2, Upload, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { ProjectUpload } from "@/lib/scene-schema";
 import { createId, DEFAULT_BG } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
+
+/** In-flight file shown as a greyed tile while POSTing to /api/assets/upload. */
+interface PendingUpload {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  /** Object URL from URL.createObjectURL — cheap local preview. */
+  previewUrl: string;
+  isImage: boolean;
+  isVideo: boolean;
+  isAudio: boolean;
+}
 
 function formatBytes(n: number | undefined): string {
   if (n === undefined || !Number.isFinite(n) || n <= 0) return "0 B";
@@ -45,43 +58,110 @@ export function UploadsPanel({ open = true, onClose, inline = false }: Props) {
   const selectedSceneId = useProjectStore((s) => s.selectedSceneId);
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDropping, setIsDropping] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [pending, setPending] = useState<PendingUpload[]>([]);
+  // Track files that have just landed, debounced into a single batch
+  // event so the AI gets one "uploaded N files" prompt instead of N.
+  const completedBatchRef = useRef<ProjectUpload[]>([]);
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Free object URLs when the panel unmounts.
+  useEffect(() => {
+    return () => {
+      for (const p of pending) {
+        try {
+          URL.revokeObjectURL(p.previewUrl);
+        } catch {
+          // already revoked — ignore
+        }
+      }
+    };
+  }, [pending]);
 
   const uploads = project.uploads ?? [];
 
   const upload = useCallback(
     async (files: FileList | File[]) => {
-      setUploading(true);
-      try {
-        for (const file of Array.from(files)) {
-          if (file.size > 200 * 1024 * 1024) {
-            toast.error(`${file.name} too big (>200 MB) — skipped`);
-            continue;
-          }
+      // Build pending tiles up front so users see what's being uploaded
+      // immediately. Each gets a stable id we use to remove on success.
+      const items = Array.from(files);
+      const stagedIds: string[] = [];
+      const staged: PendingUpload[] = [];
+      for (const file of items) {
+        if (file.size > 200 * 1024 * 1024) {
+          toast.error(`${file.name} too big (>200 MB) — skipped`);
+          continue;
+        }
+        const id = `pending-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const type = file.type ?? "";
+        staged.push({
+          id,
+          name: file.name,
+          type,
+          size: file.size,
+          previewUrl: URL.createObjectURL(file),
+          isImage: type.startsWith("image/"),
+          isVideo: type.startsWith("video/"),
+          isAudio: type.startsWith("audio/"),
+        });
+        stagedIds.push(id);
+      }
+      if (staged.length === 0) return;
+      setPending((cur) => [...cur, ...staged]);
+
+      const dropPending = (id: string, previewUrl: string) => {
+        setPending((cur) => cur.filter((p) => p.id !== id));
+        try {
+          URL.revokeObjectURL(previewUrl);
+        } catch {
+          // already revoked — ignore
+        }
+      };
+
+      // POST in parallel — order doesn't matter, finished tiles vanish
+      // independently so the user sees progress.
+      await Promise.all(
+        staged.map(async (s, idx) => {
+          const file = items[idx];
           const form = new FormData();
           form.append("file", file);
-          const res = await fetch("/api/assets/upload", {
-            method: "POST",
-            body: form,
-          });
-          const data = await res.json();
-          if (!res.ok) {
-            toast.error(`upload failed: ${data.error ?? res.status}`);
-            continue;
+          try {
+            const res = await fetch("/api/assets/upload", { method: "POST", body: form });
+            const data = await res.json();
+            if (!res.ok) {
+              toast.error(`upload failed: ${data.error ?? res.status}`);
+              dropPending(s.id, s.previewUrl);
+              return;
+            }
+            const u: ProjectUpload = {
+              id: `up-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              name: data.name ?? s.name,
+              url: data.url,
+              type: data.type ?? s.type,
+              bytes: data.bytes ?? s.size,
+              uploadedAt: Date.now(),
+            };
+            addUpload(u);
+            completedBatchRef.current.push(u);
+            dropPending(s.id, s.previewUrl);
+          } catch (err) {
+            toast.error(`upload failed: ${err instanceof Error ? err.message : String(err)}`);
+            dropPending(s.id, s.previewUrl);
           }
-          const u: ProjectUpload = {
-            id: `up-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            name: data.name ?? file.name,
-            url: data.url,
-            type: data.type ?? file.type,
-            bytes: data.bytes ?? file.size,
-            uploadedAt: Date.now(),
-          };
-          addUpload(u);
-        }
-      } finally {
-        setUploading(false);
-      }
+        }),
+      );
+
+      // Debounce: if the user drops more files within 800ms, fold them
+      // into the same "uploaded N files" announcement to the agent.
+      if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = setTimeout(() => {
+        const batch = completedBatchRef.current;
+        completedBatchRef.current = [];
+        flushTimerRef.current = null;
+        if (batch.length === 0) return;
+        window.dispatchEvent(
+          new CustomEvent("vibeedit:upload-complete", { detail: { uploads: batch } }),
+        );
+      }, 800);
     },
     [addUpload],
   );
@@ -188,17 +268,57 @@ export function UploadsPanel({ open = true, onClose, inline = false }: Props) {
           onChange={onPickFiles}
         />
       </div>
-      {uploading && (
-        <div className="px-3 py-1 text-[10px] text-emerald-400">uploading…</div>
+      {pending.length > 0 && (
+        <div className="px-3 py-1 text-[10px] text-emerald-400">
+          uploading {pending.length} file{pending.length === 1 ? "" : "s"}…
+        </div>
       )}
 
       <div className="flex-1 overflow-y-auto px-3 pb-3">
-        {uploads.length === 0 ? (
+        {uploads.length === 0 && pending.length === 0 ? (
           <div className="text-center text-[11px] text-neutral-600 py-6">
             No uploads yet. Drop something above.
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2">
+            {/* In-flight tiles — greyed, with a spinner. Render BEFORE
+                completed uploads so they appear at the top of the grid. */}
+            {pending.map((p) => (
+              <div
+                key={p.id}
+                className="relative rounded border border-neutral-800 bg-neutral-900/50 overflow-hidden opacity-60"
+                title={`${p.name} · uploading…`}
+              >
+                {p.isImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={p.previewUrl}
+                    alt={p.name}
+                    className="w-full h-20 object-cover"
+                    draggable={false}
+                  />
+                ) : p.isVideo ? (
+                  <video src={p.previewUrl} muted playsInline className="w-full h-20 object-cover" />
+                ) : (
+                  <div className="w-full h-20 flex items-center justify-center bg-neutral-800">
+                    {p.isAudio ? (
+                      <Music className="h-6 w-6 text-neutral-400" />
+                    ) : (
+                      <FileImage className="h-6 w-6 text-neutral-400" />
+                    )}
+                  </div>
+                )}
+                <div className="absolute inset-0 flex items-center justify-center bg-neutral-950/40">
+                  <Loader2 className="h-4 w-4 text-emerald-400 animate-spin" />
+                </div>
+                <div className="px-1.5 py-1 text-[10px] text-neutral-400 truncate">
+                  {p.name}
+                </div>
+                <div className="px-1.5 pb-1 text-[9px] text-neutral-600 font-mono">
+                  {formatBytes(p.size)}
+                </div>
+              </div>
+            ))}
             {uploads
               .slice()
               .reverse()

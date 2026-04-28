@@ -65,7 +65,10 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
   const graphicSrc = s.background.graphic ? GRAPHIC_MAP[s.background.graphic] : undefined;
   // sceneSfxUrl (AI-generated) takes priority over the library sfxId.
   const sfxSrc = s.sceneSfxUrl ?? (s.sfxId ? sfx[s.sfxId] : null);
-  const charSrc = s.characterId ? characters[s.characterId] : null;
+  // characterId (registered Subject) takes precedence; fall back to
+  // characterUrl so direct uploads render as characters without
+  // needing the user / agent to call registerSubject first.
+  const charSrc = s.characterId ? characters[s.characterId] : s.characterUrl ?? null;
 
   // ---- motion-preset / keyframe evaluation ----
   // For a given (preset?, property): expand the preset to keyframes

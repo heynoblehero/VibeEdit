@@ -292,6 +292,14 @@ export interface Scene {
   showCaptions?: boolean;
 
   characterId?: string;
+  /**
+   * Direct character image URL (uploaded asset or external). Used when
+   * the user dragged an image in and wants it rendered as a character
+   * without registering a Subject first. characterId takes precedence
+   * when both are set; characterScale / characterX / characterY apply
+   * to either source.
+   */
+  characterUrl?: string;
   characterX?: number;
   characterY?: number;
   characterScale?: number;

@@ -269,6 +269,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
               startFrame={3}
               fontSize={(s.textSize ?? 64) * textScale}
               color={s.textColor ?? "#888888"}
+              align={s.textAlign}
               y={(s.textY ?? defaultTextY) + textYOffset}
               staggerFrames={4}
             />
@@ -281,6 +282,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
               fontSize={(s.emphasisSize ?? 96) * emphasisScale}
               color={s.emphasisColor ?? "white"}
               glowColor={s.emphasisGlow}
+              align={s.emphasisAlign}
               y={(s.textY ?? defaultTextY) + (s.textSize ?? 64) + 20 + emphasisYOffset}
               staggerFrames={5}
             />
@@ -292,6 +294,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
               startFrame={25}
               fontSize={36}
               color={s.subtitleColor ?? "#666666"}
+              align={s.subtitleAlign}
               y={(s.textY ?? defaultTextY) + (s.textSize ?? 64) + (s.emphasisSize ?? 96) + 50}
               staggerFrames={3}
             />

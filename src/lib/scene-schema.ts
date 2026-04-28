@@ -323,14 +323,20 @@ export interface Scene {
   textSize?: number;
   textColor?: string;
   textY?: number;
+  /** Horizontal alignment for `text`. Defaults to "center". */
+  textAlign?: "left" | "center" | "right";
 
   emphasisText?: string;
   emphasisSize?: number;
   emphasisColor?: string;
   emphasisGlow?: string;
+  /** Horizontal alignment for `emphasisText`. Defaults to "center". */
+  emphasisAlign?: "left" | "center" | "right";
 
   subtitleText?: string;
   subtitleColor?: string;
+  /** Horizontal alignment for `subtitleText`. Defaults to "center". */
+  subtitleAlign?: "left" | "center" | "right";
 
   numberFrom?: number;
   numberTo?: number;
@@ -964,3 +970,123 @@ export function projectTotalFrames(
   }
   return Math.max(1, max);
 }
+
+/**
+ * Runtime whitelist of `Scene` field names. Used by the agent's
+ * `updateScene` tool to reject patches that target non-existent fields —
+ * those silently no-op'd before, leaving the agent reporting success
+ * when the renderer changed nothing.
+ *
+ * Keep in sync with the `Scene` interface above. Adding a field to the
+ * interface without adding it here will cause `updateScene` to reject it.
+ */
+export const VALID_SCENE_FIELDS: ReadonlySet<keyof Scene> = new Set<keyof Scene>([
+  "type",
+  "duration",
+  "montageUrls",
+  "splitLeftUrl",
+  "splitRightUrl",
+  "splitDivider",
+  "statValue",
+  "statLabel",
+  "statColor",
+  "bulletItems",
+  "bulletColor",
+  "quoteText",
+  "quoteAttribution",
+  "chartBars",
+  "chartTitle",
+  "chartUnit",
+  "threeText",
+  "threeCardImageUrl",
+  "threeAccentColor",
+  "threeParticleCount",
+  "shotType",
+  "act",
+  "subjectId",
+  "muted",
+  "colorTag",
+  "label",
+  "fadeInFrames",
+  "fadeOutFrames",
+  "locked",
+  "speedFactor",
+  "audioGain",
+  "textMotion",
+  "emphasisMotion",
+  "characterMotion",
+  "bgMotion",
+  "keyframes",
+  "voiceover",
+  "showCaptions",
+  "characterId",
+  "characterUrl",
+  "characterX",
+  "characterY",
+  "characterScale",
+  "enterFrom",
+  "flipCharacter",
+  "text",
+  "textSize",
+  "textColor",
+  "textY",
+  "textAlign",
+  "emphasisText",
+  "emphasisSize",
+  "emphasisColor",
+  "emphasisGlow",
+  "emphasisAlign",
+  "subtitleText",
+  "subtitleColor",
+  "subtitleAlign",
+  "numberFrom",
+  "numberTo",
+  "numberSuffix",
+  "numberColor",
+  "sfxId",
+  "sceneSfxUrl",
+  "transition",
+  "transitionColor",
+  "shakeIntensity",
+  "zoomPunch",
+  "lensFlare",
+  "lensFlareColor",
+  "effects",
+  "broll",
+  "background",
+]);
+
+/** Same idea as VALID_SCENE_FIELDS, but for the nested SceneBackground. */
+export const VALID_BACKGROUND_FIELDS: ReadonlySet<keyof SceneBackground> = new Set<keyof SceneBackground>([
+  "color",
+  "graphic",
+  "graphicY",
+  "graphicOpacity",
+  "vignette",
+  "imageUrl",
+  "kenBurns",
+  "cameraMove",
+  "colorGrade",
+  "blur",
+  "brightness",
+  "contrast",
+  "saturation",
+  "temperature",
+  "imageOpacity",
+  "objectFit",
+  "objectPosition",
+  "flipH",
+  "flipV",
+  "rotate",
+  "imageScale",
+  "imageOffsetX",
+  "imageOffsetY",
+  "videoScale",
+  "videoOffsetX",
+  "videoOffsetY",
+  "videoUrl",
+  "videoStartSec",
+  "videoMuted",
+  "chromaKey",
+  "lumaKey",
+]);

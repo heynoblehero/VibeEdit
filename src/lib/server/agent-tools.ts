@@ -9,6 +9,7 @@ import {
   type MotionPreset,
   type Project,
   type Scene,
+  type SceneBackground,
   type ShotPlan,
   type ShotType,
   type CameraMove,
@@ -17,6 +18,8 @@ import {
   type VideoTask,
   DEFAULT_CAPTION_STYLE,
   DIMENSIONS,
+  VALID_BACKGROUND_FIELDS,
+  VALID_SCENE_FIELDS,
   createId,
 } from "@/lib/scene-schema";
 import type { CharacterAsset, SfxAsset } from "@/store/asset-store";
@@ -418,9 +421,43 @@ const TOOLS: Record<string, AgentTool> = {
     },
     async execute(args, ctx) {
       const id = String(args.id);
-      const patch = (args.patch as Partial<Scene>) ?? {};
+      const rawPatch = (args.patch as Record<string, unknown>) ?? {};
       const idx = ctx.project.scenes.findIndex((s) => s.id === id);
       if (idx < 0) return { ok: false, message: `no scene with id ${id}` };
+
+      // Trust-gap guard: silently spreading any patch lets the agent
+      // invent fields the renderer never reads (textAlign before it
+      // existed, textX, etc.) and report success when nothing changed.
+      // Reject unknown keys instead so the agent has to use a real lever.
+      const unknownTop = Object.keys(rawPatch).filter(
+        (k) => !VALID_SCENE_FIELDS.has(k as keyof Scene),
+      );
+      const rawBg = (rawPatch.background as Record<string, unknown> | undefined) ?? null;
+      const unknownBg = rawBg
+        ? Object.keys(rawBg).filter(
+            (k) => !VALID_BACKGROUND_FIELDS.has(k as keyof SceneBackground),
+          )
+        : [];
+      if (unknownTop.length > 0 || unknownBg.length > 0) {
+        const parts: string[] = [];
+        if (unknownTop.length > 0) {
+          parts.push(`scene fields: ${unknownTop.join(", ")}`);
+        }
+        if (unknownBg.length > 0) {
+          parts.push(`background fields: ${unknownBg.join(", ")}`);
+        }
+        return {
+          ok: false,
+          message:
+            `[invalid-patch] unknown ${parts.join("; ")}. ` +
+            `These fields don't exist on the scene schema — the renderer would silently ignore them. ` +
+            `For horizontal text alignment use textAlign / emphasisAlign / subtitleAlign ("left" | "center" | "right"). ` +
+            `For vertical placement use textY. For colors use textColor / emphasisColor / subtitleColor. ` +
+            `Re-call updateScene with only valid fields.`,
+        };
+      }
+
+      const patch = rawPatch as Partial<Scene>;
       const prev = ctx.project.scenes[idx];
       const next: Scene = {
         ...prev,

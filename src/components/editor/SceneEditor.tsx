@@ -364,6 +364,25 @@ function TextPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>
           <span className="text-[10px] text-neutral-500">{scene.textY ?? 300}</span>
         </Field>
       </div>
+      <Field label="Alignment">
+        <div className="grid grid-cols-3 gap-2 text-[10px]">
+          <AlignRow
+            label="text"
+            value={scene.textAlign}
+            onChange={(v) => update({ textAlign: v })}
+          />
+          <AlignRow
+            label="emphasis"
+            value={scene.emphasisAlign}
+            onChange={(v) => update({ emphasisAlign: v })}
+          />
+          <AlignRow
+            label="subtitle"
+            value={scene.subtitleAlign}
+            onChange={(v) => update({ subtitleAlign: v })}
+          />
+        </div>
+      </Field>
       <MotionPresetField
         label="Text motion"
         value={scene.textMotion}
@@ -375,6 +394,51 @@ function TextPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>
         onChange={(v) => update({ emphasisMotion: v })}
       />
     </>
+  );
+}
+
+function AlignRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: "left" | "center" | "right" | undefined;
+  onChange: (v: "left" | "center" | "right") => void;
+}) {
+  const current = value ?? "center";
+  const options: Array<{ id: "left" | "center" | "right"; glyph: string }> = [
+    { id: "left", glyph: "⇤" },
+    { id: "center", glyph: "≡" },
+    { id: "right", glyph: "⇥" },
+  ];
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-neutral-500 capitalize">{label}</span>
+      <div className="flex rounded border border-neutral-700 overflow-hidden">
+        {options.map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => onChange(opt.id)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onChange(opt.id);
+              }
+            }}
+            title={`Align ${label} ${opt.id}`}
+            className={`flex-1 py-0.5 text-sm leading-none ${
+              current === opt.id
+                ? "bg-blue-500/20 text-blue-300"
+                : "text-neutral-500 hover:text-neutral-200"
+            }`}
+          >
+            {opt.glyph}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

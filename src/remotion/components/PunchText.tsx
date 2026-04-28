@@ -8,6 +8,12 @@ interface PunchTextProps {
   color?: string;
   glowColor?: string;
   x?: number | "center";
+  /**
+   * Horizontal alignment shorthand. Takes precedence over `x` when set.
+   * "center" = block centered, "left" / "right" = pinned to that edge
+   * with a 6% safe-area margin (matches the existing center padding).
+   */
+  align?: "left" | "center" | "right";
   y?: number;
   staggerFrames?: number;
   fontWeight?: number;
@@ -34,6 +40,7 @@ export const PunchText: React.FC<PunchTextProps> = ({
   color = "white",
   glowColor,
   x = "center",
+  align,
   y = 480,
   staggerFrames = 5,
   fontWeight = 800,
@@ -43,6 +50,21 @@ export const PunchText: React.FC<PunchTextProps> = ({
   const fontSize = clampFontSize(text, requestedFontSize, width);
   const words = text.split(" ");
 
+  // align (when set) wins over x. align maps to flex justifyContent;
+  // numeric x (legacy) is a left padding override.
+  let justifyContent: "center" | "flex-start" | "flex-end" = "center";
+  let paddingLeft: string | number = "6%";
+  if (align === "left") {
+    justifyContent = "flex-start";
+  } else if (align === "right") {
+    justifyContent = "flex-end";
+  } else if (align === "center") {
+    justifyContent = "center";
+  } else if (typeof x === "number") {
+    justifyContent = "flex-start";
+    paddingLeft = x;
+  }
+
   return (
     <div
       style={{
@@ -51,10 +73,10 @@ export const PunchText: React.FC<PunchTextProps> = ({
         left: 0,
         right: 0,
         display: "flex",
-        justifyContent: x === "center" ? "center" : "flex-start",
+        justifyContent,
         // Always reserve a 6% margin on each side so words never kiss the
         // safe-area edges on shorts platforms that crop overlays.
-        paddingLeft: x !== "center" ? x : "6%",
+        paddingLeft,
         paddingRight: "6%",
         gap: fontSize * 0.3,
         flexWrap: "wrap",

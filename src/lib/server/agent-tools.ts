@@ -35,22 +35,28 @@ export interface ToolContext {
   origin: string;
   /** When set, sceneId-less tool calls default to this id. */
   focusedSceneId?: string | null;
+  /** Last-resort fallback for sceneId-less calls when not focused —
+   *  lets `inspectScene` / `nudgeScene` "just work" on the scene the
+   *  user has highlighted in the timeline without having to type the id. */
+  selectedSceneId?: string | null;
 }
 
 /**
  * Resolve the sceneId a tool should operate on. Helper used by every
  * tool that takes a `sceneId` arg so the agent can omit the arg in
- * focus mode and have it auto-fill from the focused scene.
+ * focus mode and have it auto-fill from the focused or selected scene.
  *
- *  - If args.sceneId is provided AND matches a real scene, use it.
+ *  - If args.sceneId / args.id is provided AND matches a real scene, use it.
  *  - Else if ctx.focusedSceneId is set AND matches, use it.
+ *  - Else if ctx.selectedSceneId is set AND matches, use it.
+ *  - Else if there's exactly one scene in the project, use it.
  *  - Else return null (caller emits the error message).
  */
 export function resolveSceneId(
   args: ToolArgs,
   ctx: ToolContext,
 ): string | null {
-  const explicit = args.sceneId ? String(args.sceneId) : "";
+  const explicit = (args.sceneId ?? args.id) ? String(args.sceneId ?? args.id) : "";
   if (explicit && ctx.project.scenes.some((s) => s.id === explicit))
     return explicit;
   if (
@@ -58,6 +64,14 @@ export function resolveSceneId(
     ctx.project.scenes.some((s) => s.id === ctx.focusedSceneId)
   )
     return ctx.focusedSceneId;
+  if (
+    ctx.selectedSceneId &&
+    ctx.project.scenes.some((s) => s.id === ctx.selectedSceneId)
+  )
+    return ctx.selectedSceneId;
+  if (ctx.project.scenes.length === 1) {
+    return ctx.project.scenes[0].id;
+  }
   return null;
 }
 
@@ -421,9 +435,41 @@ const TOOLS: Record<string, AgentTool> = {
     },
     async execute(args, ctx) {
       const id = String(args.id);
-      const rawPatch = (args.patch as Record<string, unknown>) ?? {};
+      const rawPatch = { ...((args.patch as Record<string, unknown>) ?? {}) };
       const idx = ctx.project.scenes.findIndex((s) => s.id === id);
       if (idx < 0) return { ok: false, message: `no scene with id ${id}` };
+
+      // Bridge createScene's flat aliases — the agent learns these from
+      // the createScene schema and reaches for them on updateScene too.
+      // Translate them into the nested `background.*` shape instead of
+      // rejecting, so "set background to #fff" just works.
+      const FLAT_ALIASES: Record<string, keyof SceneBackground> = {
+        backgroundColor: "color",
+        backgroundImageUrl: "imageUrl",
+        backgroundVideoUrl: "videoUrl",
+        backgroundKenBurns: "kenBurns",
+        backgroundCameraMove: "cameraMove",
+        backgroundColorGrade: "colorGrade",
+        backgroundBlur: "blur",
+        backgroundOpacity: "imageOpacity",
+        backgroundVignette: "vignette",
+      };
+      const bgFromAliases: Record<string, unknown> = {};
+      const bridgedAliases: string[] = [];
+      for (const [flat, nested] of Object.entries(FLAT_ALIASES)) {
+        if (Object.prototype.hasOwnProperty.call(rawPatch, flat)) {
+          const v = rawPatch[flat];
+          // Drop nulls so they don't clobber existing values — the agent
+          // sometimes sends `backgroundColor: null` when removing a value.
+          if (v !== null) bgFromAliases[nested] = v;
+          delete rawPatch[flat];
+          bridgedAliases.push(flat);
+        }
+      }
+      if (Object.keys(bgFromAliases).length > 0) {
+        const existing = (rawPatch.background as Record<string, unknown> | undefined) ?? {};
+        rawPatch.background = { ...existing, ...bgFromAliases };
+      }
 
       // Trust-gap guard: silently spreading any patch lets the agent
       // invent fields the renderer never reads (textAlign before it
@@ -467,7 +513,10 @@ const TOOLS: Record<string, AgentTool> = {
           : prev.background,
       };
       ctx.project.scenes = ctx.project.scenes.map((s, i) => (i === idx ? next : s));
-      return { ok: true, message: `updated scene ${id}` };
+      const note = bridgedAliases.length > 0
+        ? ` (bridged ${bridgedAliases.join(", ")} → background.*)`
+        : "";
+      return { ok: true, message: `updated scene ${id}${note}` };
     },
   },
 

@@ -214,8 +214,6 @@ export function Preview() {
   // seek back to loopRange.start so the user can preview a tight clip
   // on repeat. Only active in full-project mode.
   const loopRange = useEditorStore((s) => s.loopRange);
-  const editorMode = useEditorStore((s) => s.editorMode);
-  const isAgentMode = editorMode === "agent";
   useEffect(() => {
     if (!loopRange || selectedScene) return;
     const id = setInterval(() => {
@@ -328,12 +326,13 @@ export function Preview() {
         )}
       </div>
 
-      {/* Player + clickable overlay (top half of the split). Agent mode
-          gives the player the full height — there's no timeline below. */}
+      {/* Player + clickable overlay (top half of the split). Both modes
+          show the layered timeline below — the split slider lets the
+          user reclaim screen real estate when chatting heavily. */}
       <div
         ref={playerWrapperRef}
         className="min-h-0 relative bg-black rounded-lg overflow-hidden border border-neutral-800"
-        style={isAgentMode ? { flex: 1 } : { flex: previewFraction }}
+        style={{ flex: previewFraction }}
       >
         {selectedScene && (
           <div className="absolute top-2 left-2 z-30 px-1.5 py-1 rounded bg-neutral-900/70 backdrop-blur-sm border border-neutral-800 text-[10px] text-neutral-300 font-mono pointer-events-none">
@@ -524,32 +523,30 @@ export function Preview() {
           </div>
         )}
       </div>
-      {/* Resize handle + timeline — manual mode only. In agent mode the
-          chat is the primary editing surface, so we surrender the
-          screen real estate to the player. */}
-      {!isAgentMode && (
-        <>
-          <div
-            onPointerDown={onSplitPointerDown}
-            onDoubleClick={() => setPreviewFraction(0.65)}
-            title="Drag to resize · double-click to reset"
-            className="shrink-0 h-1.5 -my-1 cursor-row-resize group flex items-center justify-center relative z-20"
-          >
-            <span className="block w-12 h-px bg-neutral-700 group-hover:bg-emerald-400 group-active:bg-emerald-300 transition-colors" />
-          </div>
+      {/* Resize handle + layered timeline. Always render — users in
+          agent mode still need to see which layers exist (text-main,
+          text-emphasis, broll, effects, voiceover) and click into
+          them. The split slider already lets the user shrink it down
+          to a sliver if they want more room for the player. */}
+      <div
+        onPointerDown={onSplitPointerDown}
+        onDoubleClick={() => setPreviewFraction(0.65)}
+        title="Drag to resize · double-click to reset"
+        className="shrink-0 h-1.5 -my-1 cursor-row-resize group flex items-center justify-center relative z-20"
+      >
+        <span className="block w-12 h-px bg-neutral-700 group-hover:bg-emerald-400 group-active:bg-emerald-300 transition-colors" />
+      </div>
 
-          <div
-            className="min-h-0 overflow-y-auto"
-            style={{ flex: 1 - previewFraction }}
-          >
-            <LayeredTimeline
-              playerRef={playerRef}
-              currentFrame={globalCurrentFrame}
-              isFullPreview={isFullPreview}
-            />
-          </div>
-        </>
-      )}
+      <div
+        className="min-h-0 overflow-y-auto"
+        style={{ flex: 1 - previewFraction }}
+      >
+        <LayeredTimeline
+          playerRef={playerRef}
+          currentFrame={globalCurrentFrame}
+          isFullPreview={isFullPreview}
+        />
+      </div>
     </div>
   );
 }

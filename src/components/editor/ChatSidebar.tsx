@@ -412,6 +412,27 @@ export function ChatSidebar({
       // turn-finish below so each agent turn sees only the edits
       // since its last response.
       const recentManualEdits = useEditLogStore.getState().getRecent(8);
+
+      // Pull live UI state so the agent knows what the user is
+      // looking at / has selected / has edited recently. Without
+      // these, "make this red" or "make these faster" turn into
+      // guesswork. Cheap to send, big intent-disambiguation win.
+      const editorState = useEditorStore.getState();
+      const projectState = useProjectStore.getState();
+      const fps = projectBefore.fps || 30;
+      const viewSignals = {
+        playingSceneId: editorState.playingSceneId,
+        previewFrame: editorState.previewFrame,
+        previewTimeSec: Math.round((editorState.previewFrame / fps) * 100) / 100,
+        editorMode: editorState.editorMode,
+        selectedItemId: editorState.selectedItemId,
+        selectedSceneId: projectState.selectedSceneId,
+        selectedSceneIds: projectState.selectedSceneIds,
+        // Uploads not yet referenced anywhere — agent should reach
+        // for these before regenerating a fresh asset.
+        pendingUploads: computePendingUploads(projectBefore),
+      };
+
       const res = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -422,6 +443,7 @@ export function ChatSidebar({
           sfx,
           focusedSceneId: useEditorStore.getState().focusedSceneId,
           recentManualEdits,
+          viewSignals,
         }),
         signal: abortCtrl.signal,
       });
@@ -929,6 +951,32 @@ export function ChatSidebar({
       />
     </aside>
   );
+}
+
+/** Returns the project's uploads that aren't referenced by any scene
+ *  field — these are the ones the agent should reach for before
+ *  regenerating new media. */
+function computePendingUploads(
+  project: Project,
+): Array<{ url: string; name: string; type?: string }> {
+  const uploads = project.uploads ?? [];
+  if (uploads.length === 0) return [];
+  const referenced = new Set<string>();
+  for (const s of project.scenes) {
+    if (s.background?.imageUrl) referenced.add(s.background.imageUrl);
+    if (s.background?.videoUrl) referenced.add(s.background.videoUrl);
+    if (s.characterUrl) referenced.add(s.characterUrl);
+    if (s.sceneSfxUrl) referenced.add(s.sceneSfxUrl);
+    if (s.voiceover?.audioUrl) referenced.add(s.voiceover.audioUrl);
+    if (s.threeCardImageUrl) referenced.add(s.threeCardImageUrl);
+    if (s.splitLeftUrl) referenced.add(s.splitLeftUrl);
+    if (s.splitRightUrl) referenced.add(s.splitRightUrl);
+    for (const m of s.montageUrls ?? []) referenced.add(m);
+  }
+  if (project.music?.url) referenced.add(project.music.url);
+  return uploads
+    .filter((u) => !referenced.has(u.url))
+    .map((u) => ({ url: u.url, name: u.name, type: u.type }));
 }
 
 function formatRelativeTime(d: Date): string {

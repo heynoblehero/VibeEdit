@@ -471,6 +471,154 @@ const TOOLS: Record<string, AgentTool> = {
     },
   },
 
+  inspectScene: {
+    schema: {
+      name: "inspectScene",
+      description:
+        "Read-only: returns just one scene's filled fields so you can decide which knob to turn next. Cheaper than re-summarizing the whole project. Use BEFORE updateScene to confirm which text field has content (text vs emphasisText vs subtitleText), which color knob is set, whether a character is attached, etc. The output is a JSON-ish dump of non-empty fields only.",
+      input_schema: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "Scene id. Omit when in focus mode — defaults to focusedSceneId.",
+          },
+        },
+      },
+    },
+    async execute(args, ctx) {
+      const id = resolveSceneId(args, ctx);
+      if (!id) return { ok: false, message: "no scene id provided and no focused scene" };
+      const scene = ctx.project.scenes.find((s) => s.id === id);
+      if (!scene) return { ok: false, message: `no scene with id ${id}` };
+      const idx = ctx.project.scenes.findIndex((s) => s.id === id);
+      // Drop falsy fields so the agent's context isn't wasted on empty
+      // values. Background nests separately.
+      const filled: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(scene)) {
+        if (k === "background") continue;
+        if (v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0)) continue;
+        filled[k] = v;
+      }
+      const bg: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(scene.background ?? {})) {
+        if (v === undefined || v === null || v === "") continue;
+        bg[k] = v;
+      }
+      const summary = JSON.stringify({ index: idx, ...filled, background: bg }, null, 2);
+      return {
+        ok: true,
+        message: `scene ${id} (index ${idx}):\n${summary}`,
+      };
+    },
+  },
+
+  nudgeScene: {
+    schema: {
+      name: "nudgeScene",
+      description:
+        "Apply RELATIVE numeric tweaks to a scene's positioning/sizing fields. Use for 'move text up 20px', 'shrink character a bit', 'nudge image 50px right'. Each value is an additive delta on the current field; missing fields default to their renderer default and become deltas off that. Only numeric fields are supported.",
+      input_schema: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "Scene id (omit in focus mode)." },
+          textY: { type: "number", description: "Add to scene.textY." },
+          characterX: { type: "number", description: "Add to scene.characterX." },
+          characterY: { type: "number", description: "Add to scene.characterY." },
+          characterScale: { type: "number", description: "Multiply scene.characterScale." },
+          duration: { type: "number", description: "Add to scene.duration (seconds)." },
+          imageOffsetX: { type: "number", description: "Add to background.imageOffsetX." },
+          imageOffsetY: { type: "number", description: "Add to background.imageOffsetY." },
+          imageScale: { type: "number", description: "Multiply background.imageScale." },
+          videoOffsetX: { type: "number", description: "Add to background.videoOffsetX." },
+          videoOffsetY: { type: "number", description: "Add to background.videoOffsetY." },
+          videoScale: { type: "number", description: "Multiply background.videoScale." },
+          zoomPunch: { type: "number", description: "Add to scene.zoomPunch." },
+        },
+      },
+    },
+    async execute(args, ctx) {
+      const id = resolveSceneId(args, ctx);
+      if (!id) return { ok: false, message: "no scene id provided and no focused scene" };
+      const idx = ctx.project.scenes.findIndex((s) => s.id === id);
+      if (idx < 0) return { ok: false, message: `no scene with id ${id}` };
+      const prev = ctx.project.scenes[idx];
+
+      const num = (k: string) => (typeof args[k] === "number" ? (args[k] as number) : undefined);
+      const additive = (cur: number | undefined, fallback: number, delta: number | undefined) =>
+        delta === undefined ? cur : (cur ?? fallback) + delta;
+      const multiplicative = (cur: number | undefined, fallback: number, factor: number | undefined) =>
+        factor === undefined ? cur : (cur ?? fallback) * factor;
+
+      const changes: string[] = [];
+      const next: Scene = { ...prev };
+      const bg = { ...prev.background };
+
+      const tryAdd = (
+        field: keyof Scene,
+        fallback: number,
+        delta: number | undefined,
+      ) => {
+        if (delta === undefined) return;
+        const cur = (prev[field] as number | undefined);
+        const newVal = additive(cur, fallback, delta)!;
+        (next[field] as unknown as number) = Math.round(newVal * 100) / 100;
+        changes.push(`${String(field)}: ${cur ?? fallback} → ${next[field]}`);
+      };
+      const tryMul = (
+        field: keyof Scene,
+        fallback: number,
+        factor: number | undefined,
+      ) => {
+        if (factor === undefined) return;
+        const cur = (prev[field] as number | undefined);
+        const newVal = multiplicative(cur, fallback, factor)!;
+        (next[field] as unknown as number) = Math.round(newVal * 1000) / 1000;
+        changes.push(`${String(field)}: ${cur ?? fallback} ×${factor} → ${next[field]}`);
+      };
+      const tryAddBg = (
+        field: keyof SceneBackground,
+        fallback: number,
+        delta: number | undefined,
+      ) => {
+        if (delta === undefined) return;
+        const cur = (prev.background?.[field] as number | undefined);
+        (bg[field] as unknown as number) = Math.round((additive(cur, fallback, delta) ?? 0) * 100) / 100;
+        changes.push(`background.${String(field)}: ${cur ?? fallback} → ${bg[field]}`);
+      };
+      const tryMulBg = (
+        field: keyof SceneBackground,
+        fallback: number,
+        factor: number | undefined,
+      ) => {
+        if (factor === undefined) return;
+        const cur = (prev.background?.[field] as number | undefined);
+        (bg[field] as unknown as number) = Math.round((multiplicative(cur, fallback, factor) ?? 0) * 1000) / 1000;
+        changes.push(`background.${String(field)}: ${cur ?? fallback} ×${factor} → ${bg[field]}`);
+      };
+
+      tryAdd("textY", 300, num("textY"));
+      tryAdd("characterX", 960, num("characterX"));
+      tryAdd("characterY", 900, num("characterY"));
+      tryMul("characterScale", 1, num("characterScale"));
+      tryAdd("duration", prev.duration ?? 2, num("duration"));
+      tryAdd("zoomPunch", 1, num("zoomPunch"));
+      tryAddBg("imageOffsetX", 0, num("imageOffsetX"));
+      tryAddBg("imageOffsetY", 0, num("imageOffsetY"));
+      tryMulBg("imageScale", 1, num("imageScale"));
+      tryAddBg("videoOffsetX", 0, num("videoOffsetX"));
+      tryAddBg("videoOffsetY", 0, num("videoOffsetY"));
+      tryMulBg("videoScale", 1, num("videoScale"));
+
+      if (changes.length === 0) {
+        return { ok: false, message: "no nudge values supplied" };
+      }
+      next.background = bg;
+      ctx.project.scenes = ctx.project.scenes.map((s, i) => (i === idx ? next : s));
+      return { ok: true, message: `nudged scene ${id}: ${changes.join(", ")}` };
+    },
+  },
+
   removeScene: {
     schema: {
       name: "removeScene",
@@ -513,13 +661,17 @@ const TOOLS: Record<string, AgentTool> = {
     schema: {
       name: "generateScenesFromScript",
       description:
-        "Generate an ordered set of scenes from the script using the local heuristic (fast, no AI call). Replaces existing scenes. If you want custom scenes, call createScene per scene instead.",
+        "Generate an ordered set of scenes from the script using the local heuristic (fast, no AI call). DESTRUCTIVE: replaces existing scenes. The route enforces a confirmation gate — pass confirm:\"start over\" (or have the user say it explicitly) when scenes already exist. If you just want to add/edit, call createScene per scene instead.",
       input_schema: {
         type: "object",
         properties: {
           script: {
             type: "string",
             description: "Optional — uses project.script if omitted.",
+          },
+          confirm: {
+            type: "string",
+            description: "Required when project already has scenes. Pass the user's exact intent phrase like \"start over\" / \"remake\".",
           },
         },
       },
@@ -2286,13 +2438,17 @@ const TOOLS: Record<string, AgentTool> = {
     schema: {
       name: "applySceneTemplate",
       description:
-        "Stamp a preset 5-7 scene structure into the project for a recognized format. Templates: tutorial_intro (hook→problem→3 steps→outcome→CTA), product_reveal (tease→reveal→3 features→CTA), before_after (problem→bridge→solution→proof→CTA), 5_tips (hook→tip×5→CTA), explainer (question→intro→core→examples×2→takeaway). Each template returns the scene IDs it created so the agent can populate text/assets.",
+        "Stamp a preset 5-7 scene structure into the project for a recognized format. Templates: tutorial_intro (hook→problem→3 steps→outcome→CTA), product_reveal (tease→reveal→3 features→CTA), before_after (problem→bridge→solution→proof→CTA), 5_tips (hook→tip×5→CTA), explainer (question→intro→core→examples×2→takeaway). DESTRUCTIVE when scenes already exist — pass confirm:\"start over\" (or wait for the user to say so explicitly). Each template returns the scene IDs it created so the agent can populate text/assets.",
       input_schema: {
         type: "object",
         properties: {
           template: {
             type: "string",
             enum: ["tutorial_intro", "product_reveal", "before_after", "5_tips", "explainer"],
+          },
+          confirm: {
+            type: "string",
+            description: "Required when project already has scenes. Pass the user's exact intent phrase like \"start over\" / \"remake\".",
           },
         },
         required: ["template"],
@@ -3337,9 +3493,16 @@ const TOOLS: Record<string, AgentTool> = {
         textColor: secondary,
         backgroundColor: neutral,
       };
+      // Lock subsequent color edits to this palette so the agent can't
+      // drift away from the unified look one scene at a time. Route's
+      // palette-lock gate enforces this on updateScene.
+      ctx.project.paletteLock = {
+        colors: valid,
+        appliedAt: Date.now(),
+      };
       return {
         ok: true,
-        message: `palette applied — ${touched} field${touched === 1 ? "" : "s"} updated. primary=${primary} secondary=${secondary} neutral=${neutral}`,
+        message: `palette applied — ${touched} field${touched === 1 ? "" : "s"} updated. primary=${primary} secondary=${secondary} neutral=${neutral}. paletteLock now active — text/emphasis/subtitle/number colors must come from [${valid.join(", ")}].`,
       };
     },
   },

@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import type { Project } from "@/lib/scene-schema";
+import type { AgentLogEntry, Project } from "@/lib/scene-schema";
 import type { CharacterAsset, SfxAsset } from "@/store/asset-store";
 import {
   listToolSchemas,
@@ -28,6 +28,27 @@ interface ManualEditLogEntry {
   at: number;
 }
 
+interface ViewSignals {
+  /** Scene currently playing in the preview (passive watch state). */
+  playingSceneId?: string | null;
+  /** Frame within the project the user has scrubbed to. */
+  previewFrame?: number;
+  /** Same value, in seconds — convenience for the system prompt. */
+  previewTimeSec?: number;
+  /** "agent" or "manual" — affects how aggressive the agent should be. */
+  editorMode?: "agent" | "manual";
+  /** Sub-scene selection (e.g. "scn3:emphasis") when the user clicked
+   *  a specific text or layer block. */
+  selectedItemId?: string | null;
+  /** Single-selected scene (highlighted in timeline). */
+  selectedSceneId?: string | null;
+  /** Multi-select state — when the user shift-clicked or marquee'd. */
+  selectedSceneIds?: string[];
+  /** Uploads that no scene currently references — agent should reach
+   *  for these before regenerating fresh media. */
+  pendingUploads?: Array<{ url: string; name: string; type?: string }>;
+}
+
 interface AgentRequest {
   messages: ChatMessage[];
   project: Project;
@@ -39,6 +60,9 @@ interface AgentRequest {
    *  agent treats these as deliberate intent — preserve unless asked
    *  to change. Cleared client-side on turn finish. */
   recentManualEdits?: ManualEditLogEntry[];
+  /** Live UI/intent state at the moment the user hit send. Disambiguates
+   *  "make this red" / "make these faster" without a clarifying turn. */
+  viewSignals?: ViewSignals;
 }
 
 const SYSTEM_PROMPT = `You are the AI copilot inside VibeEdit, a manual web video editor. Most of the time, the user is editing scenes by hand and asking you for surgical help — re-narrate this scene, generate a new image for that one, fix the pacing of one beat. Default to focused, scene-scoped edits. The autonomous "build the whole video" loop only runs when:
@@ -176,7 +200,9 @@ CORE LOOP (do this every meaningful turn):
      · scene.emphasisText — the bold ALL-CAPS punch word, rendered with scene.emphasisColor (defaults white). Position via scene.emphasisAlign ("left" | "center" | "right", default center). This is usually what the user calls "the text" because it's the largest, boldest element on screen.
      · scene.subtitleText — the small caption-style line, rendered with scene.subtitleColor. Position via scene.subtitleAlign ("left" | "center" | "right", default center).
      When the user says "make text red" or "the text", FIRST inspect which of those three fields actually has content on the target scene. If the user-visible word lives in emphasisText, edit emphasisColor (NOT textColor) and emphasisAlign (NOT textAlign). If both text and emphasisText have content, ask which one OR change BOTH so the change is unambiguous. NEVER blindly set textColor when the visible word is in emphasisText. There is NO textX / emphasisX / textAlignment / textPosition / horizontalAlign field — updateScene rejects unknown fields, so use the *Align names exactly.
-   - **SELF-VERIFY BEFORE REPORTING SUCCESS.** After every updateScene that changes a visible property (text/color/size/position/asset), inspect the patched scene and confirm the new value will actually be rendered. If the field you patched is one the renderer ignores (e.g. characterScale when there is no character; textColor when the visible word is in emphasisText), DO NOT report "done". Either fix the right field on the same turn or tell the user explicitly what you found and ask. The user judges by what they see — so should you.
+   - **SELF-VERIFY BEFORE REPORTING SUCCESS.** After every updateScene that changes a visible property (text/color/size/position/asset), inspect the patched scene and confirm the new value will actually be rendered. Use **inspectScene(id)** for a focused, cheap re-read of just that scene's filled fields — no need to dump the whole project summary. If the field you patched is one the renderer ignores (e.g. characterScale when there is no character; textColor when the visible word is in emphasisText), DO NOT report "done". Either fix the right field on the same turn or tell the user explicitly what you found and ask. The user judges by what they see — so should you.
+   - **PREFER nudgeScene FOR RELATIVE TWEAKS.** When the user says "move text up 20px", "shrink character a bit", "nudge image 50px right", call **nudgeScene** instead of updateScene + computing absolute values. Pass deltas like {textY: -20} or {characterScale: 0.85}. Cleaner than reading the current value first.
+   - **READ THE LIVE INTENT SIGNALS.** Each turn ships LIVE INTENT SIGNALS in a system block: which scene the user is watching/playing, what they have selected (single or multi), what layer/item they clicked, and any uploads they've dropped but not placed yet (pendingUploads). Use these to resolve ambiguous pronouns ("this", "these", "the text") to specific scenes/items WITHOUT a clarifying question. If pendingUploads is non-empty, REACH FOR THOSE before regenerating fresh media — the user dropped them for a reason.
    - **MANDATORY VISUALS: Every scene must have a real visual asset.** A scene with just text on a solid color is a FAILURE. Specifically:
      · If the user uploaded images / clips: USE THEM via scene.background.imageUrl. Place each one on the most relevant scene.
      · If you've used all uploaded images and need more: call generateImageForScene with a prompt that matches the scene's text and the overall topic. Pollinations is the free fallback if no Replicate / OpenAI key is set.
@@ -589,6 +615,27 @@ export async function POST(request: NextRequest) {
       let forcedContinues = 0;
       const MAX_FORCED_CONTINUES = 3;
 
+      // Turn ordinal: increments per inbound user message, used to tag
+      // every agentLog entry so /replay can group events by turn.
+      const turnOrdinal =
+        (project.agentLog ?? []).reduce((m, e) => Math.max(m, e.turn), 0) + 1;
+      const logBuffer: AgentLogEntry[] = [];
+      const log = (entry: Omit<AgentLogEntry, "ts" | "turn">) => {
+        logBuffer.push({ ts: Date.now(), turn: turnOrdinal, ...entry });
+      };
+      // Per-tool failure/success counters for this turn — surfaced in
+      // the final `done` event so the client can pin known-flaky tools.
+      const toolStats: Record<string, { ok: number; fail: number }> = {};
+      const bumpStat = (name: string, ok: boolean) => {
+        const s = (toolStats[name] ??= { ok: 0, fail: 0 });
+        if (ok) s.ok++;
+        else s.fail++;
+      };
+      const trim = (v: unknown, max = 200) => {
+        const s = typeof v === "string" ? v : JSON.stringify(v);
+        return s && s.length > max ? `${s.slice(0, max - 1)}…` : s ?? "";
+      };
+
       // Per-turn budgets: bound exploration so the agent doesn't burn $$
       // making the same call 20x. Inspired by autoresearch's fixed-budget
       // training loop. When a budget is exceeded the tool returns a
@@ -721,6 +768,54 @@ export async function POST(request: NextRequest) {
                   `Don't revert, rewrite, or normalize them as a side effect of unrelated work.\n\n${lines.join("\n")}`,
               });
             }
+            // Live intent signals — what the user is looking at / has
+            // selected / has uploaded but not placed yet. Splice as one
+            // tight block so the agent can reach for it instead of
+            // guessing or asking a clarifying question.
+            if (body.viewSignals) {
+              const v = body.viewSignals;
+              const lines: string[] = [];
+              const sceneLabel = (id: string | null | undefined) => {
+                if (!id) return null;
+                const idx = project.scenes.findIndex((s) => s.id === id);
+                return idx >= 0 ? `scene ${idx + 1} (${id})` : null;
+              };
+              if (v.editorMode) lines.push(`· editorMode: ${v.editorMode}`);
+              const playing = sceneLabel(v.playingSceneId);
+              if (playing) lines.push(`· user is watching: ${playing}`);
+              if (typeof v.previewTimeSec === "number" && v.previewTimeSec > 0) {
+                lines.push(`· preview scrubbed to ${v.previewTimeSec.toFixed(2)}s (frame ${v.previewFrame ?? 0})`);
+              }
+              const sel = sceneLabel(v.selectedSceneId);
+              if (sel) lines.push(`· selected: ${sel}`);
+              if (v.selectedSceneIds && v.selectedSceneIds.length > 1) {
+                const labels = v.selectedSceneIds
+                  .map((id) => sceneLabel(id))
+                  .filter(Boolean)
+                  .join(", ");
+                lines.push(`· multi-select (${v.selectedSceneIds.length}): ${labels}`);
+              }
+              if (v.selectedItemId) {
+                lines.push(`· selected layer/item: ${v.selectedItemId} — disambiguates "the text" / "the image" pronouns to this exact element`);
+              }
+              if (v.pendingUploads && v.pendingUploads.length > 0) {
+                const ul = v.pendingUploads
+                  .slice(0, 8)
+                  .map((u) => `  · ${u.url} (${u.type || "?"}) — ${u.name}`)
+                  .join("\n");
+                lines.push(
+                  `· pendingUploads (${v.pendingUploads.length} not placed yet — REACH FOR THESE before regenerating):\n${ul}`,
+                );
+              }
+              if (lines.length > 0) {
+                systemBlocks.push({
+                  type: "text",
+                  text:
+                    `LIVE INTENT SIGNALS — what the user is doing right now. Use these to resolve pronouns ` +
+                    `("this", "these", "the text") to specific scenes/items, and to prefer pending uploads over fresh generation.\n\n${lines.join("\n")}`,
+                });
+              }
+            }
             // Per-project override appended at the end so it takes priority.
             if (project.systemPrompt?.trim()) {
               systemBlocks.push({
@@ -751,6 +846,7 @@ export async function POST(request: NextRequest) {
           for (const block of contentBlocks) {
             if (block.type === "text" && block.text) {
               send({ type: "text", text: block.text });
+              log({ kind: "text", preview: trim(block.text, 400) });
             }
           }
 
@@ -792,6 +888,100 @@ export async function POST(request: NextRequest) {
             const args = (tu.input ?? {}) as Record<string, unknown>;
             send({ type: "tool_start", id: tu.id, name: tu.name, args });
             const toolName = tu.name ?? "";
+            log({ kind: "tool_call", tool: toolName, preview: trim(args) });
+
+            // Helper used by every gate below — emit the SSE + log entry
+            // + tool_result block + stats bump in one place. Call then
+            // `continue` to skip running the tool itself.
+            const rejectGate = (synthetic: string) => {
+              send({ type: "tool_result", id: tu.id, name: toolName, ok: false, message: synthetic });
+              toolResultBlocks.push({
+                type: "tool_result",
+                tool_use_id: tu.id ?? "",
+                content: [{ type: "text", text: synthetic }],
+                is_error: true,
+              });
+              bumpStat(toolName, false);
+              log({ kind: "gate", tool: toolName, preview: trim(synthetic, 200), ok: false });
+            };
+
+            // FOCUSED-SCOPE HARD GATE: when the user has scoped this turn
+            // to one scene, any tool that mutates the project as a whole
+            // or mutates other scenes is rejected outright. The system
+            // prompt asks for this discipline; this is the chokepoint.
+            const projectWideTools = new Set([
+              "planVideo",
+              "applySceneTemplate",
+              "applyPaletteToProject",
+              "switchWorkflow",
+              "appendEndScreen",
+              "generateMusicForProject",
+              "setScript",
+              "generateScenesFromScript",
+              "applyStylePreset",
+              "setOrientation",
+              "setProjectName",
+              "removeScenes",
+              "writeNarrativeSpine",
+              "setMusic",
+              "narrateAllScenes",
+              "setCaptionStyle",
+            ]);
+            if (body.focusedSceneId && projectWideTools.has(toolName)) {
+              rejectGate(
+                `[focused-scope] ${toolName} blocked — turn is scoped to scene ${body.focusedSceneId}. Multi-scene / project-wide tools are not allowed in focus mode. Either work on the focused scene with updateScene/inspectScene/nudgeScene, or ask the user to exit focus mode first.`,
+              );
+              continue;
+            }
+
+            // DESTRUCTIVE-OP CONFIRMATION: tools that wipe or mass-mutate
+            // require an explicit confirm arg. The agent can pass the
+            // user's exact phrase ("start over", "remake everything") so
+            // we don't silently nuke 18 scenes worth of work.
+            const destructiveTools = new Set([
+              "generateScenesFromScript",
+              "removeScenes",
+              "applySceneTemplate",
+            ]);
+            if (destructiveTools.has(toolName)) {
+              const confirm = String(args.confirm ?? "").toLowerCase();
+              const projectIsEmpty = ctx.project.scenes.length === 0;
+              const validPhrase =
+                /\b(start over|remake|reset|wipe|begin again|new draft)\b/.test(
+                  confirm,
+                ) || /\b(start over|remake)\b/.test(
+                  // Also scan the latest user message for these phrases.
+                  (body.messages[body.messages.length - 1]?.content ?? "").toLowerCase(),
+                );
+              if (!projectIsEmpty && !validPhrase) {
+                rejectGate(
+                  `[destructive] ${toolName} would replace existing scenes (${ctx.project.scenes.length} on the timeline). Pass confirm:"start over" (or wait for the user to say it explicitly) before calling. If the user just wants to add/edit, use createScene / updateScene instead.`,
+                );
+                continue;
+              }
+            }
+
+            // PALETTE LOCK: once applyPaletteToProject runs, project.paletteLock
+            // gets the accent palette. From then on, updateScene patches that
+            // change text/emphasis/subtitle colors must use a palette color.
+            if (toolName === "updateScene" && ctx.project.paletteLock) {
+              const palette = ctx.project.paletteLock.colors.map((c) => c.toLowerCase());
+              const patch = (args.patch as Record<string, unknown> | undefined) ?? {};
+              const colorFields = ["textColor", "emphasisColor", "subtitleColor", "numberColor"];
+              const offending: string[] = [];
+              for (const f of colorFields) {
+                const v = patch[f];
+                if (typeof v === "string" && v.length > 0 && !palette.includes(v.toLowerCase())) {
+                  offending.push(`${f}=${v}`);
+                }
+              }
+              if (offending.length > 0) {
+                rejectGate(
+                  `[palette-lock] color${offending.length === 1 ? "" : "s"} ${offending.join(", ")} not in the locked palette ${palette.join(", ")}. Use a palette color or call applyPaletteToProject with a new palette first.`,
+                );
+                continue;
+              }
+            }
 
             // LOCK GATE: scenes the user has marked locked are read-only.
             // Excalidraw's pattern — guard at the chokepoint, not at every
@@ -812,6 +1002,13 @@ export async function POST(request: NextRequest) {
               "addKeyframe",
               "clearKeyframes",
               "prepareUploadForScene",
+              "nudgeScene",
+              "setMotionPreset",
+              "setCut",
+              "setSceneSpeed",
+              "setBroll",
+              "extendScene",
+              "trimScene",
             ]);
             if (sceneMutatingTools.has(toolName)) {
               const sceneIdArg =
@@ -820,20 +1017,9 @@ export async function POST(request: NextRequest) {
               if (typeof sceneIdArg === "string") {
                 const target = ctx.project.scenes.find((s) => s.id === sceneIdArg);
                 if (target?.locked) {
-                  const synthetic = `[locked] scene ${sceneIdArg} is locked — the user marked it read-only. Skip this scene or ask the user to unlock it before proceeding. DO NOT call ${toolName} on it again this turn.`;
-                  send({
-                    type: "tool_result",
-                    id: tu.id,
-                    name: toolName,
-                    ok: false,
-                    message: synthetic,
-                  });
-                  toolResultBlocks.push({
-                    type: "tool_result",
-                    tool_use_id: tu.id ?? "",
-                    content: [{ type: "text", text: synthetic }],
-                    is_error: true,
-                  });
+                  rejectGate(
+                    `[locked] scene ${sceneIdArg} is locked — the user marked it read-only. Skip this scene or ask the user to unlock it before proceeding. DO NOT call ${toolName} on it again this turn.`,
+                  );
                   continue;
                 }
               }
@@ -851,20 +1037,22 @@ export async function POST(request: NextRequest) {
             ]);
             const planExists = !!ctx.project.spine && (ctx.project.shotList?.length ?? 0) > 0;
             if (expensiveMediaTools.has(toolName) && !planExists) {
-              const synthetic = `[plan-mode] ${toolName} blocked — call writeNarrativeSpine + planVideo FIRST so we know what we're building. No money spent on media until the plan exists.`;
-              send({
-                type: "tool_result",
-                id: tu.id,
-                name: toolName,
-                ok: false,
-                message: synthetic,
-              });
-              toolResultBlocks.push({
-                type: "tool_result",
-                tool_use_id: tu.id ?? "",
-                content: [{ type: "text", text: synthetic }],
-                is_error: true,
-              });
+              rejectGate(
+                `[plan-mode] ${toolName} blocked — call writeNarrativeSpine + planVideo FIRST so we know what we're building. No money spent on media until the plan exists.`,
+              );
+              continue;
+            }
+            // PLAN-COMMIT GATE EXTENSION: media tools also need at least
+            // one scene to attach to. Catches "I forgot to call createScene"
+            // before we burn an image-gen budget on nothing.
+            if (
+              expensiveMediaTools.has(toolName) &&
+              ctx.project.scenes.length === 0 &&
+              toolName !== "generateMusicForProject"
+            ) {
+              rejectGate(
+                `[plan-mode] ${toolName} blocked — project has zero scenes. Call createScene first so the generated asset has somewhere to land.`,
+              );
               continue;
             }
 
@@ -872,20 +1060,9 @@ export async function POST(request: NextRequest) {
             if (cap !== undefined) {
               used[toolName] = (used[toolName] ?? 0) + 1;
               if (used[toolName] > cap) {
-                const synthetic = `[budget] ${toolName} hit per-turn cap of ${cap}. Stop calling it this turn — work with what you already have, or ask the user for clarification.`;
-                send({
-                  type: "tool_result",
-                  id: tu.id,
-                  name: toolName,
-                  ok: false,
-                  message: synthetic,
-                });
-                toolResultBlocks.push({
-                  type: "tool_result",
-                  tool_use_id: tu.id ?? "",
-                  content: [{ type: "text", text: synthetic }],
-                  is_error: true,
-                });
+                rejectGate(
+                  `[budget] ${toolName} hit per-turn cap of ${cap}. Stop calling it this turn — work with what you already have, or ask the user for clarification.`,
+                );
                 continue;
               }
             }
@@ -901,6 +1078,13 @@ export async function POST(request: NextRequest) {
             } else {
               consecutiveErrors++;
             }
+            bumpStat(toolName, result.ok);
+            log({
+              kind: "tool_result",
+              tool: toolName,
+              preview: trim(result.message, 300),
+              ok: result.ok,
+            });
             send({
               type: "tool_result",
               id: tu.id,
@@ -938,7 +1122,13 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         send({ type: "error", error: err instanceof Error ? err.message : String(err) });
       } finally {
-        send({ type: "done", project });
+        // Flush the turn's log into project.agentLog, capped to the
+        // last 200 entries so we don't grow unbounded.
+        if (logBuffer.length > 0) {
+          const merged = [...(project.agentLog ?? []), ...logBuffer];
+          project.agentLog = merged.length > 200 ? merged.slice(-200) : merged;
+        }
+        send({ type: "done", project, toolStats });
         close();
       }
     },

@@ -577,6 +577,25 @@ export interface Project {
     hashtags?: string[];
   };
   /**
+   * Locked palette — set by applyPaletteToProject. While this is set,
+   * the agent's updateScene calls that change text/emphasis/subtitle/
+   * number colors must use one of these hex values, otherwise the
+   * route rejects them. Keeps the project visually unified once a
+   * palette decision has been made.
+   */
+  paletteLock?: {
+    colors: string[];
+    appliedAt: number;
+  };
+  /**
+   * Rolling log of agent activity across turns. Each entry is one
+   * concrete event: assistant text, a tool call result, or a failed
+   * gate. Capped to the last ~200 entries by the route. Lets the user
+   * /replay a session, lets eval inspect the trace, and lets the agent
+   * itself reference what it did last turn instead of guessing.
+   */
+  agentLog?: AgentLogEntry[];
+  /**
    * Project-wide audio mix. Each gain is a 0–2 multiplier (default 1)
    * applied on top of any per-scene audioGain and the renderer's bed
    * volumes. Lets the user dim music under VO, push sfx, etc. without
@@ -891,6 +910,20 @@ export interface ProjectUpload {
   type?: string;
   bytes?: number;
   uploadedAt: number;
+}
+
+export interface AgentLogEntry {
+  /** Epoch ms when this event was logged. */
+  ts: number;
+  /** Conversation turn ordinal — increments per user message. */
+  turn: number;
+  kind: "text" | "tool_call" | "tool_result" | "gate";
+  /** For tool_call / tool_result. */
+  tool?: string;
+  /** Compact arg/result preview. Args trimmed to ~200 chars per value. */
+  preview?: string;
+  /** ok flag for tool_result and gate. */
+  ok?: boolean;
 }
 
 export interface ExperimentRecord {

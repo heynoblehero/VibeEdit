@@ -276,17 +276,12 @@ export function Preview() {
     setEditTarget(target);
   }, [setEditTarget]);
 
-  if (project.scenes.length === 0) {
-    return <EmptyProjectInstruction />;
-  }
-
-  const hasChar = selectedScene?.characterId || selectedScene?.characterUrl;
-  const hasText = selectedScene?.text || selectedScene?.emphasisText;
-  const hasNumber = selectedScene?.type === "big_number";
-
   // Which layer the canvas-handle overlay is editing. Defaults to the
   // first available layer (image > video > character) and only renders
   // toggle pills when more than one layer is present.
+  // Declared BEFORE the early return so hooks run in the same order
+  // on every render — going from 0 → 1 scene must not change the hook
+  // count or React throws #310.
   const availableTargets = useMemo<ManipulatorTarget[]>(() => {
     if (!selectedScene) return [];
     const out: ManipulatorTarget[] = [];
@@ -302,6 +297,14 @@ export function Preview() {
       setManipTarget(availableTargets[0]);
     }
   }, [availableTargets, manipTarget]);
+
+  if (project.scenes.length === 0) {
+    return <EmptyProjectInstruction />;
+  }
+
+  const hasChar = selectedScene?.characterId || selectedScene?.characterUrl;
+  const hasText = selectedScene?.text || selectedScene?.emphasisText;
+  const hasNumber = selectedScene?.type === "big_number";
 
   return (
     <div ref={splitContainerRef} className="flex flex-col h-full gap-2">

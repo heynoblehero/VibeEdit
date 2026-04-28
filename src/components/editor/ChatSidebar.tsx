@@ -942,6 +942,52 @@ function formatRelativeTime(d: Date): string {
   return d.toLocaleDateString();
 }
 
+/** Extract a "what fields changed" summary for mutating tools so the
+ *  user can audit the agent's edit at a glance. Catches the class of
+ *  bug where the agent sets textColor but the visible word is in
+ *  emphasisText (or characterScale on a scene that has no character). */
+function summarizeToolArgs(
+  toolName: string,
+  args?: Record<string, unknown>,
+): string | null {
+  if (!args) return null;
+  const fmt = (v: unknown): string => {
+    if (typeof v === "string") return v.length > 32 ? `"${v.slice(0, 30)}…"` : `"${v}"`;
+    if (v === null || v === undefined) return "null";
+    if (typeof v === "object") return JSON.stringify(v).slice(0, 60);
+    return String(v);
+  };
+  // updateScene: `patch` is the diff. setSceneDuration: `seconds`.
+  // setCut: kind + sceneIds. createScene: `partial`.
+  if (toolName === "updateScene" && args.patch && typeof args.patch === "object") {
+    const patch = args.patch as Record<string, unknown>;
+    const keys = Object.keys(patch).slice(0, 5);
+    if (keys.length === 0) return null;
+    const sceneId = typeof args.sceneId === "string" ? args.sceneId : "?";
+    const fields = keys.map((k) => `${k}=${fmt(patch[k])}`).join(", ");
+    return `${sceneId}: ${fields}${Object.keys(patch).length > 5 ? " …" : ""}`;
+  }
+  if (toolName === "setSceneDuration") {
+    return `${args.sceneId ?? "?"}: ${args.seconds ?? "?"}s`;
+  }
+  if (toolName === "setCut") {
+    return `${args.fromSceneId ?? "?"} → ${args.toSceneId ?? "?"} (${args.kind ?? "?"})`;
+  }
+  if (toolName === "reorderScenes" && Array.isArray(args.sceneIds)) {
+    return `→ ${(args.sceneIds as string[]).join(", ")}`;
+  }
+  if (toolName === "createScene") {
+    const partial = (args.partial as Record<string, unknown> | undefined) ?? {};
+    const type = partial.type ?? "?";
+    const dur = partial.duration ?? "?";
+    return `type=${type} duration=${dur}s`;
+  }
+  if (toolName === "removeScene" || toolName === "duplicateScene") {
+    return `${args.sceneId ?? "?"}`;
+  }
+  return null;
+}
+
 function MessageBubble({
   message,
   onUndo,
@@ -1031,45 +1077,59 @@ function MessageBubble({
           })()}
           {toolsExpanded && toolCount > 0 && (
             <div className="flex flex-col gap-0.5 pl-1 border-l border-neutral-800">
-              {message.toolCalls!.map((c) => (
-                <div
-                  key={c.id}
-                  title={
-                    c.args
-                      ? `${c.name}(${JSON.stringify(c.args, null, 0).slice(0, 300)})`
-                      : c.name
-                  }
-                  className={`flex items-start gap-1.5 text-[10px] leading-tight animate-[fadeIn_150ms_ease-out] ${
-                    c.ok === false
-                      ? "bg-red-500/10 border border-red-500/30 rounded px-1.5 py-1"
-                      : ""
-                  }`}
-                >
-                  <span
-                    className={`font-mono shrink-0 ${
-                      c.ok == null
-                        ? "text-neutral-500"
-                        : c.ok
-                          ? "text-emerald-400"
-                          : "text-red-400"
+              {message.toolCalls!.map((c) => {
+                // Compact "what changed" — for mutating tools, surface
+                // the patched fields inline so the user can audit the
+                // agent's actual edit (catches "agent set textColor
+                // when the visible word is in emphasisText" class bugs).
+                const fieldSummary = summarizeToolArgs(c.name, c.args);
+                return (
+                  <div
+                    key={c.id}
+                    title={
+                      c.args
+                        ? `${c.name}(${JSON.stringify(c.args, null, 0).slice(0, 300)})`
+                        : c.name
+                    }
+                    className={`flex flex-col gap-0.5 text-[10px] leading-tight animate-[fadeIn_150ms_ease-out] ${
+                      c.ok === false
+                        ? "bg-red-500/10 border border-red-500/30 rounded px-1.5 py-1"
+                        : ""
                     }`}
                   >
-                    {c.ok == null ? "…" : c.ok ? "✓" : "✗"}
-                  </span>
-                  <span className="text-white font-mono shrink-0">{c.name}</span>
-                  {c.message && (
-                    <span
-                      className={`flex-1 break-all ${
-                        c.ok === false
-                          ? "text-red-300 whitespace-pre-wrap"
-                          : "text-neutral-500 truncate"
-                      }`}
-                    >
-                      — {c.message}
-                    </span>
-                  )}
-                </div>
-              ))}
+                    <div className="flex items-start gap-1.5">
+                      <span
+                        className={`font-mono shrink-0 ${
+                          c.ok == null
+                            ? "text-neutral-500"
+                            : c.ok
+                              ? "text-emerald-400"
+                              : "text-red-400"
+                        }`}
+                      >
+                        {c.ok == null ? "…" : c.ok ? "✓" : "✗"}
+                      </span>
+                      <span className="text-white font-mono shrink-0">{c.name}</span>
+                      {c.message && (
+                        <span
+                          className={`flex-1 break-all ${
+                            c.ok === false
+                              ? "text-red-300 whitespace-pre-wrap"
+                              : "text-neutral-500 truncate"
+                          }`}
+                        >
+                          — {c.message}
+                        </span>
+                      )}
+                    </div>
+                    {fieldSummary && (
+                      <div className="pl-5 text-[9.5px] text-neutral-400 font-mono break-all">
+                        {fieldSummary}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
           {message.content && (

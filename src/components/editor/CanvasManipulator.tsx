@@ -2,20 +2,20 @@
 
 /**
  * CanvasManipulator — direct-manipulation handles for the bg image,
- * character and bg video on the preview canvas. The user drags corners
- * to scale and the center to move; this writes directly to the scene's
- * scale/offset fields, bypassing the agent for layout.
- *
- * MVP scope: bg image only. Character + video share the same pattern
- * and ship in a follow-up — the math is identical, only the field
- * names differ.
+ * character or bg video on the preview canvas. Drag corners to scale,
+ * center to move; writes directly to the scene's scale/offset fields,
+ * bypassing the agent for layout.
  *
  * Mounted as an overlay sibling of the Remotion Player. Pointer math:
- * convert screen-pixel deltas through the player's bounding rect into
- * normalized canvas coords (0..frameW × 0..frameH). The bounding box
- * we draw assumes no cameraMove transform is active (cameraMove is
- * an animated overlay on top of imageScale; we're editing the base
- * scale, which is what the user perceives as "size").
+ * convert screen-px deltas through the player's bounding rect into
+ * canvas-pixel deltas (0..frameW × 0..frameH).
+ *
+ * Bounding-box math differs per target:
+ *  - image / video: full-frame box centered. scale=1 covers 0..100%,
+ *    scale=0.5 → 25..75%. Offset shifts the box.
+ *  - character: bottom-anchored. charY is the bottom edge in canvas
+ *    pixels; height = CHAR_HEIGHT * charScale. Width assumed ≈ 0.8 *
+ *    height (matches the renderer's 0.4 left-offset).
  */
 
 import { useCallback, useRef, useState } from "react";
@@ -23,11 +23,13 @@ import type { Scene } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
 
 type Handle = "tl" | "tr" | "bl" | "br" | "center";
+export type ManipulatorTarget = "image" | "character" | "video";
 
 interface Props {
   scene: Scene;
   frameW: number;
   frameH: number;
+  target: ManipulatorTarget;
   /** Wrapper that contains the Player; used to compute pointer-pixel
    *  deltas relative to displayed canvas size. */
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -40,7 +42,138 @@ const SIGN_BY_HANDLE: Record<Exclude<Handle, "center">, [number, number]> = {
   tl: [-1, -1],
 };
 
-export function CanvasManipulator({ scene, frameW, frameH, containerRef }: Props) {
+const CHAR_HEIGHT = 550; // mirror of SceneRenderer constant
+const CHAR_WIDTH_RATIO = 0.8; // approx; matches the 0.4 half-width offset
+
+const COLORS: Record<ManipulatorTarget, { stroke: string; strokeActive: string; handle: string; handleBorder: string; readout: string }> = {
+  image: {
+    stroke: "rgba(16,185,129,0.55)",
+    strokeActive: "rgba(16,185,129,0.95)",
+    handle: "bg-emerald-400 border-emerald-600",
+    handleBorder: "border-emerald-600",
+    readout: "bg-emerald-500 text-black",
+  },
+  character: {
+    stroke: "rgba(251,191,36,0.55)",
+    strokeActive: "rgba(251,191,36,0.95)",
+    handle: "bg-amber-400 border-amber-600",
+    handleBorder: "border-amber-600",
+    readout: "bg-amber-400 text-black",
+  },
+  video: {
+    stroke: "rgba(34,211,238,0.55)",
+    strokeActive: "rgba(34,211,238,0.95)",
+    handle: "bg-cyan-400 border-cyan-600",
+    handleBorder: "border-cyan-600",
+    readout: "bg-cyan-400 text-black",
+  },
+};
+
+interface TargetState {
+  available: boolean;
+  scale: number;
+  offX: number;
+  offY: number;
+  /** Box geometry in canvas % of player rect. */
+  box: { left: number; top: number; width: number; height: number };
+  /** Maps a drag delta to a partial scene patch. */
+  apply: (patch: { scale?: number; offX?: number; offY?: number }) => Partial<Scene>;
+  resetPatch: Partial<Scene>;
+}
+
+function readTarget(scene: Scene, target: ManipulatorTarget, frameW: number, frameH: number): TargetState | null {
+  const bg = scene.background;
+  if (target === "image") {
+    if (!bg?.imageUrl) return null;
+    const scale = bg.imageScale ?? 1;
+    const offX = bg.imageOffsetX ?? 0;
+    const offY = bg.imageOffsetY ?? 0;
+    return {
+      available: true,
+      scale,
+      offX,
+      offY,
+      box: {
+        left: 50 - 50 * scale + (offX / frameW) * 100,
+        top: 50 - 50 * scale + (offY / frameH) * 100,
+        width: 100 * scale,
+        height: 100 * scale,
+      },
+      apply: (p) => ({
+        background: {
+          ...bg,
+          ...(p.scale !== undefined ? { imageScale: Math.round(p.scale * 100) / 100 } : {}),
+          ...(p.offX !== undefined ? { imageOffsetX: Math.round(p.offX) } : {}),
+          ...(p.offY !== undefined ? { imageOffsetY: Math.round(p.offY) } : {}),
+        },
+      }),
+      resetPatch: {
+        background: { ...bg, imageScale: 1, imageOffsetX: 0, imageOffsetY: 0 },
+      },
+    };
+  }
+  if (target === "video") {
+    if (!bg?.videoUrl) return null;
+    const scale = bg.videoScale ?? 1;
+    const offX = bg.videoOffsetX ?? 0;
+    const offY = bg.videoOffsetY ?? 0;
+    return {
+      available: true,
+      scale,
+      offX,
+      offY,
+      box: {
+        left: 50 - 50 * scale + (offX / frameW) * 100,
+        top: 50 - 50 * scale + (offY / frameH) * 100,
+        width: 100 * scale,
+        height: 100 * scale,
+      },
+      apply: (p) => ({
+        background: {
+          ...bg,
+          ...(p.scale !== undefined ? { videoScale: Math.round(p.scale * 100) / 100 } : {}),
+          ...(p.offX !== undefined ? { videoOffsetX: Math.round(p.offX) } : {}),
+          ...(p.offY !== undefined ? { videoOffsetY: Math.round(p.offY) } : {}),
+        },
+      }),
+      resetPatch: {
+        background: { ...bg, videoScale: 1, videoOffsetX: 0, videoOffsetY: 0 },
+      },
+    };
+  }
+  // character
+  const hasChar = !!scene.characterId || !!scene.characterUrl;
+  if (!hasChar) return null;
+  const scale = scene.characterScale ?? 1;
+  const charX = scene.characterX ?? Math.round(frameW / 2);
+  const charY = scene.characterY ?? Math.round(frameH * 0.83);
+  const pxHeight = CHAR_HEIGHT * scale;
+  const pxWidth = pxHeight * CHAR_WIDTH_RATIO;
+  return {
+    available: true,
+    scale,
+    offX: charX,
+    offY: charY,
+    box: {
+      left: ((charX - pxWidth / 2) / frameW) * 100,
+      top: ((charY - pxHeight) / frameH) * 100,
+      width: (pxWidth / frameW) * 100,
+      height: (pxHeight / frameH) * 100,
+    },
+    apply: (p) => ({
+      ...(p.scale !== undefined ? { characterScale: Math.round(p.scale * 100) / 100 } : {}),
+      ...(p.offX !== undefined ? { characterX: Math.round(p.offX) } : {}),
+      ...(p.offY !== undefined ? { characterY: Math.round(p.offY) } : {}),
+    }),
+    resetPatch: {
+      characterScale: 1,
+      characterX: Math.round(frameW / 2),
+      characterY: Math.round(frameH * 0.83),
+    },
+  };
+}
+
+export function CanvasManipulator({ scene, frameW, frameH, containerRef, target }: Props) {
   const updateScene = useProjectStore((s) => s.updateScene);
   const [active, setActive] = useState<Handle | null>(null);
   const dragStart = useRef<{
@@ -51,21 +184,10 @@ export function CanvasManipulator({ scene, frameW, frameH, containerRef }: Props
     offY: number;
   } | null>(null);
 
-  const bg = scene.background;
-  if (!bg?.imageUrl) return null;
+  const t = readTarget(scene, target, frameW, frameH);
+  if (!t) return null;
 
-  const scale = bg.imageScale ?? 1;
-  const offX = bg.imageOffsetX ?? 0;
-  const offY = bg.imageOffsetY ?? 0;
-
-  // Visible bounding box (% of player container). At scale=1 with no
-  // offset → covers 0–100% × 0–100%. At scale=0.5 → 25–75% (centered).
-  // Offsets shift the box; expressed as % of canvas, then mapped 1:1
-  // into the player rect (which is sized to match canvas aspect).
-  const boxLeftPct = 50 - 50 * scale + (offX / frameW) * 100;
-  const boxTopPct = 50 - 50 * scale + (offY / frameH) * 100;
-  const boxSizeWPct = 100 * scale;
-  const boxSizeHPct = 100 * scale;
+  const colors = COLORS[target];
 
   const onHandleDown = useCallback(
     (handle: Handle) => (e: React.PointerEvent) => {
@@ -75,9 +197,9 @@ export function CanvasManipulator({ scene, frameW, frameH, containerRef }: Props
       dragStart.current = {
         pointerX: e.clientX,
         pointerY: e.clientY,
-        scale,
-        offX,
-        offY,
+        scale: t.scale,
+        offX: t.offX,
+        offY: t.offY,
       };
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
 
@@ -90,25 +212,14 @@ export function CanvasManipulator({ scene, frameW, frameH, containerRef }: Props
         const dyPx = ev.clientY - start.pointerY;
 
         if (handle === "center") {
-          // Convert screen px → canvas px proportional to display rect.
           const dxCanvas = (dxPx / rect.width) * frameW;
           const dyCanvas = (dyPx / rect.height) * frameH;
-          updateScene(scene.id, {
-            background: {
-              ...bg,
-              imageOffsetX: Math.round(start.offX + dxCanvas),
-              imageOffsetY: Math.round(start.offY + dyCanvas),
-            },
-          });
+          updateScene(scene.id, t.apply({ offX: start.offX + dxCanvas, offY: start.offY + dyCanvas }));
         } else {
-          // Project the drag onto the corner's outward axis. Positive
-          // outward = bigger. 300px drag = +1 scale unit (~3x sensitivity).
           const [sx, sy] = SIGN_BY_HANDLE[handle];
           const outwardPx = sx * dxPx + sy * dyPx;
           const next = Math.max(0.1, Math.min(3, start.scale + outwardPx / 300));
-          updateScene(scene.id, {
-            background: { ...bg, imageScale: Math.round(next * 100) / 100 },
-          });
+          updateScene(scene.id, t.apply({ scale: next }));
         }
       };
       const onUp = () => {
@@ -120,56 +231,43 @@ export function CanvasManipulator({ scene, frameW, frameH, containerRef }: Props
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
     },
-    [scale, offX, offY, scene.id, bg, updateScene, frameW, frameH, containerRef],
+    [t, scene.id, updateScene, frameW, frameH, containerRef],
   );
 
-  const cornerCls =
-    "absolute w-3 h-3 bg-emerald-400 border border-emerald-600 rounded-sm pointer-events-auto hover:scale-125 transition-transform";
+  const cornerCls = `absolute w-3 h-3 ${colors.handle} border rounded-sm pointer-events-auto hover:scale-125 transition-transform`;
 
   return (
     <div
       className="absolute pointer-events-none"
       style={{
-        left: `${boxLeftPct}%`,
-        top: `${boxTopPct}%`,
-        width: `${boxSizeWPct}%`,
-        height: `${boxSizeHPct}%`,
-        outline: `1px dashed ${active ? "rgba(16,185,129,0.95)" : "rgba(16,185,129,0.55)"}`,
+        left: `${t.box.left}%`,
+        top: `${t.box.top}%`,
+        width: `${t.box.width}%`,
+        height: `${t.box.height}%`,
+        outline: `1px dashed ${active ? colors.strokeActive : colors.stroke}`,
         outlineOffset: "0px",
         zIndex: 25,
       }}
     >
-      {/* Center drag pad — large hit area in the middle for moving. */}
       <div
         onPointerDown={onHandleDown("center")}
         className={`absolute pointer-events-auto cursor-move ${
-          active === "center" ? "bg-emerald-400/10" : "hover:bg-emerald-400/5"
+          active === "center" ? "bg-white/10" : "hover:bg-white/5"
         }`}
         style={{ inset: "12%" }}
-        title="Drag to move · double-click to reset"
-        onDoubleClick={() => {
-          updateScene(scene.id, {
-            background: {
-              ...bg,
-              imageScale: 1,
-              imageOffsetX: 0,
-              imageOffsetY: 0,
-            },
-          });
-        }}
+        title={`Drag to move ${target} · double-click to reset`}
+        onDoubleClick={() => updateScene(scene.id, t.resetPatch)}
       />
-      {/* Four corner handles — uniform scale around center. */}
       <div onPointerDown={onHandleDown("tl")} className={`${cornerCls} -top-1.5 -left-1.5 cursor-nwse-resize`} />
       <div onPointerDown={onHandleDown("tr")} className={`${cornerCls} -top-1.5 -right-1.5 cursor-nesw-resize`} />
       <div onPointerDown={onHandleDown("bl")} className={`${cornerCls} -bottom-1.5 -left-1.5 cursor-nesw-resize`} />
       <div onPointerDown={onHandleDown("br")} className={`${cornerCls} -bottom-1.5 -right-1.5 cursor-nwse-resize`} />
 
-      {/* Live readout — shows scale + offset while dragging. */}
       {active && (
-        <div className="absolute -top-6 left-0 px-1.5 py-0.5 text-[10px] font-mono bg-emerald-500 text-black rounded pointer-events-none whitespace-nowrap">
+        <div className={`absolute -top-6 left-0 px-1.5 py-0.5 text-[10px] font-mono rounded pointer-events-none whitespace-nowrap ${colors.readout}`}>
           {active === "center"
-            ? `(${offX}, ${offY})`
-            : `${Math.round(scale * 100)}%`}
+            ? `${target} (${Math.round(t.offX)}, ${Math.round(t.offY)})`
+            : `${target} ${Math.round(t.scale * 100)}%`}
         </div>
       )}
     </div>

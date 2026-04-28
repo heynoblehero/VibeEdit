@@ -10,7 +10,7 @@ import { VideoComposition } from "@/remotion/Composition";
 import { useAssetStore } from "@/store/asset-store";
 import { useEditorStore, type EditTarget } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
-import { CanvasManipulator } from "./CanvasManipulator";
+import { CanvasManipulator, type ManipulatorTarget } from "./CanvasManipulator";
 import { LayeredTimeline } from "./LayeredTimeline";
 
 function SingleSceneWrapper({ scene, characters, sfx, captionStyle }: any) {
@@ -280,9 +280,28 @@ export function Preview() {
     return <EmptyProjectInstruction />;
   }
 
-  const hasChar = selectedScene?.characterId;
+  const hasChar = selectedScene?.characterId || selectedScene?.characterUrl;
   const hasText = selectedScene?.text || selectedScene?.emphasisText;
   const hasNumber = selectedScene?.type === "big_number";
+
+  // Which layer the canvas-handle overlay is editing. Defaults to the
+  // first available layer (image > video > character) and only renders
+  // toggle pills when more than one layer is present.
+  const availableTargets = useMemo<ManipulatorTarget[]>(() => {
+    if (!selectedScene) return [];
+    const out: ManipulatorTarget[] = [];
+    if (selectedScene.background?.imageUrl) out.push("image");
+    if (selectedScene.background?.videoUrl) out.push("video");
+    if (selectedScene.characterId || selectedScene.characterUrl) out.push("character");
+    return out;
+  }, [selectedScene]);
+  const [manipTarget, setManipTarget] = useState<ManipulatorTarget>("image");
+  useEffect(() => {
+    if (availableTargets.length === 0) return;
+    if (!availableTargets.includes(manipTarget)) {
+      setManipTarget(availableTargets[0]);
+    }
+  }, [availableTargets, manipTarget]);
 
   return (
     <div ref={splitContainerRef} className="flex flex-col h-full gap-2">
@@ -392,16 +411,41 @@ export function Preview() {
           />
         )}
 
-        {/* Direct-manipulation handles for the bg image — drag corners
-            to scale, drag center to move, double-click to reset. Only
-            shows on a single selected scene while paused. */}
-        {selectedScene && isPaused && selectedScene.background?.imageUrl && (
+        {/* Direct-manipulation handles — drag corners to scale, drag
+            center to move, double-click to reset. Only shows on a
+            single selected scene while paused. The target picker below
+            switches between image / character / video when more than
+            one layer is present. */}
+        {selectedScene && isPaused && availableTargets.length > 0 && (
           <CanvasManipulator
             scene={selectedScene}
             frameW={project.width}
             frameH={project.height}
             containerRef={playerWrapperRef}
+            target={manipTarget}
           />
+        )}
+        {selectedScene && isPaused && availableTargets.length > 1 && (
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 px-1.5 py-1 rounded bg-neutral-900/80 backdrop-blur-sm border border-neutral-800 text-[10px]">
+            <span className="text-neutral-500 mr-1">Drag</span>
+            {availableTargets.map((t) => (
+              <button
+                key={t}
+                onClick={() => setManipTarget(t)}
+                className={`px-1.5 py-0.5 rounded font-medium ${
+                  manipTarget === t
+                    ? t === "image"
+                      ? "bg-emerald-500/20 text-emerald-300"
+                      : t === "character"
+                        ? "bg-amber-400/20 text-amber-300"
+                        : "bg-cyan-400/20 text-cyan-300"
+                    : "text-neutral-400 hover:text-white"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
         )}
 
         {/* Clickable element overlay */}

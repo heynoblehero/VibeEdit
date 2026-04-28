@@ -78,6 +78,15 @@ export function resolveSceneId(
 export interface ToolResult {
   ok: boolean;
   message: string;
+  /** Optional images attached to the result. The route emits these as
+   *  image content blocks in the conversation so multimodal Claude can
+   *  literally see what the tool produced — closing the trust gap on
+   *  silent no-ops. Used by renderPreviewFrame. */
+  images?: Array<{
+    /** base64-encoded bytes (no data: prefix). */
+    base64: string;
+    mediaType: "image/png" | "image/jpeg";
+  }>;
 }
 
 type ToolArgs = Record<string, unknown>;
@@ -559,6 +568,105 @@ const TOOLS: Record<string, AgentTool> = {
         ok: true,
         message: `scene ${id} (index ${idx}):\n${summary}`,
       };
+    },
+  },
+
+  dispatchAction: {
+    schema: {
+      name: "dispatchAction",
+      description:
+        "Call any registered project action by canonical name. The action registry is the single source of truth shared between this agent and the editor UI — the same handlers run on both surfaces, so anything the user can do via the editor, you can do here. Use the per-action shortcut tools (createScene, updateScene, …) when they exist; reach for dispatchAction for newer / less-used registry entries that don't have a dedicated tool yet. Call with action='listActions' to see what's available.",
+      input_schema: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            description:
+              "Canonical action name like 'scene.update', 'script.set', 'music.set'. Pass 'listActions' to discover.",
+          },
+          args: {
+            type: "object",
+            description:
+              "Action-specific args. For scene.update: {id, patch}. For script.set: {script}. For music.set: {url, name?, volume?}.",
+          },
+        },
+        required: ["action"],
+      },
+    },
+    async execute(args, ctx) {
+      const name = String(args.action ?? "");
+      if (name === "listActions") {
+        const { describeActions, listActionNames } = await import("@/lib/actions/registry");
+        return {
+          ok: true,
+          message: `available actions (${listActionNames().length}):\n${describeActions()}`,
+        };
+      }
+      const { dispatchAction } = await import("@/lib/actions/dispatch");
+      const callArgs = (args.args as Record<string, unknown> | undefined) ?? {};
+      const result = dispatchAction(ctx.project, name, callArgs);
+      if (result.ok) {
+        // Apply the new project state to ctx so subsequent tools in the
+        // same turn see the change.
+        ctx.project = result.project;
+      }
+      return { ok: result.ok, message: result.message };
+    },
+  },
+
+  renderPreviewFrame: {
+    schema: {
+      name: "renderPreviewFrame",
+      description:
+        "Render one frame of a scene to a PNG and attach it to the result so you (Claude) can SEE what the user sees. Use this to self-verify after edits — text color changes, image scale, character placement, etc. Cheap-ish (single frame, half-resolution) but not free; call AFTER a burst of mutations, not before. Defaults to mid-scene frame when frame is omitted.",
+      input_schema: {
+        type: "object",
+        properties: {
+          sceneId: {
+            type: "string",
+            description: "Scene id. Omit when in focus mode or with one selected — defaults to the focused/selected/only scene.",
+          },
+          frame: {
+            type: "number",
+            description: "Frame within the scene (0 = scene start). Defaults to the scene's midpoint.",
+          },
+        },
+      },
+    },
+    async execute(args, ctx) {
+      const id = resolveSceneId(args, ctx);
+      if (!id) return { ok: false, message: "no scene id provided and no focused/selected scene" };
+      const scene = ctx.project.scenes.find((s) => s.id === id);
+      if (!scene) return { ok: false, message: `no scene with id ${id}` };
+      const idx = ctx.project.scenes.findIndex((s) => s.id === id);
+      try {
+        const { renderSceneStill } = await import("./render-still");
+        const charsMap = Object.fromEntries(
+          (ctx.characters ?? []).map((c) => [c.id, c.src]),
+        );
+        const sfxMap = Object.fromEntries(
+          (ctx.sfx ?? []).map((s) => [s.id, s.src]),
+        );
+        const still = await renderSceneStill({
+          project: ctx.project,
+          sceneId: id,
+          frameOffset: typeof args.frame === "number" ? Number(args.frame) : undefined,
+          characters: charsMap,
+          sfx: sfxMap,
+          origin: ctx.origin,
+          scale: 0.5,
+        });
+        return {
+          ok: true,
+          message: `preview of scene ${idx + 1} (${id}) at frame ${still.frame}, ${still.width}×${still.height} — image attached. Inspect it: does the change you just made actually appear? If not, the field you patched isn't the one rendering.`,
+          images: [{ base64: still.base64, mediaType: "image/png" }],
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          message: `render failed: ${err instanceof Error ? err.message : String(err)}`,
+        };
+      }
     },
   },
 

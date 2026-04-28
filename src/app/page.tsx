@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Film, Layers, ListVideo, MessageCircle, Redo2, Scissors, Settings, Smartphone, Sparkles, Undo2, Upload, X } from "lucide-react";
+import { CalendarClock, Film, Layers, ListVideo, MessageCircle, Redo2, Settings, Smartphone, Undo2, Upload, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { AuthBar } from "@/components/editor/AuthBar";
@@ -69,8 +69,6 @@ export default function Home() {
   const selectedSceneId = useProjectStore((s) => s.selectedSceneId);
   const queueCount = useRenderQueueStore((s) => s.items.length);
   const toggleQueue = useRenderQueueStore((s) => s.togglePanel);
-  const editorMode = useEditorStore((s) => s.editorMode);
-  const setEditorMode = useEditorStore((s) => s.setEditorMode);
 
   // Chat-first: the modal picker no longer auto-opens. The chat sidebar's
   // empty state shows workflow cards inline. The picker is still reachable
@@ -101,7 +99,7 @@ export default function Home() {
     // No saved preference: agent-first default keeps chat open. Manual
     // mode falls back to "open only when there are scenes" so the empty
     // editor doesn't feel busy on first run.
-    if (editorMode === "manual" && project.scenes.length === 0) {
+    if (project.scenes.length === 0) {
       setChatOpenState(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -236,69 +234,37 @@ export default function Home() {
           <ProjectSwitcher />
           <ProjectStats />
           <AspectSwitcher />
-          {editorMode === "manual" && (
-            <div className="hidden sm:flex items-center gap-0.5">
-              <button
-                type="button"
-                onClick={() => setTopPanel((v) => (v === "uploads" ? null : "uploads"))}
-                title="Uploads"
-                className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors border ${
-                  topPanel === "uploads"
-                    ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
-                    : "text-neutral-400 hover:text-white bg-neutral-900/80 border-neutral-800"
-                }`}
-              >
-                <Upload className="h-3.5 w-3.5" />
-                <span>Uploads</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTopPanel((v) => (v === "tracks" ? null : "tracks"))}
-                title="Tracks"
-                className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors border ${
-                  topPanel === "tracks"
-                    ? "bg-cyan-500/15 text-cyan-300 border-cyan-500/40"
-                    : "text-neutral-400 hover:text-white bg-neutral-900/80 border-neutral-800"
-                }`}
-              >
-                <Layers className="h-3.5 w-3.5" />
-                <span>Tracks</span>
-              </button>
-            </div>
-          )}
-          {/* Agent / Manual mode toggle — agent is default, manual unlocks
-              the full editor surfaces (SceneList, timeline). */}
-          <div className="hidden sm:flex items-center gap-0.5 rounded-md bg-neutral-900/80 border border-neutral-800 p-0.5">
+          <div className="hidden sm:flex items-center gap-0.5">
             <button
               type="button"
-              onClick={() => {
-                setEditorMode("agent");
-                setChatOpen(true);
-              }}
-              title="Agent mode — chat-first editing"
-              className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                editorMode === "agent"
-                  ? "bg-emerald-500/20 text-emerald-300"
-                  : "text-neutral-500 hover:text-white"
+              onClick={() => setTopPanel((v) => (v === "uploads" ? null : "uploads"))}
+              title="Uploads"
+              className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors border ${
+                topPanel === "uploads"
+                  ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
+                  : "text-neutral-400 hover:text-white bg-neutral-900/80 border-neutral-800"
               }`}
             >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Agent</span>
+              <Upload className="h-3.5 w-3.5" />
+              <span>Uploads</span>
             </button>
             <button
               type="button"
-              onClick={() => setEditorMode("manual")}
-              title="Manual mode — full editor surfaces"
-              className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                editorMode === "manual"
-                  ? "bg-neutral-700 text-white"
-                  : "text-neutral-500 hover:text-white"
+              onClick={() => setTopPanel((v) => (v === "tracks" ? null : "tracks"))}
+              title="Tracks"
+              className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors border ${
+                topPanel === "tracks"
+                  ? "bg-cyan-500/15 text-cyan-300 border-cyan-500/40"
+                  : "text-neutral-400 hover:text-white bg-neutral-900/80 border-neutral-800"
               }`}
             >
-              <Scissors className="h-3.5 w-3.5" />
-              <span>Edit</span>
+              <Layers className="h-3.5 w-3.5" />
+              <span>Tracks</span>
             </button>
           </div>
+          {/* Mode toggle removed: properties panel + chat agent are
+              always available together. User edits manually if they
+              want; otherwise asks the agent. */}
           <button
             onClick={() => setChatOpen((v) => !v)}
             title="Toggle vibe chat (Cmd/Ctrl+K)"
@@ -402,7 +368,7 @@ export default function Home() {
       {/* Topbar pop-out: Uploads / Tracks. Floating drawer that
           overlays the editor without stealing column width. Closes via
           its own X button or by toggling the same topbar button again. */}
-      {topPanel && editorMode === "manual" && !zenMode && (
+      {topPanel && !zenMode && (
         <div className="absolute top-12 left-2 z-40 w-80 max-h-[calc(100vh-4rem)] flex flex-col border border-neutral-800 rounded-lg bg-neutral-950/95 backdrop-blur-md shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800/80 bg-neutral-900/60">
             <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-medium">
@@ -428,10 +394,9 @@ export default function Home() {
         {!zenMode && (
           <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
         )}
-        {/* Left: scene list + tools — manual mode only. Agent mode keeps
-            the layout to chat + preview so the user focuses on the
-            conversation, not the editor surfaces. */}
-        {!zenMode && editorMode === "manual" && project.scenes.length > 0 && !leftCollapsed && (
+        {/* Left: scene list + tools. Always available so users can
+            edit by hand any time without flipping a mode. */}
+        {!zenMode && project.scenes.length > 0 && !leftCollapsed && (
           <div className="w-80 flex flex-col border-r border-neutral-800 shrink-0 overflow-hidden relative">
             <button
               onClick={() => setLeftCollapsed(true)}
@@ -455,7 +420,7 @@ export default function Home() {
         )}
 
         {/* A tiny "show scene list" tab when the left column is collapsed. */}
-        {editorMode === "manual" && project.scenes.length > 0 && leftCollapsed && (
+        {project.scenes.length > 0 && leftCollapsed && (
           <button
             onClick={() => setLeftCollapsed(false)}
             title="Show scene list"
@@ -480,9 +445,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Right: scene editor — only when a scene is selected, manual mode. */}
-        {editorMode === "manual" &&
-          selectedSceneId &&
+        {/* Right: scene editor — open whenever a scene is selected. */}
+        {selectedSceneId &&
           project.scenes.some((s) => s.id === selectedSceneId) &&
           !rightCollapsed && (
             <div
@@ -500,8 +464,7 @@ export default function Home() {
             </div>
           )}
         {/* Tab to restore the scene editor when it was manually collapsed. */}
-        {editorMode === "manual" &&
-          selectedSceneId &&
+        {selectedSceneId &&
           project.scenes.some((s) => s.id === selectedSceneId) &&
           rightCollapsed && (
             <button

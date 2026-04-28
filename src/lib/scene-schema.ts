@@ -128,6 +128,19 @@ export interface SceneBackground {
   flipV?: boolean;
   /** Rotate bg image/video by 90 / 180 / 270 degrees. */
   rotate?: 0 | 90 | 180 | 270;
+  /**
+   * Direct user-controlled scale for the bg image. 1 = full frame, 0.5
+   * = half size centered, 1.5 = zoom-crop. Stacks ON TOP of cameraMove
+   * preset transforms — use this for static "shrink the image to 30%"
+   * adjustments without losing animation. Same for videoScale below.
+   */
+  imageScale?: number;
+  /** Pixel offset of the bg image from frame center. -1080 to 1080. */
+  imageOffsetX?: number;
+  imageOffsetY?: number;
+  videoScale?: number;
+  videoOffsetX?: number;
+  videoOffsetY?: number;
   /** Full-bleed background video. Used by commentary/movie-review/gaming. */
   videoUrl?: string;
   videoStartSec?: number;

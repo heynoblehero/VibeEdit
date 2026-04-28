@@ -45,6 +45,13 @@ interface GradientBgProps {
   /** CSS object-fit / object-position passed through to bg media. */
   objectFit?: "cover" | "contain";
   objectPosition?: string;
+  /** User-direct size + offset for image/video. Stack on top of cameraMove. */
+  imageScale?: number;
+  imageOffsetX?: number;
+  imageOffsetY?: number;
+  videoScale?: number;
+  videoOffsetX?: number;
+  videoOffsetY?: number;
   children?: React.ReactNode;
 }
 
@@ -194,6 +201,12 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   rotate = 0,
   objectFit = "cover",
   objectPosition,
+  imageScale,
+  imageOffsetX = 0,
+  imageOffsetY = 0,
+  videoScale,
+  videoOffsetX = 0,
+  videoOffsetY = 0,
   children,
 }) => {
   const resolvedObjectPosition = resolveObjectPosition(objectPosition);
@@ -292,7 +305,18 @@ export const GradientBg: React.FC<GradientBgProps> = ({
             objectFit,
             objectPosition: resolvedObjectPosition,
             filter: keyFilters.length ? keyFilters.join(" ") : undefined,
-            transform: orientationTransform || undefined,
+            // User scale/offset stacks ON TOP of orientation flips —
+            // lets the user shrink/move a clip without losing flips.
+            transform:
+              [
+                videoScale !== undefined ? `scale(${videoScale})` : null,
+                videoOffsetX || videoOffsetY
+                  ? `translate(${videoOffsetX}px, ${videoOffsetY}px)`
+                  : null,
+                orientationTransform || null,
+              ]
+                .filter(Boolean)
+                .join(" ") || undefined,
             transformOrigin: "center center",
           }}
         />
@@ -313,7 +337,16 @@ export const GradientBg: React.FC<GradientBgProps> = ({
               height: "100%",
               objectFit,
               objectPosition: resolvedObjectPosition,
-              transform: `scale(${cam.scale}) translate(${cam.tx}px, ${cam.ty}px) ${orientationTransform}`,
+              transform: [
+                imageScale !== undefined ? `scale(${imageScale})` : null,
+                imageOffsetX || imageOffsetY
+                  ? `translate(${imageOffsetX}px, ${imageOffsetY}px)`
+                  : null,
+                `scale(${cam.scale}) translate(${cam.tx}px, ${cam.ty}px)`,
+                orientationTransform,
+              ]
+                .filter(Boolean)
+                .join(" "),
               filter: [
                 gradeFilter(colorGrade),
                 brightness !== 1 ? `brightness(${brightness})` : null,

@@ -174,6 +174,12 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       rotate={s.background.rotate}
       objectFit={s.background.objectFit}
       objectPosition={s.background.objectPosition}
+      imageScale={s.background.imageScale}
+      imageOffsetX={s.background.imageOffsetX}
+      imageOffsetY={s.background.imageOffsetY}
+      videoScale={s.background.videoScale}
+      videoOffsetX={s.background.videoOffsetX}
+      videoOffsetY={s.background.videoOffsetY}
     >
       {s.type === "montage" && s.montageUrls && s.montageUrls.length > 0 && (
         <Montage urls={s.montageUrls} />

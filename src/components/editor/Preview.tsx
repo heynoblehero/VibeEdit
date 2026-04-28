@@ -11,7 +11,6 @@ import { useAssetStore } from "@/store/asset-store";
 import { useEditorStore, type EditTarget } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 import { CanvasManipulator, type ManipulatorTarget } from "./CanvasManipulator";
-import { LayeredTimeline } from "./LayeredTimeline";
 
 function SingleSceneWrapper({ scene, characters, sfx, captionStyle }: any) {
   return (
@@ -34,52 +33,6 @@ export function Preview() {
   // Wrapper ref used by CanvasManipulator for pointer-pixel math —
   // converts screen-px deltas into canvas-px when dragging handles.
   const playerWrapperRef = useRef<HTMLDivElement>(null);
-  // Resizable split between the player area and the timeline below.
-  // Persisted as a 0..1 fraction of the available vertical space.
-  const splitContainerRef = useRef<HTMLDivElement>(null);
-  const [previewFraction, setPreviewFractionRaw] = useState<number>(() => {
-    if (typeof window === "undefined") return 0.65;
-    const saved = Number(window.localStorage.getItem("vibeedit:preview-fraction"));
-    return saved >= 0.25 && saved <= 0.85 ? saved : 0.65;
-  });
-  const setPreviewFraction = useCallback((v: number) => {
-    const clamped = Math.max(0.25, Math.min(0.85, v));
-    setPreviewFractionRaw(clamped);
-    if (typeof window !== "undefined") {
-      try {
-        window.localStorage.setItem(
-          "vibeedit:preview-fraction",
-          String(clamped),
-        );
-      } catch {
-        // localStorage unavailable — non-critical
-      }
-    }
-  }, []);
-  const onSplitPointerDown = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-      const onMove = (ev: PointerEvent) => {
-        const wrapper = splitContainerRef.current;
-        if (!wrapper) return;
-        const rect = wrapper.getBoundingClientRect();
-        // Subtract the controls row height (~36px) so the fraction
-        // represents (player share) / (player + timeline).
-        const offset = 36;
-        const usable = Math.max(1, rect.height - offset);
-        const local = ev.clientY - rect.top - offset;
-        setPreviewFraction(local / usable);
-      };
-      const onUp = () => {
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onUp);
-      };
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp);
-    },
-    [setPreviewFraction],
-  );
 
   const charMap = useMemo(() => {
     const m: Record<string, string> = {};
@@ -305,7 +258,7 @@ export function Preview() {
   const hasNumber = selectedScene?.type === "big_number";
 
   return (
-    <div ref={splitContainerRef} className="flex flex-col h-full gap-2">
+    <div className="flex flex-col h-full gap-2">
       {/* Controls */}
       <div className="flex items-center gap-2 shrink-0">
         <button
@@ -326,13 +279,11 @@ export function Preview() {
         )}
       </div>
 
-      {/* Player + clickable overlay (top half of the split). Both modes
-          show the layered timeline below — the split slider lets the
-          user reclaim screen real estate when chatting heavily. */}
+      {/* Player + clickable overlay. The bottom timeline is gone — the
+          player takes the full remaining height. */}
       <div
         ref={playerWrapperRef}
-        className="min-h-0 relative bg-black rounded-lg overflow-hidden border border-neutral-800"
-        style={{ flex: previewFraction }}
+        className="flex-1 min-h-0 relative bg-black rounded-lg overflow-hidden border border-neutral-800"
       >
         {selectedScene && (
           <div className="absolute top-2 left-2 z-30 px-1.5 py-1 rounded bg-neutral-900/70 backdrop-blur-sm border border-neutral-800 text-[10px] text-neutral-300 font-mono pointer-events-none">
@@ -522,30 +473,6 @@ export function Preview() {
             </div>
           </div>
         )}
-      </div>
-      {/* Resize handle + layered timeline. Always render — users in
-          agent mode still need to see which layers exist (text-main,
-          text-emphasis, broll, effects, voiceover) and click into
-          them. The split slider already lets the user shrink it down
-          to a sliver if they want more room for the player. */}
-      <div
-        onPointerDown={onSplitPointerDown}
-        onDoubleClick={() => setPreviewFraction(0.65)}
-        title="Drag to resize · double-click to reset"
-        className="shrink-0 h-1.5 -my-1 cursor-row-resize group flex items-center justify-center relative z-20"
-      >
-        <span className="block w-12 h-px bg-neutral-700 group-hover:bg-emerald-400 group-active:bg-emerald-300 transition-colors" />
-      </div>
-
-      <div
-        className="min-h-0 overflow-y-auto"
-        style={{ flex: 1 - previewFraction }}
-      >
-        <LayeredTimeline
-          playerRef={playerRef}
-          currentFrame={globalCurrentFrame}
-          isFullPreview={isFullPreview}
-        />
       </div>
     </div>
   );

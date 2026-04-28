@@ -13,7 +13,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createId, DEFAULT_BG, type Cut, type Scene } from "@/lib/scene-schema";
 import { totalDurationSeconds } from "@/lib/scene-schema";
 import { getWorkflow } from "@/lib/workflows/registry";
@@ -22,8 +22,25 @@ import { CutMarker } from "./CutMarker";
 import { SceneCard } from "./SceneCard";
 import { SceneContextMenu } from "./SceneContextMenu";
 
+interface AspectOption {
+  id: string;
+  label: string;
+  description: string;
+  width: number;
+  height: number;
+}
+
+const ASPECT_OPTIONS: AspectOption[] = [
+  { id: "9:16", label: "9:16", description: "Reels / TikTok / Shorts", width: 1080, height: 1920 },
+  { id: "16:9", label: "16:9", description: "YouTube / landscape", width: 1920, height: 1080 },
+  { id: "1:1", label: "1:1", description: "Square — Instagram feed", width: 1080, height: 1080 },
+  { id: "4:5", label: "4:5", description: "Vertical feed post", width: 1080, height: 1350 },
+  { id: "21:9", label: "21:9", description: "Cinematic widescreen", width: 2520, height: 1080 },
+];
+
 export function SceneList() {
   const { project, addScene, moveScene } = useProjectStore();
+  const setDimensions = useProjectStore((s) => s.setDimensions);
   const selectAllScenes = useProjectStore((s) => s.selectAllScenes);
   const isGenerating = useProjectStore((s) => s.isGenerating);
   const totalSec = totalDurationSeconds(project.scenes);
@@ -38,44 +55,72 @@ export function SceneList() {
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
   );
 
-  const handleAdd = () => {
-    // Use a workflow-appropriate blank scene. Faceless workflows get a
-    // character scene; text-driven workflows (slideshow, commentary, etc.)
-    // get a text_only scene so there's nothing character-specific to clean up.
+  const [aspectPickerOpen, setAspectPickerOpenState] = useState(false);
+  const aspectPickerRef = useRef<HTMLDivElement | null>(null);
+
+  // Close the aspect picker when clicking outside it.
+  useEffect(() => {
+    if (!aspectPickerOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (
+        aspectPickerRef.current &&
+        !aspectPickerRef.current.contains(e.target as Node)
+      ) {
+        setAspectPickerOpenState(false);
+      }
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [aspectPickerOpen]);
+
+  const buildScene = (portrait: boolean): Scene => {
     const workflow = getWorkflow(project.workflowId);
     const hasCharacter = workflow.sceneEditorTargets?.includes("character") ?? true;
-    const portrait = project.height > project.width;
-    addScene(
-      hasCharacter
-        ? {
-            id: createId(),
-            type: "character_text",
-            duration: 2,
-            characterId: "point",
-            characterX: portrait ? 540 : 1350,
-            characterY: portrait ? 1500 : 850,
-            characterScale: 1.3,
-            enterFrom: "right",
-            text: "New scene",
-            emphasisText: "edit me",
-            emphasisColor: "white",
-            textY: portrait ? 300 : 300,
-            sfxId: "click1",
-            transition: "beat_flash",
-            background: { ...DEFAULT_BG },
-          }
-        : {
-            id: createId(),
-            type: "text_only",
-            duration: 2,
-            emphasisText: "edit me",
-            emphasisSize: portrait ? 96 : 72,
-            emphasisColor: "#ffffff",
-            textY: portrait ? 500 : 380,
-            transition: "beat_flash",
-            background: { ...DEFAULT_BG },
-          },
-    );
+    if (hasCharacter) {
+      return {
+        id: createId(),
+        type: "character_text",
+        duration: 2,
+        characterId: "point",
+        characterX: portrait ? 540 : 1350,
+        characterY: portrait ? 1500 : 850,
+        characterScale: 1.3,
+        enterFrom: "right",
+        text: "New scene",
+        emphasisText: "edit me",
+        emphasisColor: "white",
+        textY: portrait ? 300 : 300,
+        sfxId: "click1",
+        transition: "beat_flash",
+        background: { ...DEFAULT_BG },
+      };
+    }
+    return {
+      id: createId(),
+      type: "text_only",
+      duration: 2,
+      emphasisText: "edit me",
+      emphasisSize: portrait ? 96 : 72,
+      emphasisColor: "#ffffff",
+      textY: portrait ? 500 : 380,
+      transition: "beat_flash",
+      background: { ...DEFAULT_BG },
+    };
+  };
+
+  const addAtAspect = (opt: AspectOption) => {
+    // First scene in a project also sets its dimensions. Subsequent
+    // scenes inherit — VibeEdit doesn't support per-scene aspect yet.
+    if (project.scenes.length === 0) {
+      setDimensions(opt.width, opt.height);
+    }
+    const portrait = opt.height > opt.width;
+    addScene(buildScene(portrait));
+    setAspectPickerOpenState(false);
+  };
+
+  const handleAdd = () => {
+    setAspectPickerOpenState((v) => !v);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -122,14 +167,61 @@ export function SceneList() {
               : "0"}
           </button>
         </div>
-        <button
-          onClick={handleAdd}
-          title="Add blank scene (N)"
-          className="flex items-center gap-1 px-2 py-1 rounded text-[10.5px] font-medium text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/15 border border-emerald-500/30 transition-colors"
-        >
-          <Plus className="h-3 w-3" />
-          <span>New scene</span>
-        </button>
+        <div ref={aspectPickerRef} className="relative">
+          <button
+            onClick={handleAdd}
+            title="Add blank scene (N)"
+            className={`flex items-center gap-1 px-2 py-1 rounded text-[10.5px] font-medium border transition-colors ${
+              aspectPickerOpen
+                ? "bg-emerald-500/25 text-emerald-200 border-emerald-500/60"
+                : "text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/15 border-emerald-500/30"
+            }`}
+          >
+            <Plus className="h-3 w-3" />
+            <span>New scene</span>
+          </button>
+          {aspectPickerOpen && (
+            <div className="absolute right-0 top-full mt-1 z-30 w-60 rounded-lg border border-neutral-800 bg-neutral-950/95 backdrop-blur-md shadow-2xl overflow-hidden">
+              <div className="px-3 py-2 border-b border-neutral-800/60 text-[10px] uppercase tracking-wider text-neutral-500">
+                Aspect ratio
+                {project.scenes.length === 0 && (
+                  <span className="ml-1 text-emerald-400 normal-case">
+                    · sets project size
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-col">
+                {ASPECT_OPTIONS.map((opt) => {
+                  const isCurrent =
+                    project.width === opt.width && project.height === opt.height;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => addAtAspect(opt)}
+                      className={`flex items-center gap-2.5 px-3 py-2 text-left hover:bg-emerald-500/10 transition-colors border-b border-neutral-900 last:border-b-0 ${
+                        isCurrent ? "bg-emerald-500/5" : ""
+                      }`}
+                    >
+                      <AspectGlyph w={opt.width} h={opt.height} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12px] font-medium text-white">
+                          {opt.label}
+                        </div>
+                        <div className="text-[10px] text-neutral-500 truncate">
+                          {opt.description}
+                        </div>
+                      </div>
+                      <span className="text-[9px] font-mono text-neutral-600">
+                        {opt.width}×{opt.height}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       <div className="flex flex-col gap-1 overflow-y-auto max-h-[60vh] p-2">
         <DndContext
@@ -214,5 +306,20 @@ export function SceneList() {
         />
       )}
     </div>
+  );
+}
+
+/** Tiny rectangle glyph that visually communicates an aspect ratio. */
+function AspectGlyph({ w, h }: { w: number; h: number }) {
+  const ratio = w / h;
+  // Fit inside a 22x22 box. Take the longer side as 22.
+  const max = 22;
+  const boxW = ratio >= 1 ? max : Math.max(8, Math.round(max * ratio));
+  const boxH = ratio >= 1 ? Math.max(8, Math.round(max / ratio)) : max;
+  return (
+    <div
+      className="shrink-0 rounded-sm border border-neutral-600 bg-neutral-800"
+      style={{ width: boxW, height: boxH }}
+    />
   );
 }

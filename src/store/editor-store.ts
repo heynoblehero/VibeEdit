@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type EditTarget = "character" | "text" | "effects" | "background" | "counter" | "broll" | "keyframes" | null;
+export type EditTarget = "character" | "text" | "effects" | "background" | "counter" | "broll" | "keyframes" | "media" | null;
 
 interface EditorStore {
   editTarget: EditTarget;

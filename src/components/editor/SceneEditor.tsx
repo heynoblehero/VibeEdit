@@ -1,7 +1,7 @@
 "use client";
 
 import { Activity, ArrowLeft, Captions as CaptionsIcon, Film, Loader2, Mic, RefreshCw, Sparkles, User, Type, Palette, Zap, Hash } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAssetStore } from "@/store/asset-store";
 import { useEditorStore, type EditTarget } from "@/store/editor-store";
@@ -22,6 +22,7 @@ const TARGET_META: Record<Exclude<EditTarget, null>, { icon: any; label: string;
   counter: { icon: Hash, label: "Counter", color: "text-orange-400" },
   broll: { icon: Film, label: "B-Roll", color: "text-pink-400" },
   keyframes: { icon: Activity, label: "Animate", color: "text-cyan-400" },
+  media: { icon: Film, label: "Media", color: "text-purple-400" },
 };
 
 export function SceneEditor() {
@@ -74,12 +75,14 @@ export function SceneEditor() {
           <SceneActionsRow workflowId={workflow.id} scene={scene} actions={workflow.sceneActions} />
         )}
         <div className="space-y-1.5">
-          {canShow("character") && scene.characterId && <TargetButton target="character" onClick={() => setEditTarget("character")} />}
-          {canShow("text") && (scene.text || scene.emphasisText) && <TargetButton target="text" onClick={() => setEditTarget("text")} />}
+          {canShow("text") && (scene.text || scene.emphasisText || scene.subtitleText) && (
+            <TargetButton target="text" onClick={() => setEditTarget("text")} />
+          )}
+          {(canShow("background") || canShow("character") || canShow("broll")) && (
+            <TargetButton target="media" onClick={() => setEditTarget("media")} />
+          )}
           {canShow("counter") && scene.type === "big_number" && <TargetButton target="counter" onClick={() => setEditTarget("counter")} />}
           {canShow("effects") && <TargetButton target="effects" onClick={() => setEditTarget("effects")} />}
-          {canShow("background") && <TargetButton target="background" onClick={() => setEditTarget("background")} />}
-          {canShow("broll") && <TargetButton target="broll" onClick={() => setEditTarget("broll")} />}
         </div>
         <div className="pt-3 border-t border-neutral-800">
           <div className="flex items-center gap-2">
@@ -131,6 +134,7 @@ export function SceneEditor() {
         {editTarget === "counter" && <CounterPanel scene={scene} update={update} />}
         {editTarget === "broll" && <BRollPanel scene={scene} />}
         {editTarget === "keyframes" && <AnimatePanel scene={scene} />}
+        {editTarget === "media" && <MediaPanel scene={scene} update={update} />}
       </div>
     </div>
   );
@@ -463,6 +467,354 @@ function TextLayerCard({
           }
         />
       </Field>
+    </div>
+  );
+}
+
+/**
+ * Flat media-layer panel — one card per media item on the scene
+ * (background image / video, character, each broll). Compact inline
+ * controls; "Advanced" link drills into the dedicated panel for the
+ * power-user fields (chroma key, color grading, etc.).
+ */
+function MediaPanel({
+  scene,
+  update,
+}: {
+  scene: Scene;
+  update: (p: Partial<Scene>) => void;
+}) {
+  const setEditTarget = useEditorStore((s) => s.setEditTarget);
+  const addUpload = useProjectStore((s) => s.addUpload);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFiles = async (files: FileList | File[]) => {
+    const { uploadFiles } = await import("@/lib/upload-files");
+    const results = await uploadFiles(files, addUpload);
+    for (const r of results) {
+      const mime = r.upload.type ?? "";
+      if (mime.startsWith("video/")) {
+        update({ background: { ...scene.background, videoUrl: r.upload.url } });
+      } else if (mime.startsWith("image/")) {
+        if (!scene.background.imageUrl) {
+          update({ background: { ...scene.background, imageUrl: r.upload.url } });
+        } else if (!scene.characterUrl && !scene.characterId) {
+          update({ characterUrl: r.upload.url });
+        } else {
+          // Stack as broll overlay.
+          const broll = scene.broll ?? [];
+          const positions = ["overlay-tr", "overlay-bl", "overlay-br", "overlay-tl"] as const;
+          update({
+            broll: [
+              ...broll,
+              {
+                id: `b-${Math.random().toString(36).slice(2, 8)}`,
+                kind: "image",
+                url: r.upload.url,
+                position: positions[broll.length % positions.length],
+                startFrame: 0,
+                durationFrames: 60,
+                source: "upload",
+              },
+            ],
+          });
+        }
+      } else if (mime.startsWith("audio/")) {
+        update({
+          voiceover: {
+            audioUrl: r.upload.url,
+            audioDurationSec: scene.duration,
+            provider: "openai",
+            voice: "uploaded",
+            text: "",
+          },
+        });
+      }
+    }
+  };
+
+  const hasImage = !!scene.background.imageUrl;
+  const hasVideo = !!scene.background.videoUrl;
+  const hasCharacter = !!scene.characterId || !!scene.characterUrl;
+  const broll = scene.broll ?? [];
+
+  return (
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        hidden
+        accept="image/*,video/*,audio/*"
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) handleFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+
+      {/* Background — color is always set; image / video are optional. */}
+      <MediaCard
+        title="Background"
+        kind="bg"
+        thumbnail={
+          scene.background.imageUrl ? (
+            <img src={scene.background.imageUrl} alt="" className="h-full w-full object-cover" />
+          ) : scene.background.videoUrl ? (
+            <video src={scene.background.videoUrl} className="h-full w-full object-cover" muted />
+          ) : (
+            <div
+              className="h-full w-full"
+              style={{ backgroundColor: scene.background.color }}
+            />
+          )
+        }
+        meta={
+          hasVideo
+            ? "Video bg"
+            : hasImage
+              ? "Image bg"
+              : "Color bg"
+        }
+        onAdvanced={() => setEditTarget("background")}
+      >
+        <Field label="Color">
+          <input
+            type="color"
+            value={scene.background.color}
+            onChange={(e) =>
+              update({ background: { ...scene.background, color: e.target.value } })
+            }
+            className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+          />
+        </Field>
+        {hasImage && (
+          <Field label="Image opacity">
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={scene.background.imageOpacity ?? 1}
+              onChange={(e) =>
+                update({
+                  background: {
+                    ...scene.background,
+                    imageOpacity: Number(e.target.value),
+                  },
+                })
+              }
+              className="w-full accent-blue-500 h-1.5"
+            />
+            <span className="text-[10px] text-neutral-500">
+              {((scene.background.imageOpacity ?? 1) * 100).toFixed(0)}%
+            </span>
+          </Field>
+        )}
+        {(hasImage || hasVideo) && (
+          <Field label="Scale">
+            <input
+              type="range"
+              min={0.2}
+              max={2}
+              step={0.05}
+              value={hasVideo ? (scene.background.videoScale ?? 1) : (scene.background.imageScale ?? 1)}
+              onChange={(e) =>
+                update({
+                  background: {
+                    ...scene.background,
+                    [hasVideo ? "videoScale" : "imageScale"]: Number(e.target.value),
+                  },
+                })
+              }
+              className="w-full accent-blue-500 h-1.5"
+            />
+            <span className="text-[10px] text-neutral-500">
+              {(hasVideo
+                ? (scene.background.videoScale ?? 1)
+                : (scene.background.imageScale ?? 1)
+              ).toFixed(2)}×
+            </span>
+          </Field>
+        )}
+        {(hasImage || hasVideo) && (
+          <button
+            type="button"
+            onClick={() =>
+              update({
+                background: {
+                  ...scene.background,
+                  imageUrl: undefined,
+                  videoUrl: undefined,
+                },
+              })
+            }
+            className="text-[10px] text-neutral-500 hover:text-red-400 underline decoration-dotted"
+          >
+            Remove background media
+          </button>
+        )}
+      </MediaCard>
+
+      {/* Character. */}
+      {hasCharacter && (
+        <MediaCard
+          title="Character"
+          kind="character"
+          thumbnail={
+            scene.characterUrl ? (
+              <img src={scene.characterUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <div className="h-full w-full bg-sky-900/50 text-sky-200 flex items-center justify-center text-[9px] font-mono">
+                {(scene.characterId ?? "?").slice(0, 4)}
+              </div>
+            )
+          }
+          meta={`scale ${(scene.characterScale ?? 1).toFixed(2)}× · X ${scene.characterX ?? 960}, Y ${scene.characterY ?? 900}`}
+          onAdvanced={() => setEditTarget("character")}
+        >
+          <Field label="Scale">
+            <input
+              type="range"
+              min={0.4}
+              max={3}
+              step={0.05}
+              value={scene.characterScale ?? 1}
+              onChange={(e) => update({ characterScale: Number(e.target.value) })}
+              className="w-full accent-blue-500 h-1.5"
+            />
+            <span className="text-[10px] text-neutral-500">
+              {(scene.characterScale ?? 1).toFixed(2)}×
+            </span>
+          </Field>
+          <button
+            type="button"
+            onClick={() =>
+              update({ characterId: undefined, characterUrl: undefined })
+            }
+            className="text-[10px] text-neutral-500 hover:text-red-400 underline decoration-dotted"
+          >
+            Remove character
+          </button>
+        </MediaCard>
+      )}
+
+      {/* B-roll overlays. */}
+      {broll.map((b, i) => (
+        <MediaCard
+          key={b.id}
+          title={`Overlay ${i + 1}`}
+          kind="broll"
+          thumbnail={
+            b.kind === "clip" ? (
+              <video src={b.url} className="h-full w-full object-cover" muted />
+            ) : (
+              <img src={b.url} alt="" className="h-full w-full object-cover" />
+            )
+          }
+          meta={`${b.position} · ${(b.opacity ?? 1).toFixed(2)} op · ${(b.scale ?? 1).toFixed(2)}×`}
+          onAdvanced={() => setEditTarget("broll")}
+        >
+          <Field label="Opacity">
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={b.opacity ?? 1}
+              onChange={(e) => {
+                const next = [...broll];
+                next[i] = { ...b, opacity: Number(e.target.value) };
+                update({ broll: next });
+              }}
+              className="w-full accent-blue-500 h-1.5"
+            />
+            <span className="text-[10px] text-neutral-500">
+              {((b.opacity ?? 1) * 100).toFixed(0)}%
+            </span>
+          </Field>
+          <Field label="Scale">
+            <input
+              type="range"
+              min={0.2}
+              max={2}
+              step={0.05}
+              value={b.scale ?? 1}
+              onChange={(e) => {
+                const next = [...broll];
+                next[i] = { ...b, scale: Number(e.target.value) };
+                update({ broll: next });
+              }}
+              className="w-full accent-blue-500 h-1.5"
+            />
+            <span className="text-[10px] text-neutral-500">
+              {(b.scale ?? 1).toFixed(2)}×
+            </span>
+          </Field>
+          <button
+            type="button"
+            onClick={() => update({ broll: broll.filter((_, k) => k !== i) })}
+            className="text-[10px] text-neutral-500 hover:text-red-400 underline decoration-dotted"
+          >
+            Remove overlay
+          </button>
+        </MediaCard>
+      ))}
+
+      {/* Add media. */}
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-dashed border-neutral-700 hover:border-emerald-500/60 hover:bg-emerald-500/5 text-[11px] text-neutral-400 hover:text-emerald-300 transition-colors"
+      >
+        <span className="text-emerald-400 text-base leading-none">+</span>
+        <span>Upload image / video / audio</span>
+      </button>
+    </>
+  );
+}
+
+function MediaCard({
+  title,
+  kind,
+  thumbnail,
+  meta,
+  onAdvanced,
+  children,
+}: {
+  title: string;
+  kind: "bg" | "character" | "broll";
+  thumbnail: React.ReactNode;
+  meta?: string;
+  onAdvanced: () => void;
+  children: React.ReactNode;
+}) {
+  const accent: Record<typeof kind, string> = {
+    bg: "border-purple-500/30",
+    character: "border-sky-500/30",
+    broll: "border-amber-500/30",
+  };
+  return (
+    <div className={`rounded-lg border ${accent[kind]} bg-neutral-950/50 p-2.5 space-y-2`}>
+      <div className="flex items-center gap-2">
+        <div className="h-9 w-12 shrink-0 rounded overflow-hidden border border-neutral-800 bg-black">
+          {thumbnail}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] font-medium text-white truncate">{title}</div>
+          {meta && (
+            <div className="text-[9.5px] text-neutral-500 truncate font-mono">{meta}</div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onAdvanced}
+          title="Open the full panel for this media kind"
+          className="text-[9px] text-neutral-500 hover:text-emerald-300 underline decoration-dotted"
+        >
+          advanced
+        </button>
+      </div>
+      {children}
     </div>
   );
 }

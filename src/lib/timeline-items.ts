@@ -106,15 +106,16 @@ export function kindToEditTarget(kind: LayerKind): EditTarget | null {
     case "bar-chart":
     case "counter":
       return "text";
+    // All media kinds route into the unified flat MediaPanel — bg /
+    // character / broll show as cards there, with "advanced" links
+    // back to their dedicated panels for power-user fields.
     case "character":
-      return "character";
     case "bg":
     case "montage":
     case "split":
     case "three":
-      return "background";
     case "broll":
-      return "broll";
+      return "media";
     case "effects":
       return "effects";
     case "voiceover":

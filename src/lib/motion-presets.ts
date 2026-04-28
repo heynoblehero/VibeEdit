@@ -110,6 +110,82 @@ export const MOTION_PRESETS: Record<MotionPreset, PresetFn> = {
     }
     return out;
   },
+
+  /** Slide in from the right edge over the first ~1s, hold afterward.
+   *  Pair with bgOffsetX. The 1080 sentinel is "off-screen" enough for
+   *  most aspect ratios; the renderer's overflow:hidden hides the rest. */
+  slide_in_right: (dur) => {
+    const enter = Math.min(30, Math.round(dur * 0.4));
+    return [
+      { frame: 0, value: 1080, easing: "ease_out" },
+      { frame: enter, value: 0, easing: "ease_out" },
+      { frame: dur, value: 0 },
+    ];
+  },
+  slide_in_left: (dur) => {
+    const enter = Math.min(30, Math.round(dur * 0.4));
+    return [
+      { frame: 0, value: -1080, easing: "ease_out" },
+      { frame: enter, value: 0, easing: "ease_out" },
+      { frame: dur, value: 0 },
+    ];
+  },
+  slide_in_top: (dur) => {
+    const enter = Math.min(30, Math.round(dur * 0.4));
+    return [
+      { frame: 0, value: -1080, easing: "ease_out" },
+      { frame: enter, value: 0, easing: "ease_out" },
+      { frame: dur, value: 0 },
+    ];
+  },
+  slide_in_bottom: (dur) => {
+    const enter = Math.min(30, Math.round(dur * 0.4));
+    return [
+      { frame: 0, value: 1080, easing: "ease_out" },
+      { frame: enter, value: 0, easing: "ease_out" },
+      { frame: dur, value: 0 },
+    ];
+  },
+
+  /** Hold the position then slide off in the last ~1s. */
+  slide_out_right: (dur) => {
+    const exit = Math.min(30, Math.round(dur * 0.4));
+    return [
+      { frame: 0, value: 0 },
+      { frame: dur - exit, value: 0, easing: "ease_in" },
+      { frame: dur, value: 1080, easing: "ease_in" },
+    ];
+  },
+  slide_out_left: (dur) => {
+    const exit = Math.min(30, Math.round(dur * 0.4));
+    return [
+      { frame: 0, value: 0 },
+      { frame: dur - exit, value: 0, easing: "ease_in" },
+      { frame: dur, value: -1080, easing: "ease_in" },
+    ];
+  },
+  slide_out_top: (dur) => {
+    const exit = Math.min(30, Math.round(dur * 0.4));
+    return [
+      { frame: 0, value: 0 },
+      { frame: dur - exit, value: 0, easing: "ease_in" },
+      { frame: dur, value: -1080, easing: "ease_in" },
+    ];
+  },
+  slide_out_bottom: (dur) => {
+    const exit = Math.min(30, Math.round(dur * 0.4));
+    return [
+      { frame: 0, value: 0 },
+      { frame: dur - exit, value: 0, easing: "ease_in" },
+      { frame: dur, value: 1080, easing: "ease_in" },
+    ];
+  },
+
+  /** 180° flip over the scene. Pair with bgRotation. */
+  flip_x_180: (dur) => [
+    { frame: 0, value: 0, easing: "ease_in_out" },
+    { frame: dur, value: 180, easing: "ease_in_out" },
+  ],
 };
 
 /** Default preset value when no keyframes are specified. */

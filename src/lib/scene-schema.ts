@@ -314,6 +314,15 @@ export interface Scene {
    */
   keyframes?: Partial<Record<KeyframeProperty, Keyframe[]>>;
 
+  /**
+   * High-level motion clips — self-contained "slide_in_right for
+   * 60 frames starting at frame 0" segments per element. Stack alongside
+   * keyframes / motion presets; the renderer accumulates all active
+   * clips at the current frame. Preferred surface for the agent: one
+   * tool call per phase instead of choreographing keyframes by hand.
+   */
+  motionClips?: MotionClip[];
+
   voiceover?: Voiceover;
   showCaptions?: boolean;
 
@@ -781,6 +790,7 @@ export type KeyframeProperty =
   | "bgScale"
   | "bgOffsetX"
   | "bgOffsetY"
+  | "bgRotation"
   | "overlayOpacity";
 
 /**
@@ -814,7 +824,60 @@ export type MotionPreset =
   | "parallax_fast"
   | "bounce_in"
   | "fade_in_out"
-  | "wobble";
+  | "wobble"
+  | "slide_in_right"
+  | "slide_in_left"
+  | "slide_in_top"
+  | "slide_in_bottom"
+  | "slide_out_right"
+  | "slide_out_left"
+  | "slide_out_top"
+  | "slide_out_bottom"
+  | "flip_x_180";
+
+/**
+ * Motion clip kinds — self-contained motion segments. Each runs from
+ * `startFrame` for `durationFrames`, evaluated at progress t∈[0,1].
+ * Multiple clips on the same element stack: translate sums, rotation
+ * sums, scale multiplies, opacity multiplies.
+ */
+export type MotionClipKind =
+  | "slide_in_right"
+  | "slide_in_left"
+  | "slide_in_top"
+  | "slide_in_bottom"
+  | "slide_out_right"
+  | "slide_out_left"
+  | "slide_out_top"
+  | "slide_out_bottom"
+  | "fade_in"
+  | "fade_out"
+  | "zoom_in"
+  | "zoom_out"
+  | "shake"
+  | "wobble"
+  | "pulse"
+  | "flip_x_180"
+  | "flip_y_180"
+  | "spin_360";
+
+/** Element targets that motion clips can attach to. */
+export type MotionClipElement = "bg" | "character" | "text" | "emphasis" | "subtitle";
+
+export interface MotionClip {
+  id: string;
+  element: MotionClipElement;
+  kind: MotionClipKind;
+  /** Frame the clip starts at (relative to scene start). */
+  startFrame: number;
+  /** How many frames the clip plays for. */
+  durationFrames: number;
+  /** Optional per-kind tuning. shake uses this as amplitude (px),
+   *  wobble as degrees, pulse as scale jitter. */
+  intensity?: number;
+  /** Optional per-kind override for rotation amount (flip / spin). */
+  degrees?: number;
+}
 
 export type ShotType =
   | "wide"
@@ -1063,6 +1126,7 @@ export const VALID_SCENE_FIELDS: ReadonlySet<keyof Scene> = new Set<keyof Scene>
   "characterMotion",
   "bgMotion",
   "keyframes",
+  "motionClips",
   "voiceover",
   "showCaptions",
   "characterId",

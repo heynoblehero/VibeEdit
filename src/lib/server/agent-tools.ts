@@ -6,6 +6,9 @@ import {
   type ExperimentRecord,
   type Keyframe,
   type KeyframeProperty,
+  type MotionClip,
+  type MotionClipElement,
+  type MotionClipKind,
   type MotionPreset,
   type Project,
   type Scene,
@@ -2926,7 +2929,7 @@ const TOOLS: Record<string, AgentTool> = {
     schema: {
       name: "setMotionPreset",
       description:
-        "Apply a named motion preset to a scene's element. element=text|emphasis|character|bg. preset=none|drift_up|drift_down|pulse|shake|ken_burns_in|ken_burns_out|parallax_slow|parallax_fast|bounce_in|fade_in_out|wobble. Use drift_up on hero/text-only scenes so they're not static; ken_burns_* on image bgs; pulse on emphasis text on stat/big_number scenes; shake/glitch on tense beats.",
+        "Apply a named motion preset to a scene's element. element=text|emphasis|character|bg. Whole-scene presets: none|drift_up|drift_down|pulse|shake|ken_burns_in|ken_burns_out|parallax_slow|parallax_fast|bounce_in|fade_in_out|wobble. Bg-only entrance/exit/flip presets: slide_in_right|slide_in_left|slide_in_top|slide_in_bottom|slide_out_*|flip_x_180. For chaining multiple discrete phases (slide-in THEN shake THEN flip), prefer addMotionClip — one call per phase. setMotionPreset is best when you want a single effect across the whole scene.",
       input_schema: {
         type: "object",
         properties: {
@@ -2938,6 +2941,9 @@ const TOOLS: Record<string, AgentTool> = {
               "none", "drift_up", "drift_down", "pulse", "shake",
               "ken_burns_in", "ken_burns_out", "parallax_slow", "parallax_fast",
               "bounce_in", "fade_in_out", "wobble",
+              "slide_in_right", "slide_in_left", "slide_in_top", "slide_in_bottom",
+              "slide_out_right", "slide_out_left", "slide_out_top", "slide_out_bottom",
+              "flip_x_180",
             ],
           },
         },
@@ -2974,7 +2980,7 @@ const TOOLS: Record<string, AgentTool> = {
     schema: {
       name: "addKeyframe",
       description:
-        "Add or replace a keyframe on a scene's animatable property. Properties: textY, textOpacity, textScale, emphasisY, emphasisOpacity, emphasisScale, characterY, characterScale, bgScale, bgOffsetX, bgOffsetY, overlayOpacity. Replaces any existing keyframe at the same frame. For most beats, use setMotionPreset instead — addKeyframe is for fine-grained custom motion.",
+        "Add or replace a keyframe on a scene's animatable property. Properties: textY, textOpacity, textScale, emphasisY, emphasisOpacity, emphasisScale, characterY, characterScale, bgScale, bgOffsetX, bgOffsetY, bgRotation, overlayOpacity. Replaces any existing keyframe at the same frame. For most multi-step animations (slide-in then shake then flip), prefer addMotionClip — one call per phase, self-contained. addKeyframe is for fine-grained custom motion no clip kind covers.",
       input_schema: {
         type: "object",
         properties: {
@@ -2985,7 +2991,7 @@ const TOOLS: Record<string, AgentTool> = {
               "textY", "textOpacity", "textScale",
               "emphasisY", "emphasisOpacity", "emphasisScale",
               "characterY", "characterScale",
-              "bgScale", "bgOffsetX", "bgOffsetY",
+              "bgScale", "bgOffsetX", "bgOffsetY", "bgRotation",
               "overlayOpacity",
             ],
           },
@@ -3076,6 +3082,126 @@ const TOOLS: Record<string, AgentTool> = {
           "  bounce_in — spring scale 0.6 → 1.0 with overshoot",
           "  fade_in_out — opacity 0 → 1 → 0 with edge fades",
           "  wobble — small rotation oscillation",
+          "  slide_in_right / slide_in_left / slide_in_top / slide_in_bottom — bg image/video enters from edge, settles in first ~1s",
+          "  slide_out_right / slide_out_left / slide_out_top / slide_out_bottom — bg exits to edge over last ~1s",
+          "  flip_x_180 — bg rotates 180° across the scene",
+        ].join("\n"),
+      };
+    },
+  },
+
+  addMotionClip: {
+    schema: {
+      name: "addMotionClip",
+      description:
+        "Add a self-contained motion clip to a scene element. Each clip plays from startFrame for durationFrames frames. Multiple clips on the same element STACK (translate sums, rotation sums, scale multiplies, opacity multiplies). Preferred for chaining phases — to express \"image slides in from right, shakes for 2s, flips 180°\", call this 3 times: slide_in_right (0→60f), shake (60→120f), flip_x_180 (120→180f). v1 fully wires bg + character elements; text/emphasis/subtitle clips are accepted by the schema but the renderer ignores them (use addKeyframe for text motion).",
+      input_schema: {
+        type: "object",
+        properties: {
+          sceneId: { type: "string" },
+          element: {
+            type: "string",
+            enum: ["bg", "character", "text", "emphasis", "subtitle"],
+          },
+          kind: {
+            type: "string",
+            enum: [
+              "slide_in_right", "slide_in_left", "slide_in_top", "slide_in_bottom",
+              "slide_out_right", "slide_out_left", "slide_out_top", "slide_out_bottom",
+              "fade_in", "fade_out",
+              "zoom_in", "zoom_out",
+              "shake", "wobble", "pulse",
+              "flip_x_180", "flip_y_180", "spin_360",
+            ],
+          },
+          startFrame: { type: "number", description: "Frame the clip starts at, relative to scene start." },
+          durationFrames: { type: "number", description: "How many frames the clip plays for." },
+          intensity: { type: "number", description: "Optional. shake amplitude (px, default 6); pulse scale jitter (default 0.06); wobble degrees (default 2)." },
+          degrees: { type: "number", description: "Optional override for flip / spin rotation amount in degrees." },
+        },
+        required: ["sceneId", "element", "kind", "startFrame", "durationFrames"],
+      },
+    },
+    async execute(args, ctx) {
+      const sceneId = resolveSceneId(args, ctx) ?? "";
+      const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
+      if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
+      const clip: MotionClip = {
+        id: `clip-${createId().slice(-8)}`,
+        element: args.element as MotionClipElement,
+        kind: args.kind as MotionClipKind,
+        startFrame: Math.max(0, Math.round(Number(args.startFrame))),
+        durationFrames: Math.max(1, Math.round(Number(args.durationFrames))),
+        intensity: typeof args.intensity === "number" ? Number(args.intensity) : undefined,
+        degrees: typeof args.degrees === "number" ? Number(args.degrees) : undefined,
+      };
+      const scene = ctx.project.scenes[idx];
+      const updated: Scene = {
+        ...scene,
+        motionClips: [...(scene.motionClips ?? []), clip],
+      };
+      ctx.project.scenes = ctx.project.scenes.map((s, i) => (i === idx ? updated : s));
+      return {
+        ok: true,
+        message: `motion clip ${clip.kind} on ${clip.element} of scene ${sceneId.slice(0, 6)}: ${clip.startFrame}f → ${clip.startFrame + clip.durationFrames}f (id ${clip.id})`,
+      };
+    },
+  },
+
+  removeMotionClip: {
+    schema: {
+      name: "removeMotionClip",
+      description: "Remove a motion clip from a scene by clip id (returned from addMotionClip).",
+      input_schema: {
+        type: "object",
+        properties: {
+          sceneId: { type: "string" },
+          clipId: { type: "string" },
+        },
+        required: ["sceneId", "clipId"],
+      },
+    },
+    async execute(args, ctx) {
+      const sceneId = resolveSceneId(args, ctx) ?? "";
+      const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
+      if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
+      const scene = ctx.project.scenes[idx];
+      const before = scene.motionClips?.length ?? 0;
+      const next = (scene.motionClips ?? []).filter((c) => c.id !== args.clipId);
+      if (next.length === before) {
+        return { ok: false, message: `no motion clip with id ${args.clipId} on scene ${sceneId.slice(0, 6)}` };
+      }
+      ctx.project.scenes = ctx.project.scenes.map((s, i) =>
+        i === idx ? { ...s, motionClips: next.length > 0 ? next : undefined } : s,
+      );
+      return { ok: true, message: `removed motion clip ${args.clipId}` };
+    },
+  },
+
+  listMotionClipKinds: {
+    schema: {
+      name: "listMotionClipKinds",
+      description: "Discoverable enum of motion-clip kinds for addMotionClip, with typical use.",
+      input_schema: { type: "object", properties: {} },
+    },
+    async execute() {
+      return {
+        ok: true,
+        message: [
+          "Motion clip kinds (combine freely on the same element):",
+          "  slide_in_right / slide_in_left / slide_in_top / slide_in_bottom — element enters from edge, ease-out",
+          "  slide_out_right / slide_out_left / slide_out_top / slide_out_bottom — element exits to edge, ease-in",
+          "  fade_in / fade_out — opacity ramp",
+          "  zoom_in (0.6→1.0) / zoom_out (1.0→0.6)",
+          "  shake — damped lateral oscillation (intensity = px amplitude, default 6)",
+          "  wobble — rotation oscillation (degrees default 2)",
+          "  pulse — scale jitter (intensity = magnitude, default 0.06)",
+          "  flip_x_180 / flip_y_180 — 180° rotate over the clip",
+          "  spin_360 — full rotation",
+          "Typical chain — slide in, hold-and-shake, flip out:",
+          "  addMotionClip(scene, bg, slide_in_right, 0, 60)",
+          "  addMotionClip(scene, bg, shake, 60, 60)",
+          "  addMotionClip(scene, bg, flip_x_180, 120, 60)",
         ].join("\n"),
       };
     },

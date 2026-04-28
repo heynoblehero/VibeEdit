@@ -27,6 +27,7 @@ import { SlideTransition, ZoomBlur } from "./components/SlideTransition";
 import { GRAPHIC_MAP } from "./assets";
 import { bob, evaluateKeyframes } from "@/lib/anim";
 import { MOTION_PRESETS, presetBaseValue } from "@/lib/motion-presets";
+import { resolveClipsForElement } from "@/lib/motion-clips";
 import type { KeyframeProperty, MotionPreset } from "@/lib/scene-schema";
 
 interface SceneRendererProps {
@@ -104,6 +105,20 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
   const charScaleMotion = motionValue(s.characterMotion, "characterScale");
   // emphasisScale + charScaleMotion are read inline below
 
+  // Resolved bg motion — stacks on top of the static background.imageOffsetX
+  // / imageScale fields. Without this, bgMotion presets and bgOffsetX/Y/
+  // bgScale/bgRotation keyframes are silent no-ops.
+  const bgOffsetXMotion = motionValue(s.bgMotion, "bgOffsetX");
+  const bgOffsetYMotion = motionValue(s.bgMotion, "bgOffsetY");
+  const bgScaleMotion = motionValue(s.bgMotion, "bgScale");
+  const bgRotationMotion = motionValue(s.bgMotion, "bgRotation");
+
+  // Motion clips per element. v1 wires bg + character; text/emphasis/
+  // subtitle clip targets are accepted at the schema level but the
+  // renderer ignores them this round.
+  const bgClip = resolveClipsForElement(s, "bg", frame);
+  const charClip = resolveClipsForElement(s, "character", frame);
+
   const enterDelay = 3;
   const charProgress = spring({
     frame: Math.max(0, frame - enterDelay),
@@ -154,7 +169,6 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       graphicOpacity={s.background.graphicOpacity ?? 0.5}
       vignette={s.background.vignette ?? 0.5}
       imageUrl={s.background.imageUrl}
-      imageOpacity={s.background.imageOpacity}
       kenBurns={s.background.kenBurns}
       cameraMove={s.background.cameraMove}
       colorGrade={s.background.colorGrade}
@@ -174,14 +188,17 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       rotate={s.background.rotate}
       objectFit="contain"
       objectPosition={s.background.objectPosition}
-      imageScale={s.background.imageScale}
-      imageOffsetX={s.background.imageOffsetX}
-      imageOffsetY={s.background.imageOffsetY}
+      imageScale={(s.background.imageScale ?? 1) * bgScaleMotion * bgClip.scale}
+      imageOffsetX={(s.background.imageOffsetX ?? 0) + bgOffsetXMotion + bgClip.tx}
+      imageOffsetY={(s.background.imageOffsetY ?? 0) + bgOffsetYMotion + bgClip.ty}
+      imageRotation={bgRotationMotion + bgClip.rotation}
+      imageOpacity={(s.background.imageOpacity ?? 1) * bgClip.opacity}
       imageWidthPx={s.background.imageWidthPx}
       imageHeightPx={s.background.imageHeightPx}
-      videoScale={s.background.videoScale}
-      videoOffsetX={s.background.videoOffsetX}
-      videoOffsetY={s.background.videoOffsetY}
+      videoScale={(s.background.videoScale ?? 1) * bgScaleMotion * bgClip.scale}
+      videoOffsetX={(s.background.videoOffsetX ?? 0) + bgOffsetXMotion + bgClip.tx}
+      videoOffsetY={(s.background.videoOffsetY ?? 0) + bgOffsetYMotion + bgClip.ty}
+      videoRotation={bgRotationMotion + bgClip.rotation}
       videoWidthPx={s.background.videoWidthPx}
       videoHeightPx={s.background.videoHeightPx}
     >
@@ -256,10 +273,11 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
               alt=""
               style={{
                 position: "absolute",
-                height: CHAR_HEIGHT * charScale * charScaleMotion,
-                left: charX + charTx - (CHAR_HEIGHT * charScale * charScaleMotion * 0.4),
-                top: charY + charTy + charBob + charYOffset - CHAR_HEIGHT * charScale * charScaleMotion,
-                transform: `scaleX(${s.flipCharacter ? -1 : 1})`,
+                height: CHAR_HEIGHT * charScale * charScaleMotion * charClip.scale,
+                left: charX + charTx + charClip.tx - (CHAR_HEIGHT * charScale * charScaleMotion * charClip.scale * 0.4),
+                top: charY + charTy + charBob + charYOffset + charClip.ty - CHAR_HEIGHT * charScale * charScaleMotion * charClip.scale,
+                opacity: charClip.opacity,
+                transform: `scaleX(${s.flipCharacter ? -1 : 1}) ${charClip.rotation ? `rotate(${charClip.rotation}deg)` : ""}`,
                 transformOrigin: "center bottom",
                 filter: "drop-shadow(0 8px 30px rgba(0,0,0,0.6))",
                 objectFit: "contain",

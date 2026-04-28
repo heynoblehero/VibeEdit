@@ -53,6 +53,11 @@ interface GradientBgProps {
   /** Explicit px size for the image. When set, image renders centered in a px-sized box instead of full-frame. */
   imageWidthPx?: number;
   imageHeightPx?: number;
+  /** Free-form rotation (degrees) applied to the bg image / video.
+   *  Stacks alongside the 90-step `rotate` field. Used by bgRotation
+   *  keyframes / motion clips for flip / spin animations. */
+  imageRotation?: number;
+  videoRotation?: number;
   videoScale?: number;
   videoOffsetX?: number;
   videoOffsetY?: number;
@@ -213,6 +218,8 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   imageOffsetY = 0,
   imageWidthPx,
   imageHeightPx,
+  imageRotation = 0,
+  videoRotation = 0,
   videoScale,
   videoOffsetX = 0,
   videoOffsetY = 0,
@@ -336,6 +343,7 @@ export const GradientBg: React.FC<GradientBgProps> = ({
                     videoOffsetX || videoOffsetY
                       ? `translate(${videoOffsetX}px, ${videoOffsetY}px)`
                       : null,
+                    videoRotation ? `rotate(${videoRotation}deg)` : null,
                     orientationTransform || null,
                   ]
                     .filter(Boolean)
@@ -380,6 +388,7 @@ export const GradientBg: React.FC<GradientBgProps> = ({
                 imageOffsetX || imageOffsetY
                   ? `translate(${imageOffsetX}px, ${imageOffsetY}px)`
                   : null,
+                imageRotation ? `rotate(${imageRotation}deg)` : null,
                 `scale(${cam.scale}) translate(${cam.tx}px, ${cam.ty}px)`,
                 orientationTransform,
               ]

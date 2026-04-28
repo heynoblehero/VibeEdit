@@ -10,6 +10,7 @@ import { VideoComposition } from "@/remotion/Composition";
 import { useAssetStore } from "@/store/asset-store";
 import { useEditorStore, type EditTarget } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
+import { CanvasManipulator } from "./CanvasManipulator";
 import { LayeredTimeline } from "./LayeredTimeline";
 
 function SingleSceneWrapper({ scene, characters, sfx, captionStyle }: any) {
@@ -30,6 +31,9 @@ export function Preview() {
   const { characters, sfx } = useAssetStore();
   const { isPaused, setPaused, setEditTarget, setPlayingSceneId } = useEditorStore();
   const playerRef = useRef<PlayerRef>(null);
+  // Wrapper ref used by CanvasManipulator for pointer-pixel math —
+  // converts screen-px deltas into canvas-px when dragging handles.
+  const playerWrapperRef = useRef<HTMLDivElement>(null);
   // Resizable split between the player area and the timeline below.
   // Persisted as a 0..1 fraction of the available vertical space.
   const splitContainerRef = useRef<HTMLDivElement>(null);
@@ -305,6 +309,7 @@ export function Preview() {
       {/* Player + clickable overlay (top half of the split). Agent mode
           gives the player the full height — there's no timeline below. */}
       <div
+        ref={playerWrapperRef}
         className="min-h-0 relative bg-black rounded-lg overflow-hidden border border-neutral-800"
         style={isAgentMode ? { flex: 1 } : { flex: previewFraction }}
       >
@@ -384,6 +389,18 @@ export function Preview() {
             controls
             loop
             autoPlay={false}
+          />
+        )}
+
+        {/* Direct-manipulation handles for the bg image — drag corners
+            to scale, drag center to move, double-click to reset. Only
+            shows on a single selected scene while paused. */}
+        {selectedScene && isPaused && selectedScene.background?.imageUrl && (
+          <CanvasManipulator
+            scene={selectedScene}
+            frameW={project.width}
+            frameH={project.height}
+            containerRef={playerWrapperRef}
           />
         )}
 

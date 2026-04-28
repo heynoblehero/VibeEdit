@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useAssetStore } from "@/store/asset-store";
 import { useEditorStore, type EditTarget } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
-import type { EnterDirection, KeyframeProperty, MotionPreset, Scene } from "@/lib/scene-schema";
+import type { BRoll, EnterDirection, KeyframeProperty, MotionPreset, Scene, TextStyle } from "@/lib/scene-schema";
 import { getWorkflow } from "@/lib/workflows/registry";
 import { BRollPanel } from "./BRollPanel";
 import { KeyframeGraph } from "./KeyframeGraph";
@@ -392,14 +392,15 @@ interface TextSlotConfig {
   colorField: "emphasisColor" | "textColor" | "subtitleColor";
   sizeField?: "emphasisSize" | "textSize";
   alignField: "emphasisAlign" | "textAlign" | "subtitleAlign";
+  styleField: "emphasisStyle" | "textStyle" | "subtitleStyle";
   defaultColor: string;
   defaultSize: number;
 }
 
 const TEXT_SLOTS: TextSlotConfig[] = [
-  { slot: "emphasis", textField: "emphasisText", colorField: "emphasisColor", sizeField: "emphasisSize", alignField: "emphasisAlign", defaultColor: "#ffffff", defaultSize: 96 },
-  { slot: "main", textField: "text", colorField: "textColor", sizeField: "textSize", alignField: "textAlign", defaultColor: "#cccccc", defaultSize: 64 },
-  { slot: "subtitle", textField: "subtitleText", colorField: "subtitleColor", sizeField: undefined, alignField: "subtitleAlign", defaultColor: "#aaaaaa", defaultSize: 36 },
+  { slot: "emphasis", textField: "emphasisText", colorField: "emphasisColor", sizeField: "emphasisSize", alignField: "emphasisAlign", styleField: "emphasisStyle", defaultColor: "#ffffff", defaultSize: 96 },
+  { slot: "main", textField: "text", colorField: "textColor", sizeField: "textSize", alignField: "textAlign", styleField: "textStyle", defaultColor: "#cccccc", defaultSize: 64 },
+  { slot: "subtitle", textField: "subtitleText", colorField: "subtitleColor", sizeField: undefined, alignField: "subtitleAlign", styleField: "subtitleStyle", defaultColor: "#aaaaaa", defaultSize: 36 },
 ];
 
 function TextPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>) => void }) {
@@ -502,9 +503,16 @@ function TextLayerCard({
   const color = scene[cfg.colorField] ?? cfg.defaultColor;
   const size = cfg.sizeField ? (scene[cfg.sizeField] ?? cfg.defaultSize) : cfg.defaultSize;
   const align = scene[cfg.alignField] as "left" | "center" | "right" | undefined;
+  const style = (scene[cfg.styleField] ?? {}) as TextStyle;
+  const [showStyle, setShowStyle] = useState(false);
   const remove = () => {
     update({
       [cfg.textField]: undefined,
+    } as Partial<Scene>);
+  };
+  const patchStyle = (patch: Partial<TextStyle>) => {
+    update({
+      [cfg.styleField]: { ...style, ...patch },
     } as Partial<Scene>);
   };
   return (
@@ -569,7 +577,325 @@ function TextLayerCard({
           }
         />
       </Field>
+      <button
+        type="button"
+        onClick={() => setShowStyle((v) => !v)}
+        className="w-full flex items-center justify-between px-1 py-1 text-[10px] uppercase tracking-wider text-neutral-500 hover:text-emerald-300"
+      >
+        <span>Style</span>
+        <span className="text-neutral-600">{showStyle ? "−" : "+"}</span>
+      </button>
+      {showStyle && (
+        <TextStylePanel style={style} patch={patchStyle} />
+      )}
     </div>
+  );
+}
+
+/**
+ * Comprehensive per-slot styling panel — weight, italic/underline,
+ * font family, letter/line spacing, transform, stroke, glow, opacity,
+ * pill background. Each control writes into Scene.<slot>Style which
+ * PunchText reads as a single TextStyle override.
+ */
+function TextStylePanel({
+  style,
+  patch,
+}: {
+  style: TextStyle;
+  patch: (p: Partial<TextStyle>) => void;
+}) {
+  return (
+    <div className="space-y-2 pt-1">
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Weight">
+          <select
+            value={style.weight ?? 800}
+            onChange={(e) => patch({ weight: Number(e.target.value) })}
+            className="input-field h-7 text-[11px]"
+          >
+            {[100, 300, 400, 500, 600, 700, 800, 900].map((w) => (
+              <option key={w} value={w}>{w}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Family">
+          <select
+            value={style.fontFamily ?? "system"}
+            onChange={(e) =>
+              patch({ fontFamily: e.target.value as TextStyle["fontFamily"] })
+            }
+            className="input-field h-7 text-[11px]"
+          >
+            <option value="system">System</option>
+            <option value="serif">Serif</option>
+            <option value="mono">Mono</option>
+            <option value="display">Display</option>
+          </select>
+        </Field>
+      </div>
+      <div className="flex items-center gap-1">
+        <ToggleChip
+          active={!!style.italic}
+          onClick={() => patch({ italic: !style.italic })}
+          label="Italic"
+        />
+        <ToggleChip
+          active={!!style.underline}
+          onClick={() => patch({ underline: !style.underline })}
+          label="Underline"
+        />
+        <select
+          value={style.transform ?? "none"}
+          onChange={(e) =>
+            patch({ transform: e.target.value as TextStyle["transform"] })
+          }
+          className="input-field h-7 text-[11px] flex-1"
+        >
+          <option value="none">Aa</option>
+          <option value="uppercase">AA</option>
+          <option value="lowercase">aa</option>
+          <option value="capitalize">Aa Bb</option>
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Letter spacing">
+          <input
+            type="range"
+            min={-0.1}
+            max={0.5}
+            step={0.01}
+            value={style.letterSpacing ?? -0.02}
+            onChange={(e) => patch({ letterSpacing: Number(e.target.value) })}
+            className="w-full accent-blue-500 h-1.5"
+          />
+          <span className="text-[10px] text-neutral-500">
+            {(style.letterSpacing ?? -0.02).toFixed(2)}em
+          </span>
+        </Field>
+        <Field label="Line height">
+          <input
+            type="range"
+            min={0.8}
+            max={2}
+            step={0.05}
+            value={style.lineHeight ?? 1.05}
+            onChange={(e) => patch({ lineHeight: Number(e.target.value) })}
+            className="w-full accent-blue-500 h-1.5"
+          />
+          <span className="text-[10px] text-neutral-500">
+            {(style.lineHeight ?? 1.05).toFixed(2)}
+          </span>
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Stroke color">
+          <input
+            type="color"
+            value={style.strokeColor ?? "#000000"}
+            onChange={(e) => patch({ strokeColor: e.target.value })}
+            className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+          />
+        </Field>
+        <Field label="Stroke width">
+          <input
+            type="range"
+            min={0}
+            max={10}
+            step={0.5}
+            value={style.strokeWidth ?? 0}
+            onChange={(e) => patch({ strokeWidth: Number(e.target.value) })}
+            className="w-full accent-blue-500 h-1.5"
+          />
+          <span className="text-[10px] text-neutral-500">
+            {style.strokeWidth ?? 0}px
+          </span>
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Glow color">
+          <input
+            type="color"
+            value={style.glowColor ?? "#ffffff"}
+            onChange={(e) => patch({ glowColor: e.target.value })}
+            className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+          />
+        </Field>
+        <Field label="Opacity">
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={style.opacity ?? 1}
+            onChange={(e) => patch({ opacity: Number(e.target.value) })}
+            className="w-full accent-blue-500 h-1.5"
+          />
+          <span className="text-[10px] text-neutral-500">
+            {Math.round((style.opacity ?? 1) * 100)}%
+          </span>
+        </Field>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <Field label="BG color">
+          <input
+            type="color"
+            value={style.bgColor ?? "#000000"}
+            onChange={(e) => patch({ bgColor: e.target.value })}
+            className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+          />
+        </Field>
+        <Field label="Padding">
+          <input
+            type="range"
+            min={0}
+            max={40}
+            step={2}
+            value={style.bgPadding ?? 8}
+            onChange={(e) => patch({ bgPadding: Number(e.target.value) })}
+            className="w-full accent-blue-500 h-1.5"
+          />
+          <span className="text-[10px] text-neutral-500">
+            {style.bgPadding ?? 8}px
+          </span>
+        </Field>
+        <Field label="Radius">
+          <input
+            type="range"
+            min={0}
+            max={40}
+            step={2}
+            value={style.bgRadius ?? 8}
+            onChange={(e) => patch({ bgRadius: Number(e.target.value) })}
+            className="w-full accent-blue-500 h-1.5"
+          />
+          <span className="text-[10px] text-neutral-500">
+            {style.bgRadius ?? 8}px
+          </span>
+        </Field>
+      </div>
+      {style.bgColor && (
+        <button
+          type="button"
+          onClick={() => patch({ bgColor: undefined })}
+          className="text-[10px] text-neutral-500 hover:text-red-400 underline decoration-dotted underline-offset-2"
+        >
+          Remove BG pill
+        </button>
+      )}
+    </div>
+  );
+}
+
+function BRollStylePanel({
+  broll,
+  onChange,
+}: {
+  broll: BRoll;
+  onChange: (patch: Partial<BRoll>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="space-y-1">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-1 py-1 text-[10px] uppercase tracking-wider text-neutral-500 hover:text-emerald-300"
+      >
+        <span>Frame & shadow</span>
+        <span className="text-neutral-600">{open ? "−" : "+"}</span>
+      </button>
+      {open && (
+        <div className="space-y-2 pt-1">
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Corner radius">
+              <input
+                type="range"
+                min={0}
+                max={120}
+                step={2}
+                value={broll.borderRadius ?? 16}
+                onChange={(e) => onChange({ borderRadius: Number(e.target.value) })}
+                className="w-full accent-blue-500 h-1.5"
+              />
+              <span className="text-[10px] text-neutral-500">
+                {broll.borderRadius ?? 16}px
+              </span>
+            </Field>
+            <Field label="Shadow">
+              <select
+                value={broll.shadow ?? "soft"}
+                onChange={(e) => onChange({ shadow: e.target.value as BRoll["shadow"] })}
+                className="input-field h-7 text-[11px]"
+              >
+                <option value="none">None</option>
+                <option value="soft">Soft</option>
+                <option value="hard">Hard</option>
+                <option value="glow">Glow</option>
+              </select>
+            </Field>
+          </div>
+          {broll.shadow === "glow" && (
+            <Field label="Glow color">
+              <input
+                type="color"
+                value={broll.shadowColor ?? "#ffffff"}
+                onChange={(e) => onChange({ shadowColor: e.target.value })}
+                className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+              />
+            </Field>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Border color">
+              <input
+                type="color"
+                value={broll.borderColor ?? "#ffffff"}
+                onChange={(e) => onChange({ borderColor: e.target.value })}
+                className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+              />
+            </Field>
+            <Field label="Border width">
+              <input
+                type="range"
+                min={0}
+                max={20}
+                step={1}
+                value={broll.borderWidth ?? 0}
+                onChange={(e) => onChange({ borderWidth: Number(e.target.value) })}
+                className="w-full accent-blue-500 h-1.5"
+              />
+              <span className="text-[10px] text-neutral-500">
+                {broll.borderWidth ?? 0}px
+              </span>
+            </Field>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ToggleChip({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-2 h-7 text-[11px] rounded border transition-colors ${
+        active
+          ? "bg-emerald-500/20 text-emerald-200 border-emerald-500/60"
+          : "text-neutral-400 hover:text-emerald-300 border-neutral-700 hover:border-emerald-500/40"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -872,6 +1198,14 @@ function MediaPanel({
               {(b.scale ?? 1).toFixed(2)}×
             </span>
           </Field>
+          <BRollStylePanel
+            broll={b}
+            onChange={(patch) => {
+              const next = [...broll];
+              next[i] = { ...b, ...patch };
+              update({ broll: next });
+            }}
+          />
           <button
             type="button"
             onClick={() => update({ broll: broll.filter((_, k) => k !== i) })}

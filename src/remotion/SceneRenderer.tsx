@@ -327,6 +327,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
                 align={s.textAlign}
                 y={(s.textY ?? defaultTextY) + textYOffset}
                 staggerFrames={4}
+                style={s.textStyle}
               />
             </div>
           )}
@@ -351,6 +352,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
                 align={s.emphasisAlign}
                 y={(s.textY ?? defaultTextY) + (s.textSize ?? 64) + 20 + emphasisYOffset}
                 staggerFrames={5}
+                style={s.emphasisStyle}
               />
             </div>
           )}
@@ -374,6 +376,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
                 align={s.subtitleAlign}
                 y={(s.textY ?? defaultTextY) + (s.textSize ?? 64) + (s.emphasisSize ?? 96) + 50}
                 staggerFrames={3}
+                style={s.subtitleStyle}
               />
             </div>
           )}

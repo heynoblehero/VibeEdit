@@ -64,6 +64,23 @@ export const BRoll: React.FC<Props> = ({ broll, scene }) => {
   if (scale !== 1) transformParts.push(`scale(${scale})`);
   if (clip.rotation) transformParts.push(`rotate(${clip.rotation}deg)`);
 
+  const borderRadius =
+    broll.borderRadius != null ? broll.borderRadius : isFull ? 0 : 16;
+  const shadowKind = broll.shadow ?? (isFull ? "none" : "soft");
+  const shadowColor = broll.shadowColor ?? "#ffffff";
+  const boxShadow =
+    shadowKind === "none"
+      ? undefined
+      : shadowKind === "soft"
+        ? "0 12px 40px rgba(0,0,0,0.55)"
+        : shadowKind === "hard"
+          ? "0 8px 0 rgba(0,0,0,0.85)"
+          : `0 0 32px ${shadowColor}, 0 0 64px ${shadowColor}`;
+  const border =
+    broll.borderColor && (broll.borderWidth ?? 0) > 0
+      ? `${broll.borderWidth}px solid ${broll.borderColor}`
+      : undefined;
+
   const style: React.CSSProperties = {
     position: "absolute",
     left: layout.left + (broll.offsetX ?? 0) + clip.tx,
@@ -74,8 +91,9 @@ export const BRoll: React.FC<Props> = ({ broll, scene }) => {
     transform: transformParts.length ? transformParts.join(" ") : undefined,
     transformOrigin: "center center",
     overflow: "hidden",
-    borderRadius: isFull ? 0 : 16,
-    boxShadow: isFull ? undefined : "0 12px 40px rgba(0,0,0,0.55)",
+    borderRadius,
+    border,
+    boxShadow,
     filter: filterCss(broll.filter),
   };
 

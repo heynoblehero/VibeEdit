@@ -31,6 +31,20 @@ export interface BRoll {
   attribution?: string;
   width?: number;
   height?: number;
+  /** Px corner radius. Falls back to 16 for non-full positions, 0 for full. */
+  borderRadius?: number;
+  /** Border color (hex / css). When set, renders the border at borderWidth px. */
+  borderColor?: string;
+  /** Border width in px (1-24). Renders only if borderColor is also set. */
+  borderWidth?: number;
+  /**
+   * Drop-shadow preset. "none" = no shadow, "soft" = subtle 12px blur,
+   * "hard" = sharp dark drop, "glow" = colored halo via boxShadow. The
+   * legacy "0 12px 40px rgba(0,0,0,0.55)" shadow is "soft".
+   */
+  shadow?: "none" | "soft" | "hard" | "glow";
+  /** When shadow="glow", the halo color (hex). Defaults to white. */
+  shadowColor?: string;
 }
 
 export interface ImageFilter {
@@ -39,6 +53,29 @@ export interface ImageFilter {
   saturation?: number;
   blur?: number;
   grayscale?: number;
+}
+
+/**
+ * Per-text-slot styling. Optional everywhere — when a field is unset, the
+ * renderer falls back to slot defaults (system font, weight 800, no
+ * italic, no stroke, etc.). Lets users dial in spacing, weight, glow,
+ * stroke, etc. without 30 flat fields multiplying across the 3 slots.
+ */
+export interface TextStyle {
+  weight?: number;
+  italic?: boolean;
+  underline?: boolean;
+  letterSpacing?: number;
+  lineHeight?: number;
+  transform?: "uppercase" | "lowercase" | "capitalize" | "none";
+  fontFamily?: "system" | "serif" | "mono" | "display";
+  strokeColor?: string;
+  strokeWidth?: number;
+  glowColor?: string;
+  opacity?: number;
+  bgColor?: string;
+  bgPadding?: number;
+  bgRadius?: number;
 }
 
 export interface StylePreset {
@@ -359,6 +396,11 @@ export interface Scene {
   subtitleColor?: string;
   /** Horizontal alignment for `subtitleText`. Defaults to "center". */
   subtitleAlign?: "left" | "center" | "right";
+
+  /** Optional rich styling for each text slot. */
+  textStyle?: TextStyle;
+  emphasisStyle?: TextStyle;
+  subtitleStyle?: TextStyle;
 
   numberFrom?: number;
   numberTo?: number;
@@ -1168,6 +1210,9 @@ export const VALID_SCENE_FIELDS: ReadonlySet<keyof Scene> = new Set<keyof Scene>
   "subtitleText",
   "subtitleColor",
   "subtitleAlign",
+  "textStyle",
+  "emphasisStyle",
+  "subtitleStyle",
   "numberFrom",
   "numberTo",
   "numberSuffix",

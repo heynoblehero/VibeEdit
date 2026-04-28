@@ -11,8 +11,7 @@ import { useAssetStore } from "@/store/asset-store";
 import { useEditorStore, type EditTarget } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 import { CanvasManipulator, type ManipulatorTarget } from "./CanvasManipulator";
-import { SceneLayers } from "./SceneLayers";
-import { Timeline } from "./Timeline";
+import { LayeredTimeline } from "./LayeredTimeline";
 
 function SingleSceneWrapper({ scene, characters, sfx, captionStyle }: any) {
   return (
@@ -539,22 +538,14 @@ export function Preview() {
       </div>
 
       <div
-        className="min-h-0 flex flex-col"
+        className="min-h-0 overflow-y-auto"
         style={{ flex: 1 - previewFraction }}
       >
-        {/* Top: scene strip — playhead + scene blocks for navigation. */}
-        <div className="shrink-0">
-          <Timeline
-            playerRef={playerRef}
-            currentFrame={globalCurrentFrame}
-            isFullPreview={isFullPreview}
-          />
-        </div>
-        {/* Below: layers of the selected scene — replaces the old
-            LayeredTimeline rows with a denser per-scene view. */}
-        <div className="flex-1 min-h-0 border-t border-neutral-900">
-          <SceneLayers />
-        </div>
+        <LayeredTimeline
+          playerRef={playerRef}
+          currentFrame={globalCurrentFrame}
+          isFullPreview={isFullPreview}
+        />
       </div>
     </div>
   );

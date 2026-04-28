@@ -1,13 +1,74 @@
 "use client";
 
-import { Copy, GripVertical, Lock, Play, Target, Trash2, Unlock } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Film,
+  GripVertical,
+  Image as ImageIcon,
+  ImagePlay,
+  Lock,
+  Mic,
+  Play,
+  Sparkles,
+  Target,
+  Trash2,
+  Type,
+  Unlock,
+  UserSquare2,
+  Wand2,
+} from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { Scene } from "@/lib/scene-schema";
+import {
+  type LayerKind,
+  deriveItemsFromScene,
+  kindToEditTarget,
+} from "@/lib/timeline-items";
 import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 import { SceneThumbnail } from "./SceneThumbnail";
+
+const LAYER_ICON: Record<LayerKind, React.ComponentType<{ className?: string }>> = {
+  bg: ImageIcon,
+  character: UserSquare2,
+  "text-main": Type,
+  "text-emphasis": Type,
+  "text-subtitle": Type,
+  broll: ImagePlay,
+  effects: Sparkles,
+  voiceover: Mic,
+  montage: Film,
+  stat: Wand2,
+  bullets: Wand2,
+  quote: Wand2,
+  "bar-chart": Wand2,
+  three: Wand2,
+  split: Wand2,
+  counter: Wand2,
+};
+
+const LAYER_COLOR: Record<LayerKind, string> = {
+  bg: "text-neutral-300",
+  character: "text-sky-300",
+  "text-main": "text-emerald-300",
+  "text-emphasis": "text-emerald-300",
+  "text-subtitle": "text-emerald-300",
+  broll: "text-amber-300",
+  effects: "text-purple-300",
+  voiceover: "text-cyan-300",
+  montage: "text-pink-300",
+  stat: "text-pink-300",
+  bullets: "text-pink-300",
+  quote: "text-pink-300",
+  "bar-chart": "text-pink-300",
+  three: "text-pink-300",
+  split: "text-pink-300",
+  counter: "text-pink-300",
+};
 
 interface SceneCardProps {
   scene: Scene;
@@ -22,6 +83,7 @@ export function SceneCard({ scene, index }: SceneCardProps) {
   const removeScene = useProjectStore((s) => s.removeScene);
   const duplicateScene = useProjectStore((s) => s.duplicateScene);
   const updateScene = useProjectStore((s) => s.updateScene);
+  const project = useProjectStore((s) => s.project);
 
   const isActive = selectedSceneId === scene.id;
   const isInMulti = selectedSceneIds.includes(scene.id);
@@ -29,8 +91,19 @@ export function SceneCard({ scene, index }: SceneCardProps) {
   const isPlaying = playingSceneId === scene.id;
   const focusedSceneId = useEditorStore((s) => s.focusedSceneId);
   const setFocusedSceneId = useEditorStore((s) => s.setFocusedSceneId);
+  const setEditTarget = useEditorStore((s) => s.setEditTarget);
   const isFocused = focusedSceneId === scene.id;
+  const expandedSceneIds = useEditorStore((s) => s.expandedSceneIds);
+  const toggleSceneExpanded = useEditorStore((s) => s.toggleSceneExpanded);
+  const isExpanded = !!expandedSceneIds[scene.id];
   const rowRef = useRef<HTMLDivElement | null>(null);
+
+  // Derive the layers for this scene. Frame=0 since we only need the
+  // labels + kinds — the actual playhead doesn't matter for the list.
+  const layers = useMemo(
+    () => deriveItemsFromScene(scene, 0, project.fps),
+    [scene, project.fps],
+  );
 
   // Scroll the active card into view — driven by either selection (kbd nav)
   // or playback position. Playback uses 'nearest' so it doesn't jerk the
@@ -71,6 +144,8 @@ export function SceneCard({ scene, index }: SceneCardProps) {
         rowRef.current = el;
       }}
       style={style}
+    >
+    <div
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       title={
@@ -88,6 +163,22 @@ export function SceneCard({ scene, index }: SceneCardProps) {
             : "border-neutral-800 bg-neutral-900 hover:border-neutral-600"
       }`}
     >
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleSceneExpanded(scene.id);
+        }}
+        className="shrink-0 text-neutral-500 hover:text-emerald-300 transition-colors"
+        aria-label={isExpanded ? "Hide layers" : "Show layers"}
+        title={isExpanded ? "Hide layers" : "Show layers"}
+      >
+        {isExpanded ? (
+          <ChevronDown className="h-3.5 w-3.5" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5" />
+        )}
+      </button>
       <button
         {...attributes}
         {...listeners}
@@ -226,6 +317,34 @@ export function SceneCard({ scene, index }: SceneCardProps) {
           </button>
         </div>
       </div>
+    </div>
+    {isExpanded && layers.length > 0 && (
+      <div className="ml-6 mt-1 mb-1 pl-2 border-l border-neutral-800 space-y-0.5">
+        {layers.map((layer) => {
+          const Icon = LAYER_ICON[layer.kind];
+          const colorClass = LAYER_COLOR[layer.kind];
+          return (
+            <button
+              key={layer.id}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                selectScene(scene.id);
+                const target = kindToEditTarget(layer.kind);
+                if (target !== null) setEditTarget(target);
+              }}
+              className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-left hover:bg-neutral-800/60 transition-colors"
+              title={`${layer.label} · click to edit`}
+            >
+              <Icon className={`h-3 w-3 shrink-0 opacity-80 ${colorClass}`} />
+              <span className={`flex-1 truncate text-[10.5px] ${colorClass}`}>
+                {layer.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    )}
     </div>
   );
 }

@@ -91,6 +91,13 @@ interface EditorStore {
   toggleExpandedLayer: (kind: string) => void;
   selectedItemId: string | null;
   setSelectedItemId: (id: string | null) => void;
+  /**
+   * Per-scene "show layers nested inside this card" toggle for the
+   * SceneList. Persisted across reloads. Scene ids that aren't in the
+   * map default to collapsed.
+   */
+  expandedSceneIds: Record<string, boolean>;
+  toggleSceneExpanded: (sceneId: string) => void;
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
@@ -245,4 +252,26 @@ export const useEditorStore = create<EditorStore>((set) => ({
     }),
   selectedItemId: null,
   setSelectedItemId: (id) => set({ selectedItemId: id }),
+  expandedSceneIds: (() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = window.localStorage.getItem("vibeedit:expanded-scene-ids");
+      return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    } catch {
+      return {};
+    }
+  })(),
+  toggleSceneExpanded: (sceneId) =>
+    set((s) => {
+      const next = { ...s.expandedSceneIds, [sceneId]: !s.expandedSceneIds[sceneId] };
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(
+            "vibeedit:expanded-scene-ids",
+            JSON.stringify(next),
+          );
+        } catch {}
+      }
+      return { expandedSceneIds: next };
+    }),
 }));

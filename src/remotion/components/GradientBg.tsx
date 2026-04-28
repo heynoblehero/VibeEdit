@@ -42,8 +42,9 @@ interface GradientBgProps {
   flipV?: boolean;
   /** Rotate bg image/video by 90/180/270 degrees. */
   rotate?: 0 | 90 | 180 | 270;
-  /** CSS object-fit / object-position passed through to bg media. */
-  objectFit?: "cover" | "contain";
+  /** CSS object-fit / object-position passed through to bg media.
+   *  Locked to "contain" — cover is no longer supported. */
+  objectFit?: "contain";
   objectPosition?: string;
   /** User-direct size + offset for image/video. Stack on top of cameraMove. */
   imageScale?: number;
@@ -205,7 +206,7 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   flipH = false,
   flipV = false,
   rotate = 0,
-  objectFit = "cover",
+  objectFit = "contain",
   objectPosition,
   imageScale,
   imageOffsetX = 0,

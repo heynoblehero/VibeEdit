@@ -101,11 +101,12 @@ export interface SceneBackground {
   imageOpacity?: number;
   /**
    * How the bg media should be sized inside the frame.
-   *  - cover (default): fill the frame, crop overflow.
-   *  - contain: fit fully inside, may letterbox.
-   * Useful when re-aiming a 16:9 clip into a 9:16 project.
+   * Always "contain" — fit fully inside the frame (may letterbox).
+   * "cover" is no longer supported; the renderer ignores the stored
+   * value and forces contain so re-aiming a 16:9 clip into a 9:16
+   * project never crops critical content out of frame.
    */
-  objectFit?: "cover" | "contain";
+  objectFit?: "contain";
   /**
    * 9-position alignment grid OR a custom "x% y%" string. Defaults to
    * "center". Affects how the bg media is anchored inside the frame

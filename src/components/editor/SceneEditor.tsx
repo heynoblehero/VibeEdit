@@ -897,30 +897,11 @@ function BackgroundPanel({ scene, update }: { scene: Scene; update: (p: Partial<
 
       <div className="border-t border-neutral-800 pt-3 mt-2 space-y-2">
         <div className="text-[11px] uppercase tracking-wide text-neutral-500">
-          Frame fit
-        </div>
-        <div className="flex items-center gap-1">
-          {(["cover", "contain"] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() =>
-                update({ background: { ...scene.background, objectFit: mode } })
-              }
-              className={`px-2 py-1 rounded text-[11px] border ${
-                (scene.background.objectFit ?? "cover") === mode
-                  ? "border-emerald-500 text-emerald-300 bg-emerald-500/10"
-                  : "border-neutral-700 text-neutral-400 hover:border-neutral-500"
-              }`}
-              title={mode === "cover" ? "Fill the frame, crop overflow" : "Fit fully (may letterbox)"}
-            >
-              {mode}
-            </button>
-          ))}
+          Anchor
         </div>
         <div>
           <div className="text-[10px] text-neutral-500 mb-1">
-            Anchor (when cover crops)
+            Where the contained media sits in the frame
           </div>
           <div className="grid grid-cols-3 gap-0.5 w-fit">
             {([

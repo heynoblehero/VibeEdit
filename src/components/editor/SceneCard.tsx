@@ -52,6 +52,33 @@ const LAYER_ICON: Record<LayerKind, React.ComponentType<{ className?: string }>>
   counter: Wand2,
 };
 
+/** Compute the per-scene layer id used by selectedLayerId — same
+ *  format the SceneEditor reads to scope its panels to a single
+ *  layer. brollIds are stable across reorders; effect indices aren't,
+ *  but effects are a smaller surface and the panel re-derives. */
+function computeLayerId(layerKind: LayerKind, brollId: string | undefined, effectIdx: number | undefined): string | null {
+  switch (layerKind) {
+    case "bg":
+      return "media:bg";
+    case "character":
+      return "media:character";
+    case "broll":
+      return brollId ? `media:broll:${brollId}` : null;
+    case "text-main":
+      return "text:main";
+    case "text-emphasis":
+      return "text:emphasis";
+    case "text-subtitle":
+      return "text:subtitle";
+    case "effects":
+      return effectIdx !== undefined ? `effect:${effectIdx}` : null;
+    case "voiceover":
+      return "voiceover";
+    default:
+      return null;
+  }
+}
+
 const LAYER_COLOR: Record<LayerKind, string> = {
   bg: "text-neutral-300",
   character: "text-sky-300",
@@ -94,6 +121,7 @@ export function SceneCard({ scene, index }: SceneCardProps) {
   const focusedSceneId = useEditorStore((s) => s.focusedSceneId);
   const setFocusedSceneId = useEditorStore((s) => s.setFocusedSceneId);
   const setEditTarget = useEditorStore((s) => s.setEditTarget);
+  const setSelectedLayerId = useEditorStore((s) => s.setSelectedLayerId);
   const isFocused = focusedSceneId === scene.id;
   const rowRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -217,6 +245,12 @@ export function SceneCard({ scene, index }: SceneCardProps) {
   const handleClick = (e: React.MouseEvent) => {
     const multi = e.shiftKey || e.metaKey || e.ctrlKey;
     selectScene(scene.id, multi);
+    // Clicking the card body (not a specific layer) means "show me
+    // scene-level properties" — clear the layer focus + the panel
+    // category. Layer-button onClicks below stop propagation so they
+    // don't trigger this.
+    setSelectedLayerId(null);
+    setEditTarget(null);
   };
 
   const handleDoubleClick = async (e: React.MouseEvent) => {
@@ -436,6 +470,12 @@ export function SceneCard({ scene, index }: SceneCardProps) {
               selectScene(scene.id);
               const target = kindToEditTarget(layer.kind);
               if (target !== null) setEditTarget(target);
+              const brollId =
+                layer.kind === "broll" && layer.index !== undefined
+                  ? scene.broll?.[layer.index]?.id
+                  : undefined;
+              const layerId = computeLayerId(layer.kind, brollId, layer.index);
+              setSelectedLayerId(layerId);
             }}
             className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-left hover:bg-neutral-800/60 transition-colors"
             title={`${layer.label} · click to edit`}

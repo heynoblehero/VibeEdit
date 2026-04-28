@@ -98,6 +98,17 @@ interface EditorStore {
    */
   expandedSceneIds: Record<string, boolean>;
   toggleSceneExpanded: (sceneId: string) => void;
+  /**
+   * Which specific layer inside the selected scene the user is
+   * currently editing. Format strings:
+   *   - "text:emphasis" | "text:main" | "text:subtitle"
+   *   - "media:bg" | "media:character" | "media:broll:<id>"
+   *   - "effect:<index>"
+   * Null = no layer focused, the Properties panel shows scene-level
+   * properties (duration, transition, bg color, etc.).
+   */
+  selectedLayerId: string | null;
+  setSelectedLayerId: (id: string | null) => void;
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
@@ -274,4 +285,6 @@ export const useEditorStore = create<EditorStore>((set) => ({
       }
       return { expandedSceneIds: next };
     }),
+  selectedLayerId: null,
+  setSelectedLayerId: (id) => set({ selectedLayerId: id }),
 }));

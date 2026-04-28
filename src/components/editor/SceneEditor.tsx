@@ -121,6 +121,78 @@ export function SceneEditor() {
               <option value="character_pop">Character Pop</option>
             </select>
           </div>
+          <div className="flex items-center gap-2 mt-2">
+            <label className="text-[10px] text-neutral-500 w-14">BG color</label>
+            <input
+              type="color"
+              value={scene.background.color}
+              onChange={(e) =>
+                update({ background: { ...scene.background, color: e.target.value } })
+              }
+              className="h-7 w-10 rounded cursor-pointer bg-transparent border border-neutral-700"
+            />
+            <span className="text-[10px] text-neutral-500 font-mono">
+              {scene.background.color}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <label className="text-[10px] text-neutral-500 w-14">Transition</label>
+            <select
+              value={scene.transition ?? "none"}
+              onChange={(e) =>
+                update({ transition: e.target.value as Scene["transition"] })
+              }
+              className="input-field flex-1 text-[11px] py-1"
+            >
+              <option value="none">none</option>
+              <option value="beat_flash">beat flash</option>
+              <option value="beat_flash_colored">beat flash (colored)</option>
+              <option value="slide_left">slide left</option>
+              <option value="slide_right">slide right</option>
+              <option value="zoom_blur">zoom blur</option>
+            </select>
+            {(scene.transition === "beat_flash_colored" ||
+              scene.transition === "slide_left" ||
+              scene.transition === "slide_right") && (
+              <input
+                type="color"
+                value={scene.transitionColor ?? "#10b981"}
+                onChange={(e) => update({ transitionColor: e.target.value })}
+                title="Transition color"
+                className="h-7 w-7 rounded cursor-pointer bg-transparent border border-neutral-700"
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <label className="text-[10px] text-neutral-500 w-14">Fade in</label>
+            <input
+              type="range"
+              min={0}
+              max={30}
+              step={1}
+              value={scene.fadeInFrames ?? 4}
+              onChange={(e) => update({ fadeInFrames: Number(e.target.value) })}
+              className="flex-1 accent-emerald-500 h-1"
+            />
+            <span className="text-[10px] text-neutral-500 font-mono w-10 text-right">
+              {scene.fadeInFrames ?? 4}f
+            </span>
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <label className="text-[10px] text-neutral-500 w-14">Fade out</label>
+            <input
+              type="range"
+              min={0}
+              max={30}
+              step={1}
+              value={scene.fadeOutFrames ?? 0}
+              onChange={(e) => update({ fadeOutFrames: Number(e.target.value) })}
+              className="flex-1 accent-emerald-500 h-1"
+            />
+            <span className="text-[10px] text-neutral-500 font-mono w-10 text-right">
+              {scene.fadeOutFrames ?? 0}f
+            </span>
+          </div>
         </div>
         <VoiceoverSection scene={scene} />
         <RefineSection scene={scene} />
@@ -331,8 +403,19 @@ const TEXT_SLOTS: TextSlotConfig[] = [
 ];
 
 function TextPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>) => void }) {
-  const active = TEXT_SLOTS.filter((cfg) => (scene[cfg.textField] ?? "") !== "");
-  const empty = TEXT_SLOTS.filter((cfg) => (scene[cfg.textField] ?? "") === "");
+  const selectedLayerId = useEditorStore((s) => s.selectedLayerId);
+  // Layer-scoped editing: if the user clicked a specific text layer,
+  // show ONLY that layer's card. Otherwise show every active layer.
+  const filterSlot = selectedLayerId?.startsWith("text:")
+    ? selectedLayerId.slice(5)
+    : null;
+  const allActive = TEXT_SLOTS.filter((cfg) => (scene[cfg.textField] ?? "") !== "");
+  const active = filterSlot
+    ? allActive.filter((cfg) => cfg.slot === filterSlot)
+    : allActive;
+  const empty = filterSlot
+    ? []
+    : TEXT_SLOTS.filter((cfg) => (scene[cfg.textField] ?? "") === "");
 
   const addLayer = (cfg: TextSlotConfig) => {
     update({
@@ -504,8 +587,19 @@ function MediaPanel({
   update: (p: Partial<Scene>) => void;
 }) {
   const setEditTarget = useEditorStore((s) => s.setEditTarget);
+  const selectedLayerId = useEditorStore((s) => s.selectedLayerId);
   const addUpload = useProjectStore((s) => s.addUpload);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Filter to a single media layer when the user picked one in the
+  // SceneList. "media:bg" / "media:character" / "media:broll:<id>".
+  const focus =
+    selectedLayerId && selectedLayerId.startsWith("media:")
+      ? selectedLayerId.slice(6)
+      : null;
+  const showBg = !focus || focus === "bg";
+  const showCharacter = !focus || focus === "character";
+  const focusedBrollId = focus?.startsWith("broll:") ? focus.slice(6) : null;
 
   const handleFiles = async (files: FileList | File[]) => {
     const { uploadFiles } = await import("@/lib/upload-files");
@@ -572,6 +666,7 @@ function MediaPanel({
       />
 
       {/* Background — color is always set; image / video are optional. */}
+      {showBg && (
       <MediaCard
         title="Background"
         kind="bg"
@@ -673,9 +768,10 @@ function MediaPanel({
           </button>
         )}
       </MediaCard>
+      )}
 
       {/* Character. */}
-      {hasCharacter && (
+      {showCharacter && hasCharacter && (
         <MediaCard
           title="Character"
           kind="character"
@@ -718,7 +814,14 @@ function MediaPanel({
       )}
 
       {/* B-roll overlays. */}
-      {broll.map((b, i) => (
+      {(focusedBrollId
+        ? broll.filter((b) => b.id === focusedBrollId)
+        : focus === "bg" || focus === "character"
+          ? []
+          : broll
+      ).map((b) => {
+        const i = broll.findIndex((x) => x.id === b.id);
+        return (
         <MediaCard
           key={b.id}
           title={`Overlay ${i + 1}`}
@@ -777,17 +880,20 @@ function MediaPanel({
             Remove overlay
           </button>
         </MediaCard>
-      ))}
+        );
+      })}
 
-      {/* Add media. */}
-      <button
-        type="button"
-        onClick={() => fileInputRef.current?.click()}
-        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-dashed border-neutral-700 hover:border-emerald-500/60 hover:bg-emerald-500/5 text-[11px] text-neutral-400 hover:text-emerald-300 transition-colors"
-      >
-        <span className="text-emerald-400 text-base leading-none">+</span>
-        <span>Upload image / video / audio</span>
-      </button>
+      {/* Add media — hidden in single-layer focus mode. */}
+      {!focus && (
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-dashed border-neutral-700 hover:border-emerald-500/60 hover:bg-emerald-500/5 text-[11px] text-neutral-400 hover:text-emerald-300 transition-colors"
+        >
+          <span className="text-emerald-400 text-base leading-none">+</span>
+          <span>Upload image / video / audio</span>
+        </button>
+      )}
     </>
   );
 }

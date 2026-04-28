@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Film, Layers, ListVideo, MessageCircle, Redo2, Settings, Smartphone, Undo2, Upload, X } from "lucide-react";
+import { CalendarClock, Film, ListVideo, MessageCircle, Redo2, Settings, Smartphone, Undo2, Upload, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { AuthBar } from "@/components/editor/AuthBar";
@@ -34,7 +34,6 @@ import { SceneList } from "@/components/editor/SceneList";
 import { ShortcutsOverlay } from "@/components/editor/ShortcutsOverlay";
 import { ScheduleRenderDialog } from "@/components/editor/ScheduleRenderDialog";
 import { SceneToolsPanel } from "@/components/editor/SceneToolsPanel";
-import { TracksPanel } from "@/components/editor/TracksPanel";
 import { ProjectDropImport } from "@/components/editor/ProjectDropImport";
 import { PasteImage } from "@/components/editor/PasteImage";
 import { PageTitleSync } from "@/components/editor/PageTitleSync";
@@ -70,14 +69,11 @@ export default function Home() {
   const queueCount = useRenderQueueStore((s) => s.items.length);
   const toggleQueue = useRenderQueueStore((s) => s.togglePanel);
 
-  // Chat-first: the modal picker no longer auto-opens. The chat sidebar's
-  // empty state shows workflow cards inline. The picker is still reachable
-  // via the WorkflowBadge in the header for users who want the full view.
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  // Always start `true` so SSR and first client render agree. A post-mount
-  // effect collapses the sidebar on narrow screens — avoids hydration mismatch.
-  const [chatOpen, setChatOpenState] = useState(true);
-  // uploadsOpen removed — uploads now live in the topbar Uploads pop-out.
+  // Chat is a floating widget now — defaults closed so the 3-column
+  // editor (scenes | player | properties) gets the full screen on first
+  // open. User opens via the bottom-right pill or Cmd+K.
+  const [chatOpen, setChatOpenState] = useState(false);
   const setChatOpen = (v: boolean | ((prev: boolean) => boolean)) => {
     setChatOpenState((prev) => {
       const next = typeof v === "function" ? v(prev) : v;
@@ -90,25 +86,13 @@ export default function Home() {
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("vibeedit:chat-open");
-      if (saved !== null) {
-        // User has an explicit preference — respect it across sessions.
-        setChatOpenState(saved === "true");
-        return;
-      }
+      if (saved !== null) setChatOpenState(saved === "true");
     } catch {}
-    // No saved preference: agent-first default keeps chat open. Manual
-    // mode falls back to "open only when there are scenes" so the empty
-    // editor doesn't feel busy on first run.
-    if (project.scenes.length === 0) {
-      setChatOpenState(false);
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
-  // Topbar pop-out panels — one of "uploads" / "tracks" / null.
-  // Replaces the old persistent LeftSidebar; clicking the button toggles
-  // a floating overlay below the header instead of stealing column width.
-  const [topPanel, setTopPanel] = useState<"uploads" | "tracks" | null>(null);
+  // Topbar pop-out panels — uploads only.
+  const [topPanel, setTopPanel] = useState<"uploads" | null>(null);
   useEffect(() => {
     const handler = () => setTemplatePickerOpen(true);
     window.addEventListener("vibeedit:open-template-picker", handler);
@@ -248,19 +232,6 @@ export default function Home() {
               <Upload className="h-3.5 w-3.5" />
               <span>Uploads</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setTopPanel((v) => (v === "tracks" ? null : "tracks"))}
-              title="Tracks"
-              className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors border ${
-                topPanel === "tracks"
-                  ? "bg-cyan-500/15 text-cyan-300 border-cyan-500/40"
-                  : "text-neutral-400 hover:text-white bg-neutral-900/80 border-neutral-800"
-              }`}
-            >
-              <Layers className="h-3.5 w-3.5" />
-              <span>Tracks</span>
-            </button>
           </div>
           {/* Mode toggle removed: properties panel + chat agent are
               always available together. User edits manually if they
@@ -365,37 +336,31 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Topbar pop-out: Uploads / Tracks. Floating drawer that
-          overlays the editor without stealing column width. Closes via
-          its own X button or by toggling the same topbar button again. */}
-      {topPanel && !zenMode && (
+      {/* Topbar pop-out: Uploads. Floating drawer over the editor. */}
+      {topPanel === "uploads" && !zenMode && (
         <div className="absolute top-12 left-2 z-40 w-80 max-h-[calc(100vh-4rem)] flex flex-col border border-neutral-800 rounded-lg bg-neutral-950/95 backdrop-blur-md shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800/80 bg-neutral-900/60">
             <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-medium">
-              {topPanel === "uploads" ? "Uploads" : "Tracks"}
+              Uploads
             </span>
             <button
               onClick={() => setTopPanel(null)}
-              title="Close (toggle the topbar button to reopen)"
+              title="Close"
               className="p-0.5 rounded text-neutral-500 hover:text-white hover:bg-neutral-800/80"
             >
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto">
-            {topPanel === "uploads" && <UploadsPanel inline />}
-            {topPanel === "tracks" && <TracksPanel />}
+            <UploadsPanel inline />
           </div>
         </div>
       )}
 
-      {/* Main layout */}
+      {/* Main layout — 3 columns: scenes | player | properties. Chat is
+          a floating widget on top, not a column-stealer. */}
       <div className="flex flex-1 min-h-0">
-        {!zenMode && (
-          <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
-        )}
-        {/* Left: scene list + tools. Always available so users can
-            edit by hand any time without flipping a mode. */}
+        {/* Left: scene list (with expandable layers per card). */}
         {!zenMode && project.scenes.length > 0 && !leftCollapsed && (
           <div className="w-80 flex flex-col border-r border-neutral-800 shrink-0 overflow-hidden relative">
             <button
@@ -487,6 +452,39 @@ export default function Home() {
         onClose={() => setTemplatePickerOpen(false)}
       />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      {/* Floating chat widget — fixed-positioned overlay, optional. */}
+      {!zenMode && (
+        <div
+          className={`fixed top-14 right-4 bottom-4 z-50 transition-all duration-200 ${
+            chatOpen
+              ? "opacity-100 translate-x-0 pointer-events-auto"
+              : "opacity-0 translate-x-6 pointer-events-none"
+          }`}
+          style={{ width: "min(420px, calc(100vw - 32px))" }}
+        >
+          <ChatSidebar
+            open={chatOpen}
+            onClose={() => setChatOpen(false)}
+            floating
+          />
+        </div>
+      )}
+
+      {/* Floating Vibe pill — appears when chat is closed. */}
+      {!chatOpen && !zenMode && (
+        <button
+          onClick={() => setChatOpen(true)}
+          title="Open Vibe AI (Cmd/Ctrl+K)"
+          className="fixed bottom-5 right-5 z-50 group flex items-center gap-2 pl-3 pr-4 py-2.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-sm shadow-2xl shadow-emerald-500/30 transition-all hover:scale-105"
+        >
+          <MessageCircle className="h-4 w-4" />
+          <span>Vibe AI</span>
+          <span className="text-[9px] font-mono bg-black/20 rounded px-1 py-0.5">
+            ⌘K
+          </span>
+        </button>
+      )}
     </div>
   );
 }

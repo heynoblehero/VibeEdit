@@ -82,9 +82,17 @@ function FocusChip() {
 export function ChatSidebar({
   open,
   onClose,
+  floating = false,
 }: {
   open: boolean;
   onClose: () => void;
+  /**
+   * When true, the sidebar fills its parent (no internal width state,
+   * no right-edge resize handle, no border-r). Used by the floating
+   * widget mode in page.tsx where positioning is owned by a fixed
+   * container outside the flex layout.
+   */
+  floating?: boolean;
 }) {
   const messages = useChatStore((s) => s.messages);
   const isStreaming = useChatStore((s) => s.isStreaming);
@@ -644,18 +652,22 @@ export function ChatSidebar({
 
   if (!open) return null;
 
+  // Floating mode = parent-sized; widget mode = persisted internal width.
   // On phones the chat takes the full viewport so the editor isn't a
   // 60-pixel sliver. The persisted desktop width still applies on ≥640px.
-  const aside_style: React.CSSProperties =
-    typeof window !== "undefined" && window.innerWidth < 640
+  const aside_style: React.CSSProperties = floating
+    ? { width: "100%", height: "100%" }
+    : typeof window !== "undefined" && window.innerWidth < 640
       ? { width: "100vw", maxWidth: "100vw" }
       : { width };
   return (
     <aside
       style={aside_style}
-      className={`flex flex-col border-r border-neutral-800 bg-neutral-950 shrink-0 relative ${
-        dragOver ? "ring-2 ring-inset ring-emerald-400/60" : ""
-      }`}
+      className={`flex flex-col bg-neutral-950 shrink-0 relative ${
+        floating
+          ? "rounded-xl border border-neutral-800 shadow-2xl overflow-hidden"
+          : "border-r border-neutral-800"
+      } ${dragOver ? "ring-2 ring-inset ring-emerald-400/60" : ""}`}
       onDragOver={(e) => {
         e.preventDefault();
         setDragOver(true);
@@ -971,15 +983,18 @@ export function ChatSidebar({
           </button>
         )}
       </form>
-      {/* Right-edge resize handle. Drag to widen/narrow the chat. */}
-      <div
-        onMouseDown={() => {
-          resizingRef.current = true;
-          document.body.style.cursor = "ew-resize";
-        }}
-        title="Drag to resize chat"
-        className="absolute top-0 right-0 h-full w-1 cursor-ew-resize hover:bg-emerald-500/40"
-      />
+      {/* Right-edge resize handle. Hidden in floating mode where the
+          parent owns sizing. */}
+      {!floating && (
+        <div
+          onMouseDown={() => {
+            resizingRef.current = true;
+            document.body.style.cursor = "ew-resize";
+          }}
+          title="Drag to resize chat"
+          className="absolute top-0 right-0 h-full w-1 cursor-ew-resize hover:bg-emerald-500/40"
+        />
+      )}
     </aside>
   );
 }

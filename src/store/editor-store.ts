@@ -70,9 +70,9 @@ interface EditorStore {
   setZenMode: (v: boolean) => void;
   /**
    * Top-level UI mode. 'agent' is default: chat sidebar wide and
-   * always-open, manual editor surfaces (LeftSidebar / SceneList /
-   * LayeredTimeline) hidden. 'manual' surfaces the full editor.
-   * Persisted across reloads.
+   * always-open, manual editor surfaces (SceneList / LayeredTimeline /
+   * topbar Uploads + Tracks pop-outs) hidden. 'manual' surfaces the
+   * full editor. Persisted across reloads.
    */
   editorMode: "agent" | "manual";
   setEditorMode: (m: "agent" | "manual") => void;

@@ -30,7 +30,7 @@ function formatBytes(n: number | undefined): string {
 interface Props {
   /** Legacy fixed-drawer mode (sprint 9). When `inline` is true the
    *  panel renders without the drawer chrome (no fixed positioning, no
-   *  header X) so it can mount inside LeftSidebar's tab content. */
+   *  header X) so it can mount inside the topbar Uploads pop-out. */
   open?: boolean;
   onClose?: () => void;
   inline?: boolean;

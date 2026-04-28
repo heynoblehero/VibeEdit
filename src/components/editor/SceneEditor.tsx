@@ -282,111 +282,188 @@ function CharacterPanel({ scene, update, characters }: { scene: Scene; update: (
   );
 }
 
+/**
+ * Text layers. Underneath, each scene has up to three text fields
+ * (emphasis / text / subtitle) — historically the renderer styled
+ * them differently by default, but every visual property is now
+ * editable per-slot, so we present them as flat numbered text layers.
+ * No more "primary/secondary" framing in the UI.
+ */
+type TextSlot = "emphasis" | "main" | "subtitle";
+
+interface TextSlotConfig {
+  slot: TextSlot;
+  textField: "emphasisText" | "text" | "subtitleText";
+  colorField: "emphasisColor" | "textColor" | "subtitleColor";
+  sizeField?: "emphasisSize" | "textSize";
+  alignField: "emphasisAlign" | "textAlign" | "subtitleAlign";
+  defaultColor: string;
+  defaultSize: number;
+}
+
+const TEXT_SLOTS: TextSlotConfig[] = [
+  { slot: "emphasis", textField: "emphasisText", colorField: "emphasisColor", sizeField: "emphasisSize", alignField: "emphasisAlign", defaultColor: "#ffffff", defaultSize: 96 },
+  { slot: "main", textField: "text", colorField: "textColor", sizeField: "textSize", alignField: "textAlign", defaultColor: "#cccccc", defaultSize: 64 },
+  { slot: "subtitle", textField: "subtitleText", colorField: "subtitleColor", sizeField: undefined, alignField: "subtitleAlign", defaultColor: "#aaaaaa", defaultSize: 36 },
+];
+
 function TextPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>) => void }) {
-  const textLen = (scene.text ?? "").length;
-  const emphasisLen = (scene.emphasisText ?? "").length;
+  const active = TEXT_SLOTS.filter((cfg) => (scene[cfg.textField] ?? "") !== "");
+  const empty = TEXT_SLOTS.filter((cfg) => (scene[cfg.textField] ?? "") === "");
+
+  const addLayer = (cfg: TextSlotConfig) => {
+    update({
+      [cfg.textField]: "New text",
+      [cfg.colorField]: scene[cfg.colorField] ?? cfg.defaultColor,
+      ...(cfg.sizeField ? { [cfg.sizeField]: scene[cfg.sizeField] ?? cfg.defaultSize } : {}),
+    } as Partial<Scene>);
+  };
+
   return (
     <>
-      <Field label={`Main text (secondary) · ${textLen}${textLen > 80 ? " — long, may wrap" : ""}`}>
-        <textarea
-          value={scene.text ?? ""}
-          onChange={(e) => update({ text: e.target.value })}
-          className={`input-field w-full text-xs h-16 resize-none ${textLen > 80 ? "border-amber-500/60" : ""}`}
-          placeholder="smaller grey text..."
-        />
-      </Field>
-      <Field label={`Emphasis text (primary) · ${emphasisLen}${emphasisLen > 40 ? " — long, may wrap" : ""}`}>
-        <textarea
-          value={scene.emphasisText ?? ""}
-          onChange={(e) => update({ emphasisText: e.target.value })}
-          className={`input-field w-full text-xs h-16 resize-none ${emphasisLen > 40 ? "border-amber-500/60" : ""}`}
-          placeholder="THE BIG MESSAGE"
-        />
-      </Field>
-      <Field label="Subtitle">
-        <input type="text" value={scene.subtitleText ?? ""} onChange={(e) => update({ subtitleText: e.target.value })} className="input-field w-full text-xs" placeholder="small text below..." />
-      </Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Color">
-          <input type="color" value={scene.emphasisColor ?? "#ffffff"} onChange={(e) => update({ emphasisColor: e.target.value })} className="h-8 w-full rounded cursor-pointer bg-transparent border border-neutral-700" />
-        </Field>
-        <Field label="Glow">
-          <input type="color" value={scene.emphasisGlow ?? "#ffffff00"} onChange={(e) => update({ emphasisGlow: e.target.value })} className="h-8 w-full rounded cursor-pointer bg-transparent border border-neutral-700" />
-        </Field>
-      </div>
-      {/* Quick-pick accent palette — matches the defaults the generator uses. */}
-      <div className="flex items-center flex-wrap gap-1">
-        {[
-          "#ef4444", "#f59e0b", "#10b981", "#38bdf8",
-          "#818cf8", "#a78bfa", "#fb923c", "#ec4899",
-          "#ffffff", "#aaaaaa",
-        ].map((c) => (
-          <button
-            key={c}
-            onClick={() => update({ emphasisColor: c })}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              navigator.clipboard?.writeText(c).catch(() => {});
-            }}
-            className={`h-5 w-5 rounded-full border-2 ${scene.emphasisColor === c ? "border-white" : "border-neutral-700"}`}
-            style={{ backgroundColor: c }}
-            title={`${c} — click to apply, right-click to copy`}
-          />
-        ))}
-        <button
-          onClick={() => {
-            const project = useProjectStore.getState().project;
-            const patch = { emphasisColor: scene.emphasisColor };
-            for (const s of project.scenes) {
-              if (s.id !== scene.id) useProjectStore.getState().updateScene(s.id, patch);
-            }
-          }}
-          className="ml-auto text-[9px] text-neutral-500 hover:text-emerald-400 underline"
-          title="Apply this accent color to every scene"
-        >
-          apply to all
-        </button>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Size">
-          <input type="range" min={24} max={200} step={4} value={scene.emphasisSize ?? 80} onChange={(e) => update({ emphasisSize: Number(e.target.value) })} className="w-full accent-blue-500 h-1.5" />
-          <span className="text-[10px] text-neutral-500">{scene.emphasisSize ?? 80}px</span>
-        </Field>
-        <Field label="Y position">
-          <input type="range" min={50} max={800} step={10} value={scene.textY ?? 300} onChange={(e) => update({ textY: Number(e.target.value) })} className="w-full accent-blue-500 h-1.5" />
-          <span className="text-[10px] text-neutral-500">{scene.textY ?? 300}</span>
-        </Field>
-      </div>
-      <Field label="Alignment">
-        <div className="grid grid-cols-3 gap-2 text-[10px]">
-          <AlignRow
-            label="text"
-            value={scene.textAlign}
-            onChange={(v) => update({ textAlign: v })}
-          />
-          <AlignRow
-            label="emphasis"
-            value={scene.emphasisAlign}
-            onChange={(v) => update({ emphasisAlign: v })}
-          />
-          <AlignRow
-            label="subtitle"
-            value={scene.subtitleAlign}
-            onChange={(v) => update({ subtitleAlign: v })}
-          />
+      {active.length === 0 && (
+        <div className="text-[11px] text-neutral-600 px-2 py-3 text-center">
+          No text layers — add one below.
         </div>
+      )}
+      {active.map((cfg, i) => (
+        <TextLayerCard
+          key={cfg.slot}
+          index={i}
+          cfg={cfg}
+          scene={scene}
+          update={update}
+        />
+      ))}
+      {empty.length > 0 && (
+        <div className="pt-2 border-t border-neutral-800/60">
+          <div className="text-[10px] uppercase tracking-wider text-neutral-600 mb-1.5">
+            Add text layer
+          </div>
+          <div className="flex flex-col gap-1">
+            {empty.map((cfg) => (
+              <button
+                key={cfg.slot}
+                type="button"
+                onClick={() => addLayer(cfg)}
+                className="flex items-center gap-2 px-2 py-1.5 rounded border border-neutral-800 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-left text-neutral-400 hover:text-emerald-300 transition-colors text-[11px]"
+              >
+                <span className="text-emerald-400">+</span>
+                <span>New text layer</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <Field label="Y position (all layers stack from here)">
+        <input
+          type="range"
+          min={50}
+          max={800}
+          step={10}
+          value={scene.textY ?? 300}
+          onChange={(e) => update({ textY: Number(e.target.value) })}
+          className="w-full accent-blue-500 h-1.5"
+        />
+        <span className="text-[10px] text-neutral-500">{scene.textY ?? 300}px</span>
       </Field>
       <MotionPresetField
-        label="Text motion"
-        value={scene.textMotion}
-        onChange={(v) => update({ textMotion: v })}
-      />
-      <MotionPresetField
-        label="Emphasis motion"
+        label="Motion"
         value={scene.emphasisMotion}
-        onChange={(v) => update({ emphasisMotion: v })}
+        onChange={(v) =>
+          update({
+            textMotion: v,
+            emphasisMotion: v,
+          })
+        }
       />
     </>
+  );
+}
+
+function TextLayerCard({
+  index,
+  cfg,
+  scene,
+  update,
+}: {
+  index: number;
+  cfg: TextSlotConfig;
+  scene: Scene;
+  update: (p: Partial<Scene>) => void;
+}) {
+  const text = scene[cfg.textField] ?? "";
+  const color = scene[cfg.colorField] ?? cfg.defaultColor;
+  const size = cfg.sizeField ? (scene[cfg.sizeField] ?? cfg.defaultSize) : cfg.defaultSize;
+  const align = scene[cfg.alignField] as "left" | "center" | "right" | undefined;
+  const remove = () => {
+    update({
+      [cfg.textField]: undefined,
+    } as Partial<Scene>);
+  };
+  return (
+    <div className="rounded-lg border border-neutral-800 bg-neutral-950/50 p-2.5 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-wider text-neutral-400 font-medium">
+          Text {index + 1}
+        </span>
+        <button
+          type="button"
+          onClick={remove}
+          title="Remove this text layer"
+          className="text-[10px] text-neutral-600 hover:text-red-400 px-1"
+        >
+          ×
+        </button>
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) =>
+          update({ [cfg.textField]: e.target.value } as Partial<Scene>)
+        }
+        className="input-field w-full text-xs h-14 resize-none"
+        placeholder="type here..."
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Color">
+          <input
+            type="color"
+            value={color}
+            onChange={(e) =>
+              update({ [cfg.colorField]: e.target.value } as Partial<Scene>)
+            }
+            className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+          />
+        </Field>
+        {cfg.sizeField && (
+          <Field label="Size">
+            <input
+              type="range"
+              min={24}
+              max={200}
+              step={4}
+              value={size}
+              onChange={(e) =>
+                update({
+                  [cfg.sizeField as string]: Number(e.target.value),
+                } as Partial<Scene>)
+              }
+              className="w-full accent-blue-500 h-1.5"
+            />
+            <span className="text-[10px] text-neutral-500">{size}px</span>
+          </Field>
+        )}
+      </div>
+      <Field label="Align">
+        <AlignRow
+          label=""
+          value={align}
+          onChange={(v) =>
+            update({ [cfg.alignField]: v } as Partial<Scene>)
+          }
+        />
+      </Field>
+    </div>
   );
 }
 
@@ -407,7 +484,7 @@ function AlignRow({
   ];
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-neutral-500 capitalize">{label}</span>
+      {label && <span className="text-neutral-500 capitalize">{label}</span>}
       <div className="flex rounded border border-neutral-700 overflow-hidden">
         {options.map((opt) => (
           <button
@@ -420,7 +497,7 @@ function AlignRow({
                 onChange(opt.id);
               }
             }}
-            title={`Align ${label} ${opt.id}`}
+            title={`Align ${opt.id}`}
             className={`flex-1 py-0.5 text-sm leading-none ${
               current === opt.id
                 ? "bg-blue-500/20 text-blue-300"

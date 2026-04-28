@@ -3094,14 +3094,18 @@ const TOOLS: Record<string, AgentTool> = {
     schema: {
       name: "addMotionClip",
       description:
-        "Add a self-contained motion clip to a scene element. Each clip plays from startFrame for durationFrames frames. Multiple clips on the same element STACK (translate sums, rotation sums, scale multiplies, opacity multiplies). Preferred for chaining phases — to express \"image slides in from right, shakes for 2s, flips 180°\", call this 3 times: slide_in_right (0→60f), shake (60→120f), flip_x_180 (120→180f). v1 fully wires bg + character elements; text/emphasis/subtitle clips are accepted by the schema but the renderer ignores them (use addKeyframe for text motion).",
+        "Add a self-contained motion clip to a scene element. Each clip plays from startFrame for durationFrames frames. Multiple clips on the same element STACK (translate sums, rotation sums, scale multiplies, opacity multiplies). element kinds: bg | character | text | emphasis | subtitle | broll | scene. Use \"scene\" for whole-scene effects (everything zooms in / fades out together). Use \"broll\" with targetId set to a BRoll item's id to animate one specific overlay. Preferred for chaining phases — to express \"image slides in from right, shakes for 2s, flips 180°\", call this 3 times.",
       input_schema: {
         type: "object",
         properties: {
           sceneId: { type: "string" },
           element: {
             type: "string",
-            enum: ["bg", "character", "text", "emphasis", "subtitle"],
+            enum: ["bg", "character", "text", "emphasis", "subtitle", "broll", "scene"],
+          },
+          targetId: {
+            type: "string",
+            description: "For element=broll only: the BRoll item's id this clip targets. Required if you want to animate one specific overlay; omit to apply to every broll in the scene.",
           },
           kind: {
             type: "string",
@@ -3126,6 +3130,7 @@ const TOOLS: Record<string, AgentTool> = {
       const sceneId = resolveSceneId(args, ctx) ?? "";
       const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
       if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
+      const targetId = typeof args.targetId === "string" && args.targetId ? args.targetId : undefined;
       const clip: MotionClip = {
         id: `clip-${createId().slice(-8)}`,
         element: args.element as MotionClipElement,
@@ -3134,6 +3139,7 @@ const TOOLS: Record<string, AgentTool> = {
         durationFrames: Math.max(1, Math.round(Number(args.durationFrames))),
         intensity: typeof args.intensity === "number" ? Number(args.intensity) : undefined,
         degrees: typeof args.degrees === "number" ? Number(args.degrees) : undefined,
+        targetId,
       };
       const scene = ctx.project.scenes[idx];
       const updated: Scene = {
@@ -3141,9 +3147,10 @@ const TOOLS: Record<string, AgentTool> = {
         motionClips: [...(scene.motionClips ?? []), clip],
       };
       ctx.project.scenes = ctx.project.scenes.map((s, i) => (i === idx ? updated : s));
+      const target = clip.element === "broll" && clip.targetId ? `broll#${clip.targetId.slice(0, 6)}` : clip.element;
       return {
         ok: true,
-        message: `motion clip ${clip.kind} on ${clip.element} of scene ${sceneId.slice(0, 6)}: ${clip.startFrame}f → ${clip.startFrame + clip.durationFrames}f (id ${clip.id})`,
+        message: `motion clip ${clip.kind} on ${target} of scene ${sceneId.slice(0, 6)}: ${clip.startFrame}f → ${clip.startFrame + clip.durationFrames}f (id ${clip.id})`,
       };
     },
   },
@@ -3188,6 +3195,13 @@ const TOOLS: Record<string, AgentTool> = {
       return {
         ok: true,
         message: [
+          "Motion clip elements (every animatable surface):",
+          "  bg          — full-bleed background image / video",
+          "  character   — the foreground character image",
+          "  text / emphasis / subtitle — the three text layers",
+          "  broll       — one specific BRoll overlay (set targetId to its id)",
+          "  scene       — the WHOLE scene wrapper (everything moves together)",
+          "",
           "Motion clip kinds (combine freely on the same element):",
           "  slide_in_right / slide_in_left / slide_in_top / slide_in_bottom — element enters from edge, ease-out",
           "  slide_out_right / slide_out_left / slide_out_top / slide_out_bottom — element exits to edge, ease-in",
@@ -3198,10 +3212,16 @@ const TOOLS: Record<string, AgentTool> = {
           "  pulse — scale jitter (intensity = magnitude, default 0.06)",
           "  flip_x_180 / flip_y_180 — 180° rotate over the clip",
           "  spin_360 — full rotation",
+          "",
           "Typical chain — slide in, hold-and-shake, flip out:",
           "  addMotionClip(scene, bg, slide_in_right, 0, 60)",
           "  addMotionClip(scene, bg, shake, 60, 60)",
           "  addMotionClip(scene, bg, flip_x_180, 120, 60)",
+          "Whole-scene exit:",
+          "  addMotionClip(scene, scene, fade_out, sceneEnd-15, 15)",
+          "Specific upload overlay zooms in then shakes:",
+          "  addMotionClip(scene, broll, zoom_in, 0, 30, targetId=<brollId>)",
+          "  addMotionClip(scene, broll, shake, 30, 60, targetId=<brollId>)",
         ].join("\n"),
       };
     },

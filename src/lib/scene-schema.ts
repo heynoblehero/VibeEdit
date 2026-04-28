@@ -861,8 +861,21 @@ export type MotionClipKind =
   | "flip_y_180"
   | "spin_360";
 
-/** Element targets that motion clips can attach to. */
-export type MotionClipElement = "bg" | "character" | "text" | "emphasis" | "subtitle";
+/**
+ * Element targets that motion clips can attach to.
+ *  - bg / character / text / emphasis / subtitle: the singleton elements
+ *    on every scene.
+ *  - broll: per-id BRoll item (the clip's `targetId` selects which one).
+ *  - scene: the whole scene wrapper — applies on top of every child.
+ */
+export type MotionClipElement =
+  | "bg"
+  | "character"
+  | "text"
+  | "emphasis"
+  | "subtitle"
+  | "broll"
+  | "scene";
 
 export interface MotionClip {
   id: string;
@@ -877,6 +890,12 @@ export interface MotionClip {
   intensity?: number;
   /** Optional per-kind override for rotation amount (flip / spin). */
   degrees?: number;
+  /**
+   * For element="broll": the BRoll item's id this clip targets. When
+   * omitted on a "broll" clip, the clip applies to every BRoll in the
+   * scene (rare — usually you target one). Ignored for other elements.
+   */
+  targetId?: string;
 }
 
 export type ShotType =

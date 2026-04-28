@@ -143,11 +143,16 @@ function applyClipKind(clip: MotionClip, t: number): ResolvedTransform {
  * Resolve every active clip on the given element at the given frame
  * into a single transform the renderer can stack into its existing
  * style strings.
+ *
+ * For element="broll", pass `targetId` so the resolver only picks clips
+ * tied to that specific BRoll item. A clip with no targetId applies to
+ * every broll in the scene (rare; mostly used for "all overlays fade").
  */
 export function resolveClipsForElement(
   scene: Scene,
   element: MotionClipElement,
   frame: number,
+  targetId?: string,
 ): ResolvedTransform {
   const clips = scene.motionClips ?? [];
   if (clips.length === 0) return { ...IDENTITY };
@@ -155,6 +160,7 @@ export function resolveClipsForElement(
   for (const clip of clips) {
     if (clip.element !== element) continue;
     if (clip.durationFrames <= 0) continue;
+    if (element === "broll" && targetId && clip.targetId && clip.targetId !== targetId) continue;
     const local = frame - clip.startFrame;
     if (local < 0 || local > clip.durationFrames) continue;
     const t = local / clip.durationFrames;

@@ -1,9 +1,13 @@
 import React from "react";
-import { AbsoluteFill, Img, OffthreadVideo, Sequence, useVideoConfig } from "remotion";
-import type { BRoll as BRollType, ImageFilter } from "@/lib/scene-schema";
+import { AbsoluteFill, Img, OffthreadVideo, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
+import type { BRoll as BRollType, ImageFilter, Scene } from "@/lib/scene-schema";
+import { resolveClipsForElement } from "@/lib/motion-clips";
 
 interface Props {
   broll: BRollType;
+  /** Parent scene — needed so the broll can resolve any motion clips
+   *  targeting its id. */
+  scene: Scene;
 }
 
 const VIDEO_W = 1920;
@@ -43,21 +47,31 @@ function filterCss(f?: ImageFilter): string | undefined {
   return parts.length ? parts.join(" ") : undefined;
 }
 
-export const BRoll: React.FC<Props> = ({ broll }) => {
+export const BRoll: React.FC<Props> = ({ broll, scene }) => {
   const { fps } = useVideoConfig();
+  // BRoll lives inside a <Sequence from={broll.startFrame}>, so the
+  // scene-frame the resolver expects is the broll's startFrame plus the
+  // local frame inside the sequence.
+  const localFrame = useCurrentFrame();
+  const sceneFrame = broll.startFrame + localFrame;
+  const clip = resolveClipsForElement(scene, "broll", sceneFrame, broll.id);
   const layout = layoutForPosition(broll.position);
-  const scale = broll.scale ?? 1;
+  const scale = (broll.scale ?? 1) * clip.scale;
   const isFull = broll.position === "full";
   const isVideoLike = broll.kind === "clip" || broll.kind === "gif";
 
+  const transformParts: string[] = [];
+  if (scale !== 1) transformParts.push(`scale(${scale})`);
+  if (clip.rotation) transformParts.push(`rotate(${clip.rotation}deg)`);
+
   const style: React.CSSProperties = {
     position: "absolute",
-    left: layout.left + (broll.offsetX ?? 0),
-    top: layout.top + (broll.offsetY ?? 0),
+    left: layout.left + (broll.offsetX ?? 0) + clip.tx,
+    top: layout.top + (broll.offsetY ?? 0) + clip.ty,
     width: layout.width,
     height: layout.height,
-    opacity: broll.opacity ?? 1,
-    transform: scale !== 1 ? `scale(${scale})` : undefined,
+    opacity: (broll.opacity ?? 1) * clip.opacity,
+    transform: transformParts.length ? transformParts.join(" ") : undefined,
     transformOrigin: "center center",
     overflow: "hidden",
     borderRadius: isFull ? 0 : 16,
@@ -98,12 +112,12 @@ export const BRoll: React.FC<Props> = ({ broll }) => {
   );
 };
 
-export const BRollLayer: React.FC<{ brolls?: BRollType[] }> = ({ brolls }) => {
+export const BRollLayer: React.FC<{ brolls?: BRollType[]; scene: Scene }> = ({ brolls, scene }) => {
   if (!brolls || brolls.length === 0) return null;
   return (
     <>
       {brolls.map((b) => (
-        <BRoll key={b.id} broll={b} />
+        <BRoll key={b.id} broll={b} scene={scene} />
       ))}
     </>
   );

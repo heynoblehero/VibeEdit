@@ -113,11 +113,26 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
   const bgScaleMotion = motionValue(s.bgMotion, "bgScale");
   const bgRotationMotion = motionValue(s.bgMotion, "bgRotation");
 
-  // Motion clips per element. v1 wires bg + character; text/emphasis/
-  // subtitle clip targets are accepted at the schema level but the
-  // renderer ignores them this round.
+  // Motion clips per element. Every element kind is wired here so the
+  // agent (and direct user editing) can target the same clip surface
+  // uniformly. broll clips are resolved per-id inside BRollLayer.
   const bgClip = resolveClipsForElement(s, "bg", frame);
   const charClip = resolveClipsForElement(s, "character", frame);
+  const textClip = resolveClipsForElement(s, "text", frame);
+  const emphasisClip = resolveClipsForElement(s, "emphasis", frame);
+  const subtitleClip = resolveClipsForElement(s, "subtitle", frame);
+  const sceneClip = resolveClipsForElement(s, "scene", frame);
+
+  // Stackable CSS transform from a ResolvedTransform. Wraps the inner
+  // element so motion clips compose with whatever positioning the
+  // existing renderer code already does.
+  const clipTransform = (c: typeof bgClip): string => {
+    const parts: string[] = [];
+    if (c.tx || c.ty) parts.push(`translate(${c.tx}px, ${c.ty}px)`);
+    if (c.scale !== 1) parts.push(`scale(${c.scale})`);
+    if (c.rotation) parts.push(`rotate(${c.rotation}deg)`);
+    return parts.join(" ");
+  };
 
   const enterDelay = 3;
   const charProgress = spring({
@@ -160,8 +175,16 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
   const charX = s.characterX ?? (enterFrom === "left" ? 300 : enterFrom === "right" ? 1400 : 960);
   const charY = s.characterY ?? 900;
 
+  const sceneTransform = clipTransform(sceneClip);
+
   return (
-    <AbsoluteFill style={{ opacity: sceneOpacity }}>
+    <AbsoluteFill
+      style={{
+        opacity: sceneOpacity * sceneClip.opacity,
+        transform: sceneTransform || undefined,
+        transformOrigin: "center center",
+      }}
+    >
     <GradientBg
       color={s.background.color}
       graphic={graphicSrc}
@@ -260,7 +283,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
           />
         </div>
       )}
-      <BRollLayer brolls={s.broll} />
+      <BRollLayer brolls={s.broll} scene={s} />
       <ZoomPunch hitFrame={s.zoomPunch ? 0 : 9999} intensity={s.zoomPunch ?? 1.15}>
        {/* Secondary subtle zoom when emphasis text appears (frame 12)
            so the reveal feels punctuated without needing a full beat. */}
@@ -286,40 +309,73 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
           )}
 
           {s.text && (
-            <PunchText
-              text={s.text}
-              startFrame={3}
-              fontSize={(s.textSize ?? 64) * textScale}
-              color={s.textColor ?? "#888888"}
-              align={s.textAlign}
-              y={(s.textY ?? defaultTextY) + textYOffset}
-              staggerFrames={4}
-            />
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                pointerEvents: "none",
+                transform: clipTransform(textClip) || undefined,
+                transformOrigin: "center center",
+                opacity: textClip.opacity,
+              }}
+            >
+              <PunchText
+                text={s.text}
+                startFrame={3}
+                fontSize={(s.textSize ?? 64) * textScale}
+                color={s.textColor ?? "#888888"}
+                align={s.textAlign}
+                y={(s.textY ?? defaultTextY) + textYOffset}
+                staggerFrames={4}
+              />
+            </div>
           )}
 
           {s.emphasisText && (
-            <PunchText
-              text={s.emphasisText}
-              startFrame={12}
-              fontSize={(s.emphasisSize ?? 96) * emphasisScale}
-              color={s.emphasisColor ?? "white"}
-              glowColor={s.emphasisGlow}
-              align={s.emphasisAlign}
-              y={(s.textY ?? defaultTextY) + (s.textSize ?? 64) + 20 + emphasisYOffset}
-              staggerFrames={5}
-            />
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                pointerEvents: "none",
+                transform: clipTransform(emphasisClip) || undefined,
+                transformOrigin: "center center",
+                opacity: emphasisClip.opacity,
+              }}
+            >
+              <PunchText
+                text={s.emphasisText}
+                startFrame={12}
+                fontSize={(s.emphasisSize ?? 96) * emphasisScale}
+                color={s.emphasisColor ?? "white"}
+                glowColor={s.emphasisGlow}
+                align={s.emphasisAlign}
+                y={(s.textY ?? defaultTextY) + (s.textSize ?? 64) + 20 + emphasisYOffset}
+                staggerFrames={5}
+              />
+            </div>
           )}
 
           {s.subtitleText && (
-            <PunchText
-              text={s.subtitleText}
-              startFrame={25}
-              fontSize={36}
-              color={s.subtitleColor ?? "#666666"}
-              align={s.subtitleAlign}
-              y={(s.textY ?? defaultTextY) + (s.textSize ?? 64) + (s.emphasisSize ?? 96) + 50}
-              staggerFrames={3}
-            />
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                pointerEvents: "none",
+                transform: clipTransform(subtitleClip) || undefined,
+                transformOrigin: "center center",
+                opacity: subtitleClip.opacity,
+              }}
+            >
+              <PunchText
+                text={s.subtitleText}
+                startFrame={25}
+                fontSize={36}
+                color={s.subtitleColor ?? "#666666"}
+                align={s.subtitleAlign}
+                y={(s.textY ?? defaultTextY) + (s.textSize ?? 64) + (s.emphasisSize ?? 96) + 50}
+                staggerFrames={3}
+              />
+            </div>
           )}
 
           {s.type === "big_number" && s.numberTo !== undefined && (

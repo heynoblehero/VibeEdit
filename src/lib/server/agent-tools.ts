@@ -659,7 +659,7 @@ const TOOLS: Record<string, AgentTool> = {
         return {
           ok: true,
           message: `preview of scene ${idx + 1} (${id}) at frame ${still.frame}, ${still.width}×${still.height} — image attached. Inspect it: does the change you just made actually appear? If not, the field you patched isn't the one rendering.`,
-          images: [{ base64: still.base64, mediaType: "image/png" }],
+          images: [{ base64: still.base64, mediaType: "image/jpeg" }],
         };
       } catch (err) {
         return {

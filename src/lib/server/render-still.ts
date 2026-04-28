@@ -114,9 +114,12 @@ export async function renderSceneStill(
     inputProps,
   });
 
+  // JPEG instead of PNG: half the payload back to Claude for the same
+  // visual fidelity at quality 90, and Remotion rejects jpegQuality
+  // unless imageFormat is 'jpeg'.
   const outPath = path.join(
     os.tmpdir(),
-    `vibeedit-still-${randomUUID()}.png`,
+    `vibeedit-still-${randomUUID()}.jpg`,
   );
 
   try {
@@ -127,6 +130,7 @@ export async function renderSceneStill(
       inputProps,
       frame: frameOffset,
       scale,
+      imageFormat: "jpeg",
       jpegQuality: 90,
     });
 

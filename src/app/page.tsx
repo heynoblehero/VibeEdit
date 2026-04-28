@@ -372,22 +372,29 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Right: scene editor — open whenever a scene is selected. */}
+        {/* Right: properties panel — open whenever a scene is selected. */}
         {selectedSceneId &&
           project.scenes.some((s) => s.id === selectedSceneId) &&
           !rightCollapsed && (
             <div
               data-scene-editor
-              className="w-72 border-l border-neutral-800 shrink-0 overflow-y-auto relative"
+              className="w-72 border-l border-neutral-800 shrink-0 flex flex-col relative"
             >
-              <button
-                onClick={() => setRightCollapsed(true)}
-                title="Collapse scene editor"
-                className="absolute top-1 left-1 z-10 text-[10px] text-neutral-600 hover:text-white px-1"
-              >
-                ›
-              </button>
-              <SceneEditor />
+              <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur-sm shrink-0">
+                <span className="text-[11px] uppercase tracking-wider text-neutral-300 font-semibold">
+                  Properties
+                </span>
+                <button
+                  onClick={() => setRightCollapsed(true)}
+                  title="Collapse properties"
+                  className="text-[10px] text-neutral-600 hover:text-white px-1"
+                >
+                  ›
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <SceneEditor />
+              </div>
             </div>
           )}
         {/* Tab to restore the scene editor when it was manually collapsed. */}

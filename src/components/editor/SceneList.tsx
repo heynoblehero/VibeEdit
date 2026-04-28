@@ -88,43 +88,50 @@ export function SceneList() {
   };
 
   return (
-    <div className="flex flex-col gap-1 p-2">
-      <div className="flex items-center justify-between mb-1.5">
-        <button
-          onClick={() => project.scenes.length > 0 && selectAllScenes()}
-          className="text-[10px] font-mono hover:underline"
-          style={{
-            // Short-form sweet spot is 15-60s. Color-hint when we're outside.
-            color:
-              project.scenes.length === 0
-                ? "#525252"
-                : totalSec < 10
-                  ? "#f87171"
-                  : totalSec > 90
-                    ? "#fbbf24"
-                    : "#10b981",
-          }}
-          title={
-            totalSec < 10
-              ? "Very short — may feel abrupt"
-              : totalSec > 90
-                ? "Long for short-form — consider trimming"
-                : "Good short-form runtime"
-          }
-        >
-          {project.scenes.length > 0
-            ? `${project.scenes.length} · ${totalSec.toFixed(1)}s`
-            : "scenes"}
-        </button>
+    <div className="flex flex-col gap-1">
+      {/* Sticky column heading — Scenes / count / + new */}
+      <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] uppercase tracking-wider text-neutral-300 font-semibold">
+            Scenes
+          </span>
+          <button
+            onClick={() => project.scenes.length > 0 && selectAllScenes()}
+            className="text-[10px] font-mono hover:underline"
+            style={{
+              // Short-form sweet spot is 15-60s. Color-hint when we're outside.
+              color:
+                project.scenes.length === 0
+                  ? "#525252"
+                  : totalSec < 10
+                    ? "#f87171"
+                    : totalSec > 90
+                      ? "#fbbf24"
+                      : "#10b981",
+            }}
+            title={
+              totalSec < 10
+                ? "Very short — may feel abrupt"
+                : totalSec > 90
+                  ? "Long for short-form — consider trimming"
+                  : "Good short-form runtime"
+            }
+          >
+            {project.scenes.length > 0
+              ? `${project.scenes.length} · ${totalSec.toFixed(1)}s`
+              : "0"}
+          </button>
+        </div>
         <button
           onClick={handleAdd}
-          title="Add blank scene"
-          className="p-0.5 text-neutral-500 hover:text-emerald-300 transition-colors"
+          title="Add blank scene (N)"
+          className="flex items-center gap-1 px-2 py-1 rounded text-[10.5px] font-medium text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/15 border border-emerald-500/30 transition-colors"
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-3 w-3" />
+          <span>New scene</span>
         </button>
       </div>
-      <div className="flex flex-col gap-1 overflow-y-auto max-h-[60vh]">
+      <div className="flex flex-col gap-1 overflow-y-auto max-h-[60vh] p-2">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}

@@ -258,32 +258,38 @@ export function Preview() {
   const hasNumber = selectedScene?.type === "big_number";
 
   return (
-    <div className="flex flex-col h-full gap-2">
-      {/* Controls */}
-      <div className="flex items-center gap-2 shrink-0">
+    <div className="flex flex-col h-full">
+      {/* Header: clearly separates the preview column from the side
+          panels. Title + scene info + play/pause inline. */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800 bg-neutral-950/95 shrink-0">
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] uppercase tracking-wider text-neutral-300 font-semibold">
+            Preview
+          </span>
+          {selectedScene ? (
+            <span className="text-[10px] text-neutral-500">
+              Scene {project.scenes.findIndex((s) => s.id === selectedScene.id) + 1}
+              {selectedScene.label ? ` · ${selectedScene.label}` : ""} · {selectedScene.duration}s
+            </span>
+          ) : (
+            <span className="text-[10px] text-neutral-500">Full timeline</span>
+          )}
+        </div>
         <button
           onClick={isPaused ? handlePlay : handlePause}
-          className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-md bg-neutral-800 text-neutral-300 hover:text-white transition-colors"
+          className="flex items-center gap-1.5 text-[11px] font-medium px-3 py-1 rounded-md bg-emerald-500 hover:bg-emerald-400 text-black transition-colors"
         >
           {isPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
           {isPaused ? "Play" : "Pause"}
         </button>
-        {selectedScene ? (
-          <span className="text-[10px] text-neutral-500">
-            {selectedScene.duration}s &middot; Click elements to edit
-          </span>
-        ) : (
-          <span className="text-[10px] text-neutral-500">
-            Full preview &middot; Click timeline to jump to scene
-          </span>
-        )}
       </div>
 
-      {/* Player + clickable overlay. The bottom timeline is gone — the
-          player takes the full remaining height. */}
+      {/* Player frame — distinct dark stage with a clear border so the
+          canvas area reads as separate from the surrounding chrome. */}
+      <div className="flex-1 min-h-0 p-3 bg-neutral-925 dark:bg-neutral-950 flex">
       <div
         ref={playerWrapperRef}
-        className="flex-1 min-h-0 relative bg-black rounded-lg overflow-hidden border border-neutral-800"
+        className="flex-1 min-h-0 relative bg-black rounded-xl overflow-hidden border-2 border-neutral-800 shadow-2xl shadow-black/40"
       >
         {selectedScene && (
           <div className="absolute top-2 left-2 z-30 px-1.5 py-1 rounded bg-neutral-900/70 backdrop-blur-sm border border-neutral-800 text-[10px] text-neutral-300 font-mono pointer-events-none">
@@ -473,6 +479,7 @@ export function Preview() {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

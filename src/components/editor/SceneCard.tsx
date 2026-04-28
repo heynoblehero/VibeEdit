@@ -166,6 +166,35 @@ export function SceneCard({ scene, index }: SceneCardProps) {
     }
   };
 
+  /** Add a text layer in the next empty slot. emphasisText is the
+   *  loudest hero line, then text, then subtitleText. After all three
+   *  are filled, this button just focuses the existing emphasis text. */
+  const addTextLayer = () => {
+    if (!scene.emphasisText) {
+      updateScene(scene.id, {
+        emphasisText: "New text",
+        emphasisColor: scene.emphasisColor ?? "#ffffff",
+      });
+      selectScene(scene.id);
+      setEditTarget("text");
+      return;
+    }
+    if (!scene.text) {
+      updateScene(scene.id, { text: "New text", textColor: scene.textColor ?? "#cccccc" });
+      selectScene(scene.id);
+      setEditTarget("text");
+      return;
+    }
+    if (!scene.subtitleText) {
+      updateScene(scene.id, { subtitleText: "New text", subtitleColor: scene.subtitleColor ?? "#aaaaaa" });
+      selectScene(scene.id);
+      setEditTarget("text");
+      return;
+    }
+    selectScene(scene.id);
+    setEditTarget("text");
+  };
+
   // Scroll the active card into view — driven by either selection (kbd nav)
   // or playback position. Playback uses 'nearest' so it doesn't jerk the
   // list around mid-watch.
@@ -418,19 +447,32 @@ export function SceneCard({ scene, index }: SceneCardProps) {
           </button>
         );
       })}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          fileInputRef.current?.click();
-        }}
-        className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-left text-neutral-500 hover:text-emerald-300 hover:bg-neutral-800/60 transition-colors"
-        title="Upload an image / video / audio to this scene"
-      >
-        <Plus className="h-3 w-3 shrink-0" />
-        <span className="text-[10.5px]">Upload to scene</span>
-        <Upload className="h-3 w-3 shrink-0 ml-auto opacity-50" />
-      </button>
+      <div className="flex items-center gap-1 pt-0.5">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            addTextLayer();
+          }}
+          className="flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded text-neutral-400 hover:text-emerald-300 hover:bg-neutral-800/60 border border-neutral-800 hover:border-emerald-500/40 transition-colors"
+          title="Add a text layer to this scene"
+        >
+          <Type className="h-3 w-3 shrink-0" />
+          <span className="text-[10.5px] font-medium">Text</span>
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            fileInputRef.current?.click();
+          }}
+          className="flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded text-neutral-400 hover:text-emerald-300 hover:bg-neutral-800/60 border border-neutral-800 hover:border-emerald-500/40 transition-colors"
+          title="Upload an image / video / audio to this scene"
+        >
+          <Upload className="h-3 w-3 shrink-0" />
+          <span className="text-[10.5px] font-medium">Media</span>
+        </button>
+      </div>
     </div>
     </div>
   );

@@ -66,16 +66,9 @@ export function SceneEditor() {
             title="Click to copy — paste into chat to reference this scene"
             className="text-[9px] font-mono text-neutral-600 hover:text-emerald-400 transition-colors"
           >
-            {scene.id}
+            {scene.id.slice(0, 6)}
           </button>
-          <span className="text-[10px] text-neutral-500">— click to edit</span>
-          <button
-            onClick={() => useProjectStore.getState().clearSelection()}
-            title="Close (Esc)"
-            className="ml-auto text-neutral-500 hover:text-white px-1 text-sm leading-none"
-          >
-            ×
-          </button>
+          <span className="text-[10px] text-neutral-500">— pick a layer</span>
         </div>
         {workflow.sceneActions && workflow.sceneActions.length > 0 && (
           <SceneActionsRow workflowId={workflow.id} scene={scene} actions={workflow.sceneActions} />

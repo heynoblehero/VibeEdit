@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Film, ListVideo, MessageCircle, Redo2, Settings, Smartphone, Undo2, Upload, X } from "lucide-react";
+import { CalendarClock, Film, ListVideo, MessageCircle, Redo2, Settings, Smartphone, Undo2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { AuthBar } from "@/components/editor/AuthBar";
@@ -39,7 +39,6 @@ import { PasteImage } from "@/components/editor/PasteImage";
 import { PageTitleSync } from "@/components/editor/PageTitleSync";
 import { SearchScenes } from "@/components/editor/SearchScenes";
 import { useEditorStore } from "@/store/editor-store";
-import { UploadsPanel } from "@/components/editor/UploadsPanel";
 import { useChatStore } from "@/store/chat-store";
 import { useProjectStore } from "@/store/project-store";
 import { useRenderQueueStore } from "@/store/render-queue-store";
@@ -91,8 +90,6 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
-  // Topbar pop-out panels — uploads only.
-  const [topPanel, setTopPanel] = useState<"uploads" | null>(null);
   useEffect(() => {
     const handler = () => setTemplatePickerOpen(true);
     window.addEventListener("vibeedit:open-template-picker", handler);
@@ -218,24 +215,9 @@ export default function Home() {
           <ProjectSwitcher />
           <ProjectStats />
           <AspectSwitcher />
-          <div className="hidden sm:flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={() => setTopPanel((v) => (v === "uploads" ? null : "uploads"))}
-              title="Uploads"
-              className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors border ${
-                topPanel === "uploads"
-                  ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
-                  : "text-neutral-400 hover:text-white bg-neutral-900/80 border-neutral-800"
-              }`}
-            >
-              <Upload className="h-3.5 w-3.5" />
-              <span>Uploads</span>
-            </button>
-          </div>
-          {/* Mode toggle removed: properties panel + chat agent are
-              always available together. User edits manually if they
-              want; otherwise asks the agent. */}
+          {/* Uploads now happen per-scene — drop a file on a scene
+              card or click "Upload to scene" inside it. The legacy
+              topbar Uploads pop-out has been removed. */}
           <button
             onClick={() => setChatOpen((v) => !v)}
             title="Toggle vibe chat (Cmd/Ctrl+K)"
@@ -336,26 +318,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Topbar pop-out: Uploads. Floating drawer over the editor. */}
-      {topPanel === "uploads" && !zenMode && (
-        <div className="absolute top-12 left-2 z-40 w-80 max-h-[calc(100vh-4rem)] flex flex-col border border-neutral-800 rounded-lg bg-neutral-950/95 backdrop-blur-md shadow-2xl overflow-hidden">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800/80 bg-neutral-900/60">
-            <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-medium">
-              Uploads
-            </span>
-            <button
-              onClick={() => setTopPanel(null)}
-              title="Close"
-              className="p-0.5 rounded text-neutral-500 hover:text-white hover:bg-neutral-800/80"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <UploadsPanel inline />
-          </div>
-        </div>
-      )}
 
       {/* Main layout — 3 columns: scenes | player | properties. Chat is
           a floating widget on top, not a column-stealer. */}

@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  ChevronDown,
-  ChevronRight,
   Copy,
   Film,
   GripVertical,
@@ -11,23 +9,26 @@ import {
   Lock,
   Mic,
   Play,
+  Plus,
   Sparkles,
   Target,
   Trash2,
   Type,
   Unlock,
+  Upload,
   UserSquare2,
   Wand2,
 } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useEffect, useMemo, useRef } from "react";
-import type { Scene } from "@/lib/scene-schema";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { BRollPosition, Scene } from "@/lib/scene-schema";
 import {
   type LayerKind,
   deriveItemsFromScene,
   kindToEditTarget,
 } from "@/lib/timeline-items";
+import { uploadFiles } from "@/lib/upload-files";
 import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 import { SceneThumbnail } from "./SceneThumbnail";
@@ -84,6 +85,7 @@ export function SceneCard({ scene, index }: SceneCardProps) {
   const duplicateScene = useProjectStore((s) => s.duplicateScene);
   const updateScene = useProjectStore((s) => s.updateScene);
   const project = useProjectStore((s) => s.project);
+  const addUpload = useProjectStore((s) => s.addUpload);
 
   const isActive = selectedSceneId === scene.id;
   const isInMulti = selectedSceneIds.includes(scene.id);
@@ -93,10 +95,9 @@ export function SceneCard({ scene, index }: SceneCardProps) {
   const setFocusedSceneId = useEditorStore((s) => s.setFocusedSceneId);
   const setEditTarget = useEditorStore((s) => s.setEditTarget);
   const isFocused = focusedSceneId === scene.id;
-  const expandedSceneIds = useEditorStore((s) => s.expandedSceneIds);
-  const toggleSceneExpanded = useEditorStore((s) => s.toggleSceneExpanded);
-  const isExpanded = !!expandedSceneIds[scene.id];
   const rowRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   // Derive the layers for this scene. Frame=0 since we only need the
   // labels + kinds — the actual playhead doesn't matter for the list.
@@ -104,6 +105,66 @@ export function SceneCard({ scene, index }: SceneCardProps) {
     () => deriveItemsFromScene(scene, 0, project.fps),
     [scene, project.fps],
   );
+
+  /** Apply a freshly-uploaded file to this scene as the right kind of
+   *  layer based on MIME type. Image → background image (or broll if
+   *  already has one). Video → background video. Audio → voiceover. */
+  const applyUploadToScene = (url: string, mime: string | undefined) => {
+    const isVideo = (mime ?? "").startsWith("video/");
+    const isImage = (mime ?? "").startsWith("image/");
+    const isAudio = (mime ?? "").startsWith("audio/");
+    if (isVideo) {
+      updateScene(scene.id, {
+        background: { ...scene.background, videoUrl: url },
+      });
+    } else if (isImage) {
+      // First image becomes the bg; subsequent images stack as broll.
+      if (!scene.background.imageUrl) {
+        updateScene(scene.id, {
+          background: { ...scene.background, imageUrl: url },
+        });
+      } else {
+        const broll = scene.broll ?? [];
+        const positions: BRollPosition[] = [
+          "overlay-tr",
+          "overlay-bl",
+          "overlay-br",
+          "overlay-tl",
+        ];
+        updateScene(scene.id, {
+          broll: [
+            ...broll,
+            {
+              id: `b-${Math.random().toString(36).slice(2, 8)}`,
+              kind: "image",
+              url,
+              position: positions[broll.length % positions.length],
+              startFrame: 0,
+              durationFrames: Math.round(scene.duration * project.fps),
+              source: "upload",
+            },
+          ],
+        });
+      }
+    } else if (isAudio) {
+      updateScene(scene.id, {
+        voiceover: {
+          audioUrl: url,
+          audioDurationSec: scene.duration,
+          provider: "openai",
+          voice: "uploaded",
+          text: "",
+        },
+      });
+    }
+  };
+
+  const handleFiles = async (files: FileList | File[]) => {
+    const results = await uploadFiles(files, addUpload);
+    for (const r of results) {
+      applyUploadToScene(r.upload.url, r.upload.type);
+    }
+  };
 
   // Scroll the active card into view — driven by either selection (kbd nav)
   // or playback position. Playback uses 'nearest' so it doesn't jerk the
@@ -144,7 +205,33 @@ export function SceneCard({ scene, index }: SceneCardProps) {
         rowRef.current = el;
       }}
       style={style}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          setIsDragOver(true);
+        }
+      }}
+      onDragLeave={() => setIsDragOver(false)}
+      onDrop={(e) => {
+        if (e.dataTransfer.files.length > 0) {
+          e.preventDefault();
+          setIsDragOver(false);
+          handleFiles(e.dataTransfer.files);
+        }
+      }}
+      className={`rounded-lg ${isDragOver ? "ring-2 ring-emerald-400/70 ring-offset-1 ring-offset-neutral-950" : ""}`}
     >
+    <input
+      ref={fileInputRef}
+      type="file"
+      multiple
+      hidden
+      accept="image/*,video/*,audio/*"
+      onChange={(e) => {
+        if (e.target.files && e.target.files.length > 0) handleFiles(e.target.files);
+        e.target.value = "";
+      }}
+    />
     <div
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
@@ -163,22 +250,6 @@ export function SceneCard({ scene, index }: SceneCardProps) {
             : "border-neutral-800 bg-neutral-900 hover:border-neutral-600"
       }`}
     >
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          toggleSceneExpanded(scene.id);
-        }}
-        className="shrink-0 text-neutral-500 hover:text-emerald-300 transition-colors"
-        aria-label={isExpanded ? "Hide layers" : "Show layers"}
-        title={isExpanded ? "Hide layers" : "Show layers"}
-      >
-        {isExpanded ? (
-          <ChevronDown className="h-3.5 w-3.5" />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5" />
-        )}
-      </button>
       <button
         {...attributes}
         {...listeners}
@@ -318,33 +389,49 @@ export function SceneCard({ scene, index }: SceneCardProps) {
         </div>
       </div>
     </div>
-    {isExpanded && layers.length > 0 && (
-      <div className="ml-6 mt-1 mb-1 pl-2 border-l border-neutral-800 space-y-0.5">
-        {layers.map((layer) => {
-          const Icon = LAYER_ICON[layer.kind];
-          const colorClass = LAYER_COLOR[layer.kind];
-          return (
-            <button
-              key={layer.id}
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                selectScene(scene.id);
-                const target = kindToEditTarget(layer.kind);
-                if (target !== null) setEditTarget(target);
-              }}
-              className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-left hover:bg-neutral-800/60 transition-colors"
-              title={`${layer.label} · click to edit`}
-            >
-              <Icon className={`h-3 w-3 shrink-0 opacity-80 ${colorClass}`} />
-              <span className={`flex-1 truncate text-[10.5px] ${colorClass}`}>
-                {layer.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    )}
+    <div className="ml-4 mt-1 mb-2 pl-2 border-l border-neutral-800 space-y-0.5">
+      {layers.length === 0 && (
+        <div className="px-2 py-1 text-[10px] text-neutral-600 italic">
+          No layers — drop a file here or click +
+        </div>
+      )}
+      {layers.map((layer) => {
+        const Icon = LAYER_ICON[layer.kind];
+        const colorClass = LAYER_COLOR[layer.kind];
+        return (
+          <button
+            key={layer.id}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              selectScene(scene.id);
+              const target = kindToEditTarget(layer.kind);
+              if (target !== null) setEditTarget(target);
+            }}
+            className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-left hover:bg-neutral-800/60 transition-colors"
+            title={`${layer.label} · click to edit`}
+          >
+            <Icon className={`h-3 w-3 shrink-0 opacity-80 ${colorClass}`} />
+            <span className={`flex-1 truncate text-[10.5px] ${colorClass}`}>
+              {layer.label}
+            </span>
+          </button>
+        );
+      })}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          fileInputRef.current?.click();
+        }}
+        className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-left text-neutral-500 hover:text-emerald-300 hover:bg-neutral-800/60 transition-colors"
+        title="Upload an image / video / audio to this scene"
+      >
+        <Plus className="h-3 w-3 shrink-0" />
+        <span className="text-[10.5px]">Upload to scene</span>
+        <Upload className="h-3 w-3 shrink-0 ml-auto opacity-50" />
+      </button>
+    </div>
     </div>
   );
 }

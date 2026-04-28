@@ -185,12 +185,13 @@ export function CanvasManipulator({ scene, frameW, frameH, containerRef, target 
   } | null>(null);
 
   const t = readTarget(scene, target, frameW, frameH);
-  if (!t) return null;
 
-  const colors = COLORS[target];
-
+  // useCallback declared unconditionally so the hook count is stable when
+  // `t` toggles null ↔ object across renders (e.g., user adds a video bg
+  // to a previously image-only scene). Inner handler bails when t is null.
   const onHandleDown = useCallback(
     (handle: Handle) => (e: React.PointerEvent) => {
+      if (!t) return;
       e.stopPropagation();
       e.preventDefault();
       setActive(handle);
@@ -234,6 +235,9 @@ export function CanvasManipulator({ scene, frameW, frameH, containerRef, target 
     [t, scene.id, updateScene, frameW, frameH, containerRef],
   );
 
+  if (!t) return null;
+
+  const colors = COLORS[target];
   const cornerCls = `absolute w-3 h-3 ${colors.handle} border rounded-sm pointer-events-auto hover:scale-125 transition-transform`;
 
   return (

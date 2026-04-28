@@ -7,7 +7,6 @@ import { AuthBar } from "@/components/editor/AuthBar";
 import { BatchVariantsButton } from "@/components/editor/BatchVariantsButton";
 import { BridgeIndicator } from "@/components/editor/BridgeIndicator";
 import { DevBadge } from "@/components/editor/DevBadge";
-import { ProjectHome } from "@/components/editor/ProjectHome";
 import { SettingsDialog } from "@/components/editor/SettingsDialog";
 import { MasterMixButton } from "@/components/editor/MasterMixButton";
 import { BulkActionsBar } from "@/components/editor/BulkActionsBar";
@@ -107,9 +106,6 @@ export default function Home() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // First-run landing: show ProjectHome instead of the editor when the user
-  // hasn't engaged yet (current project is empty + never dismissed).
-  const [homeDismissed, setHomeDismissed] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   useEffect(() => {
     const handler = () => setTemplatePickerOpen(true);
@@ -138,7 +134,6 @@ export default function Home() {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "n") {
         e.preventDefault();
         createProject();
-        setHomeDismissed(true);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -169,13 +164,7 @@ export default function Home() {
         setRightCollapsedState(true);
     } catch {}
   }, []);
-  const chatHasMessages = useChatStore((s) => s.messages.length > 0);
   const agentStreaming = useChatStore((s) => s.isStreaming);
-  const showHome =
-    !homeDismissed &&
-    project.scenes.length === 0 &&
-    !project.script &&
-    !chatHasMessages;
 
   useEffect(() => {
     // One-shot post-hydration sync — eslint's cascading-renders warning
@@ -230,15 +219,11 @@ export default function Home() {
       >
         <div className="flex items-center gap-2 min-w-0">
           <button
-            onClick={() => setHomeDismissed(false)}
-            onDoubleClick={() => {
-              // Double-click the logo opens the shortcuts overlay.
-              window.dispatchEvent(
-                new KeyboardEvent("keydown", { key: "?" }),
-              );
+            onClick={() => {
+              window.dispatchEvent(new KeyboardEvent("keydown", { key: "?" }));
             }}
-            title="Home (double-click for shortcuts)"
-            aria-label="Go to home"
+            title="Show shortcuts"
+            aria-label="Show shortcuts"
             className="shrink-0"
           >
             <Film className="h-5 w-5 text-emerald-400" aria-label="VibeEdit" />
@@ -383,15 +368,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* First-run landing: project picker instead of empty editor. */}
-      {showHome && (
-        <div className="flex-1 min-h-0">
-          <ProjectHome onStart={() => setHomeDismissed(true)} />
-        </div>
-      )}
-
       {/* Main layout */}
-      {!showHome && (
       <div className="flex flex-1 min-h-0">
         {!zenMode && (
           <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
@@ -482,7 +459,6 @@ export default function Home() {
             </button>
           )}
       </div>
-      )}
 
       <ImageEditor />
       <RenderQueuePanel />

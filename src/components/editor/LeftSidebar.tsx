@@ -3,19 +3,18 @@
 /**
  * LeftSidebar — vertical tab bar on the left edge of the editor.
  *
- * Tabs: Uploads (per-project upload bin), Tracks (multi-track layout),
- * AI (prefab agent commands as drag cards + open-chat). The old Actions
- * tab is gone — chat covers that surface, and the topbar still has the
- * one-shot buttons (render, undo, export, settings).
+ * Tabs: Uploads (per-project upload bin) and Tracks (multi-track layout).
+ * The old Actions and AI tabs are gone — the chat sidebar on the right
+ * covers all AI surface, and the topbar holds one-shot buttons (render,
+ * undo, export, settings).
  */
 
-import { Layers, Sparkles, Upload } from "lucide-react";
+import { Layers, Upload } from "lucide-react";
 import { useState } from "react";
-import { AIPanel } from "./AIPanel";
 import { TracksPanel } from "./TracksPanel";
 import { UploadsPanel } from "./UploadsPanel";
 
-type TabKey = "uploads" | "ai" | "tracks";
+type TabKey = "uploads" | "tracks";
 
 interface TabDef {
   key: TabKey;
@@ -27,7 +26,6 @@ interface TabDef {
 const TABS: TabDef[] = [
   { key: "uploads", label: "Uploads", icon: Upload, color: "text-emerald-400" },
   { key: "tracks", label: "Tracks", icon: Layers, color: "text-cyan-400" },
-  { key: "ai", label: "AI", icon: Sparkles, color: "text-sky-400" },
 ];
 
 const STORAGE_KEY = "vibeedit:leftsidebar-tab";
@@ -84,7 +82,6 @@ export function LeftSidebar() {
       <div className="flex-1 min-w-0 flex flex-col">
         {active === "uploads" && <UploadsPanel inline />}
         {active === "tracks" && <TracksPanel />}
-        {active === "ai" && <AIPanel />}
       </div>
     </div>
   );

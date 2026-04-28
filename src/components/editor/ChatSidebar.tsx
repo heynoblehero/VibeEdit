@@ -179,10 +179,17 @@ export function ChatSidebar({
       const uploads = detail?.uploads ?? [];
       if (uploads.length === 0) return;
       if (useChatStore.getState().isStreaming) return;
-      const list = uploads.map((u) => `${u.name} (${u.type ?? "?"})`).join(", ");
+      // Include the EXACT url for each upload — uploads are stored under
+      // a content hash (e.g. /uploads/abc123def.png), so if we only
+      // mention the original filename ("isaac.png") the agent will
+      // synthesize /uploads/isaac.png and bake a 404 into a scene.
+      const list = uploads
+        .map((u) => `- ${u.name} (${u.type ?? "?"}) → ${u.url}`)
+        .join("\n");
       const prompt =
-        `I just uploaded ${uploads.length} file${uploads.length === 1 ? "" : "s"}: ${list}. ` +
-        `Run analyzeAssets so we both know what's in them, then briefly summarize. ` +
+        `I just uploaded ${uploads.length} file${uploads.length === 1 ? "" : "s"}:\n${list}\n\n` +
+        `Run analyzeAssets on the URLs above so we both know what's in them, then briefly summarize. ` +
+        `Use these EXACT urls if you reference the assets later — never reconstruct a url from the original filename. ` +
         `Don't place them on scenes yet — just take stock.`;
       void send(prompt);
     };

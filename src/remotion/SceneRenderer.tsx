@@ -177,9 +177,13 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       imageScale={s.background.imageScale}
       imageOffsetX={s.background.imageOffsetX}
       imageOffsetY={s.background.imageOffsetY}
+      imageWidthPx={s.background.imageWidthPx}
+      imageHeightPx={s.background.imageHeightPx}
       videoScale={s.background.videoScale}
       videoOffsetX={s.background.videoOffsetX}
       videoOffsetY={s.background.videoOffsetY}
+      videoWidthPx={s.background.videoWidthPx}
+      videoHeightPx={s.background.videoHeightPx}
     >
       {s.type === "montage" && s.montageUrls && s.montageUrls.length > 0 && (
         <Montage urls={s.montageUrls} />

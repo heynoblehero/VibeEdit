@@ -205,7 +205,7 @@ CORE LOOP (do this every meaningful turn):
    - **ANIMATIONS WITHOUT CONTENT ARE INVISIBLE.** addKeyframe / setMotionPreset animate a property — they do NOT create the underlying field. If the user asks for "animated text saying X", you MUST first call updateScene with the "text" or "emphasisText" field set to the actual words, THEN add keyframes/motion on top. NEVER call addKeyframe alone after a text request and report success — the property animates from undefined to undefined and renders nothing. Same rule for character motion (set characterUrl/characterId first), image motion (set background.imageUrl first), etc. Self-verify: after the turn, the scene's emphasisText / text / subtitleText must be a non-empty string when the user asked for text.
    - **WHEN updateScene REJECTS WITH [invalid-patch].** If you see fields like backgroundColor, backgroundImageUrl, or backgroundCameraMove rejected — those are createScene-only flat aliases. updateScene now auto-bridges most of them, but if it doesn't, retry with the nested form: patch.background.color, patch.background.imageUrl, patch.background.cameraMove — NOT a top-level backgroundColor.
    - **READ THE LIVE INTENT SIGNALS.** Each turn ships LIVE INTENT SIGNALS in a system block: which scene the user is watching/playing, what they have selected (single or multi), what layer/item they clicked, and any uploads they've dropped but not placed yet (pendingUploads). Use these to resolve ambiguous pronouns ("this", "these", "the text") to specific scenes/items WITHOUT a clarifying question. If pendingUploads is non-empty, REACH FOR THOSE before regenerating fresh media — the user dropped them for a reason.
-   - **SEE WHAT THE USER SEES — renderPreviewFrame.** After a burst of visual edits (text, color, position, asset swap), call **renderPreviewFrame(sceneId)** to receive an actual rendered PNG of that scene. You'll get the image as a content block in the next turn — inspect it. If the change you intended isn't visible, the field you patched isn't the one rendering — fix it on the same turn before reporting "done". Call sparingly (once per multi-edit burst, not after every single tweak).
+   - **SEE WHAT THE USER SEES — renderPreviewFrame.** After a burst of visual edits (text, color, position, asset swap), call **renderPreviewFrame(sceneId)** to receive an actual rendered PNG of that scene. You'll get the image as a content block in the next turn — inspect it. If the change you intended isn't visible, the field you patched isn't the one rendering — fix it on the same turn before reporting "done". Call sparingly (once per multi-edit burst, not after every single tweak). The route ENFORCES this: if you mutate a scene visually and try to stop without calling renderPreviewFrame on it, you'll be forced back in with a synthetic "verify what you did" prompt. Calling it proactively is faster than getting bounced.
    - **dispatchAction — single action registry.** Beyond the named tools, you can call any canonical project action by name via **dispatchAction(action, args)**. Action names are dotted (scene.update, scene.remove, script.set, music.set). The same registry the editor UI uses, so behavior never drifts between the two surfaces. Per-action shortcut tools (createScene, updateScene, narrateScene, …) still exist; dispatchAction is the lever for newer registry entries without dedicated tools.
    - **MANDATORY VISUALS: Every scene must have a real visual asset.** A scene with just text on a solid color is a FAILURE. Specifically:
      · If the user uploaded images / clips: USE THEM via scene.background.imageUrl. Place each one on the most relevant scene.
@@ -622,6 +622,46 @@ export async function POST(request: NextRequest) {
       let forcedContinues = 0;
       const MAX_FORCED_CONTINUES = 3;
 
+      // Auto-screenshot gate: track scenes that received a visual-mutating
+      // tool call but haven't been verified via renderPreviewFrame yet.
+      // When the agent tries to stop, we force one extra round demanding
+      // it actually look at what it did. The user judges by what they see;
+      // so should the agent. Capped to one forced verify-loop per turn so
+      // we don't spin forever on render failures.
+      const pendingVerification = new Set<string>();
+      const VISUAL_MUTATING_TOOLS = new Set([
+        "updateScene",
+        "nudgeScene",
+        "setMotionPreset",
+        "addKeyframe",
+        "setBroll",
+        "generateImageForScene",
+        "generateVideoForScene",
+        "generateAvatarForScene",
+        "prepareUploadForScene",
+        "applyStylePresetToScene",
+      ]);
+      // Action-registry names that mutate the visible frame.
+      const VISUAL_MUTATING_ACTIONS = new Set([
+        "scene.update",
+        "scene.create",
+        "motion.preset.set",
+        "keyframe.upsert",
+      ]);
+      const extractSceneId = (toolName: string, args: Record<string, unknown>): string | null => {
+        if (toolName === "dispatchAction") {
+          const action = String(args.action ?? "");
+          if (!VISUAL_MUTATING_ACTIONS.has(action)) return null;
+          const inner = (args.args as Record<string, unknown> | undefined) ?? {};
+          const id = (inner.id as string | undefined) ?? (inner.sceneId as string | undefined);
+          return typeof id === "string" ? id : null;
+        }
+        if (!VISUAL_MUTATING_TOOLS.has(toolName)) return null;
+        const id = (args.sceneId as string | undefined) ?? (args.id as string | undefined);
+        return typeof id === "string" ? id : null;
+      };
+      let screenshotGateForced = false;
+
       // Turn ordinal: increments per inbound user message, used to tag
       // every agentLog entry so /replay can group events by turn.
       const turnOrdinal =
@@ -859,6 +899,29 @@ export async function POST(request: NextRequest) {
 
           const toolUses = contentBlocks.filter((b) => b.type === "tool_use");
           if (toolUses.length === 0) {
+            // AUTO-SCREENSHOT GATE: if visual mutations happened this turn
+            // but the agent never looked at the result, force exactly one
+            // extra round demanding renderPreviewFrame. Catches the
+            // "claimed-success-without-checking" failure mode where the
+            // agent patched a field the renderer ignores (e.g. textColor
+            // on a scene whose visible word is in emphasisText) and never
+            // noticed because it didn't look.
+            if (pendingVerification.size > 0 && !screenshotGateForced) {
+              screenshotGateForced = true;
+              const ids = Array.from(pendingVerification);
+              const synthetic =
+                `You changed visible properties on ${ids.length} scene${ids.length === 1 ? "" : "s"} ` +
+                `but never looked at the result. Call renderPreviewFrame on ${ids.length === 1 ? "this scene" : "at least one of these scenes"}: ${ids.join(", ")}. ` +
+                `Look at the returned image — confirm the change you intended is actually visible. ` +
+                `If it's not, the field you patched isn't the one rendering — fix it on the same turn before reporting "done".`;
+              send({
+                type: "text",
+                text: `\n[force-verify: ${ids.length} unverified scene${ids.length === 1 ? "" : "s"}]\n`,
+              });
+              conversation.push({ role: "assistant", content: contentBlocks });
+              conversation.push({ role: "user", content: synthetic });
+              continue;
+            }
             // Claude wants to stop. Verify structural completeness before
             // letting it. If gaps remain, inject a synthetic user message
             // that demands they be fixed and force another round. Capped to
@@ -1094,6 +1157,26 @@ export async function POST(request: NextRequest) {
               consecutiveErrors++;
             }
             bumpStat(toolName, result.ok);
+            // Auto-screenshot tracking: a successful visual mutation puts
+            // the scene "on the hook" for verification; a successful
+            // renderPreviewFrame clears it.
+            if (result.ok) {
+              if (toolName === "renderPreviewFrame") {
+                const verifiedId =
+                  (args.sceneId as string | undefined) ?? (args.id as string | undefined);
+                if (typeof verifiedId === "string") {
+                  pendingVerification.delete(verifiedId);
+                } else {
+                  // No id passed → renderPreviewFrame defaulted to whatever
+                  // the agent had context on. Treat as verifying everything
+                  // — better than nothing.
+                  pendingVerification.clear();
+                }
+              } else {
+                const mutatedId = extractSceneId(toolName, args);
+                if (mutatedId) pendingVerification.add(mutatedId);
+              }
+            }
             log({
               kind: "tool_result",
               tool: toolName,

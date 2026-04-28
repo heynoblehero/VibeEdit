@@ -692,6 +692,13 @@ function BackgroundPanel({ scene, update }: { scene: Scene; update: (p: Partial<
             />
             Ken Burns (slow zoom)
           </label>
+          <PxSizeRow
+            widthPx={scene.background.imageWidthPx}
+            heightPx={scene.background.imageHeightPx}
+            onChange={(patch) => update({ background: { ...scene.background, ...patch } })}
+            widthKey="imageWidthPx"
+            heightKey="imageHeightPx"
+          />
           <span className="text-[10px] text-neutral-600">
             Tip: ask the agent &ldquo;generate an AI image for this scene&rdquo; to fill this automatically.
           </span>
@@ -718,6 +725,13 @@ function BackgroundPanel({ scene, update }: { scene: Scene; update: (p: Partial<
               className="w-full h-20 object-cover rounded border border-neutral-800"
             />
           )}
+          <PxSizeRow
+            widthPx={scene.background.videoWidthPx}
+            heightPx={scene.background.videoHeightPx}
+            onChange={(patch) => update({ background: { ...scene.background, ...patch } })}
+            widthKey="videoWidthPx"
+            heightKey="videoHeightPx"
+          />
           <span className="text-[10px] text-neutral-600">
             Drag a video file into chat to upload, or run the avatar tool to fill this.
           </span>
@@ -1546,6 +1560,60 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="flex flex-col gap-1">
       <label className="text-[10px] uppercase tracking-wider text-neutral-500 font-medium">{label}</label>
       {children}
+    </div>
+  );
+}
+
+/**
+ * Width/Height in px for an image or video background. Either dimension
+ * can be left blank to fall back to full-frame on that axis. The `key`
+ * pair lets us reuse the same row for image (imageWidthPx/imageHeightPx)
+ * and video (videoWidthPx/videoHeightPx) without prop-drilling six
+ * fields into BackgroundPanel.
+ */
+function PxSizeRow({
+  widthPx,
+  heightPx,
+  onChange,
+  widthKey,
+  heightKey,
+}: {
+  widthPx?: number;
+  heightPx?: number;
+  onChange: (patch: Record<string, number | undefined>) => void;
+  widthKey: string;
+  heightKey: string;
+}) {
+  const parse = (value: string): number | undefined => {
+    if (value.trim() === "") return undefined;
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return undefined;
+    return Math.round(n);
+  };
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <Field label="Width (px)">
+        <input
+          type="number"
+          min={1}
+          step={1}
+          value={widthPx ?? ""}
+          onChange={(e) => onChange({ [widthKey]: parse(e.target.value) })}
+          placeholder="auto"
+          className="input-field w-full text-xs"
+        />
+      </Field>
+      <Field label="Height (px)">
+        <input
+          type="number"
+          min={1}
+          step={1}
+          value={heightPx ?? ""}
+          onChange={(e) => onChange({ [heightKey]: parse(e.target.value) })}
+          placeholder="auto"
+          className="input-field w-full text-xs"
+        />
+      </Field>
     </div>
   );
 }

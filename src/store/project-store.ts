@@ -19,6 +19,7 @@ import {
   DIMENSIONS,
   createId,
 } from "@/lib/scene-schema";
+import { dispatchAction } from "@/lib/actions/dispatch";
 import { applyPresetToScene, getPreset } from "@/lib/style-presets";
 
 const MAX_HISTORY = 50;
@@ -257,10 +258,11 @@ export const useProjectStore = create<ProjectStore>()(
 
       setScript: (script) =>
         set((s) => {
-          const updated = { ...s.project, script };
+          const result = dispatchAction(s.project, "script.set", { script });
+          if (!result.ok) return s;
           return {
-            project: updated,
-            projects: { ...s.projects, [updated.id]: updated },
+            project: result.project,
+            projects: { ...s.projects, [result.project.id]: result.project },
           };
         }),
       setScenes: (scenes) =>
@@ -376,44 +378,11 @@ export const useProjectStore = create<ProjectStore>()(
         }),
       removeScene: (id) =>
         set((s) => {
-          // Locked scenes can't be deleted by ordinary actions. Returning
-          // the unchanged state is a no-op for the store.
-          const target = s.project.scenes.find((sc) => sc.id === id);
-          if (target?.locked) return s;
-          // Ripple-delete cuts: any cut going INTO id needs to retarget
-          // to the next scene; any cut going OUT of id retargets back to
-          // the previous scene's outgoing edge. Net effect: prev → next
-          // gets a fresh hard cut bridging the gap, and the orphaned
-          // cuts disappear.
-          const idx = s.project.scenes.findIndex((sc) => sc.id === id);
-          const prev = idx > 0 ? s.project.scenes[idx - 1] : null;
-          const next =
-            idx >= 0 && idx < s.project.scenes.length - 1
-              ? s.project.scenes[idx + 1]
-              : null;
-          const filtered = (s.project.cuts ?? []).filter(
-            (c) => c.fromSceneId !== id && c.toSceneId !== id,
-          );
-          const bridged = prev && next
-            ? [
-                ...filtered,
-                {
-                  id: createId(),
-                  fromSceneId: prev.id,
-                  toSceneId: next.id,
-                  kind: "hard" as const,
-                  durationFrames: 0,
-                },
-              ]
-            : filtered;
-          const updated = {
-            ...s.project,
-            scenes: s.project.scenes.filter((sc) => sc.id !== id),
-            cuts: bridged.length > 0 ? bridged : undefined,
-          };
+          const result = dispatchAction(s.project, "scene.remove", { id });
+          if (!result.ok) return s;
           return {
-            project: updated,
-            projects: { ...s.projects, [updated.id]: updated },
+            project: result.project,
+            projects: { ...s.projects, [result.project.id]: result.project },
             selectedSceneId: s.selectedSceneId === id ? null : s.selectedSceneId,
             selectedSceneIds: s.selectedSceneIds.filter((x) => x !== id),
             history: pushHistory(s.history, s.project),

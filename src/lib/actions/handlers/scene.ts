@@ -2,6 +2,7 @@ import {
   type Project,
   type Scene,
   type SceneBackground,
+  createId,
   VALID_BACKGROUND_FIELDS,
   VALID_SCENE_FIELDS,
 } from "@/lib/scene-schema";
@@ -122,23 +123,43 @@ interface SceneRemoveArgs extends Record<string, unknown> {
 
 export const sceneRemoveAction: Action<SceneRemoveArgs> = {
   name: "scene.remove",
-  description: "Delete a scene by id. Also drops any cuts that reference it (no stale links).",
+  description:
+    "Delete a scene by id. Locked scenes are refused. Drops cuts touching the scene and bridges prev→next with a hard cut so the timeline stays continuous.",
   validate(args) {
     if (typeof args?.id !== "string") return "id required";
     return null;
   },
   handler(project, args) {
-    const before = project.scenes.length;
-    const scenes = project.scenes.filter((s) => s.id !== args.id);
-    if (scenes.length === before) {
-      return { ok: false, project, message: `no scene with id ${args.id}` };
+    const idx = project.scenes.findIndex((s) => s.id === args.id);
+    if (idx < 0) return { ok: false, project, message: `no scene with id ${args.id}` };
+    const target = project.scenes[idx];
+    if (target.locked) {
+      return { ok: false, project, message: `scene ${args.id} is locked — unlock it first` };
     }
-    const cuts = (project.cuts ?? []).filter(
+    const prev = idx > 0 ? project.scenes[idx - 1] : null;
+    const next = idx < project.scenes.length - 1 ? project.scenes[idx + 1] : null;
+    const filtered = (project.cuts ?? []).filter(
       (c) => c.fromSceneId !== args.id && c.toSceneId !== args.id,
     );
+    const bridged = prev && next
+      ? [
+          ...filtered,
+          {
+            id: createId(),
+            fromSceneId: prev.id,
+            toSceneId: next.id,
+            kind: "hard" as const,
+            durationFrames: 0,
+          },
+        ]
+      : filtered;
     return {
       ok: true,
-      project: { ...project, scenes, cuts },
+      project: {
+        ...project,
+        scenes: project.scenes.filter((s) => s.id !== args.id),
+        cuts: bridged.length > 0 ? bridged : undefined,
+      },
       message: `removed scene ${args.id}`,
     };
   },

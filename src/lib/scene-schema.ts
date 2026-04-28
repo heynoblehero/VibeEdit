@@ -138,9 +138,21 @@ export interface SceneBackground {
   /** Pixel offset of the bg image from frame center. -1080 to 1080. */
   imageOffsetX?: number;
   imageOffsetY?: number;
+  /**
+   * Explicit pixel size for the bg image. When set, the image renders in
+   * a centered px-sized box instead of full-frame. imageScale still
+   * multiplies on top, so users can stack a fine zoom on a specific size.
+   * Either dimension can be set independently; the other defaults to
+   * full-frame for that axis.
+   */
+  imageWidthPx?: number;
+  imageHeightPx?: number;
   videoScale?: number;
   videoOffsetX?: number;
   videoOffsetY?: number;
+  /** Same as imageWidthPx / imageHeightPx, for the bg video. */
+  videoWidthPx?: number;
+  videoHeightPx?: number;
   /** Full-bleed background video. Used by commentary/movie-review/gaming. */
   videoUrl?: string;
   videoStartSec?: number;
@@ -1114,9 +1126,13 @@ export const VALID_BACKGROUND_FIELDS: ReadonlySet<keyof SceneBackground> = new S
   "imageScale",
   "imageOffsetX",
   "imageOffsetY",
+  "imageWidthPx",
+  "imageHeightPx",
   "videoScale",
   "videoOffsetX",
   "videoOffsetY",
+  "videoWidthPx",
+  "videoHeightPx",
   "videoUrl",
   "videoStartSec",
   "videoMuted",

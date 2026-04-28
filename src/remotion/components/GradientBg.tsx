@@ -49,9 +49,15 @@ interface GradientBgProps {
   imageScale?: number;
   imageOffsetX?: number;
   imageOffsetY?: number;
+  /** Explicit px size for the image. When set, image renders centered in a px-sized box instead of full-frame. */
+  imageWidthPx?: number;
+  imageHeightPx?: number;
   videoScale?: number;
   videoOffsetX?: number;
   videoOffsetY?: number;
+  /** Explicit px size for the video. */
+  videoWidthPx?: number;
+  videoHeightPx?: number;
   children?: React.ReactNode;
 }
 
@@ -204,9 +210,13 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   imageScale,
   imageOffsetX = 0,
   imageOffsetY = 0,
+  imageWidthPx,
+  imageHeightPx,
   videoScale,
   videoOffsetX = 0,
   videoOffsetY = 0,
+  videoWidthPx,
+  videoHeightPx,
   children,
 }) => {
   const resolvedObjectPosition = resolveObjectPosition(objectPosition);
@@ -292,43 +302,70 @@ export const GradientBg: React.FC<GradientBgProps> = ({
           }}
         />
       )}
-      {videoUrl && (
-        <OffthreadVideo
-          src={videoUrl}
-          startFrom={Math.round(videoStartSec * 30)}
-          muted={videoMuted}
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit,
-            objectPosition: resolvedObjectPosition,
-            filter: keyFilters.length ? keyFilters.join(" ") : undefined,
-            // User scale/offset stacks ON TOP of orientation flips —
-            // lets the user shrink/move a clip without losing flips.
-            transform:
-              [
-                videoScale !== undefined ? `scale(${videoScale})` : null,
-                videoOffsetX || videoOffsetY
-                  ? `translate(${videoOffsetX}px, ${videoOffsetY}px)`
-                  : null,
-                orientationTransform || null,
-              ]
-                .filter(Boolean)
-                .join(" ") || undefined,
-            transformOrigin: "center center",
-          }}
-        />
-      )}
+      {videoUrl && (() => {
+        const videoBoxed = videoWidthPx !== undefined || videoHeightPx !== undefined;
+        const boxStyle: React.CSSProperties = videoBoxed
+          ? {
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              width: videoWidthPx !== undefined ? `${videoWidthPx}px` : "100%",
+              height: videoHeightPx !== undefined ? `${videoHeightPx}px` : "100%",
+              transform: "translate(-50%, -50%)",
+              overflow: "hidden",
+            }
+          : { position: "absolute", inset: 0, overflow: "hidden" };
+        return (
+          <div style={boxStyle}>
+            <OffthreadVideo
+              src={videoUrl}
+              startFrom={Math.round(videoStartSec * 30)}
+              muted={videoMuted}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit,
+                objectPosition: resolvedObjectPosition,
+                filter: keyFilters.length ? keyFilters.join(" ") : undefined,
+                // User scale/offset stacks ON TOP of orientation flips —
+                // lets the user shrink/move a clip without losing flips.
+                transform:
+                  [
+                    videoScale !== undefined ? `scale(${videoScale})` : null,
+                    videoOffsetX || videoOffsetY
+                      ? `translate(${videoOffsetX}px, ${videoOffsetY}px)`
+                      : null,
+                    orientationTransform || null,
+                  ]
+                    .filter(Boolean)
+                    .join(" ") || undefined,
+                transformOrigin: "center center",
+              }}
+            />
+          </div>
+        );
+      })()}
       {imageUrl && (
         <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            opacity: imageOpacity,
-            overflow: "hidden",
-          }}
+          style={
+            imageWidthPx !== undefined || imageHeightPx !== undefined
+              ? {
+                  position: "absolute",
+                  top: "50%",
+                  left: "50%",
+                  width: imageWidthPx !== undefined ? `${imageWidthPx}px` : "100%",
+                  height: imageHeightPx !== undefined ? `${imageHeightPx}px` : "100%",
+                  transform: "translate(-50%, -50%)",
+                  opacity: imageOpacity,
+                  overflow: "hidden",
+                }
+              : {
+                  position: "absolute",
+                  inset: 0,
+                  opacity: imageOpacity,
+                  overflow: "hidden",
+                }
+          }
         >
           <Img
             src={imageUrl}

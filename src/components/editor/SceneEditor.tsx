@@ -838,10 +838,14 @@ function TextPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>
   // open.
   // biome-ignore lint/correctness/useExhaustiveDependencies: only re-run when scene id flips
   useEffect(() => {
-    if (scene.emphasisText || scene.text || scene.subtitleText) {
-      const migrated = migrateLegacyTextToTextItems(scene);
-      const { id: _id, ...patch } = migrated;
-      update(patch as Partial<Scene>);
+    try {
+      if (scene.emphasisText || scene.text || scene.subtitleText) {
+        const migrated = migrateLegacyTextToTextItems(scene);
+        const { id: _id, ...patch } = migrated;
+        update(patch as Partial<Scene>);
+      }
+    } catch (err) {
+      console.warn("[text-migrate] failed:", err);
     }
   }, [scene.id]);
 

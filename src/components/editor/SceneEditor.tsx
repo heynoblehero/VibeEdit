@@ -188,15 +188,25 @@ function FrameProperties({
   const addUpload = useProjectStore((s) => s.addUpload);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const setSelectedLayerId = useEditorStore((s) => s.setSelectedLayerId);
+  const setPaused = useEditorStore((s) => s.setPaused);
 
   const addText = () => {
     // Same shape as the "edit me" placeholder so new text behaves
     // identically — full scene span (no startFrame/durationFrames so
-    // the resolver falls back), same defaults.
-    const next = defaultPlaceholderTextItem({ content: "New text" });
+    // the resolver falls back), same defaults. Cascade x/y by item
+    // count so new items don't stack exactly on top of existing ones
+    // (which made them un-clickable since hit-boxes overlapped).
+    const count = (scene.textItems ?? []).length;
+    const offset = count * 60;
+    const next = defaultPlaceholderTextItem({
+      content: "New text",
+      x: 200 + offset,
+      y: 400 + offset,
+    });
     update({ textItems: [...(scene.textItems ?? []), next] });
     setSelectedLayerId(`text-item:${next.id}`);
     setEditTarget("text");
+    setPaused(true);
   };
 
   const addShape = (kind: SceneShape["kind"]) => {

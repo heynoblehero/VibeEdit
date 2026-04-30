@@ -255,7 +255,7 @@ export function Preview() {
     <div className="flex flex-col h-full">
       {/* Header: clearly separates the preview column from the side
           panels. Title + scene info + play/pause inline. */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-emerald-500/20 bg-neutral-900 shrink-0">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b-2 border-emerald-500/40 bg-neutral-900 shrink-0">
         <div className="flex items-center gap-3">
           <span className="text-[11px] uppercase tracking-wider text-emerald-300 font-semibold">
             Preview
@@ -284,7 +284,7 @@ export function Preview() {
       <div className="flex-1 min-h-0 p-6 bg-neutral-925 dark:bg-neutral-950 flex">
       <div
         ref={playerWrapperRef}
-        className="flex-1 min-h-0 relative bg-black rounded-xl overflow-hidden border-2 border-emerald-500/30 hover:border-emerald-500/50 shadow-2xl shadow-emerald-500/10 transition-colors"
+        className="flex-1 min-h-0 relative bg-black rounded-xl overflow-hidden border-2 border-emerald-500/60 hover:border-emerald-500/80 shadow-2xl shadow-emerald-500/20 transition-colors"
       >
         {selectedScene && (
           <div className="absolute top-2 left-2 z-30 px-1.5 py-1 rounded bg-neutral-900/70 backdrop-blur-sm border border-neutral-800 text-[10px] text-neutral-300 font-mono pointer-events-none">

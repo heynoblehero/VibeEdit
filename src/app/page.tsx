@@ -194,7 +194,7 @@ export default function Home() {
       <PageTitleSync />
       {/* Top bar */}
       <header
-        className="flex items-center justify-between px-2 sm:px-4 py-2 gap-2 border-b border-neutral-800/80 bg-neutral-950/70 backdrop-blur-md shrink-0"
+        className="flex items-center justify-between px-2 sm:px-4 py-2 gap-2 border-b-2 border-emerald-500/40 bg-neutral-950/70 backdrop-blur-md shrink-0"
         style={{
           backgroundImage:
             "linear-gradient(180deg, rgba(16,185,129,0.025) 0%, transparent 100%)",
@@ -324,7 +324,7 @@ export default function Home() {
       <div className="flex flex-1 min-h-0">
         {/* Left: scene list (with expandable layers per card). */}
         {!zenMode && project.scenes.length > 0 && !leftCollapsed && (
-          <div className="w-80 flex flex-col border-r-2 border-black shrink-0 overflow-hidden relative shadow-[3px_0_8px_-2px_rgba(0,0,0,0.7)]">
+          <div className="w-80 flex flex-col border-r-2 border-emerald-500/60 shrink-0 overflow-hidden relative shadow-[3px_0_12px_-2px_rgba(16,185,129,0.25)]">
             <button
               onClick={() => setLeftCollapsed(true)}
               title="Collapse scene list"
@@ -335,7 +335,7 @@ export default function Home() {
             <div className="flex-1 overflow-y-auto">
               <SceneList />
             </div>
-            <details className="border-t border-neutral-800 overflow-y-auto max-h-[45vh]">
+            <details className="border-t-2 border-emerald-500/30 overflow-y-auto max-h-[45vh]">
               <summary className="px-4 py-2 text-[11px] uppercase tracking-wider text-neutral-500 hover:text-neutral-300 cursor-pointer list-none flex items-center justify-between">
                 <span>Tools & config</span>
                 <span className="text-neutral-700">▾</span>
@@ -351,7 +351,7 @@ export default function Home() {
           <button
             onClick={() => setLeftCollapsed(false)}
             title="Show scene list"
-            className="shrink-0 px-1 border-r border-neutral-800 text-neutral-500 hover:text-white hover:bg-neutral-900 text-xs"
+            className="shrink-0 px-1 border-r-2 border-emerald-500/40 text-emerald-400/70 hover:text-emerald-200 hover:bg-emerald-500/10 text-xs"
           >
             ›
           </button>
@@ -378,9 +378,9 @@ export default function Home() {
           !rightCollapsed && (
             <div
               data-scene-editor
-              className="w-72 border-l-2 border-black shrink-0 flex flex-col relative shadow-[-3px_0_8px_-2px_rgba(0,0,0,0.7)]"
+              className="w-72 border-l-2 border-emerald-500/60 shrink-0 flex flex-col relative shadow-[-3px_0_12px_-2px_rgba(16,185,129,0.25)]"
             >
-              <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 border-b border-emerald-500/30 bg-neutral-900 shrink-0">
+              <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 border-b-2 border-emerald-500/40 bg-neutral-900 shrink-0">
                 <span className="text-[11px] uppercase tracking-wider text-emerald-300 font-semibold">
                   Properties
                 </span>
@@ -404,7 +404,7 @@ export default function Home() {
             <button
               onClick={() => setRightCollapsed(false)}
               title="Show scene editor"
-              className="shrink-0 px-1 border-l border-neutral-800 text-neutral-500 hover:text-white hover:bg-neutral-900 text-xs"
+              className="shrink-0 px-1 border-l-2 border-emerald-500/40 text-emerald-400/70 hover:text-emerald-200 hover:bg-emerald-500/10 text-xs"
             >
               ‹
             </button>

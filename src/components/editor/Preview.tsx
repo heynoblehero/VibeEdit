@@ -11,6 +11,7 @@ import { useAssetStore } from "@/store/asset-store";
 import { useEditorStore, type EditTarget } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 import { AspectPicker } from "./AspectPicker";
+import { CanvasItemHandles } from "./CanvasItemHandles";
 import { CanvasManipulator, type ManipulatorTarget } from "./CanvasManipulator";
 
 function SingleSceneWrapper({ scene, characters, sfx, captionStyle }: any) {
@@ -383,6 +384,14 @@ export function Preview() {
             frameH={project.height}
             containerRef={playerWrapperRef}
             target={manipTarget}
+          />
+        )}
+        {selectedScene && isPaused && (
+          <CanvasItemHandles
+            scene={selectedScene}
+            frameW={project.width}
+            frameH={project.height}
+            containerRef={playerWrapperRef}
           />
         )}
         {selectedScene && isPaused && availableTargets.length > 1 && (

@@ -287,8 +287,9 @@ function FrameProperties({
         onAddShape={addShape}
       />
 
-      <details className="rounded-md border border-neutral-700/70 bg-neutral-900 shadow-sm" open>
-        <summary className="cursor-pointer px-3 py-2 text-[10.5px] uppercase tracking-wider text-neutral-200 font-semibold select-none border-b border-neutral-800/80">
+      <details className="rounded-md border border-neutral-700/70 bg-neutral-900 shadow-sm overflow-hidden" open>
+        <summary className="cursor-pointer flex items-center gap-2 px-3 py-2 text-[10.5px] uppercase tracking-wider text-neutral-100 font-semibold select-none border-b border-neutral-700/60 bg-neutral-800/60 [&::-webkit-details-marker]:hidden">
+          <span className="h-3 w-0.5 rounded-full bg-emerald-400" aria-hidden />
           Size & duration
         </summary>
         <div className="px-3 pb-3 pt-1 space-y-2">
@@ -333,8 +334,9 @@ function FrameProperties({
         </div>
       </details>
 
-      <details className="rounded-md border border-neutral-700/70 bg-neutral-900 shadow-sm" open>
-        <summary className="cursor-pointer px-3 py-2 text-[10.5px] uppercase tracking-wider text-neutral-200 font-semibold select-none border-b border-neutral-800/80">
+      <details className="rounded-md border border-neutral-700/70 bg-neutral-900 shadow-sm overflow-hidden" open>
+        <summary className="cursor-pointer flex items-center gap-2 px-3 py-2 text-[10.5px] uppercase tracking-wider text-neutral-100 font-semibold select-none border-b border-neutral-700/60 bg-neutral-800/60 [&::-webkit-details-marker]:hidden">
+          <span className="h-3 w-0.5 rounded-full bg-emerald-400" aria-hidden />
           Background
         </summary>
         <div className="px-3 pb-3 pt-1 space-y-2">
@@ -362,8 +364,9 @@ function FrameProperties({
         </div>
       </details>
 
-      <details className="rounded-md border border-neutral-700/70 bg-neutral-900 shadow-sm">
-        <summary className="cursor-pointer px-3 py-2 text-[10.5px] uppercase tracking-wider text-neutral-200 font-semibold select-none border-b border-neutral-800/80">
+      <details className="rounded-md border border-neutral-700/70 bg-neutral-900 shadow-sm overflow-hidden">
+        <summary className="cursor-pointer flex items-center gap-2 px-3 py-2 text-[10.5px] uppercase tracking-wider text-neutral-100 font-semibold select-none border-b border-neutral-700/60 bg-neutral-800/60 [&::-webkit-details-marker]:hidden">
+          <span className="h-3 w-0.5 rounded-full bg-emerald-400" aria-hidden />
           Outline & shadow
         </summary>
         <div className="px-3 pb-3 pt-1 space-y-2">
@@ -396,8 +399,9 @@ function FrameProperties({
         </div>
       </details>
 
-      <details className="rounded-md border border-neutral-700/70 bg-neutral-900 shadow-sm">
-        <summary className="cursor-pointer px-3 py-2 text-[10.5px] uppercase tracking-wider text-neutral-200 font-semibold select-none border-b border-neutral-800/80">
+      <details className="rounded-md border border-neutral-700/70 bg-neutral-900 shadow-sm overflow-hidden">
+        <summary className="cursor-pointer flex items-center gap-2 px-3 py-2 text-[10.5px] uppercase tracking-wider text-neutral-100 font-semibold select-none border-b border-neutral-700/60 bg-neutral-800/60 [&::-webkit-details-marker]:hidden">
+          <span className="h-3 w-0.5 rounded-full bg-emerald-400" aria-hidden />
           Transition & fades
         </summary>
         <div className="px-3 pb-3 pt-1 space-y-2">
@@ -462,8 +466,9 @@ function FrameProperties({
         </div>
       </details>
 
-      <details className="rounded-md border border-neutral-700/70 bg-neutral-900 shadow-sm">
-        <summary className="cursor-pointer px-3 py-2 text-[10.5px] uppercase tracking-wider text-neutral-200 font-semibold select-none border-b border-neutral-800/80">
+      <details className="rounded-md border border-neutral-700/70 bg-neutral-900 shadow-sm overflow-hidden">
+        <summary className="cursor-pointer flex items-center gap-2 px-3 py-2 text-[10.5px] uppercase tracking-wider text-neutral-100 font-semibold select-none border-b border-neutral-700/60 bg-neutral-800/60 [&::-webkit-details-marker]:hidden">
+          <span className="h-3 w-0.5 rounded-full bg-emerald-400" aria-hidden />
           Animation
         </summary>
         <div className="px-3 pb-3 pt-1">
@@ -1265,8 +1270,9 @@ function TextItemPanel({
 /** Always-open titled section. Same chrome as <details> but never collapses. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-md border border-neutral-700/70 bg-neutral-900 shadow-sm">
-      <div className="px-3 py-2 text-[10.5px] uppercase tracking-wider text-neutral-200 font-semibold border-b border-neutral-800/80">
+    <div className="rounded-md border border-neutral-700/70 bg-neutral-900 shadow-sm overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 text-[10.5px] uppercase tracking-wider text-neutral-100 font-semibold border-b border-neutral-700/60 bg-neutral-800/60">
+        <span className="h-3 w-0.5 rounded-full bg-emerald-400" aria-hidden />
         {title}
       </div>
       <div className="px-3 py-3 space-y-2">{children}</div>

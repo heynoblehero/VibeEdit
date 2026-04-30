@@ -321,10 +321,10 @@ export function SceneCard({ scene, index }: SceneCardProps) {
         isPlaying
           ? "border-sky-400 bg-sky-500/15 ring-2 ring-sky-400/40 ring-offset-1 ring-offset-neutral-950"
           : isActive
-          ? "border-emerald-500 bg-emerald-500/10"
+          ? "border-emerald-500 bg-emerald-500/15 ring-1 ring-emerald-500/30 shadow-md shadow-emerald-500/10"
           : isInMulti
             ? "border-emerald-700/60 bg-emerald-900/15"
-            : "border-neutral-800 bg-neutral-900 hover:border-neutral-600"
+            : "border-neutral-700 bg-neutral-900 hover:border-emerald-500/40 hover:bg-neutral-800/60"
       }`}
     >
       <button

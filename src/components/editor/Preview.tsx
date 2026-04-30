@@ -263,35 +263,36 @@ export function Preview() {
     <div className="flex flex-col h-full">
       {/* Header: clearly separates the preview column from the side
           panels. Title + scene info + play/pause inline. */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800 bg-neutral-950/95 shrink-0">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-emerald-500/20 bg-neutral-900 shrink-0">
         <div className="flex items-center gap-3">
-          <span className="text-[11px] uppercase tracking-wider text-neutral-300 font-semibold">
+          <span className="text-[11px] uppercase tracking-wider text-emerald-300 font-semibold">
             Preview
           </span>
           {selectedScene ? (
-            <span className="text-[10px] text-neutral-500">
+            <span className="text-[10px] text-neutral-400">
               Scene {project.scenes.findIndex((s) => s.id === selectedScene.id) + 1}
               {selectedScene.label ? ` · ${selectedScene.label}` : ""} · {selectedScene.duration}s
             </span>
           ) : (
-            <span className="text-[10px] text-neutral-500">Full timeline</span>
+            <span className="text-[10px] text-neutral-400">Full timeline · {project.scenes.length} scene{project.scenes.length === 1 ? "" : "s"}</span>
           )}
         </div>
         <button
           onClick={isPaused ? handlePlay : handlePause}
-          className="flex items-center gap-1.5 text-[11px] font-medium px-3 py-1 rounded-md bg-emerald-500 hover:bg-emerald-400 text-black transition-colors"
+          title={selectedScene ? "Play this scene (Space)" : "Play all scenes (Space)"}
+          className="flex items-center gap-2 text-[12px] font-bold px-4 py-2 rounded-md bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-black transition-colors shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-300/50"
         >
-          {isPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-          {isPaused ? "Play" : "Pause"}
+          {isPaused ? <Play className="h-4 w-4 fill-black" /> : <Pause className="h-4 w-4 fill-black" />}
+          {isPaused ? (selectedScene ? "Play scene" : "Play all") : "Pause"}
         </button>
       </div>
 
       {/* Player frame — distinct dark stage with a clear border so the
           canvas area reads as separate from the surrounding chrome. */}
-      <div className="flex-1 min-h-0 p-3 bg-neutral-925 dark:bg-neutral-950 flex">
+      <div className="flex-1 min-h-0 p-6 bg-neutral-925 dark:bg-neutral-950 flex">
       <div
         ref={playerWrapperRef}
-        className="flex-1 min-h-0 relative bg-black rounded-xl overflow-hidden border-2 border-neutral-800 shadow-2xl shadow-black/40"
+        className="flex-1 min-h-0 relative bg-black rounded-xl overflow-hidden border-2 border-emerald-500/30 hover:border-emerald-500/50 shadow-2xl shadow-emerald-500/10 transition-colors"
       >
         {selectedScene && (
           <div className="absolute top-2 left-2 z-30 px-1.5 py-1 rounded bg-neutral-900/70 backdrop-blur-sm border border-neutral-800 text-[10px] text-neutral-300 font-mono pointer-events-none">
@@ -386,7 +387,7 @@ export function Preview() {
             target={manipTarget}
           />
         )}
-        {selectedScene && isPaused && (
+        {selectedScene && (
           <CanvasItemHandles
             scene={selectedScene}
             frameW={project.width}

@@ -22,6 +22,7 @@ import {
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { defaultPlaceholderTextItem } from "@/lib/scene-schema";
 import type { BRollPosition, Scene } from "@/lib/scene-schema";
 import {
   type LayerKind,
@@ -208,32 +209,24 @@ export function SceneCard({ scene, index }: SceneCardProps) {
     }
   };
 
-  /** Add a text layer in the next empty slot. emphasisText is the
-   *  loudest hero line, then text, then subtitleText. After all three
-   *  are filled, this button just focuses the existing emphasis text. */
+  /** Add a free-positioned TextItem to the scene. Cascades x/y so
+   *  multiple new texts don't stack at the same coords (which made
+   *  them un-clickable). Same shape as the "edit me" placeholder so
+   *  every text in the scene flows through TextItemPanel — no more
+   *  legacy emphasis/main/subtitle fork. */
   const addTextLayer = () => {
-    if (!scene.emphasisText) {
-      updateScene(scene.id, {
-        emphasisText: "New text",
-        emphasisColor: scene.emphasisColor ?? "#ffffff",
-      });
-      selectScene(scene.id);
-      setEditTarget("text");
-      return;
-    }
-    if (!scene.text) {
-      updateScene(scene.id, { text: "New text", textColor: scene.textColor ?? "#cccccc" });
-      selectScene(scene.id);
-      setEditTarget("text");
-      return;
-    }
-    if (!scene.subtitleText) {
-      updateScene(scene.id, { subtitleText: "New text", subtitleColor: scene.subtitleColor ?? "#aaaaaa" });
-      selectScene(scene.id);
-      setEditTarget("text");
-      return;
-    }
+    const count = (scene.textItems ?? []).length;
+    const offset = count * 60;
+    const next = defaultPlaceholderTextItem({
+      content: "New text",
+      x: 200 + offset,
+      y: 400 + offset,
+    });
+    updateScene(scene.id, {
+      textItems: [...(scene.textItems ?? []), next],
+    });
     selectScene(scene.id);
+    setSelectedLayerId(`text-item:${next.id}`);
     setEditTarget("text");
   };
 

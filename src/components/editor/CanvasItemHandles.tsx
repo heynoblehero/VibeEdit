@@ -1,26 +1,24 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
-import type { Scene, SceneShape, TextItem } from "@/lib/scene-schema";
+import type { BRoll, Scene, SceneShape, TextItem } from "@/lib/scene-schema";
 import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 
 /**
- * Drag overlay for free-positioned text items and shapes on the
- * preview canvas.
+ * Drag/select overlay for canvas elements: text items, shapes, bg
+ * image/video, character, b-roll. All elements share the same emerald
+ * selection ring + corner ticks so the canvas feels uniform.
  *
  * - Container has pointer-events: none so empty canvas clicks fall
  *   through to the Player.
  * - Each item's hit-box has pointer-events: auto. Click selects, drag
- *   translates (x, y).
- * - Pointer movement deltas convert from screen pixels to canvas
- *   coords using the wrapper's actual rect; the Player letterboxes,
- *   so we use the smaller axis-ratio as the uniform scale.
- * - Selected item gets an emerald box with corner ticks + a live
- *   X,Y readout next to the cursor while dragging.
- *
- * Sibling of CanvasManipulator (image/character/video) — same idea,
- * different schema field paths.
+ *   translates (x, y) — only text + shape support drag here; bg /
+ *   character / broll resize/move via CanvasManipulator's corner
+ *   handles which sit on top of this overlay.
+ * - Selected item gets a 2px emerald ring + corner ticks; unselected
+ *   bg / character / broll are invisible hit-boxes (no outline) so
+ *   they don't compete with CanvasManipulator's dashed outline.
  */
 export function CanvasItemHandles({
 	scene,
@@ -133,6 +131,15 @@ export function CanvasItemHandles({
 		window.addEventListener("pointerup", onUp);
 	};
 
+	const selectMedia = (
+		layerId: string,
+		target: "background" | "character" | "broll",
+	) => {
+		setSelectedLayerId(layerId);
+		setEditTarget(target);
+		setPaused(true);
+	};
+
 	const toScreen = (cx: number, cy: number) => ({
 		x: aspectScale.padX + cx * aspectScale.scale,
 		y: aspectScale.padY + cy * aspectScale.scale,
@@ -140,23 +147,69 @@ export function CanvasItemHandles({
 	const fitW = (canvasW: number) => canvasW * aspectScale.scale;
 	const fitH = (canvasH: number) => canvasH * aspectScale.scale;
 
+	const hasBg = !!(scene.background?.imageUrl || scene.background?.videoUrl);
+	const hasCharacter = !!(scene.characterId || scene.characterUrl);
+	const characterX = scene.characterX ?? Math.round(frameW / 2);
+	const characterY = scene.characterY ?? Math.round(frameH * 0.83);
+	const characterScale = scene.characterScale ?? 1;
+
 	return (
 		<>
 			<div
 				className="absolute inset-0"
 				style={{ pointerEvents: "none", zIndex: 30 }}
 			>
-				{(scene.textItems ?? []).map((item) => (
-					<TextItemHandle
-						key={item.id}
-						item={item}
-						isSelected={selectedLayerId === `text-item:${item.id}`}
+				{/* Background image/video — full-canvas hit-box. Sits
+				    behind everything so item-level clicks win. */}
+				{hasBg && (
+					<BgHandle
+						isSelected={selectedLayerId === "media:bg"}
 						toScreen={toScreen}
 						fitW={fitW}
 						fitH={fitH}
-						onPointerDown={(event) => startDrag(event, "text-item", item)}
+						frameW={frameW}
+						frameH={frameH}
+						onClick={(e) => {
+							e.stopPropagation();
+							selectMedia("media:bg", "background");
+						}}
+					/>
+				)}
+
+				{/* Character — bottom-anchored bbox */}
+				{hasCharacter && (
+					<CharacterHandle
+						isSelected={selectedLayerId === "media:character"}
+						toScreen={toScreen}
+						fitW={fitW}
+						fitH={fitH}
+						x={characterX}
+						y={characterY}
+						scale={characterScale}
+						onClick={(e) => {
+							e.stopPropagation();
+							selectMedia("media:character", "character");
+						}}
+					/>
+				)}
+
+				{/* B-roll items */}
+				{(scene.broll ?? []).map((b) => (
+					<BrollHandle
+						key={b.id}
+						broll={b}
+						isSelected={selectedLayerId === `media:broll:${b.id}`}
+						toScreen={toScreen}
+						fitW={fitW}
+						fitH={fitH}
+						onClick={(e) => {
+							e.stopPropagation();
+							selectMedia(`media:broll:${b.id}`, "broll");
+						}}
 					/>
 				))}
+
+				{/* Shapes */}
 				{(scene.shapes ?? []).map((shape) => (
 					<ShapeHandle
 						key={shape.id}
@@ -166,6 +219,19 @@ export function CanvasItemHandles({
 						fitW={fitW}
 						fitH={fitH}
 						onPointerDown={(event) => startDrag(event, "shape", shape)}
+					/>
+				))}
+
+				{/* Text items — drawn last so they sit on top */}
+				{(scene.textItems ?? []).map((item) => (
+					<TextItemHandle
+						key={item.id}
+						item={item}
+						isSelected={selectedLayerId === `text-item:${item.id}`}
+						toScreen={toScreen}
+						fitW={fitW}
+						fitH={fitH}
+						onPointerDown={(event) => startDrag(event, "text-item", item)}
 					/>
 				))}
 			</div>
@@ -264,6 +330,180 @@ function ShapeHandle({
 					: "1px dashed rgba(245, 158, 11, 0.45)",
 				borderRadius: shape.kind === "circle" ? "50%" : 4,
 				background: isSelected ? "rgba(52, 211, 153, 0.06)" : "transparent",
+			}}
+		>
+			{isSelected && <CornerTicks />}
+		</div>
+	);
+}
+
+/** Full-canvas hit-box for the bg image/video. When selected → emerald
+ *  ring + corner ticks. When unselected → invisible (transparent border)
+ *  hit-box so clicks still work but the canvas isn't cluttered. */
+function BgHandle({
+	isSelected,
+	toScreen,
+	fitW,
+	fitH,
+	frameW,
+	frameH,
+	onClick,
+}: {
+	isSelected: boolean;
+	toScreen: (cx: number, cy: number) => { x: number; y: number };
+	fitW: (cw: number) => number;
+	fitH: (ch: number) => number;
+	frameW: number;
+	frameH: number;
+	onClick: (event: React.MouseEvent<HTMLDivElement>) => void;
+}) {
+	const tl = toScreen(0, 0);
+	return (
+		<div
+			onClick={onClick}
+			onKeyDown={(e) => {
+				if (e.key === "Enter") onClick(e as unknown as React.MouseEvent<HTMLDivElement>);
+			}}
+			role="button"
+			tabIndex={-1}
+			className="absolute"
+			style={{
+				left: tl.x,
+				top: tl.y,
+				width: fitW(frameW),
+				height: fitH(frameH),
+				pointerEvents: "auto",
+				cursor: "pointer",
+				border: isSelected ? "2px solid #34d399" : "2px solid transparent",
+				background: "transparent",
+				zIndex: 1,
+			}}
+		>
+			{isSelected && <CornerTicks />}
+		</div>
+	);
+}
+
+function CharacterHandle({
+	isSelected,
+	toScreen,
+	fitW,
+	fitH,
+	x,
+	y,
+	scale,
+	onClick,
+}: {
+	isSelected: boolean;
+	toScreen: (cx: number, cy: number) => { x: number; y: number };
+	fitW: (cw: number) => number;
+	fitH: (ch: number) => number;
+	x: number;
+	y: number;
+	scale: number;
+	onClick: (event: React.MouseEvent<HTMLDivElement>) => void;
+}) {
+	const CHAR_HEIGHT = 550;
+	const CHAR_WIDTH_RATIO = 0.8;
+	const pxH = CHAR_HEIGHT * scale;
+	const pxW = pxH * CHAR_WIDTH_RATIO;
+	const tl = toScreen(x - pxW / 2, y - pxH);
+	return (
+		<div
+			onClick={onClick}
+			onKeyDown={(e) => {
+				if (e.key === "Enter") onClick(e as unknown as React.MouseEvent<HTMLDivElement>);
+			}}
+			role="button"
+			tabIndex={-1}
+			className="absolute"
+			style={{
+				left: tl.x,
+				top: tl.y,
+				width: fitW(pxW),
+				height: fitH(pxH),
+				pointerEvents: "auto",
+				cursor: "pointer",
+				border: isSelected
+					? "2px solid #34d399"
+					: "1px dashed rgba(52, 211, 153, 0.18)",
+				background: isSelected ? "rgba(52, 211, 153, 0.04)" : "transparent",
+				borderRadius: 4,
+			}}
+		>
+			{isSelected && <CornerTicks />}
+		</div>
+	);
+}
+
+function brollLayout(position: BRoll["position"]) {
+	const VIDEO_W = 1920;
+	const VIDEO_H = 1080;
+	switch (position) {
+		case "full":
+			return { left: 0, top: 0, width: VIDEO_W, height: VIDEO_H };
+		case "overlay-tl":
+			return { left: 60, top: 60, width: 560, height: 315 };
+		case "overlay-tr":
+			return { left: VIDEO_W - 620, top: 60, width: 560, height: 315 };
+		case "overlay-bl":
+			return { left: 60, top: VIDEO_H - 375, width: 560, height: 315 };
+		case "overlay-br":
+			return { left: VIDEO_W - 620, top: VIDEO_H - 375, width: 560, height: 315 };
+		case "pip-left":
+			return { left: 80, top: 260, width: 760, height: 560 };
+		case "pip-right":
+			return { left: VIDEO_W - 840, top: 260, width: 760, height: 560 };
+		case "lower-third":
+			return { left: 0, top: VIDEO_H - 400, width: VIDEO_W, height: 400 };
+		default:
+			return { left: 0, top: 0, width: VIDEO_W, height: VIDEO_H };
+	}
+}
+
+function BrollHandle({
+	broll,
+	isSelected,
+	toScreen,
+	fitW,
+	fitH,
+	onClick,
+}: {
+	broll: BRoll;
+	isSelected: boolean;
+	toScreen: (cx: number, cy: number) => { x: number; y: number };
+	fitW: (cw: number) => number;
+	fitH: (ch: number) => number;
+	onClick: (event: React.MouseEvent<HTMLDivElement>) => void;
+}) {
+	const layout = brollLayout(broll.position);
+	const x = layout.left + (broll.offsetX ?? 0);
+	const y = layout.top + (broll.offsetY ?? 0);
+	const scale = broll.scale ?? 1;
+	const tl = toScreen(x, y);
+	return (
+		<div
+			onClick={onClick}
+			onKeyDown={(e) => {
+				if (e.key === "Enter") onClick(e as unknown as React.MouseEvent<HTMLDivElement>);
+			}}
+			role="button"
+			tabIndex={-1}
+			className="absolute"
+			style={{
+				left: tl.x,
+				top: tl.y,
+				width: fitW(layout.width),
+				height: fitH(layout.height),
+				pointerEvents: "auto",
+				cursor: "pointer",
+				transform: scale !== 1 ? `scale(${scale})` : undefined,
+				transformOrigin: "center center",
+				border: isSelected
+					? "2px solid #34d399"
+					: "1px dashed rgba(52, 211, 153, 0.22)",
+				background: isSelected ? "rgba(52, 211, 153, 0.04)" : "transparent",
+				borderRadius: broll.borderRadius ?? 16,
 			}}
 		>
 			{isSelected && <CornerTicks />}

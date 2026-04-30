@@ -39,6 +39,7 @@ const LAYER_ICON: Record<LayerKind, React.ComponentType<{ className?: string }>>
   "text-main": Type,
   "text-emphasis": Type,
   "text-subtitle": Type,
+  "text-item": Type,
   shape: Shapes,
   broll: ImagePlay,
   effects: Sparkles,
@@ -62,6 +63,7 @@ function computeLayerId(
   brollId: string | undefined,
   effectIdx: number | undefined,
   shapeId: string | undefined,
+  textItemId: string | undefined,
 ): string | null {
   switch (layerKind) {
     case "bg":
@@ -76,6 +78,8 @@ function computeLayerId(
       return "text:emphasis";
     case "text-subtitle":
       return "text:subtitle";
+    case "text-item":
+      return textItemId ? `text-item:${textItemId}` : null;
     case "effects":
       return effectIdx !== undefined ? `effect:${effectIdx}` : null;
     case "shape":
@@ -93,6 +97,7 @@ const LAYER_COLOR: Record<LayerKind, string> = {
   "text-main": "text-emerald-300",
   "text-emphasis": "text-emerald-300",
   "text-subtitle": "text-emerald-300",
+  "text-item": "text-emerald-300",
   shape: "text-amber-300",
   broll: "text-amber-300",
   effects: "text-purple-300",
@@ -487,7 +492,17 @@ export function SceneCard({ scene, index }: SceneCardProps) {
                 layer.kind === "shape" && layer.index !== undefined
                   ? scene.shapes?.[layer.index]?.id
                   : undefined;
-              const layerId = computeLayerId(layer.kind, brollId, layer.index, shapeId);
+              const textItemId =
+                layer.kind === "text-item" && layer.index !== undefined
+                  ? scene.textItems?.[layer.index]?.id
+                  : undefined;
+              const layerId = computeLayerId(
+                layer.kind,
+                brollId,
+                layer.index,
+                shapeId,
+                textItemId,
+              );
               setSelectedLayerId(layerId);
             }}
             className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-left hover:bg-neutral-800/60 transition-colors"

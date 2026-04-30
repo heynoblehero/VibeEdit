@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useAssetStore } from "@/store/asset-store";
 import { useEditorStore, type EditTarget } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
-import type { BRoll, EnterDirection, KeyframeProperty, MotionPreset, Scene, SceneShape, TextStyle } from "@/lib/scene-schema";
+import type { BRoll, EnterDirection, KeyframeProperty, MotionPreset, Scene, SceneShape, TextItem, TextStyle } from "@/lib/scene-schema";
 import { getWorkflow } from "@/lib/workflows/registry";
 import { BRollPanel } from "./BRollPanel";
 import { KeyframeGraph } from "./KeyframeGraph";
@@ -131,16 +131,19 @@ function FrameProperties({
   const setSelectedLayerId = useEditorStore((s) => s.setSelectedLayerId);
 
   const addText = () => {
-    if (scene.emphasisText === undefined || scene.emphasisText === "") {
-      update({ emphasisText: "New text", emphasisColor: "#ffffff", emphasisSize: 96 });
-    } else if (scene.text === undefined || scene.text === "") {
-      update({ text: "New text", textColor: "#cccccc", textSize: 64 });
-    } else if (scene.subtitleText === undefined || scene.subtitleText === "") {
-      update({ subtitleText: "New text", subtitleColor: "#aaaaaa" });
-    } else {
-      // All three slots full — re-write subtitle to a fresh string and select it.
-      update({ subtitleText: "New text" });
-    }
+    const id = `t-${Math.random().toString(36).slice(2, 8)}`;
+    const next: TextItem = {
+      id,
+      content: "New text",
+      x: 200,
+      y: 400,
+      fontSize: 96,
+      color: "#ffffff",
+      weight: 800,
+      align: "left",
+    };
+    update({ textItems: [...(scene.textItems ?? []), next] });
+    setSelectedLayerId(`text-item:${id}`);
     setEditTarget("text");
   };
 
@@ -791,6 +794,13 @@ const TEXT_SLOTS: TextSlotConfig[] = [
 
 function TextPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>) => void }) {
   const selectedLayerId = useEditorStore((s) => s.selectedLayerId);
+  // Free-positioned text items get their own dedicated panel. The
+  // legacy emphasis/main/subtitle slot UI below stays for old scenes
+  // and the agent's existing tools.
+  if (selectedLayerId?.startsWith("text-item:")) {
+    const itemId = selectedLayerId.slice("text-item:".length);
+    return <TextItemPanel scene={scene} update={update} itemId={itemId} />;
+  }
   // Layer-scoped editing: if the user clicked a specific text layer,
   // show ONLY that layer's card. Otherwise show every active layer.
   const filterSlot = selectedLayerId?.startsWith("text:")
@@ -871,6 +881,306 @@ function TextPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>
         }
       />
     </>
+  );
+}
+
+/**
+ * Editor for a single free-positioned text item. Routed to from the
+ * TextPanel router when selectedLayerId is `text-item:<id>`.
+ */
+function TextItemPanel({
+  scene,
+  update,
+  itemId,
+}: {
+  scene: Scene;
+  update: (p: Partial<Scene>) => void;
+  itemId: string;
+}) {
+  const setSelectedLayerId = useEditorStore((s) => s.setSelectedLayerId);
+  const setEditTarget = useEditorStore((s) => s.setEditTarget);
+  const items = scene.textItems ?? [];
+  const item = items.find((it) => it.id === itemId);
+  if (!item) {
+    return (
+      <div className="text-[11px] text-neutral-500 px-2 py-3">
+        Text item missing.
+      </div>
+    );
+  }
+  const patch = (p: Partial<TextItem>) => {
+    update({
+      textItems: items.map((it) => (it.id === itemId ? { ...it, ...p } : it)),
+    });
+  };
+  const remove = () => {
+    update({ textItems: items.filter((it) => it.id !== itemId) });
+    setSelectedLayerId(null);
+    setEditTarget(null);
+  };
+  return (
+    <div className="space-y-3">
+      <Field label="Content">
+        <textarea
+          value={item.content}
+          onChange={(e) => patch({ content: e.target.value })}
+          rows={2}
+          className="input-field w-full text-[11px] py-1 resize-none"
+        />
+      </Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="X">
+          <input
+            type="number"
+            value={item.x}
+            onChange={(e) => patch({ x: Number(e.target.value) })}
+            className="input-field w-full text-[11px] py-1"
+          />
+        </Field>
+        <Field label="Y">
+          <input
+            type="number"
+            value={item.y}
+            onChange={(e) => patch({ y: Number(e.target.value) })}
+            className="input-field w-full text-[11px] py-1"
+          />
+        </Field>
+      </div>
+      <Field label="Max width (blank = auto)">
+        <input
+          type="number"
+          value={item.w ?? ""}
+          onChange={(e) =>
+            patch({ w: e.target.value === "" ? undefined : Number(e.target.value) })
+          }
+          className="input-field w-full text-[11px] py-1"
+        />
+      </Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Font size">
+          <input
+            type="number"
+            min={8}
+            value={item.fontSize}
+            onChange={(e) => patch({ fontSize: Number(e.target.value) })}
+            className="input-field w-full text-[11px] py-1"
+          />
+        </Field>
+        <Field label="Color">
+          <input
+            type="color"
+            value={item.color}
+            onChange={(e) => patch({ color: e.target.value })}
+            className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+          />
+        </Field>
+      </div>
+      <Field label="Font family">
+        <select
+          value={item.fontFamily ?? "system"}
+          onChange={(e) => patch({ fontFamily: e.target.value as TextItem["fontFamily"] })}
+          className="input-field w-full text-[11px] py-1"
+        >
+          <option value="system">System sans</option>
+          <option value="serif">Serif</option>
+          <option value="mono">Monospace</option>
+          <option value="display">Display (Bebas / Impact)</option>
+        </select>
+      </Field>
+      <div className="grid grid-cols-3 gap-2">
+        <Field label="Weight">
+          <input
+            type="number"
+            min={100}
+            max={900}
+            step={100}
+            value={item.weight ?? 800}
+            onChange={(e) => patch({ weight: Number(e.target.value) })}
+            className="input-field w-full text-[11px] py-1"
+          />
+        </Field>
+        <Field label="Italic">
+          <ToggleChip
+            active={!!item.italic}
+            onClick={() => patch({ italic: !item.italic })}
+            label={item.italic ? "On" : "Off"}
+          />
+        </Field>
+        <Field label="Underline">
+          <ToggleChip
+            active={!!item.underline}
+            onClick={() => patch({ underline: !item.underline })}
+            label={item.underline ? "On" : "Off"}
+          />
+        </Field>
+      </div>
+      <Field label="Align">
+        <div className="flex gap-1">
+          {(["left", "center", "right"] as const).map((a) => (
+            <button
+              key={a}
+              type="button"
+              onClick={() => patch({ align: a })}
+              className={`flex-1 px-2 py-1 rounded text-[11px] capitalize border transition-colors ${
+                (item.align ?? "left") === a
+                  ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
+                  : "border-neutral-800 text-neutral-400 hover:border-neutral-600"
+              }`}
+            >
+              {a}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Letter spacing">
+          <input
+            type="number"
+            value={item.letterSpacing ?? 0}
+            onChange={(e) => patch({ letterSpacing: Number(e.target.value) })}
+            className="input-field w-full text-[11px] py-1"
+          />
+        </Field>
+        <Field label="Line height">
+          <input
+            type="number"
+            step={0.05}
+            value={item.lineHeight ?? 1.1}
+            onChange={(e) => patch({ lineHeight: Number(e.target.value) })}
+            className="input-field w-full text-[11px] py-1"
+          />
+        </Field>
+      </div>
+      <Field label="Transform">
+        <select
+          value={item.transform ?? "none"}
+          onChange={(e) =>
+            patch({ transform: e.target.value as TextItem["transform"] })
+          }
+          className="input-field w-full text-[11px] py-1"
+        >
+          <option value="none">None</option>
+          <option value="uppercase">UPPERCASE</option>
+          <option value="lowercase">lowercase</option>
+          <option value="capitalize">Capitalize</option>
+        </select>
+      </Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Rotation°">
+          <input
+            type="number"
+            value={item.rotation ?? 0}
+            onChange={(e) => patch({ rotation: Number(e.target.value) })}
+            className="input-field w-full text-[11px] py-1"
+          />
+        </Field>
+        <Field label="Opacity">
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={item.opacity ?? 1}
+            onChange={(e) => patch({ opacity: Number(e.target.value) })}
+            className="w-full accent-blue-500 h-1.5"
+          />
+          <span className="text-[10px] text-neutral-500">
+            {Math.round((item.opacity ?? 1) * 100)}%
+          </span>
+        </Field>
+      </div>
+      <details className="rounded border border-neutral-800 bg-neutral-950/40">
+        <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
+          Stroke & glow
+        </summary>
+        <div className="px-3 pb-3 pt-1 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Stroke color">
+              <input
+                type="color"
+                value={item.strokeColor ?? "#000000"}
+                onChange={(e) => patch({ strokeColor: e.target.value })}
+                className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+              />
+            </Field>
+            <Field label="Stroke width">
+              <input
+                type="number"
+                min={0}
+                max={20}
+                value={item.strokeWidth ?? 0}
+                onChange={(e) => patch({ strokeWidth: Number(e.target.value) })}
+                className="input-field w-full text-[11px] py-1"
+              />
+            </Field>
+          </div>
+          <Field label="Glow color (blank = off)">
+            <input
+              type="color"
+              value={item.glowColor ?? "#ffffff"}
+              onChange={(e) => patch({ glowColor: e.target.value })}
+              className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+            />
+            <button
+              type="button"
+              onClick={() => patch({ glowColor: undefined })}
+              className="mt-1 text-[10px] text-neutral-500 hover:text-neutral-300 underline decoration-dotted"
+            >
+              clear
+            </button>
+          </Field>
+        </div>
+      </details>
+      <details className="rounded border border-neutral-800 bg-neutral-950/40">
+        <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
+          Background pill
+        </summary>
+        <div className="px-3 pb-3 pt-1 space-y-2">
+          <Field label="Color (blank = off)">
+            <input
+              type="color"
+              value={item.bgColor ?? "#000000"}
+              onChange={(e) => patch({ bgColor: e.target.value })}
+              className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+            />
+            <button
+              type="button"
+              onClick={() => patch({ bgColor: undefined })}
+              className="mt-1 text-[10px] text-neutral-500 hover:text-neutral-300 underline decoration-dotted"
+            >
+              clear
+            </button>
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Padding">
+              <input
+                type="number"
+                min={0}
+                value={item.bgPadding ?? 0}
+                onChange={(e) => patch({ bgPadding: Number(e.target.value) })}
+                className="input-field w-full text-[11px] py-1"
+              />
+            </Field>
+            <Field label="Radius">
+              <input
+                type="number"
+                min={0}
+                value={item.bgRadius ?? 0}
+                onChange={(e) => patch({ bgRadius: Number(e.target.value) })}
+                className="input-field w-full text-[11px] py-1"
+              />
+            </Field>
+          </div>
+        </div>
+      </details>
+      <button
+        type="button"
+        onClick={remove}
+        className="w-full px-3 py-2 rounded border border-red-900/50 bg-red-950/30 hover:bg-red-900/40 text-[11px] text-red-300 hover:text-red-200 transition-colors"
+      >
+        Remove text item
+      </button>
+    </div>
   );
 }
 

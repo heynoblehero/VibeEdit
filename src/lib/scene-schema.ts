@@ -114,6 +114,42 @@ export interface TextStyle {
   bgRadius?: number;
 }
 
+/**
+ * A free-positioned text item painted on top of the scene. Distinct
+ * from the legacy text/emphasisText/subtitleText slots — those are
+ * scene-level properties baked into PunchText with motion presets,
+ * whereas a TextItem is a layer the user adds, drags, and styles
+ * independently. New "+ Add Text" flow creates these.
+ */
+export interface TextItem {
+  id: string;
+  content: string;
+  /** Top-left in canvas coords (0,0 at top-left of project.width × project.height). */
+  x: number;
+  y: number;
+  /** Optional max width for wrapping. When omitted, text auto-sizes to its content. */
+  w?: number;
+  fontSize: number;
+  color: string;
+  align?: "left" | "center" | "right";
+  rotation?: number;
+  fontFamily?: "system" | "serif" | "mono" | "display";
+  weight?: number;
+  italic?: boolean;
+  underline?: boolean;
+  letterSpacing?: number;
+  lineHeight?: number;
+  transform?: "uppercase" | "lowercase" | "capitalize" | "none";
+  strokeColor?: string;
+  strokeWidth?: number;
+  glowColor?: string;
+  opacity?: number;
+  /** Background pill behind the text (padding + rounded corners). */
+  bgColor?: string;
+  bgPadding?: number;
+  bgRadius?: number;
+}
+
 export interface StylePreset {
   id: string;
   name: string;
@@ -445,6 +481,8 @@ export interface Scene {
   shadow?: FrameShadow;
   /** Vector shapes layered between bg and text/broll. */
   shapes?: SceneShape[];
+  /** Free-positioned text items. Independent of the emphasis/text/subtitle slots. */
+  textItems?: TextItem[];
 
   numberFrom?: number;
   numberTo?: number;
@@ -1261,6 +1299,7 @@ export const VALID_SCENE_FIELDS: ReadonlySet<keyof Scene> = new Set<keyof Scene>
   "outlineWidth",
   "shadow",
   "shapes",
+  "textItems",
   "numberFrom",
   "numberTo",
   "numberSuffix",

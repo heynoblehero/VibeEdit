@@ -6,6 +6,7 @@ import { BRollLayer } from "./components/BRoll";
 import { Counter } from "./components/Counter";
 import { GradientBg } from "./components/GradientBg";
 import { SceneShapes } from "./components/SceneShapes";
+import { SceneTextItems } from "./components/SceneTextItems";
 import { PunchText } from "./components/PunchText";
 import { ScreenShake } from "./components/ScreenShake";
 import { ZoomPunch } from "./components/ZoomPunch";
@@ -303,6 +304,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       )}
       <SceneShapes shapes={s.shapes} width={frameW} height={frameH} />
       <BRollLayer brolls={s.broll} scene={s} />
+      <SceneTextItems items={s.textItems} />
       <ZoomPunch hitFrame={s.zoomPunch ? 0 : 9999} intensity={s.zoomPunch ?? 1.15}>
        {/* Secondary subtle zoom when emphasis text appears (frame 12)
            so the reveal feels punctuated without needing a full beat. */}

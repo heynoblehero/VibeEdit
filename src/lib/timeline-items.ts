@@ -28,6 +28,7 @@ export type LayerKind =
   | "text-main"
   | "text-emphasis"
   | "text-subtitle"
+  | "text-item"
   | "voiceover"
   | "broll"
   | "effects"
@@ -107,6 +108,8 @@ export function kindToEditTarget(kind: LayerKind): EditTarget | null {
     case "bar-chart":
     case "counter":
       return "text";
+    case "text-item":
+      return "text";
     // All media kinds route into the unified flat MediaPanel — bg /
     // character / broll show as cards there, with "advanced" links
     // back to their dedicated panels for power-user fields.
@@ -141,22 +144,20 @@ export function deriveItemsFromScene(
   const sceneDur = sceneDurationFrames(scene, fps);
   const sid = scene.id;
 
-  // Background — full-scene span. Always emitted (even with no media,
-  // the renderer paints a colour).
-  items.push({
-    id: `${sid}:bg`,
-    sceneId: sid,
-    kind: "bg",
-    label:
-      scene.background.videoUrl
-        ? "Video bg"
-        : scene.background.imageUrl
-          ? "Image bg"
-          : "Color bg",
-    startFrame: sceneStartFrame,
-    durationFrames: sceneDur,
-    color: "neutral",
-  });
+  // Background — only emit as a layer when there's an image or video.
+  // A flat colour bg is a scene property (edited in FrameProperties),
+  // not a separate addable item, so it doesn't deserve its own row.
+  if (scene.background.videoUrl || scene.background.imageUrl) {
+    items.push({
+      id: `${sid}:bg`,
+      sceneId: sid,
+      kind: "bg",
+      label: scene.background.videoUrl ? "Video bg" : "Image bg",
+      startFrame: sceneStartFrame,
+      durationFrames: sceneDur,
+      color: "neutral",
+    });
+  }
 
   // Character — only when the scene references one.
   if (scene.characterId) {
@@ -204,6 +205,24 @@ export function deriveItemsFromScene(
       startFrame: sceneStartFrame + 25,
       durationFrames: Math.max(1, sceneDur - 25),
       color: "emerald",
+    });
+  }
+
+  // Free-positioned text items — added via the +Add Text picker.
+  // Each is its own layer with its own click target. Index references
+  // scene.textItems[N] so SceneCard can resolve the id back from the
+  // picker click.
+  for (let i = 0; i < (scene.textItems?.length ?? 0); i++) {
+    const ti = scene.textItems![i];
+    items.push({
+      id: `${sid}:text-item:${ti.id}`,
+      sceneId: sid,
+      kind: "text-item",
+      label: ti.content.slice(0, 24) || "Text",
+      startFrame: sceneStartFrame,
+      durationFrames: sceneDur,
+      color: "emerald",
+      index: i,
     });
   }
 
@@ -383,6 +402,7 @@ export const LAYER_ROW_ORDER: LayerKind[] = [
   "text-main",
   "text-emphasis",
   "text-subtitle",
+  "text-item",
   "shape",
   "broll",
   "effects",
@@ -404,6 +424,7 @@ export const LAYER_LABEL: Record<LayerKind, string> = {
   "text-main": "Text",
   "text-emphasis": "Emph",
   "text-subtitle": "Sub",
+  "text-item": "Text",
   shape: "Shape",
   broll: "B-roll",
   effects: "FX",

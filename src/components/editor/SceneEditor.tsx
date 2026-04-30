@@ -1,13 +1,13 @@
 "use client";
 
 import { Activity, ArrowLeft, Captions as CaptionsIcon, Film, Loader2, Mic, RefreshCw, Sparkles, User, Type, Palette, Zap, Hash } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAssetStore } from "@/store/asset-store";
 import { useEditorStore, type EditTarget } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
-import { defaultPlaceholderTextItem } from "@/lib/scene-schema";
-import type { BRoll, EnterDirection, KeyframeProperty, MotionPreset, Scene, SceneShape, TextItem, TextStyle } from "@/lib/scene-schema";
+import { defaultPlaceholderTextItem, migrateLegacyTextToTextItems } from "@/lib/scene-schema";
+import type { BRoll, EnterDirection, KeyframeProperty, MotionPreset, Scene, SceneShape, TextItem } from "@/lib/scene-schema";
 import { getWorkflow } from "@/lib/workflows/registry";
 import { BRollPanel } from "./BRollPanel";
 import { KeyframeGraph } from "./KeyframeGraph";
@@ -824,120 +824,59 @@ function CharacterPanel({ scene, update, characters }: { scene: Scene; update: (
 }
 
 /**
- * Text layers. Underneath, each scene has up to three text fields
- * (emphasis / text / subtitle) — historically the renderer styled
- * them differently by default, but every visual property is now
- * editable per-slot, so we present them as flat numbered text layers.
- * No more "primary/secondary" framing in the UI.
+ * Text routing. Every text in a scene is a free-positioned TextItem;
+ * legacy emphasisText/text/subtitleText scenes are migrated to
+ * TextItems on first open. This panel routes to TextItemPanel for the
+ * selected item, or shows an empty-state with + Add text otherwise.
  */
-type TextSlot = "emphasis" | "main" | "subtitle";
-
-interface TextSlotConfig {
-  slot: TextSlot;
-  textField: "emphasisText" | "text" | "subtitleText";
-  colorField: "emphasisColor" | "textColor" | "subtitleColor";
-  sizeField?: "emphasisSize" | "textSize";
-  alignField: "emphasisAlign" | "textAlign" | "subtitleAlign";
-  styleField: "emphasisStyle" | "textStyle" | "subtitleStyle";
-  defaultColor: string;
-  defaultSize: number;
-}
-
-const TEXT_SLOTS: TextSlotConfig[] = [
-  { slot: "emphasis", textField: "emphasisText", colorField: "emphasisColor", sizeField: "emphasisSize", alignField: "emphasisAlign", styleField: "emphasisStyle", defaultColor: "#ffffff", defaultSize: 96 },
-  { slot: "main", textField: "text", colorField: "textColor", sizeField: "textSize", alignField: "textAlign", styleField: "textStyle", defaultColor: "#cccccc", defaultSize: 64 },
-  { slot: "subtitle", textField: "subtitleText", colorField: "subtitleColor", sizeField: undefined, alignField: "subtitleAlign", styleField: "subtitleStyle", defaultColor: "#aaaaaa", defaultSize: 36 },
-];
-
 function TextPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>) => void }) {
   const selectedLayerId = useEditorStore((s) => s.selectedLayerId);
-  // Free-positioned text items get their own dedicated panel. The
-  // legacy emphasis/main/subtitle slot UI below stays for old scenes
-  // and the agent's existing tools.
+  const setSelectedLayerId = useEditorStore((s) => s.setSelectedLayerId);
+
+  // One-shot migration: if this scene still carries legacy text fields,
+  // convert them to TextItems and persist. Effect runs once per scene
+  // open.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only re-run when scene id flips
+  useEffect(() => {
+    if (scene.emphasisText || scene.text || scene.subtitleText) {
+      const migrated = migrateLegacyTextToTextItems(scene);
+      const { id: _id, ...patch } = migrated;
+      update(patch as Partial<Scene>);
+    }
+  }, [scene.id]);
+
   if (selectedLayerId?.startsWith("text-item:")) {
     const itemId = selectedLayerId.slice("text-item:".length);
     return <TextItemPanel scene={scene} update={update} itemId={itemId} />;
   }
-  // Layer-scoped editing: if the user clicked a specific text layer,
-  // show ONLY that layer's card. Otherwise show every active layer.
-  const filterSlot = selectedLayerId?.startsWith("text:")
-    ? selectedLayerId.slice(5)
-    : null;
-  const allActive = TEXT_SLOTS.filter((cfg) => (scene[cfg.textField] ?? "") !== "");
-  const active = filterSlot
-    ? allActive.filter((cfg) => cfg.slot === filterSlot)
-    : allActive;
-  const empty = filterSlot
-    ? []
-    : TEXT_SLOTS.filter((cfg) => (scene[cfg.textField] ?? "") === "");
 
-  const addLayer = (cfg: TextSlotConfig) => {
-    update({
-      [cfg.textField]: "New text",
-      [cfg.colorField]: scene[cfg.colorField] ?? cfg.defaultColor,
-      ...(cfg.sizeField ? { [cfg.sizeField]: scene[cfg.sizeField] ?? cfg.defaultSize } : {}),
-    } as Partial<Scene>);
-  };
-
+  const items = scene.textItems ?? [];
   return (
-    <>
-      {active.length === 0 && (
-        <div className="text-[11px] text-neutral-600 px-2 py-3 text-center">
-          No text layers — add one below.
+    <Section title="Text">
+      {items.length === 0 ? (
+        <div className="text-[11px] text-neutral-500 px-1 py-2 text-center">
+          No text on this scene yet. Use the frame's "+ Add item" picker
+          to add a text layer.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1">
+            Pick a text to edit
+          </div>
+          {items.map((it, i) => (
+            <button
+              key={it.id}
+              type="button"
+              onClick={() => setSelectedLayerId(`text-item:${it.id}`)}
+              className="flex items-center gap-2 px-2 py-1.5 rounded border border-neutral-800 hover:border-emerald-500/60 hover:bg-emerald-500/5 text-left text-neutral-300 hover:text-emerald-200 transition-colors text-[11px]"
+            >
+              <span className="text-neutral-500">Text {i + 1}</span>
+              <span className="truncate flex-1">{it.content || "(empty)"}</span>
+            </button>
+          ))}
         </div>
       )}
-      {active.map((cfg, i) => (
-        <TextLayerCard
-          key={cfg.slot}
-          index={i}
-          cfg={cfg}
-          scene={scene}
-          update={update}
-        />
-      ))}
-      {empty.length > 0 && (
-        <div className="pt-2 border-t border-neutral-800/60">
-          <div className="text-[10px] uppercase tracking-wider text-neutral-600 mb-1.5">
-            Add text layer
-          </div>
-          <div className="flex flex-col gap-1">
-            {empty.map((cfg) => (
-              <button
-                key={cfg.slot}
-                type="button"
-                onClick={() => addLayer(cfg)}
-                className="flex items-center gap-2 px-2 py-1.5 rounded border border-neutral-800 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-left text-neutral-400 hover:text-emerald-300 transition-colors text-[11px]"
-              >
-                <span className="text-emerald-400">+</span>
-                <span>New text layer</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      <Field label="Y position (all layers stack from here)">
-        <input
-          type="range"
-          min={50}
-          max={800}
-          step={10}
-          value={scene.textY ?? 300}
-          onChange={(e) => update({ textY: Number(e.target.value) })}
-          className="w-full accent-blue-500 h-1.5"
-        />
-        <span className="text-[10px] text-neutral-500">{scene.textY ?? 300}px</span>
-      </Field>
-      <MotionPresetField
-        label="Motion"
-        value={scene.emphasisMotion}
-        onChange={(v) =>
-          update({
-            textMotion: v,
-            emphasisMotion: v,
-          })
-        }
-      />
-    </>
+    </Section>
   );
 }
 
@@ -1600,305 +1539,6 @@ function TextItemAnimationSection({
         item id with addMotionClip / addKeyframe.
       </p>
     </Section>
-  );
-}
-
-function TextLayerCard({
-  index,
-  cfg,
-  scene,
-  update,
-}: {
-  index: number;
-  cfg: TextSlotConfig;
-  scene: Scene;
-  update: (p: Partial<Scene>) => void;
-}) {
-  const text = scene[cfg.textField] ?? "";
-  const color = scene[cfg.colorField] ?? cfg.defaultColor;
-  const size = cfg.sizeField ? (scene[cfg.sizeField] ?? cfg.defaultSize) : cfg.defaultSize;
-  const align = scene[cfg.alignField] as "left" | "center" | "right" | undefined;
-  const style = (scene[cfg.styleField] ?? {}) as TextStyle;
-  const [showStyle, setShowStyle] = useState(false);
-  const remove = () => {
-    update({
-      [cfg.textField]: undefined,
-    } as Partial<Scene>);
-  };
-  const patchStyle = (patch: Partial<TextStyle>) => {
-    update({
-      [cfg.styleField]: { ...style, ...patch },
-    } as Partial<Scene>);
-  };
-  return (
-    <div className="rounded-lg border border-neutral-800 bg-neutral-950/50 p-2.5 space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-wider text-neutral-400 font-medium">
-          Text {index + 1}
-        </span>
-        <button
-          type="button"
-          onClick={remove}
-          title="Remove this text layer"
-          className="text-[10px] text-neutral-600 hover:text-red-400 px-1"
-        >
-          ×
-        </button>
-      </div>
-      <textarea
-        value={text}
-        onChange={(e) =>
-          update({ [cfg.textField]: e.target.value } as Partial<Scene>)
-        }
-        className="input-field w-full text-xs h-14 resize-none"
-        placeholder="type here..."
-      />
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Color">
-          <input
-            type="color"
-            value={color}
-            onChange={(e) =>
-              update({ [cfg.colorField]: e.target.value } as Partial<Scene>)
-            }
-            className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
-          />
-        </Field>
-        {cfg.sizeField && (
-          <Field label="Size">
-            <input
-              type="range"
-              min={24}
-              max={200}
-              step={4}
-              value={size}
-              onChange={(e) =>
-                update({
-                  [cfg.sizeField as string]: Number(e.target.value),
-                } as Partial<Scene>)
-              }
-              className="w-full accent-blue-500 h-1.5"
-            />
-            <span className="text-[10px] text-neutral-500">{size}px</span>
-          </Field>
-        )}
-      </div>
-      <Field label="Align">
-        <AlignRow
-          label=""
-          value={align}
-          onChange={(v) =>
-            update({ [cfg.alignField]: v } as Partial<Scene>)
-          }
-        />
-      </Field>
-      <button
-        type="button"
-        onClick={() => setShowStyle((v) => !v)}
-        className="w-full flex items-center justify-between px-1 py-1 text-[10px] uppercase tracking-wider text-neutral-500 hover:text-emerald-300"
-      >
-        <span>Style</span>
-        <span className="text-neutral-600">{showStyle ? "−" : "+"}</span>
-      </button>
-      {showStyle && (
-        <TextStylePanel style={style} patch={patchStyle} />
-      )}
-    </div>
-  );
-}
-
-/**
- * Comprehensive per-slot styling panel — weight, italic/underline,
- * font family, letter/line spacing, transform, stroke, glow, opacity,
- * pill background. Each control writes into Scene.<slot>Style which
- * PunchText reads as a single TextStyle override.
- */
-function TextStylePanel({
-  style,
-  patch,
-}: {
-  style: TextStyle;
-  patch: (p: Partial<TextStyle>) => void;
-}) {
-  return (
-    <div className="space-y-2 pt-1">
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Weight">
-          <select
-            value={style.weight ?? 800}
-            onChange={(e) => patch({ weight: Number(e.target.value) })}
-            className="input-field h-7 text-[11px]"
-          >
-            {[100, 300, 400, 500, 600, 700, 800, 900].map((w) => (
-              <option key={w} value={w}>{w}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Family">
-          <select
-            value={style.fontFamily ?? "system"}
-            onChange={(e) =>
-              patch({ fontFamily: e.target.value as TextStyle["fontFamily"] })
-            }
-            className="input-field h-7 text-[11px]"
-          >
-            <option value="system">System</option>
-            <option value="serif">Serif</option>
-            <option value="mono">Mono</option>
-            <option value="display">Display</option>
-          </select>
-        </Field>
-      </div>
-      <div className="flex items-center gap-1">
-        <ToggleChip
-          active={!!style.italic}
-          onClick={() => patch({ italic: !style.italic })}
-          label="Italic"
-        />
-        <ToggleChip
-          active={!!style.underline}
-          onClick={() => patch({ underline: !style.underline })}
-          label="Underline"
-        />
-        <select
-          value={style.transform ?? "none"}
-          onChange={(e) =>
-            patch({ transform: e.target.value as TextStyle["transform"] })
-          }
-          className="input-field h-7 text-[11px] flex-1"
-        >
-          <option value="none">Aa</option>
-          <option value="uppercase">AA</option>
-          <option value="lowercase">aa</option>
-          <option value="capitalize">Aa Bb</option>
-        </select>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Letter spacing">
-          <input
-            type="range"
-            min={-0.1}
-            max={0.5}
-            step={0.01}
-            value={style.letterSpacing ?? -0.02}
-            onChange={(e) => patch({ letterSpacing: Number(e.target.value) })}
-            className="w-full accent-blue-500 h-1.5"
-          />
-          <span className="text-[10px] text-neutral-500">
-            {(style.letterSpacing ?? -0.02).toFixed(2)}em
-          </span>
-        </Field>
-        <Field label="Line height">
-          <input
-            type="range"
-            min={0.8}
-            max={2}
-            step={0.05}
-            value={style.lineHeight ?? 1.05}
-            onChange={(e) => patch({ lineHeight: Number(e.target.value) })}
-            className="w-full accent-blue-500 h-1.5"
-          />
-          <span className="text-[10px] text-neutral-500">
-            {(style.lineHeight ?? 1.05).toFixed(2)}
-          </span>
-        </Field>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Stroke color">
-          <input
-            type="color"
-            value={style.strokeColor ?? "#000000"}
-            onChange={(e) => patch({ strokeColor: e.target.value })}
-            className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
-          />
-        </Field>
-        <Field label="Stroke width">
-          <input
-            type="range"
-            min={0}
-            max={10}
-            step={0.5}
-            value={style.strokeWidth ?? 0}
-            onChange={(e) => patch({ strokeWidth: Number(e.target.value) })}
-            className="w-full accent-blue-500 h-1.5"
-          />
-          <span className="text-[10px] text-neutral-500">
-            {style.strokeWidth ?? 0}px
-          </span>
-        </Field>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Glow color">
-          <input
-            type="color"
-            value={style.glowColor ?? "#ffffff"}
-            onChange={(e) => patch({ glowColor: e.target.value })}
-            className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
-          />
-        </Field>
-        <Field label="Opacity">
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={style.opacity ?? 1}
-            onChange={(e) => patch({ opacity: Number(e.target.value) })}
-            className="w-full accent-blue-500 h-1.5"
-          />
-          <span className="text-[10px] text-neutral-500">
-            {Math.round((style.opacity ?? 1) * 100)}%
-          </span>
-        </Field>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <Field label="BG color">
-          <input
-            type="color"
-            value={style.bgColor ?? "#000000"}
-            onChange={(e) => patch({ bgColor: e.target.value })}
-            className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
-          />
-        </Field>
-        <Field label="Padding">
-          <input
-            type="range"
-            min={0}
-            max={40}
-            step={2}
-            value={style.bgPadding ?? 8}
-            onChange={(e) => patch({ bgPadding: Number(e.target.value) })}
-            className="w-full accent-blue-500 h-1.5"
-          />
-          <span className="text-[10px] text-neutral-500">
-            {style.bgPadding ?? 8}px
-          </span>
-        </Field>
-        <Field label="Radius">
-          <input
-            type="range"
-            min={0}
-            max={40}
-            step={2}
-            value={style.bgRadius ?? 8}
-            onChange={(e) => patch({ bgRadius: Number(e.target.value) })}
-            className="w-full accent-blue-500 h-1.5"
-          />
-          <span className="text-[10px] text-neutral-500">
-            {style.bgRadius ?? 8}px
-          </span>
-        </Field>
-      </div>
-      {style.bgColor && (
-        <button
-          type="button"
-          onClick={() => patch({ bgColor: undefined })}
-          className="text-[10px] text-neutral-500 hover:text-red-400 underline decoration-dotted underline-offset-2"
-        >
-          Remove BG pill
-        </button>
-      )}
-    </div>
   );
 }
 

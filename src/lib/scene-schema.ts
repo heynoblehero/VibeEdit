@@ -1277,6 +1277,79 @@ export function defaultPlaceholderTextItem(opts?: {
   };
 }
 
+/**
+ * Convert legacy emphasisText / text / subtitleText fields into real
+ * free-positioned TextItems and clear the legacy slots. Idempotent —
+ * scenes with no legacy text return unchanged. Position approximates
+ * the legacy stacked layout starting at scene.textY (or y=360 default)
+ * with 110px increments per active slot.
+ */
+export function migrateLegacyTextToTextItems(scene: Scene): Scene {
+  const has = scene.emphasisText || scene.text || scene.subtitleText;
+  if (!has) return scene;
+  const items: TextItem[] = [...(scene.textItems ?? [])];
+  let yCursor = scene.textY ?? 360;
+  if (scene.emphasisText) {
+    items.push({
+      id: `t-${createId().slice(0, 6)}`,
+      content: scene.emphasisText,
+      x: 200,
+      y: yCursor,
+      fontSize: scene.emphasisSize ?? 96,
+      color: scene.emphasisColor ?? "#ffffff",
+      glowColor: scene.emphasisGlow,
+      align: scene.emphasisAlign ?? "left",
+      weight: 800,
+    });
+    yCursor += (scene.emphasisSize ?? 96) * 1.2;
+  }
+  if (scene.text) {
+    items.push({
+      id: `t-${createId().slice(0, 6)}`,
+      content: scene.text,
+      x: 200,
+      y: yCursor,
+      fontSize: scene.textSize ?? 64,
+      color: scene.textColor ?? "#cccccc",
+      align: scene.textAlign ?? "left",
+      weight: 600,
+    });
+    yCursor += (scene.textSize ?? 64) * 1.2;
+  }
+  if (scene.subtitleText) {
+    items.push({
+      id: `t-${createId().slice(0, 6)}`,
+      content: scene.subtitleText,
+      x: 200,
+      y: yCursor,
+      fontSize: 36,
+      color: scene.subtitleColor ?? "#aaaaaa",
+      align: scene.subtitleAlign ?? "left",
+      weight: 500,
+    });
+  }
+  return {
+    ...scene,
+    textItems: items,
+    emphasisText: undefined,
+    emphasisSize: undefined,
+    emphasisColor: undefined,
+    emphasisGlow: undefined,
+    emphasisStyle: undefined,
+    emphasisAlign: undefined,
+    text: undefined,
+    textSize: undefined,
+    textColor: undefined,
+    textY: undefined,
+    textAlign: undefined,
+    textStyle: undefined,
+    subtitleText: undefined,
+    subtitleColor: undefined,
+    subtitleAlign: undefined,
+    subtitleStyle: undefined,
+  };
+}
+
 export function sceneDurationFrames(scene: Scene, fps: number): number {
   return Math.round(scene.duration * fps);
 }

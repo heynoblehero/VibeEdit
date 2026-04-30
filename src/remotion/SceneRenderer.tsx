@@ -304,7 +304,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
       )}
       <SceneShapes shapes={s.shapes} width={frameW} height={frameH} />
       <BRollLayer brolls={s.broll} scene={s} />
-      <SceneTextItems items={s.textItems} />
+      <SceneTextItems items={s.textItems} frame={frame} sceneDurFrames={sceneDurFrames} />
       <ZoomPunch hitFrame={s.zoomPunch ? 0 : 9999} intensity={s.zoomPunch ?? 1.15}>
        {/* Secondary subtle zoom when emphasis text appears (frame 12)
            so the reveal feels punctuated without needing a full beat. */}

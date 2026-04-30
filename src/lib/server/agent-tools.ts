@@ -13,6 +13,7 @@ import {
   type Project,
   type Scene,
   type SceneBackground,
+  type TextItem,
   type ShotPlan,
   type ShotType,
   type CameraMove,
@@ -2929,11 +2930,15 @@ const TOOLS: Record<string, AgentTool> = {
     schema: {
       name: "setMotionPreset",
       description:
-        "Apply a named motion preset to a scene's element. element=text|emphasis|character|bg. Whole-scene presets: none|drift_up|drift_down|pulse|shake|ken_burns_in|ken_burns_out|parallax_slow|parallax_fast|bounce_in|fade_in_out|wobble. Bg-only entrance/exit/flip presets: slide_in_right|slide_in_left|slide_in_top|slide_in_bottom|slide_out_*|flip_x_180. For chaining multiple discrete phases (slide-in THEN shake THEN flip), prefer addMotionClip — one call per phase. setMotionPreset is best when you want a single effect across the whole scene.",
+        "Apply a named motion preset to a scene's element. element=text|emphasis|character|bg. Whole-scene presets: none|drift_up|drift_down|pulse|shake|ken_burns_in|ken_burns_out|parallax_slow|parallax_fast|bounce_in|fade_in_out|wobble. Bg-only entrance/exit/flip presets: slide_in_right|slide_in_left|slide_in_top|slide_in_bottom|slide_out_*|flip_x_180. To target a free-positioned text item, pass textItemId — element is ignored and the preset is set on that item. For chaining multiple discrete phases (slide-in THEN shake THEN flip), prefer addMotionClip — one call per phase. setMotionPreset is best when you want a single effect across the whole scene or item.",
       input_schema: {
         type: "object",
         properties: {
           sceneId: { type: "string" },
+          textItemId: {
+            type: "string",
+            description: "Optional. When set, applies the preset to the matching scene.textItems[] entry instead of the scene element. element is ignored.",
+          },
           element: { type: "string", enum: ["text", "emphasis", "character", "bg"] },
           preset: {
             type: "string",
@@ -2947,16 +2952,30 @@ const TOOLS: Record<string, AgentTool> = {
             ],
           },
         },
-        required: ["sceneId", "element", "preset"],
+        required: ["sceneId", "preset"],
       },
     },
     async execute(args, ctx) {
       const sceneId = resolveSceneId(args, ctx) ?? "";
       const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
       if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
-      const element = String(args.element);
       const preset = args.preset as MotionPreset;
       const scene = ctx.project.scenes[idx];
+      const textItemId = typeof args.textItemId === "string" ? args.textItemId : undefined;
+      if (textItemId) {
+        const items = scene.textItems ?? [];
+        const itemIdx = items.findIndex((it) => it.id === textItemId);
+        if (itemIdx < 0) return { ok: false, message: `no text item with id ${textItemId} on scene ${sceneId.slice(0, 6)}` };
+        const updatedItems = items.map((it, i) =>
+          i === itemIdx ? { ...it, motion: preset === "none" ? undefined : preset } : it,
+        );
+        ctx.project.scenes = ctx.project.scenes.map((s, i) =>
+          i === idx ? { ...s, textItems: updatedItems } : s,
+        );
+        return { ok: true, message: `text-item ${textItemId} motion = ${preset}` };
+      }
+      const element = String(args.element ?? "");
+      if (!element) return { ok: false, message: "element is required when textItemId is not set" };
       const updated: Scene = (() => {
         switch (element) {
           case "text":
@@ -2980,11 +2999,15 @@ const TOOLS: Record<string, AgentTool> = {
     schema: {
       name: "addKeyframe",
       description:
-        "Add or replace a keyframe on a scene's animatable property. Properties: textY, textOpacity, textScale, emphasisY, emphasisOpacity, emphasisScale, characterY, characterScale, bgScale, bgOffsetX, bgOffsetY, bgRotation, overlayOpacity. Replaces any existing keyframe at the same frame. For most multi-step animations (slide-in then shake then flip), prefer addMotionClip — one call per phase, self-contained. addKeyframe is for fine-grained custom motion no clip kind covers.",
+        "Add or replace a keyframe on a scene's animatable property. Scene properties: textY, textOpacity, textScale, emphasisY, emphasisOpacity, emphasisScale, characterY, characterScale, bgScale, bgOffsetX, bgOffsetY, bgRotation, overlayOpacity. To target a free-positioned text item, pass textItemId and use one of the item properties: itemOpacity, itemX, itemY, itemScale, itemRotation. Frame is item-local (0 = item start) when textItemId is set; otherwise scene-local. Replaces any existing keyframe at the same frame.",
       input_schema: {
         type: "object",
         properties: {
           sceneId: { type: "string" },
+          textItemId: {
+            type: "string",
+            description: "Optional. When set, the keyframe is added to the matching scene.textItems[] entry's keyframes (frame is item-local, property must be itemOpacity/itemX/itemY/itemScale/itemRotation).",
+          },
           property: {
             type: "string",
             enum: [
@@ -2993,6 +3016,7 @@ const TOOLS: Record<string, AgentTool> = {
               "characterY", "characterScale",
               "bgScale", "bgOffsetX", "bgOffsetY", "bgRotation",
               "overlayOpacity",
+              "itemOpacity", "itemX", "itemY", "itemScale", "itemRotation",
             ],
           },
           frame: { type: "number" },
@@ -3009,13 +3033,40 @@ const TOOLS: Record<string, AgentTool> = {
       const sceneId = resolveSceneId(args, ctx) ?? "";
       const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
       if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
-      const property = args.property as KeyframeProperty;
+      const propertyName = String(args.property);
       const kf: Keyframe = {
         frame: Math.max(0, Math.round(Number(args.frame))),
         value: Number(args.value),
         easing: args.easing as Easing | undefined,
       };
       const scene = ctx.project.scenes[idx];
+      const textItemId = typeof args.textItemId === "string" ? args.textItemId : undefined;
+      if (textItemId) {
+        const items = scene.textItems ?? [];
+        const itemIdx = items.findIndex((it) => it.id === textItemId);
+        if (itemIdx < 0) return { ok: false, message: `no text item with id ${textItemId} on scene ${sceneId.slice(0, 6)}` };
+        const itemProps = ["itemOpacity", "itemX", "itemY", "itemScale", "itemRotation"];
+        if (!itemProps.includes(propertyName)) {
+          return { ok: false, message: `property ${propertyName} not valid on a text item — use one of ${itemProps.join(", ")}` };
+        }
+        const item = items[itemIdx];
+        const existing = (item.keyframes?.[propertyName as keyof typeof item.keyframes] ?? []) as Keyframe[];
+        const filtered = existing.filter((k) => k.frame !== kf.frame);
+        const nextKfs = [...filtered, kf].sort((a, b) => a.frame - b.frame);
+        const updatedItems = items.map((it, i) =>
+          i === itemIdx
+            ? { ...it, keyframes: { ...(it.keyframes ?? {}), [propertyName]: nextKfs } }
+            : it,
+        );
+        ctx.project.scenes = ctx.project.scenes.map((s, i) =>
+          i === idx ? { ...s, textItems: updatedItems } : s,
+        );
+        return {
+          ok: true,
+          message: `keyframe on text-item ${textItemId.slice(0, 6)}: ${propertyName} @ frame ${kf.frame} = ${kf.value} (${args.easing ?? "linear"})`,
+        };
+      }
+      const property = propertyName as KeyframeProperty;
       const existing = scene.keyframes?.[property] ?? [];
       const filtered = existing.filter((k) => k.frame !== kf.frame);
       const next = [...filtered, kf].sort((a, b) => a.frame - b.frame);
@@ -3094,11 +3145,15 @@ const TOOLS: Record<string, AgentTool> = {
     schema: {
       name: "addMotionClip",
       description:
-        "Add a self-contained motion clip to a scene element. Each clip plays from startFrame for durationFrames frames. Multiple clips on the same element STACK (translate sums, rotation sums, scale multiplies, opacity multiplies). element kinds: bg | character | text | emphasis | subtitle | broll | scene. Use \"scene\" for whole-scene effects (everything zooms in / fades out together). Use \"broll\" with targetId set to a BRoll item's id to animate one specific overlay. Preferred for chaining phases — to express \"image slides in from right, shakes for 2s, flips 180°\", call this 3 times.",
+        "Add a self-contained motion clip to a scene element. Each clip plays from startFrame for durationFrames frames. Multiple clips on the same element STACK (translate sums, rotation sums, scale multiplies, opacity multiplies). element kinds: bg | character | text | emphasis | subtitle | broll | scene. Use \"scene\" for whole-scene effects (everything zooms in / fades out together). Use \"broll\" with targetId set to a BRoll item's id to animate one specific overlay. To target a free-positioned text item, set textItemId — element is ignored and startFrame is item-local (0 = item start). Preferred for chaining phases — to express \"text slides in from right, shakes for 2s, flips 180°\", call this 3 times with textItemId set.",
       input_schema: {
         type: "object",
         properties: {
           sceneId: { type: "string" },
+          textItemId: {
+            type: "string",
+            description: "Optional. When set, the clip is added to the matching scene.textItems[] entry; element is ignored and startFrame is item-local.",
+          },
           element: {
             type: "string",
             enum: ["bg", "character", "text", "emphasis", "subtitle", "broll", "scene"],
@@ -3118,12 +3173,12 @@ const TOOLS: Record<string, AgentTool> = {
               "flip_x_180", "flip_y_180", "spin_360",
             ],
           },
-          startFrame: { type: "number", description: "Frame the clip starts at, relative to scene start." },
+          startFrame: { type: "number", description: "Frame the clip starts at. Scene-local for scene elements, item-local (0 = item start) when textItemId is set." },
           durationFrames: { type: "number", description: "How many frames the clip plays for." },
           intensity: { type: "number", description: "Optional. shake amplitude (px, default 6); pulse scale jitter (default 0.06); wobble degrees (default 2)." },
           degrees: { type: "number", description: "Optional override for flip / spin rotation amount in degrees." },
         },
-        required: ["sceneId", "element", "kind", "startFrame", "durationFrames"],
+        required: ["sceneId", "kind", "startFrame", "durationFrames"],
       },
     },
     async execute(args, ctx) {
@@ -3131,9 +3186,11 @@ const TOOLS: Record<string, AgentTool> = {
       const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
       if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
       const targetId = typeof args.targetId === "string" && args.targetId ? args.targetId : undefined;
+      const textItemId = typeof args.textItemId === "string" && args.textItemId ? args.textItemId : undefined;
+      const scene = ctx.project.scenes[idx];
       const clip: MotionClip = {
         id: `clip-${createId().slice(-8)}`,
-        element: args.element as MotionClipElement,
+        element: textItemId ? "scene" : (args.element as MotionClipElement),
         kind: args.kind as MotionClipKind,
         startFrame: Math.max(0, Math.round(Number(args.startFrame))),
         durationFrames: Math.max(1, Math.round(Number(args.durationFrames))),
@@ -3141,7 +3198,24 @@ const TOOLS: Record<string, AgentTool> = {
         degrees: typeof args.degrees === "number" ? Number(args.degrees) : undefined,
         targetId,
       };
-      const scene = ctx.project.scenes[idx];
+      if (textItemId) {
+        const items = scene.textItems ?? [];
+        const itemIdx = items.findIndex((it) => it.id === textItemId);
+        if (itemIdx < 0) return { ok: false, message: `no text item with id ${textItemId} on scene ${sceneId.slice(0, 6)}` };
+        const updatedItems = items.map((it, i) =>
+          i === itemIdx
+            ? { ...it, motionClips: [...(it.motionClips ?? []), clip] }
+            : it,
+        );
+        ctx.project.scenes = ctx.project.scenes.map((s, i) =>
+          i === idx ? { ...s, textItems: updatedItems } : s,
+        );
+        return {
+          ok: true,
+          message: `motion clip ${clip.kind} on text-item ${textItemId.slice(0, 6)}: ${clip.startFrame}f → ${clip.startFrame + clip.durationFrames}f (id ${clip.id})`,
+        };
+      }
+      if (!args.element) return { ok: false, message: "element is required when textItemId is not set" };
       const updated: Scene = {
         ...scene,
         motionClips: [...(scene.motionClips ?? []), clip],
@@ -3224,6 +3298,143 @@ const TOOLS: Record<string, AgentTool> = {
           "  addMotionClip(scene, broll, shake, 30, 60, targetId=<brollId>)",
         ].join("\n"),
       };
+    },
+  },
+
+  addTextItem: {
+    schema: {
+      name: "addTextItem",
+      description:
+        "Add a free-positioned text item to a scene. Like the +Add Text picker in the editor — produces an independent layer with its own position, font, color and animation. Returns the new item's id, which other tools (addMotionClip, addKeyframe, setMotionPreset, updateTextItem) can use to target it. Defaults: startFrame=0, durationFrames=full scene, weight=800, align=left, fontSize=96, color=#ffffff.",
+      input_schema: {
+        type: "object",
+        properties: {
+          sceneId: { type: "string" },
+          content: { type: "string" },
+          x: { type: "number", description: "Top-left X in canvas coords. Default 200." },
+          y: { type: "number", description: "Top-left Y in canvas coords. Default 400." },
+          fontSize: { type: "number", description: "Default 96." },
+          color: { type: "string", description: "Hex color. Default #ffffff." },
+          align: { type: "string", enum: ["left", "center", "right"] },
+          fontFamily: { type: "string", enum: ["system", "serif", "mono", "display"] },
+          weight: { type: "number", description: "100-900, default 800." },
+          startFrame: { type: "number", description: "Scene frame the item appears. Default 0." },
+          durationFrames: { type: "number", description: "How long the item is on screen. Default = rest of scene." },
+        },
+        required: ["sceneId", "content"],
+      },
+    },
+    async execute(args, ctx) {
+      const sceneId = resolveSceneId(args, ctx) ?? "";
+      const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
+      if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
+      const scene = ctx.project.scenes[idx];
+      const sceneDurFrames = Math.max(1, Math.round(scene.duration * ctx.project.fps));
+      const start = typeof args.startFrame === "number" ? Math.max(0, Math.round(Number(args.startFrame))) : 0;
+      const dur = typeof args.durationFrames === "number"
+        ? Math.max(1, Math.round(Number(args.durationFrames)))
+        : Math.max(1, sceneDurFrames - start);
+      const id = `t-${createId().slice(-8)}`;
+      const item: TextItem = {
+        id,
+        content: String(args.content),
+        x: typeof args.x === "number" ? Number(args.x) : 200,
+        y: typeof args.y === "number" ? Number(args.y) : 400,
+        fontSize: typeof args.fontSize === "number" ? Number(args.fontSize) : 96,
+        color: typeof args.color === "string" ? String(args.color) : "#ffffff",
+        align: (args.align as TextItem["align"]) ?? "left",
+        fontFamily: (args.fontFamily as TextItem["fontFamily"]) ?? undefined,
+        weight: typeof args.weight === "number" ? Number(args.weight) : 800,
+        startFrame: start,
+        durationFrames: dur,
+      };
+      const updatedItems = [...(scene.textItems ?? []), item];
+      ctx.project.scenes = ctx.project.scenes.map((s, i) =>
+        i === idx ? { ...s, textItems: updatedItems } : s,
+      );
+      return {
+        ok: true,
+        message: `added text item ${id} to scene ${sceneId.slice(0, 6)}: "${item.content.slice(0, 32)}" @ (${item.x},${item.y})`,
+      };
+    },
+  },
+
+  updateTextItem: {
+    schema: {
+      name: "updateTextItem",
+      description:
+        "Patch fields on a free-positioned text item. Pass any subset of TextItem fields — content, x, y, w, fontSize, color, align, rotation, fontFamily, weight, italic, underline, letterSpacing, lineHeight, transform, strokeColor, strokeWidth, glowColor, opacity, bgColor, bgPadding, bgRadius, startFrame, durationFrames, outlineColor, outlineWidth, shadow, enterMotion, exitMotion, enterDurationFrames, exitDurationFrames, fadeInFrames, fadeOutFrames, motion. Use this for static-style changes; for adding motion clips/keyframes, use addMotionClip/addKeyframe with textItemId.",
+      input_schema: {
+        type: "object",
+        properties: {
+          sceneId: { type: "string" },
+          textItemId: { type: "string" },
+          patch: {
+            type: "object",
+            description: "TextItem fields to merge in. Set a value to null to clear the field.",
+          },
+        },
+        required: ["sceneId", "textItemId", "patch"],
+      },
+    },
+    async execute(args, ctx) {
+      const sceneId = resolveSceneId(args, ctx) ?? "";
+      const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
+      if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
+      const scene = ctx.project.scenes[idx];
+      const items = scene.textItems ?? [];
+      const itemIdx = items.findIndex((it) => it.id === args.textItemId);
+      if (itemIdx < 0) return { ok: false, message: `no text item with id ${args.textItemId} on scene ${sceneId.slice(0, 6)}` };
+      const patch = (args.patch ?? {}) as Record<string, unknown>;
+      // Drop the id key — never let a patch rewrite the item's identity.
+      delete patch.id;
+      const mergedRecord = { ...items[itemIdx] } as unknown as Record<string, unknown>;
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === null) {
+          delete mergedRecord[key];
+        } else {
+          mergedRecord[key] = value;
+        }
+      }
+      const merged = mergedRecord as unknown as TextItem;
+      const updatedItems = items.map((it, i) => (i === itemIdx ? merged : it));
+      ctx.project.scenes = ctx.project.scenes.map((s, i) =>
+        i === idx ? { ...s, textItems: updatedItems } : s,
+      );
+      return {
+        ok: true,
+        message: `patched text item ${args.textItemId} on scene ${sceneId.slice(0, 6)}: ${Object.keys(patch).join(", ")}`,
+      };
+    },
+  },
+
+  removeTextItem: {
+    schema: {
+      name: "removeTextItem",
+      description: "Remove a text item from a scene by id.",
+      input_schema: {
+        type: "object",
+        properties: {
+          sceneId: { type: "string" },
+          textItemId: { type: "string" },
+        },
+        required: ["sceneId", "textItemId"],
+      },
+    },
+    async execute(args, ctx) {
+      const sceneId = resolveSceneId(args, ctx) ?? "";
+      const idx = ctx.project.scenes.findIndex((s) => s.id === sceneId);
+      if (idx < 0) return { ok: false, message: `no scene with id ${sceneId}` };
+      const scene = ctx.project.scenes[idx];
+      const before = scene.textItems?.length ?? 0;
+      const next = (scene.textItems ?? []).filter((it) => it.id !== args.textItemId);
+      if (next.length === before) {
+        return { ok: false, message: `no text item with id ${args.textItemId} on scene ${sceneId.slice(0, 6)}` };
+      }
+      ctx.project.scenes = ctx.project.scenes.map((s, i) =>
+        i === idx ? { ...s, textItems: next.length > 0 ? next : undefined } : s,
+      );
+      return { ok: true, message: `removed text item ${args.textItemId}` };
     },
   },
 

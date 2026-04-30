@@ -127,6 +127,7 @@ function FrameProperties({
   workflowSceneActions: any[] | undefined;
 }) {
   const addUpload = useProjectStore((s) => s.addUpload);
+  const projectFps = useProjectStore((s) => s.project.fps);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const setSelectedLayerId = useEditorStore((s) => s.setSelectedLayerId);
 
@@ -141,6 +142,8 @@ function FrameProperties({
       color: "#ffffff",
       weight: 800,
       align: "left",
+      startFrame: 0,
+      durationFrames: Math.max(1, Math.round(scene.duration * projectFps)),
     };
     update({ textItems: [...(scene.textItems ?? []), next] });
     setSelectedLayerId(`text-item:${id}`);
@@ -1089,6 +1092,10 @@ function TextItemPanel({
           </span>
         </Field>
       </div>
+      <TextItemTimingSection item={item} sceneDuration={scene.duration} patch={patch} />
+      <TextItemOutlineShadowSection item={item} patch={patch} />
+      <TextItemTransitionSection item={item} patch={patch} />
+      <TextItemAnimationSection item={item} patch={patch} />
       <details className="rounded border border-neutral-800 bg-neutral-950/40">
         <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
           Stroke & glow
@@ -1181,6 +1188,275 @@ function TextItemPanel({
         Remove text item
       </button>
     </div>
+  );
+}
+
+const TEXT_ITEM_ENTER_KINDS: Array<TextItem["enterMotion"]> = [
+  undefined,
+  "fade_in",
+  "slide_in_left",
+  "slide_in_right",
+  "slide_in_top",
+  "slide_in_bottom",
+  "zoom_in",
+  "pulse",
+];
+
+const TEXT_ITEM_EXIT_KINDS: Array<TextItem["exitMotion"]> = [
+  undefined,
+  "fade_out",
+  "slide_out_left",
+  "slide_out_right",
+  "slide_out_top",
+  "slide_out_bottom",
+  "zoom_out",
+];
+
+function TextItemTimingSection({
+  item,
+  sceneDuration,
+  patch,
+}: {
+  item: TextItem;
+  sceneDuration: number;
+  patch: (p: Partial<TextItem>) => void;
+}) {
+  const fps = useProjectStore((s) => s.project.fps);
+  const sceneFrames = Math.max(1, Math.round(sceneDuration * fps));
+  const start = item.startFrame ?? 0;
+  const dur = item.durationFrames ?? sceneFrames - start;
+  return (
+    <details className="rounded border border-neutral-800 bg-neutral-950/40" open>
+      <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
+        Timing
+      </summary>
+      <div className="px-3 pb-3 pt-1 space-y-2">
+        <Field label={`Start frame (0–${sceneFrames})`}>
+          <input
+            type="range"
+            min={0}
+            max={sceneFrames}
+            step={1}
+            value={start}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              const maxDur = Math.max(1, sceneFrames - v);
+              patch({
+                startFrame: v,
+                durationFrames: Math.min(dur, maxDur),
+              });
+            }}
+            className="w-full accent-emerald-500 h-1.5"
+          />
+          <span className="text-[10px] text-neutral-500">
+            {start}f ({(start / fps).toFixed(2)}s)
+          </span>
+        </Field>
+        <Field label="Duration (frames)">
+          <input
+            type="range"
+            min={1}
+            max={Math.max(1, sceneFrames - start)}
+            step={1}
+            value={dur}
+            onChange={(e) => patch({ durationFrames: Number(e.target.value) })}
+            className="w-full accent-emerald-500 h-1.5"
+          />
+          <span className="text-[10px] text-neutral-500">
+            {dur}f ({(dur / fps).toFixed(2)}s)
+          </span>
+        </Field>
+      </div>
+    </details>
+  );
+}
+
+function TextItemOutlineShadowSection({
+  item,
+  patch,
+}: {
+  item: TextItem;
+  patch: (p: Partial<TextItem>) => void;
+}) {
+  return (
+    <details className="rounded border border-neutral-800 bg-neutral-950/40">
+      <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
+        Outline & shadow
+      </summary>
+      <div className="px-3 pb-3 pt-1 space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Outline color">
+            <input
+              type="color"
+              value={item.outlineColor ?? "#ffffff"}
+              onChange={(e) => patch({ outlineColor: e.target.value })}
+              className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+            />
+          </Field>
+          <Field label="Outline width">
+            <input
+              type="range"
+              min={0}
+              max={20}
+              step={1}
+              value={item.outlineWidth ?? 0}
+              onChange={(e) => patch({ outlineWidth: Number(e.target.value) })}
+              className="w-full accent-blue-500 h-1.5"
+            />
+            <span className="text-[10px] text-neutral-500">
+              {item.outlineWidth ?? 0}px
+            </span>
+          </Field>
+        </div>
+        <ShadowControls
+          shadow={item.shadow}
+          onChange={(s) => patch({ shadow: s })}
+        />
+      </div>
+    </details>
+  );
+}
+
+function TextItemTransitionSection({
+  item,
+  patch,
+}: {
+  item: TextItem;
+  patch: (p: Partial<TextItem>) => void;
+}) {
+  return (
+    <details className="rounded border border-neutral-800 bg-neutral-950/40">
+      <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
+        Transition (enter / exit)
+      </summary>
+      <div className="px-3 pb-3 pt-1 space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Enter">
+            <select
+              value={item.enterMotion ?? ""}
+              onChange={(e) =>
+                patch({
+                  enterMotion: (e.target.value || undefined) as TextItem["enterMotion"],
+                })
+              }
+              className="input-field w-full text-[11px] py-1"
+            >
+              {TEXT_ITEM_ENTER_KINDS.map((k) => (
+                <option key={k ?? "none"} value={k ?? ""}>
+                  {k ? k.replace(/_/g, " ") : "none"}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Enter duration (f)">
+            <input
+              type="number"
+              min={1}
+              value={item.enterDurationFrames ?? 12}
+              onChange={(e) =>
+                patch({ enterDurationFrames: Number(e.target.value) })
+              }
+              className="input-field w-full text-[11px] py-1"
+            />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Exit">
+            <select
+              value={item.exitMotion ?? ""}
+              onChange={(e) =>
+                patch({
+                  exitMotion: (e.target.value || undefined) as TextItem["exitMotion"],
+                })
+              }
+              className="input-field w-full text-[11px] py-1"
+            >
+              {TEXT_ITEM_EXIT_KINDS.map((k) => (
+                <option key={k ?? "none"} value={k ?? ""}>
+                  {k ? k.replace(/_/g, " ") : "none"}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Exit duration (f)">
+            <input
+              type="number"
+              min={1}
+              value={item.exitDurationFrames ?? 12}
+              onChange={(e) =>
+                patch({ exitDurationFrames: Number(e.target.value) })
+              }
+              className="input-field w-full text-[11px] py-1"
+            />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Fade in (f)">
+            <input
+              type="number"
+              min={0}
+              value={item.fadeInFrames ?? 0}
+              onChange={(e) => patch({ fadeInFrames: Number(e.target.value) })}
+              className="input-field w-full text-[11px] py-1"
+            />
+          </Field>
+          <Field label="Fade out (f)">
+            <input
+              type="number"
+              min={0}
+              value={item.fadeOutFrames ?? 0}
+              onChange={(e) => patch({ fadeOutFrames: Number(e.target.value) })}
+              className="input-field w-full text-[11px] py-1"
+            />
+          </Field>
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function TextItemAnimationSection({
+  item,
+  patch,
+}: {
+  item: TextItem;
+  patch: (p: Partial<TextItem>) => void;
+}) {
+  const setEditTarget = useEditorStore((s) => s.setEditTarget);
+  const clipCount = item.motionClips?.length ?? 0;
+  const kfCount = Object.values(item.keyframes ?? {}).reduce(
+    (acc, arr) => acc + (arr?.length ?? 0),
+    0,
+  );
+  return (
+    <details className="rounded border border-neutral-800 bg-neutral-950/40">
+      <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
+        Animation
+      </summary>
+      <div className="px-3 pb-3 pt-1 space-y-2">
+        <MotionPresetField
+          label="Motion preset"
+          value={item.motion}
+          onChange={(v) => patch({ motion: v })}
+        />
+        <div className="flex items-center gap-2 text-[10px] text-neutral-500">
+          <span>Motion clips: {clipCount}</span>
+          <span className="opacity-40">·</span>
+          <span>Keyframes: {kfCount}</span>
+          <button
+            type="button"
+            onClick={() => setEditTarget("keyframes")}
+            className="ml-auto text-[10px] text-emerald-400 hover:text-emerald-300 underline decoration-dotted"
+          >
+            Open keyframes
+          </button>
+        </div>
+        <p className="text-[10px] text-neutral-600 leading-snug">
+          Use the chat agent to add motion clips on this item — pass the
+          item id with addMotionClip / addKeyframe.
+        </p>
+      </div>
+    </details>
   );
 }
 

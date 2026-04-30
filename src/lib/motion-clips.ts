@@ -16,7 +16,18 @@
  *   3. (Optional) Document the kind's `intensity` / `degrees` semantics.
  */
 
-import type { MotionClip, MotionClipElement, Scene } from "./scene-schema";
+import { evaluateKeyframes } from "./anim";
+import { MOTION_PRESETS } from "./motion-presets";
+import type {
+  MotionClip,
+  MotionClipElement,
+  MotionClipKind,
+  MotionPreset,
+  Scene,
+  TextItem,
+  TextItemEnterKind,
+  TextItemExitKind,
+} from "./scene-schema";
 
 /** Off-screen sentinel for slide_in/out — a tiny bit beyond a typical
  *  1080-tall / 1920-wide frame so the clip is genuinely out of view at
@@ -172,4 +183,197 @@ export function resolveClipsForElement(
     out.opacity *= partial.opacity;
   }
   return out;
+}
+
+/**
+ * Build synthetic MotionClips for a text item's enter / exit / fade
+ * settings. Returns 0–4 clips anchored at the item's startFrame and
+ * its end (startFrame + durationFrames). Synthetic clips never get
+ * persisted — they're materialised every frame.
+ */
+function synthEnterExitClips(item: TextItem, itemStart: number, itemDur: number): MotionClip[] {
+  const out: MotionClip[] = [];
+  const enterDur = Math.max(1, item.enterDurationFrames ?? 12);
+  const exitDur = Math.max(1, item.exitDurationFrames ?? 12);
+  if (item.enterMotion) {
+    out.push({
+      id: `_enter`,
+      element: "scene",
+      kind: item.enterMotion as MotionClipKind,
+      startFrame: itemStart,
+      durationFrames: Math.min(enterDur, itemDur),
+    });
+  }
+  if (item.exitMotion) {
+    out.push({
+      id: `_exit`,
+      element: "scene",
+      kind: item.exitMotion as MotionClipKind,
+      startFrame: itemStart + Math.max(0, itemDur - exitDur),
+      durationFrames: Math.min(exitDur, itemDur),
+    });
+  }
+  if (item.fadeInFrames && item.fadeInFrames > 0) {
+    out.push({
+      id: `_fade_in`,
+      element: "scene",
+      kind: "fade_in",
+      startFrame: itemStart,
+      durationFrames: Math.min(item.fadeInFrames, itemDur),
+    });
+  }
+  if (item.fadeOutFrames && item.fadeOutFrames > 0) {
+    out.push({
+      id: `_fade_out`,
+      element: "scene",
+      kind: "fade_out",
+      startFrame: itemStart + Math.max(0, itemDur - item.fadeOutFrames),
+      durationFrames: Math.min(item.fadeOutFrames, itemDur),
+    });
+  }
+  return out;
+}
+
+/**
+ * Map a MotionPreset to which transform component it drives. Presets
+ * are single-axis (drift_up → ty, pulse → scale, etc.) — see
+ * motion-presets.ts for the value semantics behind each one.
+ */
+type PresetTarget = "tx" | "ty" | "scale" | "opacity" | "rotation";
+
+function presetTarget(name: MotionPreset): PresetTarget {
+  switch (name) {
+    case "drift_up":
+    case "drift_down":
+    case "slide_in_top":
+    case "slide_in_bottom":
+    case "slide_out_top":
+    case "slide_out_bottom":
+      return "ty";
+    case "shake":
+    case "parallax_slow":
+    case "parallax_fast":
+    case "slide_in_left":
+    case "slide_in_right":
+    case "slide_out_left":
+    case "slide_out_right":
+      return "tx";
+    case "pulse":
+    case "ken_burns_in":
+    case "ken_burns_out":
+    case "bounce_in":
+      return "scale";
+    case "fade_in_out":
+      return "opacity";
+    case "wobble":
+    case "flip_x_180":
+      return "rotation";
+    case "none":
+      return "tx";
+  }
+}
+
+function applyMotionPreset(
+  out: ResolvedTransform,
+  preset: MotionPreset,
+  itemDur: number,
+  localFrame: number,
+): void {
+  if (preset === "none") return;
+  const generator = MOTION_PRESETS[preset];
+  if (!generator) return;
+  const kfs = generator(itemDur);
+  if (kfs.length === 0) return;
+  const value = evaluateKeyframes(localFrame, kfs);
+  switch (presetTarget(preset)) {
+    case "tx":
+      out.tx += value;
+      break;
+    case "ty":
+      out.ty += value;
+      break;
+    case "scale":
+      out.scale *= value;
+      break;
+    case "opacity":
+      out.opacity *= value;
+      break;
+    case "rotation":
+      out.rotation += value;
+      break;
+  }
+}
+
+/**
+ * Resolve all animation contributions for a text item at the current
+ * scene frame. Stacks (in order):
+ *   1. Synthetic enter/exit/fade clips
+ *   2. Named motion preset (drift_up, pulse, …)
+ *   3. User-authored motionClips on the item
+ *   4. Per-property keyframes (item-local frame)
+ */
+export function resolveClipsForTextItem(
+  item: TextItem,
+  sceneFrame: number,
+  sceneDurFrames: number,
+): ResolvedTransform {
+  const itemStart = item.startFrame ?? 0;
+  const itemDur = Math.max(1, item.durationFrames ?? sceneDurFrames - itemStart);
+  const out: ResolvedTransform = { ...IDENTITY };
+  const localFrame = sceneFrame - itemStart;
+
+  // 1. Synthetic enter/exit/fade clips.
+  for (const clip of synthEnterExitClips(item, itemStart, itemDur)) {
+    if (clip.durationFrames <= 0) continue;
+    const local = sceneFrame - clip.startFrame;
+    if (local < 0 || local > clip.durationFrames) continue;
+    const t = local / clip.durationFrames;
+    const partial = applyClipKind(clip, t);
+    out.tx += partial.tx;
+    out.ty += partial.ty;
+    out.scale *= partial.scale;
+    out.rotation += partial.rotation;
+    out.opacity *= partial.opacity;
+  }
+
+  // 2. Motion preset.
+  if (item.motion) applyMotionPreset(out, item.motion, itemDur, localFrame);
+
+  // 3. User-authored motion clips. Their startFrame is item-local
+  //    (mirrors how the agent thinks: "shake at frame 30" = 30 frames
+  //    after the item appears).
+  for (const clip of item.motionClips ?? []) {
+    if (clip.durationFrames <= 0) continue;
+    const local = localFrame - clip.startFrame;
+    if (local < 0 || local > clip.durationFrames) continue;
+    const t = local / clip.durationFrames;
+    const partial = applyClipKind(clip, t);
+    out.tx += partial.tx;
+    out.ty += partial.ty;
+    out.scale *= partial.scale;
+    out.rotation += partial.rotation;
+    out.opacity *= partial.opacity;
+  }
+
+  // 4. Per-property keyframes. Item-local frames.
+  if (item.keyframes) {
+    const kfs = item.keyframes;
+    if (kfs.itemOpacity?.length) out.opacity *= evaluateKeyframes(localFrame, kfs.itemOpacity);
+    if (kfs.itemX?.length) out.tx += evaluateKeyframes(localFrame, kfs.itemX);
+    if (kfs.itemY?.length) out.ty += evaluateKeyframes(localFrame, kfs.itemY);
+    if (kfs.itemScale?.length) out.scale *= evaluateKeyframes(localFrame, kfs.itemScale);
+    if (kfs.itemRotation?.length) out.rotation += evaluateKeyframes(localFrame, kfs.itemRotation);
+  }
+
+  return out;
+}
+
+/**
+ * Whether the item is on screen at the given scene frame. Used by the
+ * renderer to skip painting outside the item's window.
+ */
+export function isTextItemActive(item: TextItem, sceneFrame: number, sceneDurFrames: number): boolean {
+  const start = item.startFrame ?? 0;
+  const dur = Math.max(1, item.durationFrames ?? sceneDurFrames - start);
+  return sceneFrame >= start && sceneFrame <= start + dur;
 }

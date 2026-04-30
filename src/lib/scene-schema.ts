@@ -115,6 +115,35 @@ export interface TextStyle {
 }
 
 /**
+ * Entrance / exit motion kinds available on a TextItem. Subset of
+ * MotionClipKind — the kinds that read as "appear" or "leave".
+ */
+export type TextItemEnterKind =
+  | "fade_in"
+  | "slide_in_left"
+  | "slide_in_right"
+  | "slide_in_top"
+  | "slide_in_bottom"
+  | "zoom_in"
+  | "pulse";
+
+export type TextItemExitKind =
+  | "fade_out"
+  | "slide_out_left"
+  | "slide_out_right"
+  | "slide_out_top"
+  | "slide_out_bottom"
+  | "zoom_out";
+
+/** Per-item keyframe property names. Item-local frame (0 = item start). */
+export type TextItemKeyframeProperty =
+  | "itemOpacity"
+  | "itemX"
+  | "itemY"
+  | "itemScale"
+  | "itemRotation";
+
+/**
  * A free-positioned text item painted on top of the scene. Distinct
  * from the legacy text/emphasisText/subtitleText slots — those are
  * scene-level properties baked into PunchText with motion presets,
@@ -148,6 +177,48 @@ export interface TextItem {
   bgColor?: string;
   bgPadding?: number;
   bgRadius?: number;
+
+  /**
+   * Item's window on the scene timeline. Frames are scene-local
+   * (0 = scene start). Defaults: 0 → end of scene. Outside this
+   * window the item is not painted.
+   */
+  startFrame?: number;
+  durationFrames?: number;
+
+  /** Frame-style outline + box drop-shadow on the item's bounding box. */
+  outlineColor?: string;
+  outlineWidth?: number;
+  shadow?: FrameShadow;
+
+  /**
+   * Paired entrance + exit motion + optional fade frames. Compiled
+   * into synthetic motion clips at render time so the resolver
+   * handles them with the same logic as motionClips.
+   */
+  enterMotion?: TextItemEnterKind;
+  exitMotion?: TextItemExitKind;
+  enterDurationFrames?: number;
+  exitDurationFrames?: number;
+  fadeInFrames?: number;
+  fadeOutFrames?: number;
+
+  /**
+   * Lightweight named motion. Same surface as Scene.emphasisMotion;
+   * compiles to keyframes at render time via motion-presets.ts.
+   * Maps to a single transform component (tx / ty / scale / rotation /
+   * opacity) based on the preset's semantics.
+   */
+  motion?: MotionPreset;
+
+  /**
+   * Free motion clips on the item itself. The clip's `element` field
+   * is ignored — these always resolve against this item.
+   */
+  motionClips?: MotionClip[];
+
+  /** Per-property keyframes. Frames are item-local (0 = item start). */
+  keyframes?: Partial<Record<TextItemKeyframeProperty, Keyframe[]>>;
 }
 
 export interface StylePreset {

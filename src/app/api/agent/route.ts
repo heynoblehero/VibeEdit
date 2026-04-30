@@ -203,6 +203,7 @@ CORE LOOP (do this every meaningful turn):
    - **PREFER nudgeScene FOR RELATIVE TWEAKS.** When the user says "move text up 20px", "shrink character a bit", "nudge image 50px right", call **nudgeScene** instead of updateScene + computing absolute values. Pass deltas like {textY: -20} or {characterScale: 0.85}. Cleaner than reading the current value first.
    - **ANIMATIONS WITHOUT CONTENT ARE INVISIBLE.** addKeyframe / setMotionPreset / addMotionClip animate a property — they do NOT create the underlying field. If the user asks for "animated text saying X", you MUST first call updateScene with the "text" or "emphasisText" field set to the actual words, THEN add motion on top. NEVER call addKeyframe alone after a text request and report success — the property animates from undefined to undefined and renders nothing. Same rule for character motion (set characterUrl/characterId first), image motion (set background.imageUrl first), etc. Self-verify: after the turn, the scene's emphasisText / text / subtitleText must be a non-empty string when the user asked for text.
    - **PREFER addMotionClip FOR CHAINED ANIMATION PHASES.** When the user describes multiple discrete motion phases ("slide in from right, then shake for 2s, then flip 180°"), call **addMotionClip** once per phase. Each clip is a self-contained segment with its own startFrame + durationFrames; they STACK on the same element (translate sums, rotation sums, scale multiplies). Three calls instead of choreographing 8 keyframes by hand. Element targets are now end-to-end: **bg | character | text | emphasis | subtitle | broll | scene**. Use element=scene for whole-scene moves ("everything zooms in", "fade the whole scene out"). Use element=broll with targetId set to a BRoll item's id to animate one specific upload overlay. Available kinds: slide_in_*, slide_out_*, fade_in/out, zoom_in/out, shake, wobble, pulse, flip_x_180, flip_y_180, spin_360. Use **listMotionClipKinds** to discover.
+   - **TEXT ITEMS HAVE THE SAME ANIMATION SURFACE AS A FRAME.** A scene's free-positioned text items (scene.textItems[]) support outline, drop shadow, motion preset, motion clips, per-property keyframes, entrance/exit motion, and per-item start/duration. To animate one, pass **textItemId** to addMotionClip / addKeyframe / setMotionPreset — the call routes to that item instead of a scene element. addKeyframe properties for items: itemOpacity, itemX, itemY, itemScale, itemRotation (frame is item-local, 0 = item start). To create one, call **addTextItem** (defaults: full-scene span, weight 800, fontSize 96). updateTextItem patches static fields. Static styling (outline, shadow, enter/exit motion, fade frames) goes through updateTextItem with the matching field name; e.g. patch={enterMotion:"slide_in_left", outlineColor:"#fff", outlineWidth:2, shadow:{color:"#000",blur:24,x:0,y:12,opacity:0.6}}.
    - **WHEN THE USER SAYS "IT'S NOT CHANGING".** Trust them — the rendered preview is the source of truth, not your patched-field reasoning. Call **inspectScene** on the target scene and look at: (1) any active motionClips on the same element you're trying to change (a slide_out + fade_in on bg can hide a fresh background.color), (2) keyframes on related properties, (3) whether the field you patched is the one actually rendered (e.g. bg color is letterbox space when the image is contain-fitted — if the image fills the frame on this aspect, the bg color is invisible). If you find stale clips/keyframes, REMOVE them with removeMotionClip / clearKeyframes BEFORE retrying the static change. Don't repeat the same updateScene call hoping it sticks — diagnose first.
    - **WHEN updateScene REJECTS WITH [invalid-patch].** If you see fields like backgroundColor, backgroundImageUrl, or backgroundCameraMove rejected — those are createScene-only flat aliases. updateScene now auto-bridges most of them, but if it doesn't, retry with the nested form: patch.background.color, patch.background.imageUrl, patch.background.cameraMove — NOT a top-level backgroundColor.
    - **READ THE LIVE INTENT SIGNALS.** Each turn ships LIVE INTENT SIGNALS in a system block: which scene the user is watching/playing, what they have selected (single or multi), what layer/item they clicked, and any uploads they've dropped but not placed yet (pendingUploads). Use these to resolve ambiguous pronouns ("this", "these", "the text") to specific scenes/items WITHOUT a clarifying question. If pendingUploads is non-empty, REACH FOR THOSE before regenerating fresh media — the user dropped them for a reason.
@@ -643,6 +644,9 @@ export async function POST(request: NextRequest) {
         "generateAvatarForScene",
         "prepareUploadForScene",
         "applyStylePresetToScene",
+        "addTextItem",
+        "updateTextItem",
+        "removeTextItem",
       ]);
       // Action-registry names that mutate the visible frame.
       const VISUAL_MUTATING_ACTIONS = new Set([
@@ -1092,6 +1096,9 @@ export async function POST(request: NextRequest) {
               "setBroll",
               "extendScene",
               "trimScene",
+              "addTextItem",
+              "updateTextItem",
+              "removeTextItem",
             ]);
             if (sceneMutatingTools.has(toolName)) {
               const sceneIdArg =

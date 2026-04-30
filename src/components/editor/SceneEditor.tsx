@@ -971,38 +971,45 @@ function TextItemPanel({
   };
   return (
     <div className="space-y-3">
-      <Field label="Content">
+      <Section title="Content">
         <textarea
           value={item.content}
           onChange={(e) => patch({ content: e.target.value })}
           rows={2}
           className="input-field w-full text-[11px] py-1 resize-none"
         />
-      </Field>
-      <TextItemTimingSection item={item} sceneDuration={scene.duration} patch={patch} />
-      <details className="rounded border border-neutral-800 bg-neutral-950/40" open>
-        <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
-          Position & size
-        </summary>
-        <div className="px-3 pb-3 pt-1 space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="X">
-              <input
-                type="number"
-                value={item.x}
-                onChange={(e) => patch({ x: Number(e.target.value) })}
-                className="input-field w-full text-[11px] py-1"
-              />
-            </Field>
-            <Field label="Y">
-              <input
-                type="number"
-                value={item.y}
-                onChange={(e) => patch({ y: Number(e.target.value) })}
-                className="input-field w-full text-[11px] py-1"
-              />
-            </Field>
-          </div>
+      </Section>
+
+      <TextItemSizeDurationSection item={item} sceneDuration={scene.duration} patch={patch} />
+
+      <Section title="Position (X · Y · Z)">
+        <div className="grid grid-cols-3 gap-2">
+          <Field label="X">
+            <input
+              type="number"
+              value={item.x}
+              onChange={(e) => patch({ x: Number(e.target.value) })}
+              className="input-field w-full text-[11px] py-1"
+            />
+          </Field>
+          <Field label="Y">
+            <input
+              type="number"
+              value={item.y}
+              onChange={(e) => patch({ y: Number(e.target.value) })}
+              className="input-field w-full text-[11px] py-1"
+            />
+          </Field>
+          <Field label="Z (rot°)">
+            <input
+              type="number"
+              value={item.rotation ?? 0}
+              onChange={(e) => patch({ rotation: Number(e.target.value) })}
+              className="input-field w-full text-[11px] py-1"
+            />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
           <Field label="Max width (blank = auto)">
             <input
               type="number"
@@ -1013,235 +1020,237 @@ function TextItemPanel({
               className="input-field w-full text-[11px] py-1"
             />
           </Field>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Rotation°">
-              <input
-                type="number"
-                value={item.rotation ?? 0}
-                onChange={(e) => patch({ rotation: Number(e.target.value) })}
-                className="input-field w-full text-[11px] py-1"
-              />
-            </Field>
-            <Field label="Opacity">
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={item.opacity ?? 1}
-                onChange={(e) => patch({ opacity: Number(e.target.value) })}
-                className="w-full accent-blue-500 h-1.5"
-              />
-              <span className="text-[10px] text-neutral-500">
-                {Math.round((item.opacity ?? 1) * 100)}%
-              </span>
-            </Field>
-          </div>
-        </div>
-      </details>
-      <details className="rounded border border-neutral-800 bg-neutral-950/40" open>
-        <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
-          Typography
-        </summary>
-        <div className="px-3 pb-3 pt-1 space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Font size">
-              <input
-                type="number"
-                min={8}
-                value={item.fontSize}
-                onChange={(e) => patch({ fontSize: Number(e.target.value) })}
-                className="input-field w-full text-[11px] py-1"
-              />
-            </Field>
-            <Field label="Color">
-              <input
-                type="color"
-                value={item.color}
-                onChange={(e) => patch({ color: e.target.value })}
-                className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
-              />
-            </Field>
-          </div>
-          <Field label="Font family">
-            <select
-              value={item.fontFamily ?? "system"}
-              onChange={(e) => patch({ fontFamily: e.target.value as TextItem["fontFamily"] })}
-              className="input-field w-full text-[11px] py-1"
-            >
-              <option value="system">System sans</option>
-              <option value="serif">Serif</option>
-              <option value="mono">Monospace</option>
-              <option value="display">Display (Bebas / Impact)</option>
-            </select>
-          </Field>
-          <div className="grid grid-cols-3 gap-2">
-            <Field label="Weight">
-              <input
-                type="number"
-                min={100}
-                max={900}
-                step={100}
-                value={item.weight ?? 800}
-                onChange={(e) => patch({ weight: Number(e.target.value) })}
-                className="input-field w-full text-[11px] py-1"
-              />
-            </Field>
-            <Field label="Italic">
-              <ToggleChip
-                active={!!item.italic}
-                onClick={() => patch({ italic: !item.italic })}
-                label={item.italic ? "On" : "Off"}
-              />
-            </Field>
-            <Field label="Underline">
-              <ToggleChip
-                active={!!item.underline}
-                onClick={() => patch({ underline: !item.underline })}
-                label={item.underline ? "On" : "Off"}
-              />
-            </Field>
-          </div>
-          <Field label="Align">
-            <div className="flex gap-1">
-              {(["left", "center", "right"] as const).map((a) => (
-                <button
-                  key={a}
-                  type="button"
-                  onClick={() => patch({ align: a })}
-                  className={`flex-1 px-2 py-1 rounded text-[11px] capitalize border transition-colors ${
-                    (item.align ?? "left") === a
-                      ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
-                      : "border-neutral-800 text-neutral-400 hover:border-neutral-600"
-                  }`}
-                >
-                  {a}
-                </button>
-              ))}
-            </div>
-          </Field>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Letter spacing">
-              <input
-                type="number"
-                value={item.letterSpacing ?? 0}
-                onChange={(e) => patch({ letterSpacing: Number(e.target.value) })}
-                className="input-field w-full text-[11px] py-1"
-              />
-            </Field>
-            <Field label="Line height">
-              <input
-                type="number"
-                step={0.05}
-                value={item.lineHeight ?? 1.1}
-                onChange={(e) => patch({ lineHeight: Number(e.target.value) })}
-                className="input-field w-full text-[11px] py-1"
-              />
-            </Field>
-          </div>
-          <Field label="Transform">
-            <select
-              value={item.transform ?? "none"}
-              onChange={(e) =>
-                patch({ transform: e.target.value as TextItem["transform"] })
-              }
-              className="input-field w-full text-[11px] py-1"
-            >
-              <option value="none">None</option>
-              <option value="uppercase">UPPERCASE</option>
-              <option value="lowercase">lowercase</option>
-              <option value="capitalize">Capitalize</option>
-            </select>
+          <Field label="Opacity">
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={item.opacity ?? 1}
+              onChange={(e) => patch({ opacity: Number(e.target.value) })}
+              className="w-full accent-blue-500 h-1.5"
+            />
+            <span className="text-[10px] text-neutral-500">
+              {Math.round((item.opacity ?? 1) * 100)}%
+            </span>
           </Field>
         </div>
-      </details>
-      <TextItemOutlineShadowSection item={item} patch={patch} />
+      </Section>
+
+      <Section title="Font">
+        <Field label="Font family">
+          <select
+            value={item.fontFamily ?? "system"}
+            onChange={(e) => patch({ fontFamily: e.target.value as TextItem["fontFamily"] })}
+            className="input-field w-full text-[11px] py-1"
+          >
+            <option value="system">System sans</option>
+            <option value="serif">Serif</option>
+            <option value="mono">Monospace</option>
+            <option value="display">Display (Bebas / Impact)</option>
+          </select>
+        </Field>
+        <div className="grid grid-cols-3 gap-2">
+          <Field label="Weight">
+            <input
+              type="number"
+              min={100}
+              max={900}
+              step={100}
+              value={item.weight ?? 800}
+              onChange={(e) => patch({ weight: Number(e.target.value) })}
+              className="input-field w-full text-[11px] py-1"
+            />
+          </Field>
+          <Field label="Italic">
+            <ToggleChip
+              active={!!item.italic}
+              onClick={() => patch({ italic: !item.italic })}
+              label={item.italic ? "On" : "Off"}
+            />
+          </Field>
+          <Field label="Underline">
+            <ToggleChip
+              active={!!item.underline}
+              onClick={() => patch({ underline: !item.underline })}
+              label={item.underline ? "On" : "Off"}
+            />
+          </Field>
+        </div>
+        <Field label="Align">
+          <div className="flex gap-1">
+            {(["left", "center", "right"] as const).map((a) => (
+              <button
+                key={a}
+                type="button"
+                onClick={() => patch({ align: a })}
+                className={`flex-1 px-2 py-1 rounded text-[11px] capitalize border transition-colors ${
+                  (item.align ?? "left") === a
+                    ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
+                    : "border-neutral-800 text-neutral-400 hover:border-neutral-600"
+                }`}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Letter spacing">
+            <input
+              type="number"
+              value={item.letterSpacing ?? 0}
+              onChange={(e) => patch({ letterSpacing: Number(e.target.value) })}
+              className="input-field w-full text-[11px] py-1"
+            />
+          </Field>
+          <Field label="Line height">
+            <input
+              type="number"
+              step={0.05}
+              value={item.lineHeight ?? 1.1}
+              onChange={(e) => patch({ lineHeight: Number(e.target.value) })}
+              className="input-field w-full text-[11px] py-1"
+            />
+          </Field>
+        </div>
+        <Field label="Transform">
+          <select
+            value={item.transform ?? "none"}
+            onChange={(e) =>
+              patch({ transform: e.target.value as TextItem["transform"] })
+            }
+            className="input-field w-full text-[11px] py-1"
+          >
+            <option value="none">None</option>
+            <option value="uppercase">UPPERCASE</option>
+            <option value="lowercase">lowercase</option>
+            <option value="capitalize">Capitalize</option>
+          </select>
+        </Field>
+        <Field label="Text color">
+          <input
+            type="color"
+            value={item.color}
+            onChange={(e) => patch({ color: e.target.value })}
+            className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+          />
+        </Field>
+      </Section>
+
+      <Section title="Background">
+        <Field label="Background color (blank = off)">
+          <input
+            type="color"
+            value={item.bgColor ?? "#000000"}
+            onChange={(e) => patch({ bgColor: e.target.value })}
+            className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+          />
+          <button
+            type="button"
+            onClick={() => patch({ bgColor: undefined })}
+            className="mt-1 text-[10px] text-neutral-500 hover:text-neutral-300 underline decoration-dotted"
+          >
+            clear
+          </button>
+        </Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Padding">
+            <input
+              type="number"
+              min={0}
+              value={item.bgPadding ?? 0}
+              onChange={(e) => patch({ bgPadding: Number(e.target.value) })}
+              className="input-field w-full text-[11px] py-1"
+            />
+          </Field>
+          <Field label="Radius">
+            <input
+              type="number"
+              min={0}
+              value={item.bgRadius ?? 0}
+              onChange={(e) => patch({ bgRadius: Number(e.target.value) })}
+              className="input-field w-full text-[11px] py-1"
+            />
+          </Field>
+        </div>
+      </Section>
+
+      <Section title="Border">
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Border color">
+            <input
+              type="color"
+              value={item.outlineColor ?? "#ffffff"}
+              onChange={(e) => patch({ outlineColor: e.target.value })}
+              className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+            />
+          </Field>
+          <Field label="Border width">
+            <input
+              type="range"
+              min={0}
+              max={20}
+              step={1}
+              value={item.outlineWidth ?? 0}
+              onChange={(e) => patch({ outlineWidth: Number(e.target.value) })}
+              className="w-full accent-blue-500 h-1.5"
+            />
+            <span className="text-[10px] text-neutral-500">
+              {item.outlineWidth ?? 0}px
+            </span>
+          </Field>
+        </div>
+      </Section>
+
+      <Section title="Highlight (glow)">
+        <Field label="Highlight color (blank = off)">
+          <input
+            type="color"
+            value={item.glowColor ?? "#ffff66"}
+            onChange={(e) => patch({ glowColor: e.target.value })}
+            className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+          />
+          <button
+            type="button"
+            onClick={() => patch({ glowColor: undefined })}
+            className="mt-1 text-[10px] text-neutral-500 hover:text-neutral-300 underline decoration-dotted"
+          >
+            clear
+          </button>
+        </Field>
+      </Section>
+
+      <Section title="Effects (stroke & shadow)">
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Stroke color">
+            <input
+              type="color"
+              value={item.strokeColor ?? "#000000"}
+              onChange={(e) => patch({ strokeColor: e.target.value })}
+              className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+            />
+          </Field>
+          <Field label="Stroke width">
+            <input
+              type="number"
+              min={0}
+              max={20}
+              value={item.strokeWidth ?? 0}
+              onChange={(e) => patch({ strokeWidth: Number(e.target.value) })}
+              className="input-field w-full text-[11px] py-1"
+            />
+          </Field>
+        </div>
+        <ShadowControls
+          shadow={item.shadow}
+          onChange={(s) => patch({ shadow: s })}
+        />
+      </Section>
+
       <TextItemTransitionSection item={item} patch={patch} />
       <TextItemAnimationSection item={item} patch={patch} />
-      <details className="rounded border border-neutral-800 bg-neutral-950/40">
-        <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
-          Stroke & glow
-        </summary>
-        <div className="px-3 pb-3 pt-1 space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Stroke color">
-              <input
-                type="color"
-                value={item.strokeColor ?? "#000000"}
-                onChange={(e) => patch({ strokeColor: e.target.value })}
-                className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
-              />
-            </Field>
-            <Field label="Stroke width">
-              <input
-                type="number"
-                min={0}
-                max={20}
-                value={item.strokeWidth ?? 0}
-                onChange={(e) => patch({ strokeWidth: Number(e.target.value) })}
-                className="input-field w-full text-[11px] py-1"
-              />
-            </Field>
-          </div>
-          <Field label="Glow color (blank = off)">
-            <input
-              type="color"
-              value={item.glowColor ?? "#ffffff"}
-              onChange={(e) => patch({ glowColor: e.target.value })}
-              className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
-            />
-            <button
-              type="button"
-              onClick={() => patch({ glowColor: undefined })}
-              className="mt-1 text-[10px] text-neutral-500 hover:text-neutral-300 underline decoration-dotted"
-            >
-              clear
-            </button>
-          </Field>
-        </div>
-      </details>
-      <details className="rounded border border-neutral-800 bg-neutral-950/40">
-        <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
-          Background pill
-        </summary>
-        <div className="px-3 pb-3 pt-1 space-y-2">
-          <Field label="Color (blank = off)">
-            <input
-              type="color"
-              value={item.bgColor ?? "#000000"}
-              onChange={(e) => patch({ bgColor: e.target.value })}
-              className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
-            />
-            <button
-              type="button"
-              onClick={() => patch({ bgColor: undefined })}
-              className="mt-1 text-[10px] text-neutral-500 hover:text-neutral-300 underline decoration-dotted"
-            >
-              clear
-            </button>
-          </Field>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Padding">
-              <input
-                type="number"
-                min={0}
-                value={item.bgPadding ?? 0}
-                onChange={(e) => patch({ bgPadding: Number(e.target.value) })}
-                className="input-field w-full text-[11px] py-1"
-              />
-            </Field>
-            <Field label="Radius">
-              <input
-                type="number"
-                min={0}
-                value={item.bgRadius ?? 0}
-                onChange={(e) => patch({ bgRadius: Number(e.target.value) })}
-                className="input-field w-full text-[11px] py-1"
-              />
-            </Field>
-          </div>
-        </div>
-      </details>
+
       <button
         type="button"
         onClick={remove}
@@ -1250,6 +1259,81 @@ function TextItemPanel({
         Remove text item
       </button>
     </div>
+  );
+}
+
+/** Always-open titled section. Same chrome as <details> but never collapses. */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded border border-neutral-800 bg-neutral-950/40">
+      <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium">
+        {title}
+      </div>
+      <div className="px-3 pb-3 pt-1 space-y-2">{children}</div>
+    </div>
+  );
+}
+
+function TextItemSizeDurationSection({
+  item,
+  sceneDuration,
+  patch,
+}: {
+  item: TextItem;
+  sceneDuration: number;
+  patch: (p: Partial<TextItem>) => void;
+}) {
+  const fps = useProjectStore((s) => s.project.fps);
+  const sceneFrames = Math.max(1, Math.round(sceneDuration * fps));
+  const start = item.startFrame ?? 0;
+  const dur = item.durationFrames ?? sceneFrames - start;
+  return (
+    <Section title="Size & duration">
+      <Field label="Font size (px)">
+        <input
+          type="number"
+          min={8}
+          value={item.fontSize}
+          onChange={(e) => patch({ fontSize: Number(e.target.value) })}
+          className="input-field w-full text-[11px] py-1"
+        />
+      </Field>
+      <Field label={`Start frame (0–${sceneFrames})`}>
+        <input
+          type="range"
+          min={0}
+          max={sceneFrames}
+          step={1}
+          value={start}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            const maxDur = Math.max(1, sceneFrames - v);
+            patch({
+              startFrame: v,
+              durationFrames: Math.min(dur, maxDur),
+            });
+          }}
+          className="w-full accent-emerald-500 h-1.5"
+        />
+        <span className="text-[10px] text-neutral-500">
+          {start}f ({(start / fps).toFixed(2)}s)
+        </span>
+      </Field>
+      <Field label="Duration (frames)">
+        <input
+          type="range"
+          min={1}
+          max={Math.max(1, sceneFrames - start)}
+          step={1}
+          value={dur}
+          onChange={(e) => patch({ durationFrames: Number(e.target.value) })}
+          className="w-full accent-emerald-500 h-1.5"
+        />
+        <span className="text-[10px] text-neutral-500">
+          {dur}f ({(dur / fps).toFixed(2)}s)
+        </span>
+      </Field>
+    </Section>
   );
 }
 
@@ -1387,93 +1471,88 @@ function TextItemTransitionSection({
   patch: (p: Partial<TextItem>) => void;
 }) {
   return (
-    <details className="rounded border border-neutral-800 bg-neutral-950/40">
-      <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
-        Transition (enter / exit)
-      </summary>
-      <div className="px-3 pb-3 pt-1 space-y-2">
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="Enter">
-            <select
-              value={item.enterMotion ?? ""}
-              onChange={(e) =>
-                patch({
-                  enterMotion: (e.target.value || undefined) as TextItem["enterMotion"],
-                })
-              }
-              className="input-field w-full text-[11px] py-1"
-            >
-              {TEXT_ITEM_ENTER_KINDS.map((k) => (
-                <option key={k ?? "none"} value={k ?? ""}>
-                  {k ? k.replace(/_/g, " ") : "none"}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Enter duration (f)">
-            <input
-              type="number"
-              min={1}
-              value={item.enterDurationFrames ?? 12}
-              onChange={(e) =>
-                patch({ enterDurationFrames: Number(e.target.value) })
-              }
-              className="input-field w-full text-[11px] py-1"
-            />
-          </Field>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="Exit">
-            <select
-              value={item.exitMotion ?? ""}
-              onChange={(e) =>
-                patch({
-                  exitMotion: (e.target.value || undefined) as TextItem["exitMotion"],
-                })
-              }
-              className="input-field w-full text-[11px] py-1"
-            >
-              {TEXT_ITEM_EXIT_KINDS.map((k) => (
-                <option key={k ?? "none"} value={k ?? ""}>
-                  {k ? k.replace(/_/g, " ") : "none"}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Exit duration (f)">
-            <input
-              type="number"
-              min={1}
-              value={item.exitDurationFrames ?? 12}
-              onChange={(e) =>
-                patch({ exitDurationFrames: Number(e.target.value) })
-              }
-              className="input-field w-full text-[11px] py-1"
-            />
-          </Field>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="Fade in (f)">
-            <input
-              type="number"
-              min={0}
-              value={item.fadeInFrames ?? 0}
-              onChange={(e) => patch({ fadeInFrames: Number(e.target.value) })}
-              className="input-field w-full text-[11px] py-1"
-            />
-          </Field>
-          <Field label="Fade out (f)">
-            <input
-              type="number"
-              min={0}
-              value={item.fadeOutFrames ?? 0}
-              onChange={(e) => patch({ fadeOutFrames: Number(e.target.value) })}
-              className="input-field w-full text-[11px] py-1"
-            />
-          </Field>
-        </div>
+    <Section title="Transition (enter / exit)">
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Enter">
+          <select
+            value={item.enterMotion ?? ""}
+            onChange={(e) =>
+              patch({
+                enterMotion: (e.target.value || undefined) as TextItem["enterMotion"],
+              })
+            }
+            className="input-field w-full text-[11px] py-1"
+          >
+            {TEXT_ITEM_ENTER_KINDS.map((k) => (
+              <option key={k ?? "none"} value={k ?? ""}>
+                {k ? k.replace(/_/g, " ") : "none"}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Enter duration (f)">
+          <input
+            type="number"
+            min={1}
+            value={item.enterDurationFrames ?? 12}
+            onChange={(e) =>
+              patch({ enterDurationFrames: Number(e.target.value) })
+            }
+            className="input-field w-full text-[11px] py-1"
+          />
+        </Field>
       </div>
-    </details>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Exit">
+          <select
+            value={item.exitMotion ?? ""}
+            onChange={(e) =>
+              patch({
+                exitMotion: (e.target.value || undefined) as TextItem["exitMotion"],
+              })
+            }
+            className="input-field w-full text-[11px] py-1"
+          >
+            {TEXT_ITEM_EXIT_KINDS.map((k) => (
+              <option key={k ?? "none"} value={k ?? ""}>
+                {k ? k.replace(/_/g, " ") : "none"}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Exit duration (f)">
+          <input
+            type="number"
+            min={1}
+            value={item.exitDurationFrames ?? 12}
+            onChange={(e) =>
+              patch({ exitDurationFrames: Number(e.target.value) })
+            }
+            className="input-field w-full text-[11px] py-1"
+          />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Fade in (f)">
+          <input
+            type="number"
+            min={0}
+            value={item.fadeInFrames ?? 0}
+            onChange={(e) => patch({ fadeInFrames: Number(e.target.value) })}
+            className="input-field w-full text-[11px] py-1"
+          />
+        </Field>
+        <Field label="Fade out (f)">
+          <input
+            type="number"
+            min={0}
+            value={item.fadeOutFrames ?? 0}
+            onChange={(e) => patch({ fadeOutFrames: Number(e.target.value) })}
+            className="input-field w-full text-[11px] py-1"
+          />
+        </Field>
+      </div>
+    </Section>
   );
 }
 
@@ -1491,34 +1570,29 @@ function TextItemAnimationSection({
     0,
   );
   return (
-    <details className="rounded border border-neutral-800 bg-neutral-950/40">
-      <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
-        Animation
-      </summary>
-      <div className="px-3 pb-3 pt-1 space-y-2">
-        <MotionPresetField
-          label="Motion preset"
-          value={item.motion}
-          onChange={(v) => patch({ motion: v })}
-        />
-        <div className="flex items-center gap-2 text-[10px] text-neutral-500">
-          <span>Motion clips: {clipCount}</span>
-          <span className="opacity-40">·</span>
-          <span>Keyframes: {kfCount}</span>
-          <button
-            type="button"
-            onClick={() => setEditTarget("keyframes")}
-            className="ml-auto text-[10px] text-emerald-400 hover:text-emerald-300 underline decoration-dotted"
-          >
-            Open keyframes
-          </button>
-        </div>
-        <p className="text-[10px] text-neutral-600 leading-snug">
-          Use the chat agent to add motion clips on this item — pass the
-          item id with addMotionClip / addKeyframe.
-        </p>
+    <Section title="Animation">
+      <MotionPresetField
+        label="Motion preset"
+        value={item.motion}
+        onChange={(v) => patch({ motion: v })}
+      />
+      <div className="flex items-center gap-2 text-[10px] text-neutral-500">
+        <span>Motion clips: {clipCount}</span>
+        <span className="opacity-40">·</span>
+        <span>Keyframes: {kfCount}</span>
+        <button
+          type="button"
+          onClick={() => setEditTarget("keyframes")}
+          className="ml-auto text-[10px] text-emerald-400 hover:text-emerald-300 underline decoration-dotted"
+        >
+          Open keyframes
+        </button>
       </div>
-    </details>
+      <p className="text-[10px] text-neutral-600 leading-snug">
+        Use the chat agent to add motion clips on this item — pass the
+        item id with addMotionClip / addKeyframe.
+      </p>
+    </Section>
   );
 }
 

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { createId, DEFAULT_BG } from "@/lib/scene-schema";
+import { createId, defaultPlaceholderTextItem, DEFAULT_BG } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
 
 /**
@@ -62,10 +62,12 @@ export function PasteImage() {
           type: "text_only",
           duration: 3,
           background: { ...DEFAULT_BG, imageUrl: upload.url, kenBurns: true },
-          emphasisText: "edit me",
-          emphasisSize: portrait ? 96 : 72,
-          emphasisColor: "#ffffff",
-          textY: portrait ? 500 : 380,
+          textItems: [
+            defaultPlaceholderTextItem({
+              fontSize: portrait ? 96 : 72,
+              y: portrait ? 500 : 380,
+            }),
+          ],
           transition: "beat_flash",
         });
         toast.success("Pasted as new scene", { id: tid, duration: 1000 });

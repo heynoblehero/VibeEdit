@@ -14,7 +14,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import React, { useEffect, useRef, useState } from "react";
-import { createId, DEFAULT_BG, type Cut, type Scene } from "@/lib/scene-schema";
+import { createId, defaultPlaceholderTextItem, DEFAULT_BG, type Cut, type Scene } from "@/lib/scene-schema";
 import { totalDurationSeconds } from "@/lib/scene-schema";
 import {
   ASPECT_OPTIONS,
@@ -78,25 +78,29 @@ export function SceneList() {
         characterY: portrait ? 1500 : 850,
         characterScale: 1.3,
         enterFrom: "right",
-        text: "New scene",
-        emphasisText: "edit me",
-        emphasisColor: "white",
-        textY: portrait ? 300 : 300,
         sfxId: "click1",
         transition: "beat_flash",
         background: { ...DEFAULT_BG },
+        textItems: [
+          defaultPlaceholderTextItem({
+            fontSize: portrait ? 96 : 72,
+            y: portrait ? 300 : 300,
+          }),
+        ],
       };
     }
     return {
       id: createId(),
       type: "text_only",
       duration: 2,
-      emphasisText: "edit me",
-      emphasisSize: portrait ? 96 : 72,
-      emphasisColor: "#ffffff",
-      textY: portrait ? 500 : 380,
       transition: "beat_flash",
       background: { ...DEFAULT_BG },
+      textItems: [
+        defaultPlaceholderTextItem({
+          fontSize: portrait ? 96 : 72,
+          y: portrait ? 500 : 380,
+        }),
+      ],
     };
   };
 

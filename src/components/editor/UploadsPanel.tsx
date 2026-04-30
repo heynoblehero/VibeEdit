@@ -4,7 +4,7 @@ import { FileImage, FileVideo, Loader2, Music, Plus, Trash2, Upload, X } from "l
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { ProjectUpload } from "@/lib/scene-schema";
-import { createId, DEFAULT_BG } from "@/lib/scene-schema";
+import { createId, defaultPlaceholderTextItem, DEFAULT_BG } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
 
 /** In-flight file shown as a greyed tile while POSTing to /api/assets/upload. */
@@ -210,10 +210,12 @@ export function UploadsPanel({ open = true, onClose, inline = false }: Props) {
           type: "text_only" as const,
           duration: 3,
           background: { ...DEFAULT_BG, imageUrl: u.url, kenBurns: true },
-          emphasisText: "edit me",
-          emphasisSize: portrait ? 96 : 72,
-          emphasisColor: "#ffffff",
-          textY: portrait ? 500 : 380,
+          textItems: [
+            defaultPlaceholderTextItem({
+              fontSize: portrait ? 96 : 72,
+              y: portrait ? 500 : 380,
+            }),
+          ],
           transition: "beat_flash" as const,
         };
     addScene(scene);

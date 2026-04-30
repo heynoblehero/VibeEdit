@@ -4,6 +4,7 @@ import { Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Scene } from "@/lib/scene-schema";
+import { defaultPlaceholderTextItem } from "@/lib/scene-schema";
 import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 
@@ -171,10 +172,7 @@ export function SceneContextMenu({ scene, index, x, y, onClose }: Props) {
               type: "text_only",
               duration: 2,
               background: { color: "#111111" },
-              emphasisText: "edit me",
-              emphasisSize: 72,
-              emphasisColor: "#ffffff",
-              textY: 380,
+              textItems: [defaultPlaceholderTextItem({ fontSize: 72, y: 380 })],
               transition: "beat_flash",
             });
           }
@@ -194,10 +192,7 @@ export function SceneContextMenu({ scene, index, x, y, onClose }: Props) {
               type: "text_only",
               duration: 2,
               background: { color: "#111111" },
-              emphasisText: "edit me",
-              emphasisSize: 72,
-              emphasisColor: "#ffffff",
-              textY: 380,
+              textItems: [defaultPlaceholderTextItem({ fontSize: 72, y: 380 })],
               transition: "beat_flash",
             });
           }

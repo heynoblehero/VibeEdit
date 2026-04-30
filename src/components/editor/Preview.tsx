@@ -591,7 +591,7 @@ function EmptyProjectInstruction() {
   const addScene = useProjectStore((s) => s.addScene);
 
   const onPick = async (opt: { width: number; height: number }) => {
-    const { createId, DEFAULT_BG } = await import("@/lib/scene-schema");
+    const { createId, defaultPlaceholderTextItem, DEFAULT_BG } = await import("@/lib/scene-schema");
     const { setDefaultAspect } = await import("@/lib/aspect-prefs");
     if (project.scenes.length === 0) setDimensions(opt.width, opt.height);
     const portrait = opt.height > opt.width;
@@ -599,10 +599,12 @@ function EmptyProjectInstruction() {
       id: createId(),
       type: "text_only",
       duration: 2,
-      emphasisText: "edit me",
-      emphasisSize: portrait ? 96 : 72,
-      emphasisColor: "#ffffff",
-      textY: portrait ? 500 : 380,
+      textItems: [
+        defaultPlaceholderTextItem({
+          fontSize: portrait ? 96 : 72,
+          y: portrait ? 500 : 380,
+        }),
+      ],
       transition: "beat_flash",
       background: { ...DEFAULT_BG },
     });

@@ -1252,6 +1252,31 @@ export function createId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
+/**
+ * Build a placeholder TextItem for new-scene creation flows. Sized for
+ * the project's aspect (portrait scenes use a bigger font + lower y).
+ * startFrame/durationFrames default to "full scene span" via the
+ * resolver's fallback — no need to pass scene-specific frame counts.
+ */
+export function defaultPlaceholderTextItem(opts?: {
+  content?: string;
+  fontSize?: number;
+  x?: number;
+  y?: number;
+  color?: string;
+}): TextItem {
+  return {
+    id: `t-${createId().slice(0, 6)}`,
+    content: opts?.content ?? "edit me",
+    x: opts?.x ?? 200,
+    y: opts?.y ?? 400,
+    fontSize: opts?.fontSize ?? 96,
+    color: opts?.color ?? "#ffffff",
+    weight: 800,
+    align: "left",
+  };
+}
+
 export function sceneDurationFrames(scene: Scene, fps: number): number {
   return Math.round(scene.duration * fps);
 }

@@ -4,7 +4,7 @@ import { Lock, Plus, Scissors } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerRef } from "@remotion/player";
 import type { Cut, Scene } from "@/lib/scene-schema";
-import { createId, DEFAULT_BG, sceneDurationFrames, totalDurationFrames } from "@/lib/scene-schema";
+import { createId, defaultPlaceholderTextItem, DEFAULT_BG, sceneDurationFrames, totalDurationFrames } from "@/lib/scene-schema";
 import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 import { AudioWaveform } from "./AudioWaveform";
@@ -86,10 +86,12 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
             type: "text_only" as const,
             duration: 3,
             background: { ...DEFAULT_BG, imageUrl: upload.url, kenBurns: true },
-            emphasisText: "edit me",
-            emphasisSize: portrait ? 96 : 72,
-            emphasisColor: "#ffffff",
-            textY: portrait ? 500 : 380,
+            textItems: [
+              defaultPlaceholderTextItem({
+                fontSize: portrait ? 96 : 72,
+                y: portrait ? 500 : 380,
+              }),
+            ],
             transition: "beat_flash" as const,
           };
       insertSceneAt(insertIndex, scene);
@@ -311,10 +313,12 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                   type: "text_only" as const,
                   duration: 3,
                   background: { ...DEFAULT_BG, imageUrl: url, kenBurns: true },
-                  emphasisText: "edit me",
-                  emphasisSize: portrait ? 96 : 72,
-                  emphasisColor: "#ffffff",
-                  textY: portrait ? 500 : 380,
+                  textItems: [
+                    defaultPlaceholderTextItem({
+                      fontSize: portrait ? 96 : 72,
+                      y: portrait ? 500 : 380,
+                    }),
+                  ],
                   transition: "beat_flash" as const,
                 };
             insertSceneAt(0, scene);
@@ -595,10 +599,12 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                   type: "text_only" as const,
                   duration: 3,
                   background: { ...DEFAULT_BG, imageUrl: url, kenBurns: true },
-                  emphasisText: "edit me",
-                  emphasisSize: portrait ? 96 : 72,
-                  emphasisColor: "#ffffff",
-                  textY: portrait ? 500 : 380,
+                  textItems: [
+                    defaultPlaceholderTextItem({
+                      fontSize: portrait ? 96 : 72,
+                      y: portrait ? 500 : 380,
+                    }),
+                  ],
                   transition: "beat_flash" as const,
                 };
             insertSceneAt(insertIndex, scene);
@@ -656,10 +662,7 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
               // Per-type sensible defaults so the dropped scene isn't
               // a blank rectangle the user has to configure from zero.
               type SceneShape = typeof baseScene & {
-                emphasisText?: string;
-                emphasisSize?: number;
-                emphasisColor?: string;
-                textY?: number;
+                textItems?: ReturnType<typeof defaultPlaceholderTextItem>[];
                 statValue?: string;
                 statLabel?: string;
                 quoteText?: string;
@@ -672,10 +675,12 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
               };
               const scene: SceneShape = baseScene;
               if (value === "text_only") {
-                scene.emphasisText = "edit me";
-                scene.emphasisSize = portrait ? 96 : 72;
-                scene.emphasisColor = "#ffffff";
-                scene.textY = portrait ? 500 : 380;
+                scene.textItems = [
+                  defaultPlaceholderTextItem({
+                    fontSize: portrait ? 96 : 72,
+                    y: portrait ? 500 : 380,
+                  }),
+                ];
               } else if (value === "stat") {
                 scene.statValue = "100%";
                 scene.statLabel = "edit this label";
@@ -1116,10 +1121,12 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
             id: createId(),
             type: "text_only" as const,
             duration: 2,
-            emphasisText: "edit me",
-            emphasisSize: portrait ? 96 : 72,
-            emphasisColor: "#ffffff",
-            textY: portrait ? 500 : 380,
+            textItems: [
+              defaultPlaceholderTextItem({
+                fontSize: portrait ? 96 : 72,
+                y: portrait ? 500 : 380,
+              }),
+            ],
             transition: "beat_flash" as const,
             background: { ...DEFAULT_BG },
           });

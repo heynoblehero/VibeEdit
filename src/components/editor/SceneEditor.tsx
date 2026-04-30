@@ -58,95 +58,106 @@ export function SceneEditor() {
   );
   const canShow = (t: Exclude<EditTarget, null>) => allowedTargets.has(t);
 
-  if (!editTarget) {
-    return (
-      <FrameProperties
-        scene={scene}
-        sceneIdx={sceneIdx}
-        update={update}
-        canShow={canShow}
-        setEditTarget={setEditTarget}
-        workflowId={workflow.id}
-        workflowSceneActions={workflow.sceneActions}
-      />
-    );
-  }
-
-  // Layer-scoped editing (text item, shape) uses a Figma-style compact
-  // breadcrumb instead of a chunky back-arrow header — clicking a layer
-  // shouldn't feel like entering a sub-screen.
-  const layerCrumb = (() => {
-    if (selectedLayerId?.startsWith("text-item:")) {
-      const itemId = selectedLayerId.slice("text-item:".length);
-      const item = scene.textItems?.find((it) => it.id === itemId);
-      const label = item?.content ? `Text · ${item.content.slice(0, 18)}` : "Text item";
-      return { label, color: "text-emerald-300" };
-    }
-    if (selectedLayerId?.startsWith("shape:")) {
-      const shapeId = selectedLayerId.slice("shape:".length);
-      const shape = scene.shapes?.find((sh) => sh.id === shapeId);
-      const label = shape ? `Shape · ${shape.kind}` : "Shape";
-      return { label, color: "text-amber-300" };
-    }
-    return null;
-  })();
-
-  if (layerCrumb) {
-    const goBackToFrame = () => {
-      setSelectedLayerId(null);
-      setEditTarget(null);
-    };
-    return (
-      <div className="overflow-y-auto max-h-[calc(100vh-50px)]">
-        <div className="flex items-center gap-1 px-3 py-2 text-[10.5px] border-b border-neutral-800 bg-neutral-900/50 sticky top-0 z-10">
-          <button
-            onClick={goBackToFrame}
-            title="Back to frame properties"
-            className="text-neutral-500 hover:text-emerald-300 transition-colors"
-          >
-            Frame {sceneIdx}
-          </button>
-          <span className="text-neutral-700 mx-1">›</span>
-          <span className={`font-medium ${layerCrumb.color}`}>{layerCrumb.label}</span>
-        </div>
-        <div className="p-3 space-y-3">
-          {editTarget === "text" && <TextPanel scene={scene} update={update} />}
-          {editTarget === "shape" && <ShapePanel scene={scene} update={update} />}
-        </div>
-      </div>
-    );
-  }
-
-  const meta = TARGET_META[editTarget];
-  const Icon = meta.icon;
+  // Figma-style unified chrome. The right panel ALWAYS renders the
+  // same shell: a breadcrumb at the top showing "Frame N [ › Selected ]"
+  // and a single scrollable body of property sections below. There's no
+  // back-arrow, no mode-switch — clicking a different layer in the
+  // SceneCard or canvas just swaps which sections are visible.
+  const selection = computeSelection(scene, selectedLayerId, editTarget);
+  const goBackToFrame = () => {
+    setSelectedLayerId(null);
+    setEditTarget(null);
+  };
 
   return (
     <div className="overflow-y-auto max-h-[calc(100vh-50px)]">
-      <div className="flex items-center gap-2 p-3 border-b border-neutral-800 bg-neutral-900/50 sticky top-0 z-10">
+      <div className="flex items-center gap-1 px-3 py-2 text-[10.5px] border-b border-neutral-800 bg-neutral-900/50 sticky top-0 z-10">
         <button
-          onClick={() => setEditTarget(null)}
-          title="Back to scene tools"
-          className="p-1.5 hover:bg-neutral-800 rounded transition-colors"
+          onClick={goBackToFrame}
+          title="Back to frame properties"
+          disabled={selection.kind === "frame"}
+          className={`text-[11px] font-semibold transition-colors ${
+            selection.kind === "frame"
+              ? "text-white cursor-default"
+              : "text-neutral-500 hover:text-emerald-300"
+          }`}
         >
-          <ArrowLeft className="h-4 w-4 text-neutral-400" />
+          Frame {sceneIdx}
         </button>
-        <Icon className={`h-3.5 w-3.5 ${meta.color}`} />
-        <span className={`text-xs font-semibold ${meta.color}`}>{meta.label}</span>
-        <span className="text-[10px] text-neutral-600 ml-auto">Scene {sceneIdx}</span>
+        {selection.kind !== "frame" && (
+          <>
+            <span className="text-neutral-700 mx-1">›</span>
+            <span className={`font-medium ${selection.color}`}>{selection.label}</span>
+          </>
+        )}
+        <button
+          onClick={() => navigator.clipboard?.writeText(scene.id).catch(() => {})}
+          title="Click to copy scene id"
+          className="ml-auto text-[9px] font-mono text-neutral-600 hover:text-emerald-400 transition-colors"
+        >
+          {scene.id.slice(0, 6)}
+        </button>
       </div>
       <div className="p-3 space-y-3">
-        {editTarget === "character" && <CharacterPanel scene={scene} update={update} characters={characters} />}
-        {editTarget === "text" && <TextPanel scene={scene} update={update} />}
-        {editTarget === "effects" && <EffectsPanel scene={scene} update={update} sfx={sfx} />}
-        {editTarget === "background" && <BackgroundPanel scene={scene} update={update} />}
-        {editTarget === "counter" && <CounterPanel scene={scene} update={update} />}
-        {editTarget === "broll" && <BRollPanel scene={scene} />}
-        {editTarget === "keyframes" && <AnimatePanel scene={scene} />}
-        {editTarget === "media" && <MediaPanel scene={scene} update={update} />}
-        {editTarget === "shape" && <ShapePanel scene={scene} update={update} />}
+        {selection.kind === "frame" && (
+          <FrameProperties
+            scene={scene}
+            sceneIdx={sceneIdx}
+            update={update}
+            canShow={canShow}
+            setEditTarget={setEditTarget}
+            workflowId={workflow.id}
+            workflowSceneActions={workflow.sceneActions}
+          />
+        )}
+        {selection.kind === "text-item" && <TextPanel scene={scene} update={update} />}
+        {selection.kind === "shape" && <ShapePanel scene={scene} update={update} />}
+        {selection.kind === "panel" && (
+          <>
+            {editTarget === "character" && <CharacterPanel scene={scene} update={update} characters={characters} />}
+            {editTarget === "text" && <TextPanel scene={scene} update={update} />}
+            {editTarget === "effects" && <EffectsPanel scene={scene} update={update} sfx={sfx} />}
+            {editTarget === "background" && <BackgroundPanel scene={scene} update={update} />}
+            {editTarget === "counter" && <CounterPanel scene={scene} update={update} />}
+            {editTarget === "broll" && <BRollPanel scene={scene} />}
+            {editTarget === "keyframes" && <AnimatePanel scene={scene} />}
+            {editTarget === "media" && <MediaPanel scene={scene} update={update} />}
+            {editTarget === "shape" && <ShapePanel scene={scene} update={update} />}
+          </>
+        )}
       </div>
     </div>
   );
+}
+
+type SelectionInfo =
+  | { kind: "frame"; label: null; color: string }
+  | { kind: "text-item"; label: string; color: string }
+  | { kind: "shape"; label: string; color: string }
+  | { kind: "panel"; label: string; color: string };
+
+function computeSelection(
+  scene: Scene,
+  layerId: string | null,
+  editTarget: EditTarget,
+): SelectionInfo {
+  if (layerId?.startsWith("text-item:")) {
+    const itemId = layerId.slice("text-item:".length);
+    const item = scene.textItems?.find((it) => it.id === itemId);
+    const label = item?.content ? `Text · ${item.content.slice(0, 18)}` : "Text item";
+    return { kind: "text-item", label, color: "text-emerald-300" };
+  }
+  if (layerId?.startsWith("shape:")) {
+    const shapeId = layerId.slice("shape:".length);
+    const shape = scene.shapes?.find((sh) => sh.id === shapeId);
+    const label = shape ? `Shape · ${shape.kind}` : "Shape";
+    return { kind: "shape", label, color: "text-amber-300" };
+  }
+  if (editTarget) {
+    const meta = TARGET_META[editTarget];
+    return { kind: "panel", label: meta.label, color: meta.color };
+  }
+  return { kind: "frame", label: null, color: "text-white" };
 }
 
 /**
@@ -252,7 +263,7 @@ function FrameProperties({
   };
 
   return (
-    <div className="p-4 space-y-3">
+    <>
       <input
         ref={fileInputRef}
         type="file"
@@ -264,16 +275,6 @@ function FrameProperties({
           e.target.value = "";
         }}
       />
-      <div className="flex items-baseline gap-2 mb-1">
-        <span className="text-xs font-semibold text-white">Frame {sceneIdx}</span>
-        <button
-          onClick={() => navigator.clipboard?.writeText(scene.id).catch(() => {})}
-          title="Click to copy — paste into chat to reference this scene"
-          className="text-[9px] font-mono text-neutral-600 hover:text-emerald-400 transition-colors"
-        >
-          {scene.id.slice(0, 6)}
-        </button>
-      </div>
 
       {workflowSceneActions && workflowSceneActions.length > 0 && (
         <SceneActionsRow workflowId={workflowId} scene={scene} actions={workflowSceneActions} />
@@ -478,7 +479,7 @@ function FrameProperties({
 
       <VoiceoverSection scene={scene} />
       <RefineSection scene={scene} />
-    </div>
+    </>
   );
 }
 

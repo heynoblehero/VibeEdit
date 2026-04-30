@@ -324,7 +324,7 @@ export default function Home() {
       <div className="flex flex-1 min-h-0">
         {/* Left: scene list (with expandable layers per card). */}
         {!zenMode && project.scenes.length > 0 && !leftCollapsed && (
-          <div className="w-80 flex flex-col border-r border-neutral-700/70 shrink-0 overflow-hidden relative">
+          <div className="w-80 flex flex-col border-r-2 border-black shrink-0 overflow-hidden relative shadow-[3px_0_8px_-2px_rgba(0,0,0,0.7)]">
             <button
               onClick={() => setLeftCollapsed(true)}
               title="Collapse scene list"
@@ -378,7 +378,7 @@ export default function Home() {
           !rightCollapsed && (
             <div
               data-scene-editor
-              className="w-72 border-l border-neutral-700/70 shrink-0 flex flex-col relative"
+              className="w-72 border-l-2 border-black shrink-0 flex flex-col relative shadow-[-3px_0_8px_-2px_rgba(0,0,0,0.7)]"
             >
               <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 border-b border-emerald-500/30 bg-neutral-900 shrink-0">
                 <span className="text-[11px] uppercase tracking-wider text-emerald-300 font-semibold">

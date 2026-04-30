@@ -225,10 +225,6 @@ export function Preview() {
     return () => window.removeEventListener("keydown", onKey);
   }, [handlePlay, handlePause]);
 
-  const handleOverlayClick = useCallback((target: EditTarget) => {
-    setEditTarget(target);
-  }, [setEditTarget]);
-
   // Which layer the canvas-handle overlay is editing. Defaults to the
   // first available layer (image > video > character) and only renders
   // toggle pills when more than one layer is present.
@@ -254,10 +250,6 @@ export function Preview() {
   if (project.scenes.length === 0) {
     return <EmptyProjectInstruction />;
   }
-
-  const hasChar = selectedScene?.characterId || selectedScene?.characterUrl;
-  const hasText = selectedScene?.text || selectedScene?.emphasisText;
-  const hasNumber = selectedScene?.type === "big_number";
 
   return (
     <div className="flex flex-col h-full">
@@ -418,78 +410,6 @@ export function Preview() {
           </div>
         )}
 
-        {/* Clickable element overlay */}
-        {selectedScene && isPaused && (
-          <div className="absolute inset-0 z-20">
-            {/* Background (full area, lowest priority) */}
-            <div
-              className="absolute inset-0 cursor-pointer"
-              onClick={() => handleOverlayClick("background")}
-            />
-
-            {/* Text hotspot */}
-            {hasText && (
-              <div
-                className="absolute cursor-pointer hover:outline hover:outline-2 hover:outline-blue-400/60 hover:bg-blue-400/5 rounded-lg transition-all"
-                style={{
-                  left: "10%",
-                  right: "10%",
-                  top: `${((selectedScene.textY ?? 300) / 1080) * 100}%`,
-                  height: "22%",
-                }}
-                onClick={(e) => { e.stopPropagation(); handleOverlayClick("text"); }}
-              >
-                <div className="absolute -top-5 left-2 text-[9px] font-semibold text-blue-400 bg-black/70 px-1.5 py-0.5 rounded opacity-0 hover:opacity-100 transition-opacity pointer-events-none group-hover:opacity-100">
-                  Text
-                </div>
-              </div>
-            )}
-
-            {/* Number hotspot */}
-            {hasNumber && (
-              <div
-                className="absolute cursor-pointer hover:outline hover:outline-2 hover:outline-amber-400/60 hover:bg-amber-400/5 rounded-lg transition-all"
-                style={{ left: "20%", right: "20%", top: "30%", height: "25%" }}
-                onClick={(e) => { e.stopPropagation(); handleOverlayClick("counter"); }}
-              />
-            )}
-
-            {/* Character hotspot */}
-            {hasChar && (
-              <div
-                className="absolute cursor-pointer hover:outline hover:outline-2 hover:outline-emerald-400/60 hover:bg-emerald-400/5 rounded-lg transition-all"
-                style={{
-                  left: `${((selectedScene.characterX ?? 960) / 1920) * 100 - 12}%`,
-                  top: `${((selectedScene.characterY ?? 950) / 1080) * 100 - 50}%`,
-                  width: "24%",
-                  height: "55%",
-                }}
-                onClick={(e) => { e.stopPropagation(); handleOverlayClick("character"); }}
-              >
-                <div className="absolute -top-5 left-2 text-[9px] font-semibold text-emerald-400 bg-black/70 px-1.5 py-0.5 rounded">
-                  Character
-                </div>
-              </div>
-            )}
-
-            {/* Hover hints */}
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-2 pointer-events-none">
-              {hasChar && (
-                <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                  Character
-                </span>
-              )}
-              {hasText && (
-                <span className="text-[9px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30">
-                  Text
-                </span>
-              )}
-              <span className="text-[9px] bg-neutral-500/20 text-neutral-300 px-2 py-0.5 rounded-full border border-neutral-500/30">
-                Background
-              </span>
-            </div>
-          </div>
-        )}
       </div>
       </div>
     </div>

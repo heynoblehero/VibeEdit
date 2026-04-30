@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useAssetStore } from "@/store/asset-store";
 import { useEditorStore, type EditTarget } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
+import { defaultPlaceholderTextItem } from "@/lib/scene-schema";
 import type { BRoll, EnterDirection, KeyframeProperty, MotionPreset, Scene, SceneShape, TextItem, TextStyle } from "@/lib/scene-schema";
 import { getWorkflow } from "@/lib/workflows/registry";
 import { BRollPanel } from "./BRollPanel";
@@ -185,26 +186,16 @@ function FrameProperties({
   workflowSceneActions: any[] | undefined;
 }) {
   const addUpload = useProjectStore((s) => s.addUpload);
-  const projectFps = useProjectStore((s) => s.project.fps);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const setSelectedLayerId = useEditorStore((s) => s.setSelectedLayerId);
 
   const addText = () => {
-    const id = `t-${Math.random().toString(36).slice(2, 8)}`;
-    const next: TextItem = {
-      id,
-      content: "New text",
-      x: 200,
-      y: 400,
-      fontSize: 96,
-      color: "#ffffff",
-      weight: 800,
-      align: "left",
-      startFrame: 0,
-      durationFrames: Math.max(1, Math.round(scene.duration * projectFps)),
-    };
+    // Same shape as the "edit me" placeholder so new text behaves
+    // identically — full scene span (no startFrame/durationFrames so
+    // the resolver falls back), same defaults.
+    const next = defaultPlaceholderTextItem({ content: "New text" });
     update({ textItems: [...(scene.textItems ?? []), next] });
-    setSelectedLayerId(`text-item:${id}`);
+    setSelectedLayerId(`text-item:${next.id}`);
     setEditTarget("text");
   };
 

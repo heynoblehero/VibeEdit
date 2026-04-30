@@ -29,6 +29,8 @@ const TARGET_META: Record<Exclude<EditTarget, null>, { icon: any; label: string;
 export function SceneEditor() {
   const { project, selectedSceneId, updateScene } = useProjectStore();
   const { editTarget, setEditTarget } = useEditorStore();
+  const selectedLayerId = useEditorStore((s) => s.selectedLayerId);
+  const setSelectedLayerId = useEditorStore((s) => s.setSelectedLayerId);
   const { characters, sfx } = useAssetStore();
   const scene = project.scenes.find((s) => s.id === selectedSceneId);
 
@@ -67,6 +69,51 @@ export function SceneEditor() {
         workflowId={workflow.id}
         workflowSceneActions={workflow.sceneActions}
       />
+    );
+  }
+
+  // Layer-scoped editing (text item, shape) uses a Figma-style compact
+  // breadcrumb instead of a chunky back-arrow header — clicking a layer
+  // shouldn't feel like entering a sub-screen.
+  const layerCrumb = (() => {
+    if (selectedLayerId?.startsWith("text-item:")) {
+      const itemId = selectedLayerId.slice("text-item:".length);
+      const item = scene.textItems?.find((it) => it.id === itemId);
+      const label = item?.content ? `Text · ${item.content.slice(0, 18)}` : "Text item";
+      return { label, color: "text-emerald-300" };
+    }
+    if (selectedLayerId?.startsWith("shape:")) {
+      const shapeId = selectedLayerId.slice("shape:".length);
+      const shape = scene.shapes?.find((sh) => sh.id === shapeId);
+      const label = shape ? `Shape · ${shape.kind}` : "Shape";
+      return { label, color: "text-amber-300" };
+    }
+    return null;
+  })();
+
+  if (layerCrumb) {
+    const goBackToFrame = () => {
+      setSelectedLayerId(null);
+      setEditTarget(null);
+    };
+    return (
+      <div className="overflow-y-auto max-h-[calc(100vh-50px)]">
+        <div className="flex items-center gap-1 px-3 py-2 text-[10.5px] border-b border-neutral-800 bg-neutral-900/50 sticky top-0 z-10">
+          <button
+            onClick={goBackToFrame}
+            title="Back to frame properties"
+            className="text-neutral-500 hover:text-emerald-300 transition-colors"
+          >
+            Frame {sceneIdx}
+          </button>
+          <span className="text-neutral-700 mx-1">›</span>
+          <span className={`font-medium ${layerCrumb.color}`}>{layerCrumb.label}</span>
+        </div>
+        <div className="p-3 space-y-3">
+          {editTarget === "text" && <TextPanel scene={scene} update={update} />}
+          {editTarget === "shape" && <ShapePanel scene={scene} update={update} />}
+        </div>
+      </div>
     );
   }
 
@@ -931,168 +978,182 @@ function TextItemPanel({
           className="input-field w-full text-[11px] py-1 resize-none"
         />
       </Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="X">
-          <input
-            type="number"
-            value={item.x}
-            onChange={(e) => patch({ x: Number(e.target.value) })}
-            className="input-field w-full text-[11px] py-1"
-          />
-        </Field>
-        <Field label="Y">
-          <input
-            type="number"
-            value={item.y}
-            onChange={(e) => patch({ y: Number(e.target.value) })}
-            className="input-field w-full text-[11px] py-1"
-          />
-        </Field>
-      </div>
-      <Field label="Max width (blank = auto)">
-        <input
-          type="number"
-          value={item.w ?? ""}
-          onChange={(e) =>
-            patch({ w: e.target.value === "" ? undefined : Number(e.target.value) })
-          }
-          className="input-field w-full text-[11px] py-1"
-        />
-      </Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Font size">
-          <input
-            type="number"
-            min={8}
-            value={item.fontSize}
-            onChange={(e) => patch({ fontSize: Number(e.target.value) })}
-            className="input-field w-full text-[11px] py-1"
-          />
-        </Field>
-        <Field label="Color">
-          <input
-            type="color"
-            value={item.color}
-            onChange={(e) => patch({ color: e.target.value })}
-            className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
-          />
-        </Field>
-      </div>
-      <Field label="Font family">
-        <select
-          value={item.fontFamily ?? "system"}
-          onChange={(e) => patch({ fontFamily: e.target.value as TextItem["fontFamily"] })}
-          className="input-field w-full text-[11px] py-1"
-        >
-          <option value="system">System sans</option>
-          <option value="serif">Serif</option>
-          <option value="mono">Monospace</option>
-          <option value="display">Display (Bebas / Impact)</option>
-        </select>
-      </Field>
-      <div className="grid grid-cols-3 gap-2">
-        <Field label="Weight">
-          <input
-            type="number"
-            min={100}
-            max={900}
-            step={100}
-            value={item.weight ?? 800}
-            onChange={(e) => patch({ weight: Number(e.target.value) })}
-            className="input-field w-full text-[11px] py-1"
-          />
-        </Field>
-        <Field label="Italic">
-          <ToggleChip
-            active={!!item.italic}
-            onClick={() => patch({ italic: !item.italic })}
-            label={item.italic ? "On" : "Off"}
-          />
-        </Field>
-        <Field label="Underline">
-          <ToggleChip
-            active={!!item.underline}
-            onClick={() => patch({ underline: !item.underline })}
-            label={item.underline ? "On" : "Off"}
-          />
-        </Field>
-      </div>
-      <Field label="Align">
-        <div className="flex gap-1">
-          {(["left", "center", "right"] as const).map((a) => (
-            <button
-              key={a}
-              type="button"
-              onClick={() => patch({ align: a })}
-              className={`flex-1 px-2 py-1 rounded text-[11px] capitalize border transition-colors ${
-                (item.align ?? "left") === a
-                  ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
-                  : "border-neutral-800 text-neutral-400 hover:border-neutral-600"
-              }`}
-            >
-              {a}
-            </button>
-          ))}
-        </div>
-      </Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Letter spacing">
-          <input
-            type="number"
-            value={item.letterSpacing ?? 0}
-            onChange={(e) => patch({ letterSpacing: Number(e.target.value) })}
-            className="input-field w-full text-[11px] py-1"
-          />
-        </Field>
-        <Field label="Line height">
-          <input
-            type="number"
-            step={0.05}
-            value={item.lineHeight ?? 1.1}
-            onChange={(e) => patch({ lineHeight: Number(e.target.value) })}
-            className="input-field w-full text-[11px] py-1"
-          />
-        </Field>
-      </div>
-      <Field label="Transform">
-        <select
-          value={item.transform ?? "none"}
-          onChange={(e) =>
-            patch({ transform: e.target.value as TextItem["transform"] })
-          }
-          className="input-field w-full text-[11px] py-1"
-        >
-          <option value="none">None</option>
-          <option value="uppercase">UPPERCASE</option>
-          <option value="lowercase">lowercase</option>
-          <option value="capitalize">Capitalize</option>
-        </select>
-      </Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Rotation°">
-          <input
-            type="number"
-            value={item.rotation ?? 0}
-            onChange={(e) => patch({ rotation: Number(e.target.value) })}
-            className="input-field w-full text-[11px] py-1"
-          />
-        </Field>
-        <Field label="Opacity">
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={item.opacity ?? 1}
-            onChange={(e) => patch({ opacity: Number(e.target.value) })}
-            className="w-full accent-blue-500 h-1.5"
-          />
-          <span className="text-[10px] text-neutral-500">
-            {Math.round((item.opacity ?? 1) * 100)}%
-          </span>
-        </Field>
-      </div>
       <TextItemTimingSection item={item} sceneDuration={scene.duration} patch={patch} />
+      <details className="rounded border border-neutral-800 bg-neutral-950/40" open>
+        <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
+          Position & size
+        </summary>
+        <div className="px-3 pb-3 pt-1 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="X">
+              <input
+                type="number"
+                value={item.x}
+                onChange={(e) => patch({ x: Number(e.target.value) })}
+                className="input-field w-full text-[11px] py-1"
+              />
+            </Field>
+            <Field label="Y">
+              <input
+                type="number"
+                value={item.y}
+                onChange={(e) => patch({ y: Number(e.target.value) })}
+                className="input-field w-full text-[11px] py-1"
+              />
+            </Field>
+          </div>
+          <Field label="Max width (blank = auto)">
+            <input
+              type="number"
+              value={item.w ?? ""}
+              onChange={(e) =>
+                patch({ w: e.target.value === "" ? undefined : Number(e.target.value) })
+              }
+              className="input-field w-full text-[11px] py-1"
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Rotation°">
+              <input
+                type="number"
+                value={item.rotation ?? 0}
+                onChange={(e) => patch({ rotation: Number(e.target.value) })}
+                className="input-field w-full text-[11px] py-1"
+              />
+            </Field>
+            <Field label="Opacity">
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={item.opacity ?? 1}
+                onChange={(e) => patch({ opacity: Number(e.target.value) })}
+                className="w-full accent-blue-500 h-1.5"
+              />
+              <span className="text-[10px] text-neutral-500">
+                {Math.round((item.opacity ?? 1) * 100)}%
+              </span>
+            </Field>
+          </div>
+        </div>
+      </details>
+      <details className="rounded border border-neutral-800 bg-neutral-950/40" open>
+        <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
+          Typography
+        </summary>
+        <div className="px-3 pb-3 pt-1 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Font size">
+              <input
+                type="number"
+                min={8}
+                value={item.fontSize}
+                onChange={(e) => patch({ fontSize: Number(e.target.value) })}
+                className="input-field w-full text-[11px] py-1"
+              />
+            </Field>
+            <Field label="Color">
+              <input
+                type="color"
+                value={item.color}
+                onChange={(e) => patch({ color: e.target.value })}
+                className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+              />
+            </Field>
+          </div>
+          <Field label="Font family">
+            <select
+              value={item.fontFamily ?? "system"}
+              onChange={(e) => patch({ fontFamily: e.target.value as TextItem["fontFamily"] })}
+              className="input-field w-full text-[11px] py-1"
+            >
+              <option value="system">System sans</option>
+              <option value="serif">Serif</option>
+              <option value="mono">Monospace</option>
+              <option value="display">Display (Bebas / Impact)</option>
+            </select>
+          </Field>
+          <div className="grid grid-cols-3 gap-2">
+            <Field label="Weight">
+              <input
+                type="number"
+                min={100}
+                max={900}
+                step={100}
+                value={item.weight ?? 800}
+                onChange={(e) => patch({ weight: Number(e.target.value) })}
+                className="input-field w-full text-[11px] py-1"
+              />
+            </Field>
+            <Field label="Italic">
+              <ToggleChip
+                active={!!item.italic}
+                onClick={() => patch({ italic: !item.italic })}
+                label={item.italic ? "On" : "Off"}
+              />
+            </Field>
+            <Field label="Underline">
+              <ToggleChip
+                active={!!item.underline}
+                onClick={() => patch({ underline: !item.underline })}
+                label={item.underline ? "On" : "Off"}
+              />
+            </Field>
+          </div>
+          <Field label="Align">
+            <div className="flex gap-1">
+              {(["left", "center", "right"] as const).map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  onClick={() => patch({ align: a })}
+                  className={`flex-1 px-2 py-1 rounded text-[11px] capitalize border transition-colors ${
+                    (item.align ?? "left") === a
+                      ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
+                      : "border-neutral-800 text-neutral-400 hover:border-neutral-600"
+                  }`}
+                >
+                  {a}
+                </button>
+              ))}
+            </div>
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Letter spacing">
+              <input
+                type="number"
+                value={item.letterSpacing ?? 0}
+                onChange={(e) => patch({ letterSpacing: Number(e.target.value) })}
+                className="input-field w-full text-[11px] py-1"
+              />
+            </Field>
+            <Field label="Line height">
+              <input
+                type="number"
+                step={0.05}
+                value={item.lineHeight ?? 1.1}
+                onChange={(e) => patch({ lineHeight: Number(e.target.value) })}
+                className="input-field w-full text-[11px] py-1"
+              />
+            </Field>
+          </div>
+          <Field label="Transform">
+            <select
+              value={item.transform ?? "none"}
+              onChange={(e) =>
+                patch({ transform: e.target.value as TextItem["transform"] })
+              }
+              className="input-field w-full text-[11px] py-1"
+            >
+              <option value="none">None</option>
+              <option value="uppercase">UPPERCASE</option>
+              <option value="lowercase">lowercase</option>
+              <option value="capitalize">Capitalize</option>
+            </select>
+          </Field>
+        </div>
+      </details>
       <TextItemOutlineShadowSection item={item} patch={patch} />
       <TextItemTransitionSection item={item} patch={patch} />
       <TextItemAnimationSection item={item} patch={patch} />

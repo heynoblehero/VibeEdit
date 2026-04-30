@@ -31,6 +31,7 @@ export type LayerKind =
   | "voiceover"
   | "broll"
   | "effects"
+  | "shape"
   | "montage"
   | "stat"
   | "bullets"
@@ -118,6 +119,8 @@ export function kindToEditTarget(kind: LayerKind): EditTarget | null {
       return "media";
     case "effects":
       return "effects";
+    case "shape":
+      return "shape";
     case "voiceover":
       // No dedicated panel today — leave editTarget alone, just select scene.
       return null;
@@ -303,6 +306,22 @@ export function deriveItemsFromScene(
     });
   }
 
+  // Shapes — full-scene span. Index suffix references scene.shapes[N]
+  // for the SceneCard layer click + ShapePanel scope.
+  for (let i = 0; i < (scene.shapes?.length ?? 0); i++) {
+    const sh = scene.shapes![i];
+    items.push({
+      id: `${sid}:shape:${sh.id}`,
+      sceneId: sid,
+      kind: "shape",
+      label: `Shape · ${sh.kind}`,
+      startFrame: sceneStartFrame,
+      durationFrames: sceneDur,
+      color: "amber",
+      index: i,
+    });
+  }
+
   // B-roll — already explicit start/duration. Index suffix lets the
   // sprint-20 drag handler write back to scene.broll[N] cleanly.
   for (let i = 0; i < (scene.broll?.length ?? 0); i++) {
@@ -364,6 +383,7 @@ export const LAYER_ROW_ORDER: LayerKind[] = [
   "text-main",
   "text-emphasis",
   "text-subtitle",
+  "shape",
   "broll",
   "effects",
   "montage",
@@ -384,6 +404,7 @@ export const LAYER_LABEL: Record<LayerKind, string> = {
   "text-main": "Text",
   "text-emphasis": "Emph",
   "text-subtitle": "Sub",
+  shape: "Shape",
   broll: "B-roll",
   effects: "FX",
   montage: "Montage",

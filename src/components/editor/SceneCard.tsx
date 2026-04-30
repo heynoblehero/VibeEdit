@@ -9,7 +9,7 @@ import {
   Lock,
   Mic,
   Play,
-  Plus,
+  Shapes,
   Sparkles,
   Target,
   Trash2,
@@ -39,6 +39,7 @@ const LAYER_ICON: Record<LayerKind, React.ComponentType<{ className?: string }>>
   "text-main": Type,
   "text-emphasis": Type,
   "text-subtitle": Type,
+  shape: Shapes,
   broll: ImagePlay,
   effects: Sparkles,
   voiceover: Mic,
@@ -56,7 +57,12 @@ const LAYER_ICON: Record<LayerKind, React.ComponentType<{ className?: string }>>
  *  format the SceneEditor reads to scope its panels to a single
  *  layer. brollIds are stable across reorders; effect indices aren't,
  *  but effects are a smaller surface and the panel re-derives. */
-function computeLayerId(layerKind: LayerKind, brollId: string | undefined, effectIdx: number | undefined): string | null {
+function computeLayerId(
+  layerKind: LayerKind,
+  brollId: string | undefined,
+  effectIdx: number | undefined,
+  shapeId: string | undefined,
+): string | null {
   switch (layerKind) {
     case "bg":
       return "media:bg";
@@ -72,6 +78,8 @@ function computeLayerId(layerKind: LayerKind, brollId: string | undefined, effec
       return "text:subtitle";
     case "effects":
       return effectIdx !== undefined ? `effect:${effectIdx}` : null;
+    case "shape":
+      return shapeId ? `shape:${shapeId}` : null;
     case "voiceover":
       return "voiceover";
     default:
@@ -85,6 +93,7 @@ const LAYER_COLOR: Record<LayerKind, string> = {
   "text-main": "text-emerald-300",
   "text-emphasis": "text-emerald-300",
   "text-subtitle": "text-emerald-300",
+  shape: "text-amber-300",
   broll: "text-amber-300",
   effects: "text-purple-300",
   voiceover: "text-cyan-300",
@@ -474,7 +483,11 @@ export function SceneCard({ scene, index }: SceneCardProps) {
                 layer.kind === "broll" && layer.index !== undefined
                   ? scene.broll?.[layer.index]?.id
                   : undefined;
-              const layerId = computeLayerId(layer.kind, brollId, layer.index);
+              const shapeId =
+                layer.kind === "shape" && layer.index !== undefined
+                  ? scene.shapes?.[layer.index]?.id
+                  : undefined;
+              const layerId = computeLayerId(layer.kind, brollId, layer.index, shapeId);
               setSelectedLayerId(layerId);
             }}
             className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-left hover:bg-neutral-800/60 transition-colors"

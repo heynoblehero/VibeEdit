@@ -5,6 +5,7 @@ import { BeatFlash } from "./components/BeatFlash";
 import { BRollLayer } from "./components/BRoll";
 import { Counter } from "./components/Counter";
 import { GradientBg } from "./components/GradientBg";
+import { SceneShapes } from "./components/SceneShapes";
 import { PunchText } from "./components/PunchText";
 import { ScreenShake } from "./components/ScreenShake";
 import { ZoomPunch } from "./components/ZoomPunch";
@@ -177,12 +178,29 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
 
   const sceneTransform = clipTransform(sceneClip);
 
+  const frameBoxShadow = s.shadow
+    ? `${s.shadow.x}px ${s.shadow.y}px ${s.shadow.blur}px ${s.shadow.color}${
+        s.shadow.opacity != null
+          ? Math.round(255 * Math.max(0, Math.min(1, s.shadow.opacity)))
+              .toString(16)
+              .padStart(2, "0")
+          : ""
+      }`
+    : undefined;
+  const frameBorder =
+    s.outlineColor && (s.outlineWidth ?? 0) > 0
+      ? `${s.outlineWidth}px solid ${s.outlineColor}`
+      : undefined;
+
   return (
     <AbsoluteFill
       style={{
         opacity: sceneOpacity * sceneClip.opacity,
         transform: sceneTransform || undefined,
         transformOrigin: "center center",
+        boxShadow: frameBoxShadow,
+        border: frameBorder,
+        boxSizing: "border-box",
       }}
     >
     <GradientBg
@@ -283,6 +301,7 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
           />
         </div>
       )}
+      <SceneShapes shapes={s.shapes} width={frameW} height={frameH} />
       <BRollLayer brolls={s.broll} scene={s} />
       <ZoomPunch hitFrame={s.zoomPunch ? 0 : 9999} intensity={s.zoomPunch ?? 1.15}>
        {/* Secondary subtle zoom when emphasis text appears (frame 12)

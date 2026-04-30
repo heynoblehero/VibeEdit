@@ -56,6 +56,42 @@ export interface ImageFilter {
 }
 
 /**
+ * Frame-level drop shadow. Renders as CSS box-shadow on the scene
+ * wrapper. Default omitted = no shadow (matches today's behaviour).
+ */
+export interface FrameShadow {
+  color: string;
+  blur: number;
+  x: number;
+  y: number;
+  opacity?: number;
+}
+
+/**
+ * A vector shape painted on top of the background but below text /
+ * character / broll. Position and size are in canvas coordinates
+ * (0,0 top-left, project.width × project.height). For "line", x/y is
+ * the start, w/h becomes the end offset.
+ */
+export type SceneShapeKind = "rect" | "circle" | "line" | "triangle";
+
+export interface SceneShape {
+  id: string;
+  kind: SceneShapeKind;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rotation?: number;
+  color?: string;
+  strokeColor?: string;
+  strokeWidth?: number;
+  opacity?: number;
+  /** Px corner radius for rect. Ignored on other kinds. */
+  borderRadius?: number;
+}
+
+/**
  * Per-text-slot styling. Optional everywhere — when a field is unset, the
  * renderer falls back to slot defaults (system font, weight 800, no
  * italic, no stroke, etc.). Lets users dial in spacing, weight, glow,
@@ -401,6 +437,14 @@ export interface Scene {
   textStyle?: TextStyle;
   emphasisStyle?: TextStyle;
   subtitleStyle?: TextStyle;
+
+  /** Frame outline (border around the whole scene). */
+  outlineColor?: string;
+  outlineWidth?: number;
+  /** Frame drop shadow. */
+  shadow?: FrameShadow;
+  /** Vector shapes layered between bg and text/broll. */
+  shapes?: SceneShape[];
 
   numberFrom?: number;
   numberTo?: number;
@@ -1213,6 +1257,10 @@ export const VALID_SCENE_FIELDS: ReadonlySet<keyof Scene> = new Set<keyof Scene>
   "textStyle",
   "emphasisStyle",
   "subtitleStyle",
+  "outlineColor",
+  "outlineWidth",
+  "shadow",
+  "shapes",
   "numberFrom",
   "numberTo",
   "numberSuffix",

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useAssetStore } from "@/store/asset-store";
 import { useEditorStore, type EditTarget } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
-import type { BRoll, EnterDirection, KeyframeProperty, MotionPreset, Scene, TextStyle } from "@/lib/scene-schema";
+import type { BRoll, EnterDirection, KeyframeProperty, MotionPreset, Scene, SceneShape, TextStyle } from "@/lib/scene-schema";
 import { getWorkflow } from "@/lib/workflows/registry";
 import { BRollPanel } from "./BRollPanel";
 import { KeyframeGraph } from "./KeyframeGraph";
@@ -23,6 +23,7 @@ const TARGET_META: Record<Exclude<EditTarget, null>, { icon: any; label: string;
   broll: { icon: Film, label: "B-Roll", color: "text-pink-400" },
   keyframes: { icon: Activity, label: "Animate", color: "text-cyan-400" },
   media: { icon: Film, label: "Media", color: "text-purple-400" },
+  shape: { icon: Sparkles, label: "Shape", color: "text-amber-400" },
 };
 
 export function SceneEditor() {
@@ -57,146 +58,15 @@ export function SceneEditor() {
 
   if (!editTarget) {
     return (
-      <div className="p-4 space-y-3">
-        <div className="flex items-baseline gap-2 mb-3">
-          <span className="text-xs font-semibold text-white">Scene {sceneIdx}</span>
-          <button
-            onClick={() => {
-              navigator.clipboard?.writeText(scene.id).catch(() => {});
-            }}
-            title="Click to copy — paste into chat to reference this scene"
-            className="text-[9px] font-mono text-neutral-600 hover:text-emerald-400 transition-colors"
-          >
-            {scene.id.slice(0, 6)}
-          </button>
-          <span className="text-[10px] text-neutral-500">— pick a layer</span>
-        </div>
-        {workflow.sceneActions && workflow.sceneActions.length > 0 && (
-          <SceneActionsRow workflowId={workflow.id} scene={scene} actions={workflow.sceneActions} />
-        )}
-        <div className="space-y-1.5">
-          {canShow("text") && (scene.text || scene.emphasisText || scene.subtitleText) && (
-            <TargetButton target="text" onClick={() => setEditTarget("text")} />
-          )}
-          {(canShow("background") || canShow("character") || canShow("broll")) && (
-            <TargetButton target="media" onClick={() => setEditTarget("media")} />
-          )}
-          {canShow("counter") && scene.type === "big_number" && <TargetButton target="counter" onClick={() => setEditTarget("counter")} />}
-          {canShow("effects") && <TargetButton target="effects" onClick={() => setEditTarget("effects")} />}
-        </div>
-        <div className="pt-3 border-t border-neutral-800">
-          <div className="flex items-center gap-2">
-            <label className="text-[10px] text-neutral-500 w-14">Duration</label>
-            <input
-              type="range"
-              min={0.5}
-              max={Math.max(60, scene.duration + 1)}
-              step={0.25}
-              value={scene.duration}
-              onChange={(e) => update({ duration: Number(e.target.value) })}
-              className="flex-1 accent-emerald-500 h-1"
-            />
-            <input
-              type="number"
-              min={0.1}
-              step={0.1}
-              value={scene.duration}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                if (!Number.isFinite(v) || v <= 0) return;
-                update({ duration: v });
-              }}
-              className="input-field w-14 text-[11px] py-0.5 px-1 text-right"
-              title="Scene duration in seconds — type any positive number"
-            />
-            <span className="text-[10px] text-neutral-500">s</span>
-          </div>
-          <div className="flex items-center gap-2 mt-2">
-            <label className="text-[10px] text-neutral-500 w-14">Type</label>
-            <select value={scene.type} onChange={(e) => update({ type: e.target.value as Scene["type"] })}
-              className="input-field flex-1 text-[11px] py-1">
-              <option value="character_text">Character + Text</option>
-              <option value="text_only">Text Only</option>
-              <option value="big_number">Big Number</option>
-              <option value="character_pop">Character Pop</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2 mt-2">
-            <label className="text-[10px] text-neutral-500 w-14">BG color</label>
-            <input
-              type="color"
-              value={scene.background.color}
-              onChange={(e) =>
-                update({ background: { ...scene.background, color: e.target.value } })
-              }
-              className="h-7 w-10 rounded cursor-pointer bg-transparent border border-neutral-700"
-            />
-            <span className="text-[10px] text-neutral-500 font-mono">
-              {scene.background.color}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 mt-2">
-            <label className="text-[10px] text-neutral-500 w-14">Transition</label>
-            <select
-              value={scene.transition ?? "none"}
-              onChange={(e) =>
-                update({ transition: e.target.value as Scene["transition"] })
-              }
-              className="input-field flex-1 text-[11px] py-1"
-            >
-              <option value="none">none</option>
-              <option value="beat_flash">beat flash</option>
-              <option value="beat_flash_colored">beat flash (colored)</option>
-              <option value="slide_left">slide left</option>
-              <option value="slide_right">slide right</option>
-              <option value="zoom_blur">zoom blur</option>
-            </select>
-            {(scene.transition === "beat_flash_colored" ||
-              scene.transition === "slide_left" ||
-              scene.transition === "slide_right") && (
-              <input
-                type="color"
-                value={scene.transitionColor ?? "#10b981"}
-                onChange={(e) => update({ transitionColor: e.target.value })}
-                title="Transition color"
-                className="h-7 w-7 rounded cursor-pointer bg-transparent border border-neutral-700"
-              />
-            )}
-          </div>
-          <div className="flex items-center gap-2 mt-2">
-            <label className="text-[10px] text-neutral-500 w-14">Fade in</label>
-            <input
-              type="range"
-              min={0}
-              max={30}
-              step={1}
-              value={scene.fadeInFrames ?? 4}
-              onChange={(e) => update({ fadeInFrames: Number(e.target.value) })}
-              className="flex-1 accent-emerald-500 h-1"
-            />
-            <span className="text-[10px] text-neutral-500 font-mono w-10 text-right">
-              {scene.fadeInFrames ?? 4}f
-            </span>
-          </div>
-          <div className="flex items-center gap-2 mt-2">
-            <label className="text-[10px] text-neutral-500 w-14">Fade out</label>
-            <input
-              type="range"
-              min={0}
-              max={30}
-              step={1}
-              value={scene.fadeOutFrames ?? 0}
-              onChange={(e) => update({ fadeOutFrames: Number(e.target.value) })}
-              className="flex-1 accent-emerald-500 h-1"
-            />
-            <span className="text-[10px] text-neutral-500 font-mono w-10 text-right">
-              {scene.fadeOutFrames ?? 0}f
-            </span>
-          </div>
-        </div>
-        <VoiceoverSection scene={scene} />
-        <RefineSection scene={scene} />
-      </div>
+      <FrameProperties
+        scene={scene}
+        sceneIdx={sceneIdx}
+        update={update}
+        canShow={canShow}
+        setEditTarget={setEditTarget}
+        workflowId={workflow.id}
+        workflowSceneActions={workflow.sceneActions}
+      />
     );
   }
 
@@ -226,7 +96,523 @@ export function SceneEditor() {
         {editTarget === "broll" && <BRollPanel scene={scene} />}
         {editTarget === "keyframes" && <AnimatePanel scene={scene} />}
         {editTarget === "media" && <MediaPanel scene={scene} update={update} />}
+        {editTarget === "shape" && <ShapePanel scene={scene} update={update} />}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Frame Properties — what you see when a scene is selected and no
+ * specific layer is being edited. Modeled after Figma / Canva: the
+ * frame's own visual properties (bg, outline, shadow, animation,
+ * duration, transition) live here. To put TEXT / MEDIA / SHAPE on
+ * top of the frame, use the "+ Add item" picker.
+ */
+function FrameProperties({
+  scene,
+  sceneIdx,
+  update,
+  canShow,
+  setEditTarget,
+  workflowId,
+  workflowSceneActions,
+}: {
+  scene: Scene;
+  sceneIdx: number;
+  update: (p: Partial<Scene>) => void;
+  canShow: (t: Exclude<EditTarget, null>) => boolean;
+  setEditTarget: (t: EditTarget) => void;
+  workflowId: string;
+  workflowSceneActions: any[] | undefined;
+}) {
+  const addUpload = useProjectStore((s) => s.addUpload);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const setSelectedLayerId = useEditorStore((s) => s.setSelectedLayerId);
+
+  const addText = () => {
+    if (scene.emphasisText === undefined || scene.emphasisText === "") {
+      update({ emphasisText: "New text", emphasisColor: "#ffffff", emphasisSize: 96 });
+    } else if (scene.text === undefined || scene.text === "") {
+      update({ text: "New text", textColor: "#cccccc", textSize: 64 });
+    } else if (scene.subtitleText === undefined || scene.subtitleText === "") {
+      update({ subtitleText: "New text", subtitleColor: "#aaaaaa" });
+    } else {
+      // All three slots full — re-write subtitle to a fresh string and select it.
+      update({ subtitleText: "New text" });
+    }
+    setEditTarget("text");
+  };
+
+  const addShape = (kind: SceneShape["kind"]) => {
+    const id = `sh-${Math.random().toString(36).slice(2, 8)}`;
+    const defaults: Record<SceneShape["kind"], Partial<SceneShape>> = {
+      rect: { w: 400, h: 240, color: "#10b981", borderRadius: 16 },
+      circle: { w: 240, h: 240, color: "#3b82f6" },
+      line: { w: 480, h: 0, strokeColor: "#ffffff", strokeWidth: 6 },
+      triangle: { w: 280, h: 240, color: "#f59e0b" },
+    };
+    const next: SceneShape = {
+      id,
+      kind,
+      x: 300,
+      y: 300,
+      w: 400,
+      h: 240,
+      ...defaults[kind],
+    } as SceneShape;
+    update({ shapes: [...(scene.shapes ?? []), next] });
+    setSelectedLayerId(`shape:${id}`);
+    setEditTarget("shape");
+  };
+
+  const handleFiles = async (files: FileList | File[]) => {
+    const { uploadFiles } = await import("@/lib/upload-files");
+    const results = await uploadFiles(files, addUpload);
+    for (const r of results) {
+      const mime = r.upload.type ?? "";
+      if (mime.startsWith("video/")) {
+        update({ background: { ...scene.background, videoUrl: r.upload.url } });
+      } else if (mime.startsWith("image/")) {
+        if (!scene.background.imageUrl) {
+          update({ background: { ...scene.background, imageUrl: r.upload.url } });
+        } else {
+          const broll = scene.broll ?? [];
+          update({
+            broll: [
+              ...broll,
+              {
+                id: `b-${Math.random().toString(36).slice(2, 8)}`,
+                kind: "image",
+                url: r.upload.url,
+                position: "overlay-tr",
+                startFrame: 0,
+                durationFrames: 60,
+                source: "upload",
+              },
+            ],
+          });
+        }
+      }
+    }
+    setEditTarget("media");
+  };
+
+  return (
+    <div className="p-4 space-y-3">
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        hidden
+        accept="image/*,video/*"
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) handleFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      <div className="flex items-baseline gap-2 mb-1">
+        <span className="text-xs font-semibold text-white">Frame {sceneIdx}</span>
+        <button
+          onClick={() => navigator.clipboard?.writeText(scene.id).catch(() => {})}
+          title="Click to copy — paste into chat to reference this scene"
+          className="text-[9px] font-mono text-neutral-600 hover:text-emerald-400 transition-colors"
+        >
+          {scene.id.slice(0, 6)}
+        </button>
+      </div>
+
+      {workflowSceneActions && workflowSceneActions.length > 0 && (
+        <SceneActionsRow workflowId={workflowId} scene={scene} actions={workflowSceneActions} />
+      )}
+
+      <AddItemPicker
+        canMedia={canShow("background") || canShow("character") || canShow("broll")}
+        onAddText={addText}
+        onAddMedia={() => fileInputRef.current?.click()}
+        onAddShape={addShape}
+      />
+
+      <details className="rounded border border-neutral-800 bg-neutral-950/40" open>
+        <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
+          Size & duration
+        </summary>
+        <div className="px-3 pb-3 pt-1 space-y-2">
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] text-neutral-500 w-14">Duration</label>
+            <input
+              type="range"
+              min={0.5}
+              max={Math.max(60, scene.duration + 1)}
+              step={0.25}
+              value={scene.duration}
+              onChange={(e) => update({ duration: Number(e.target.value) })}
+              className="flex-1 accent-emerald-500 h-1"
+            />
+            <input
+              type="number"
+              min={0.1}
+              step={0.1}
+              value={scene.duration}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                if (!Number.isFinite(v) || v <= 0) return;
+                update({ duration: v });
+              }}
+              className="input-field w-14 text-[11px] py-0.5 px-1 text-right"
+            />
+            <span className="text-[10px] text-neutral-500">s</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] text-neutral-500 w-14">Type</label>
+            <select
+              value={scene.type}
+              onChange={(e) => update({ type: e.target.value as Scene["type"] })}
+              className="input-field flex-1 text-[11px] py-1"
+            >
+              <option value="character_text">Character + Text</option>
+              <option value="text_only">Text Only</option>
+              <option value="big_number">Big Number</option>
+              <option value="character_pop">Character Pop</option>
+            </select>
+          </div>
+        </div>
+      </details>
+
+      <details className="rounded border border-neutral-800 bg-neutral-950/40" open>
+        <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
+          Background
+        </summary>
+        <div className="px-3 pb-3 pt-1 space-y-2">
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] text-neutral-500 w-14">Color</label>
+            <input
+              type="color"
+              value={scene.background.color}
+              onChange={(e) =>
+                update({ background: { ...scene.background, color: e.target.value } })
+              }
+              className="h-7 w-10 rounded cursor-pointer bg-transparent border border-neutral-700"
+            />
+            <span className="text-[10px] text-neutral-500 font-mono">
+              {scene.background.color}
+            </span>
+            <button
+              type="button"
+              onClick={() => setEditTarget("background")}
+              className="ml-auto text-[10px] text-emerald-400 hover:text-emerald-300 underline decoration-dotted"
+            >
+              Advanced
+            </button>
+          </div>
+        </div>
+      </details>
+
+      <details className="rounded border border-neutral-800 bg-neutral-950/40">
+        <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
+          Outline & shadow
+        </summary>
+        <div className="px-3 pb-3 pt-1 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Outline color">
+              <input
+                type="color"
+                value={scene.outlineColor ?? "#ffffff"}
+                onChange={(e) => update({ outlineColor: e.target.value })}
+                className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+              />
+            </Field>
+            <Field label="Outline width">
+              <input
+                type="range"
+                min={0}
+                max={40}
+                step={1}
+                value={scene.outlineWidth ?? 0}
+                onChange={(e) => update({ outlineWidth: Number(e.target.value) })}
+                className="w-full accent-blue-500 h-1.5"
+              />
+              <span className="text-[10px] text-neutral-500">{scene.outlineWidth ?? 0}px</span>
+            </Field>
+          </div>
+          <ShadowControls
+            shadow={scene.shadow}
+            onChange={(s) => update({ shadow: s })}
+          />
+        </div>
+      </details>
+
+      <details className="rounded border border-neutral-800 bg-neutral-950/40">
+        <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
+          Transition & fades
+        </summary>
+        <div className="px-3 pb-3 pt-1 space-y-2">
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] text-neutral-500 w-14">Transition</label>
+            <select
+              value={scene.transition ?? "none"}
+              onChange={(e) =>
+                update({ transition: e.target.value as Scene["transition"] })
+              }
+              className="input-field flex-1 text-[11px] py-1"
+            >
+              <option value="none">none</option>
+              <option value="beat_flash">beat flash</option>
+              <option value="beat_flash_colored">beat flash (colored)</option>
+              <option value="slide_left">slide left</option>
+              <option value="slide_right">slide right</option>
+              <option value="zoom_blur">zoom blur</option>
+            </select>
+            {(scene.transition === "beat_flash_colored" ||
+              scene.transition === "slide_left" ||
+              scene.transition === "slide_right") && (
+              <input
+                type="color"
+                value={scene.transitionColor ?? "#10b981"}
+                onChange={(e) => update({ transitionColor: e.target.value })}
+                title="Transition color"
+                className="h-7 w-7 rounded cursor-pointer bg-transparent border border-neutral-700"
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] text-neutral-500 w-14">Fade in</label>
+            <input
+              type="range"
+              min={0}
+              max={30}
+              step={1}
+              value={scene.fadeInFrames ?? 4}
+              onChange={(e) => update({ fadeInFrames: Number(e.target.value) })}
+              className="flex-1 accent-emerald-500 h-1"
+            />
+            <span className="text-[10px] text-neutral-500 font-mono w-10 text-right">
+              {scene.fadeInFrames ?? 4}f
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] text-neutral-500 w-14">Fade out</label>
+            <input
+              type="range"
+              min={0}
+              max={30}
+              step={1}
+              value={scene.fadeOutFrames ?? 0}
+              onChange={(e) => update({ fadeOutFrames: Number(e.target.value) })}
+              className="flex-1 accent-emerald-500 h-1"
+            />
+            <span className="text-[10px] text-neutral-500 font-mono w-10 text-right">
+              {scene.fadeOutFrames ?? 0}f
+            </span>
+          </div>
+        </div>
+      </details>
+
+      <details className="rounded border border-neutral-800 bg-neutral-950/40">
+        <summary className="cursor-pointer px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-400 font-medium select-none">
+          Animation
+        </summary>
+        <div className="px-3 pb-3 pt-1">
+          <button
+            type="button"
+            onClick={() => setEditTarget("keyframes")}
+            className="w-full px-3 py-2 rounded border border-neutral-800 hover:border-cyan-500/60 hover:bg-cyan-500/10 text-[11px] text-cyan-300 transition-colors"
+          >
+            Open keyframe editor →
+          </button>
+        </div>
+      </details>
+
+      <VoiceoverSection scene={scene} />
+      <RefineSection scene={scene} />
+    </div>
+  );
+}
+
+function AddItemPicker({
+  canMedia,
+  onAddText,
+  onAddMedia,
+  onAddShape,
+}: {
+  canMedia: boolean;
+  onAddText: () => void;
+  onAddMedia: () => void;
+  onAddShape: (kind: SceneShape["kind"]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [shapeOpen, setShapeOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-emerald-500/30 hover:border-emerald-500/60 hover:bg-emerald-500/10 text-[11px] text-emerald-300 hover:text-emerald-200 transition-colors font-medium"
+      >
+        <span className="text-emerald-400 text-base leading-none">+</span>
+        <span>Add item</span>
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 mt-1 z-20 rounded-lg border border-neutral-800 bg-neutral-950 shadow-2xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onAddText();
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-neutral-300 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors"
+          >
+            <Type className="h-3.5 w-3.5 text-blue-400" />
+            <span>Text</span>
+          </button>
+          {canMedia && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onAddMedia();
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-neutral-300 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors"
+            >
+              <Film className="h-3.5 w-3.5 text-purple-400" />
+              <span>Media (image / video)</span>
+            </button>
+          )}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShapeOpen((v) => !v)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-neutral-300 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+              <span>Shape</span>
+              <span className="ml-auto text-neutral-600">{shapeOpen ? "−" : "+"}</span>
+            </button>
+            {shapeOpen && (
+              <div className="grid grid-cols-2 gap-1 px-2 pb-2">
+                {(["rect", "circle", "line", "triangle"] as const).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      setShapeOpen(false);
+                      onAddShape(k);
+                    }}
+                    className="px-2 py-1.5 rounded text-[11px] capitalize text-neutral-300 hover:text-amber-300 hover:bg-amber-500/10 border border-neutral-800 hover:border-amber-500/40 transition-colors"
+                  >
+                    {k}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ShadowControls({
+  shadow,
+  onChange,
+}: {
+  shadow: Scene["shadow"];
+  onChange: (s: Scene["shadow"]) => void;
+}) {
+  const has = !!shadow;
+  const next = (patch: Partial<NonNullable<Scene["shadow"]>>) => {
+    onChange({
+      color: shadow?.color ?? "#000000",
+      blur: shadow?.blur ?? 24,
+      x: shadow?.x ?? 0,
+      y: shadow?.y ?? 12,
+      opacity: shadow?.opacity ?? 0.6,
+      ...patch,
+    });
+  };
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <label className="text-[10px] uppercase tracking-wider text-neutral-500 flex-1">
+          Shadow
+        </label>
+        <ToggleChip
+          active={has}
+          onClick={() =>
+            has
+              ? onChange(undefined)
+              : onChange({ color: "#000000", blur: 24, x: 0, y: 12, opacity: 0.6 })
+          }
+          label={has ? "On" : "Off"}
+        />
+      </div>
+      {has && (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Color">
+              <input
+                type="color"
+                value={shadow.color}
+                onChange={(e) => next({ color: e.target.value })}
+                className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+              />
+            </Field>
+            <Field label="Opacity">
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={shadow.opacity ?? 0.6}
+                onChange={(e) => next({ opacity: Number(e.target.value) })}
+                className="w-full accent-blue-500 h-1.5"
+              />
+              <span className="text-[10px] text-neutral-500">
+                {Math.round((shadow.opacity ?? 0.6) * 100)}%
+              </span>
+            </Field>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <Field label="X">
+              <input
+                type="range"
+                min={-100}
+                max={100}
+                step={1}
+                value={shadow.x}
+                onChange={(e) => next({ x: Number(e.target.value) })}
+                className="w-full accent-blue-500 h-1.5"
+              />
+              <span className="text-[10px] text-neutral-500">{shadow.x}px</span>
+            </Field>
+            <Field label="Y">
+              <input
+                type="range"
+                min={-100}
+                max={100}
+                step={1}
+                value={shadow.y}
+                onChange={(e) => next({ y: Number(e.target.value) })}
+                className="w-full accent-blue-500 h-1.5"
+              />
+              <span className="text-[10px] text-neutral-500">{shadow.y}px</span>
+            </Field>
+            <Field label="Blur">
+              <input
+                type="range"
+                min={0}
+                max={200}
+                step={2}
+                value={shadow.blur}
+                onChange={(e) => next({ blur: Number(e.target.value) })}
+                className="w-full accent-blue-500 h-1.5"
+              />
+              <span className="text-[10px] text-neutral-500">{shadow.blur}px</span>
+            </Field>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1274,6 +1660,182 @@ function MediaCard({
         </button>
       </div>
       {children}
+    </div>
+  );
+}
+
+function ShapePanel({
+  scene,
+  update,
+}: {
+  scene: Scene;
+  update: (p: Partial<Scene>) => void;
+}) {
+  const selectedLayerId = useEditorStore((s) => s.selectedLayerId);
+  const setSelectedLayerId = useEditorStore((s) => s.setSelectedLayerId);
+  const focusedShapeId =
+    selectedLayerId && selectedLayerId.startsWith("shape:")
+      ? selectedLayerId.slice(6)
+      : null;
+  const shapes = scene.shapes ?? [];
+  const visible = focusedShapeId
+    ? shapes.filter((sh) => sh.id === focusedShapeId)
+    : shapes;
+
+  const patchShape = (id: string, patch: Partial<SceneShape>) => {
+    update({
+      shapes: shapes.map((sh) => (sh.id === id ? { ...sh, ...patch } : sh)),
+    });
+  };
+  const removeShape = (id: string) => {
+    update({ shapes: shapes.filter((sh) => sh.id !== id) });
+    if (focusedShapeId === id) setSelectedLayerId(null);
+  };
+
+  if (shapes.length === 0) {
+    return (
+      <div className="text-[11px] text-neutral-500 px-2 py-3 text-center">
+        No shapes on this scene yet — add one from the frame's "+ Add item".
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {visible.map((sh, idx) => (
+        <div
+          key={sh.id}
+          className="rounded-lg border border-neutral-800 bg-neutral-950/50 p-2.5 space-y-2"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-wider text-neutral-400 font-medium capitalize">
+              {sh.kind} {idx + 1}
+            </span>
+            <button
+              type="button"
+              onClick={() => removeShape(sh.id)}
+              title="Remove this shape"
+              className="text-[10px] text-neutral-600 hover:text-red-400 px-1"
+            >
+              ×
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="X">
+              <input
+                type="number"
+                value={sh.x}
+                onChange={(e) => patchShape(sh.id, { x: Number(e.target.value) })}
+                className="input-field h-7 text-[11px]"
+              />
+            </Field>
+            <Field label="Y">
+              <input
+                type="number"
+                value={sh.y}
+                onChange={(e) => patchShape(sh.id, { y: Number(e.target.value) })}
+                className="input-field h-7 text-[11px]"
+              />
+            </Field>
+            <Field label="W">
+              <input
+                type="number"
+                value={sh.w}
+                onChange={(e) => patchShape(sh.id, { w: Number(e.target.value) })}
+                className="input-field h-7 text-[11px]"
+              />
+            </Field>
+            <Field label="H">
+              <input
+                type="number"
+                value={sh.h}
+                onChange={(e) => patchShape(sh.id, { h: Number(e.target.value) })}
+                className="input-field h-7 text-[11px]"
+              />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Fill">
+              <input
+                type="color"
+                value={sh.color ?? "#10b981"}
+                onChange={(e) => patchShape(sh.id, { color: e.target.value })}
+                className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+              />
+            </Field>
+            <Field label="Opacity">
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={sh.opacity ?? 1}
+                onChange={(e) => patchShape(sh.id, { opacity: Number(e.target.value) })}
+                className="w-full accent-blue-500 h-1.5"
+              />
+              <span className="text-[10px] text-neutral-500">
+                {Math.round((sh.opacity ?? 1) * 100)}%
+              </span>
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Stroke">
+              <input
+                type="color"
+                value={sh.strokeColor ?? "#ffffff"}
+                onChange={(e) => patchShape(sh.id, { strokeColor: e.target.value })}
+                className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
+              />
+            </Field>
+            <Field label="Stroke width">
+              <input
+                type="range"
+                min={0}
+                max={20}
+                step={1}
+                value={sh.strokeWidth ?? 0}
+                onChange={(e) => patchShape(sh.id, { strokeWidth: Number(e.target.value) })}
+                className="w-full accent-blue-500 h-1.5"
+              />
+              <span className="text-[10px] text-neutral-500">
+                {sh.strokeWidth ?? 0}px
+              </span>
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Rotation">
+              <input
+                type="range"
+                min={-180}
+                max={180}
+                step={1}
+                value={sh.rotation ?? 0}
+                onChange={(e) => patchShape(sh.id, { rotation: Number(e.target.value) })}
+                className="w-full accent-blue-500 h-1.5"
+              />
+              <span className="text-[10px] text-neutral-500">{sh.rotation ?? 0}°</span>
+            </Field>
+            {sh.kind === "rect" && (
+              <Field label="Corner radius">
+                <input
+                  type="range"
+                  min={0}
+                  max={120}
+                  step={2}
+                  value={sh.borderRadius ?? 0}
+                  onChange={(e) =>
+                    patchShape(sh.id, { borderRadius: Number(e.target.value) })
+                  }
+                  className="w-full accent-blue-500 h-1.5"
+                />
+                <span className="text-[10px] text-neutral-500">
+                  {sh.borderRadius ?? 0}px
+                </span>
+              </Field>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

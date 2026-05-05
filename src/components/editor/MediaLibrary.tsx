@@ -35,6 +35,7 @@ import {
 import { GRAPHICS_LIBRARY, type GraphicAsset } from "@/lib/graphics-library";
 import { OVERLAY_PRESETS, type OverlayPreset } from "@/lib/overlay-presets";
 import { defaultPlaceholderTextItem, type BRoll, type Scene, type TextItem } from "@/lib/scene-schema";
+import { useAssetStore } from "@/store/asset-store";
 import { useProjectStore } from "@/store/project-store";
 import { PropertyModal } from "./PropertyModal";
 
@@ -134,6 +135,25 @@ export function MediaLibrary({ open, onClose }: Props) {
 		onClose();
 	};
 
+	const setCharacter = (src: string, name: string) => {
+		const scene = requireScene();
+		if (!scene) return;
+		updateScene(scene.id, {
+			characterUrl: src,
+			characterId: undefined,
+		});
+		toast.success(`Character: ${name}`);
+		onClose();
+	};
+
+	const setSceneSfx = (src: string, name: string) => {
+		const scene = requireScene();
+		if (!scene) return;
+		updateScene(scene.id, { sceneSfxUrl: src });
+		toast.success(`SFX: ${name}`);
+		onClose();
+	};
+
 	const addOverlayPreset = (preset: OverlayPreset) => {
 		const scene = requireScene();
 		if (!scene) return;
@@ -203,7 +223,14 @@ export function MediaLibrary({ open, onClose }: Props) {
 				{tab === "graphics" && <GraphicsTab onPick={setGraphicBackground} />}
 				{tab === "overlays" && <OverlaysTab onPick={addOverlayPreset} />}
 				{tab === "music" && <MusicTab currentMusic={project.music} onPick={setBgMusic} />}
-				{tab === "upload" && <UploadTab />}
+				{tab === "upload" && (
+					<UploadTab
+						onPickGraphic={setGraphicBackground}
+						onPickOverlay={addOverlayPreset}
+						onPickCharacter={setCharacter}
+						onPickSfx={setSceneSfx}
+					/>
+				)}
 
 				{!targetScene && (
 					<div className="text-[10px] text-amber-300/80 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5">
@@ -629,9 +656,33 @@ function formatSeconds(sec: number): string {
 
 /* ─────────────────────────── Upload tab ─────────────────────────── */
 
-function UploadTab() {
+interface UploadTabProps {
+	onPickGraphic: (graphic: GraphicAsset) => void;
+	onPickOverlay: (preset: OverlayPreset) => void;
+	onPickCharacter: (src: string, name: string) => void;
+	onPickSfx: (src: string, name: string) => void;
+}
+
+function UploadTab({
+	onPickGraphic,
+	onPickOverlay,
+	onPickCharacter,
+	onPickSfx,
+}: UploadTabProps) {
 	const addUpload = useProjectStore((s) => s.addUpload);
 	const uploads = useProjectStore((s) => s.project.uploads) ?? [];
+	const characters = useAssetStore((s) => s.characters);
+	const sfxList = useAssetStore((s) => s.sfx);
+	// Pack assets surface here as virtual upload tiles. Project-uploaded
+	// items still appear below — this section just makes the bundled
+	// library pickable from the same modal users already know.
+	const packCharacters = characters.filter((c) =>
+		c.id.startsWith("issac-pack-"),
+	);
+	const packSfx = sfxList.filter((s) => s.id.startsWith("issac-pack-"));
+	const [librarySection, setLibrarySection] = useState<
+		"all" | "characters" | "graphics" | "overlays" | "sfx"
+	>("all");
 	const [busy, setBusy] = useState(false);
 	const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -676,6 +727,135 @@ function UploadTab() {
 					Files attach to your project — drag from the grid below into a scene
 				</span>
 			</button>
+
+			{/* Bundled library — Issac Pack assets surface here so users
+			    discover them from the same modal as their own uploads.
+			    Click any tile to attach it to the active scene. */}
+			<div>
+				<div className="flex items-center justify-between mb-1.5">
+					<div className="text-[9px] uppercase tracking-wider text-neutral-500">
+						Asset library ({packCharacters.length + GRAPHICS_LIBRARY.length + OVERLAY_PRESETS.length + packSfx.length})
+					</div>
+					<div className="flex gap-1 flex-wrap">
+						{(["all", "characters", "graphics", "overlays", "sfx"] as const).map((s) => (
+							<button
+								key={s}
+								type="button"
+								onClick={() => setLibrarySection(s)}
+								className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded ${
+									librarySection === s
+										? "bg-purple-500/20 text-purple-200 ring-1 ring-purple-500/40"
+										: "bg-neutral-900 text-neutral-500 hover:text-white"
+								}`}
+							>
+								{s}
+							</button>
+						))}
+					</div>
+				</div>
+				{(librarySection === "all" || librarySection === "characters") && packCharacters.length > 0 ? (
+					<>
+						{librarySection === "all" ? (
+							<div className="text-[9px] uppercase tracking-wider text-neutral-600 mb-1 mt-2">Characters</div>
+						) : null}
+						<div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2 mb-2">
+							{packCharacters.map((c) => (
+								<button
+									key={c.id}
+									type="button"
+									onClick={() => onPickCharacter(c.src, c.name)}
+									title={`${c.name} — set as scene character`}
+									className="relative aspect-square rounded-md overflow-hidden border border-neutral-800 bg-neutral-950 hover:border-purple-500/60 transition-colors group"
+								>
+									<img src={c.src} alt={c.name} className="w-full h-full object-contain p-2" loading="lazy" />
+									<div className="absolute bottom-0 inset-x-0 px-1 py-0.5 bg-black/70 text-[9px] text-neutral-300 truncate">
+										{c.name}
+									</div>
+								</button>
+							))}
+						</div>
+					</>
+				) : null}
+				{(librarySection === "all" || librarySection === "graphics") ? (
+					<>
+						{librarySection === "all" ? (
+							<div className="text-[9px] uppercase tracking-wider text-neutral-600 mb-1 mt-2">Graphics</div>
+						) : null}
+						<div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2 mb-2">
+							{GRAPHICS_LIBRARY.map((g) => (
+								<button
+									key={g.id}
+									type="button"
+									onClick={() => onPickGraphic(g)}
+									title={`${g.name} — set as scene background`}
+									className="relative aspect-square rounded-md overflow-hidden border border-neutral-800 bg-neutral-950 hover:border-purple-500/60 transition-colors"
+								>
+									<img src={g.src} alt={g.name} className="w-full h-full object-cover" loading="lazy" />
+									<div className="absolute bottom-0 inset-x-0 px-1 py-0.5 bg-black/70 text-[9px] text-neutral-300 truncate">
+										{g.name}
+									</div>
+								</button>
+							))}
+						</div>
+					</>
+				) : null}
+				{(librarySection === "all" || librarySection === "overlays") ? (
+					<>
+						{librarySection === "all" ? (
+							<div className="text-[9px] uppercase tracking-wider text-neutral-600 mb-1 mt-2">Overlays (screen blend)</div>
+						) : null}
+						<div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2 mb-2">
+							{OVERLAY_PRESETS.map((o) => (
+								<button
+									key={o.id}
+									type="button"
+									onClick={() => onPickOverlay(o)}
+									title={`${o.name} — drop on active scene with screen blend`}
+									className="relative aspect-square rounded-md overflow-hidden border border-neutral-800 bg-black hover:border-purple-500/60 transition-colors group"
+								>
+									{/* biome-ignore lint/a11y/useMediaCaption: silent overlay preview */}
+									<video
+										src={o.src}
+										muted
+										loop
+										playsInline
+										preload="metadata"
+										className="w-full h-full object-cover opacity-90 group-hover:opacity-100"
+										onMouseEnter={(e) => { (e.target as HTMLVideoElement).play().catch(() => {}); }}
+										onMouseLeave={(e) => { (e.target as HTMLVideoElement).pause(); }}
+									/>
+									<div className="absolute bottom-0 inset-x-0 px-1 py-0.5 bg-black/70 text-[9px] text-neutral-300 truncate flex items-center gap-1">
+										<Video className="h-2.5 w-2.5" />
+										{o.name}
+									</div>
+								</button>
+							))}
+						</div>
+					</>
+				) : null}
+				{(librarySection === "all" || librarySection === "sfx") && packSfx.length > 0 ? (
+					<>
+						{librarySection === "all" ? (
+							<div className="text-[9px] uppercase tracking-wider text-neutral-600 mb-1 mt-2">SFX</div>
+						) : null}
+						<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
+							{packSfx.map((s) => (
+								<button
+									key={s.id}
+									type="button"
+									onClick={() => onPickSfx(s.src, s.name)}
+									title={`${s.name} — set as scene SFX`}
+									className="flex items-center gap-1.5 px-2 py-1.5 rounded border border-neutral-800 bg-neutral-950 hover:border-purple-500/60 text-left text-[11px] text-neutral-200 transition-colors"
+								>
+									<Music className="h-3 w-3 text-purple-300 shrink-0" />
+									<span className="flex-1 truncate">{s.name}</span>
+								</button>
+							))}
+						</div>
+					</>
+				) : null}
+			</div>
+
 			{uploads.length > 0 && (
 				<div>
 					<div className="text-[9px] uppercase tracking-wider text-neutral-500 mb-1.5">

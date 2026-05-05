@@ -48,6 +48,14 @@ export interface BRoll {
   /** When true, the b-roll is skipped from the render but kept in the
    *  timeline. Toggled via the eye icon in the scene list. */
   hidden?: boolean;
+  /**
+   * CSS mix-blend-mode applied directly to this clip — typically
+   * "screen" for black-background overlays so the dark pixels drop
+   * out (Issac-pack-style "Breaking Glass" / "Neon Flash" effects).
+   * Per-broll instead of per-track so a single overlay clip can flip
+   * blend without touching its sibling tracks.
+   */
+  mixBlendMode?: string;
 }
 
 export interface ImageFilter {
@@ -1144,7 +1152,13 @@ export type MotionPreset =
   | "slide_out_left"
   | "slide_out_top"
   | "slide_out_bottom"
-  | "flip_x_180";
+  | "flip_x_180"
+  // Issac-pack ports — spring-flavoured entrances. bounce_pop_in is a
+  // bigger overshoot than bounce_in (1.15 peak vs 1.0 settle); stagger
+  // adds the per-item fade+scale curve that pairs with offset start
+  // frames to cascade multiple elements.
+  | "bounce_pop_in"
+  | "stagger_fade_scale";
 
 /**
  * Motion clip kinds — self-contained motion segments. Each runs from

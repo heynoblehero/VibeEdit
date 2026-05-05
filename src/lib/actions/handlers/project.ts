@@ -113,7 +113,7 @@ interface MotionPresetSetArgs extends Record<string, unknown> {
 export const motionPresetSetAction: Action<MotionPresetSetArgs> = {
   name: "motion.preset.set",
   description:
-    "Apply a named motion preset to one of a scene's elements. element=text|emphasis|character|bg. preset=none|drift_up|drift_down|pulse|shake|ken_burns_in|ken_burns_out|parallax_slow|parallax_fast|bounce_in|fade_in_out|wobble.",
+    "Apply a named motion preset to one of a scene's elements. element=text|emphasis|character|bg. preset=none|drift_up|drift_down|pulse|shake|ken_burns_in|ken_burns_out|parallax_slow|parallax_fast|bounce_in|bounce_pop_in|stagger_fade_scale|fade_in_out|wobble.",
   validate(args) {
     if (typeof args?.sceneId !== "string") return "sceneId required";
     if (!["text", "emphasis", "character", "bg"].includes(String(args?.element)))

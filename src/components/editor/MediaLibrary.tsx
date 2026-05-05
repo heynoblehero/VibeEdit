@@ -10,6 +10,7 @@ import type { IGif } from "@giphy/js-types";
 import {
 	ExternalLink,
 	Image as ImageIcon,
+	Layers,
 	Library,
 	Loader2,
 	Music,
@@ -31,7 +32,9 @@ import {
 	MUSIC_TRACKS,
 	type MusicTrack,
 } from "@/lib/music-library";
-import { defaultPlaceholderTextItem, type Scene, type TextItem } from "@/lib/scene-schema";
+import { GRAPHICS_LIBRARY, type GraphicAsset } from "@/lib/graphics-library";
+import { OVERLAY_PRESETS, type OverlayPreset } from "@/lib/overlay-presets";
+import { defaultPlaceholderTextItem, type BRoll, type Scene, type TextItem } from "@/lib/scene-schema";
 import { useProjectStore } from "@/store/project-store";
 import { PropertyModal } from "./PropertyModal";
 
@@ -46,7 +49,7 @@ import { PropertyModal } from "./PropertyModal";
  * instructions card so the modal still ships without a configured key.
  */
 
-type Tab = "emoji" | "gifs" | "music" | "upload";
+type Tab = "emoji" | "gifs" | "graphics" | "overlays" | "music" | "upload";
 
 interface Props {
 	open: boolean;
@@ -59,6 +62,7 @@ export function MediaLibrary({ open, onClose }: Props) {
 	const selectedSceneId = useProjectStore((s) => s.selectedSceneId);
 	const updateScene = useProjectStore((s) => s.updateScene);
 	const setMusic = useProjectStore((s) => s.setMusic);
+	const addBRoll = useProjectStore((s) => s.addBRoll);
 
 	const targetScene: Scene | undefined =
 		project.scenes.find((s) => s.id === selectedSceneId) ?? project.scenes[0];
@@ -116,6 +120,47 @@ export function MediaLibrary({ open, onClose }: Props) {
 		onClose();
 	};
 
+	const setGraphicBackground = (graphic: GraphicAsset) => {
+		const scene = requireScene();
+		if (!scene) return;
+		updateScene(scene.id, {
+			background: {
+				...scene.background,
+				imageUrl: graphic.src,
+				videoUrl: undefined,
+			},
+		});
+		toast.success(`Background: ${graphic.name}`);
+		onClose();
+	};
+
+	const addOverlayPreset = (preset: OverlayPreset) => {
+		const scene = requireScene();
+		if (!scene) return;
+		const broll: BRoll = {
+			id: `bro-${Math.random().toString(36).slice(2, 10)}`,
+			kind: "clip",
+			url: preset.src,
+			position: preset.defaultPosition ?? "full",
+			startFrame: 0,
+			durationFrames: preset.suggestedDurationFrames ?? 60,
+			source: "upload",
+			opacity: 1,
+			mixBlendMode: preset.defaultBlendMode,
+			// "full" overlays don't need a corner radius — let the
+			// renderer's default fill the scene.
+			borderRadius: preset.defaultPosition === "full" ? 0 : undefined,
+			shadow: "none",
+		};
+		addBRoll(scene.id, broll);
+		toast.success(`Added ${preset.name}`, {
+			description: preset.defaultBlendMode === "screen"
+				? "Blend mode: screen — black drops out automatically."
+				: undefined,
+		});
+		onClose();
+	};
+
 	return (
 		<PropertyModal
 			open={open}
@@ -131,6 +176,8 @@ export function MediaLibrary({ open, onClose }: Props) {
 						[
 							["emoji", "Emoji", Smile],
 							["gifs", "GIFs", Sparkles],
+							["graphics", "Graphics", ImageIcon],
+							["overlays", "Overlays", Layers],
 							["music", "Music", Music],
 							["upload", "Uploads", Upload],
 						] as const
@@ -153,6 +200,8 @@ export function MediaLibrary({ open, onClose }: Props) {
 
 				{tab === "emoji" && <EmojiTab onPick={addEmoji} />}
 				{tab === "gifs" && <GifTab onPick={addGif} />}
+				{tab === "graphics" && <GraphicsTab onPick={setGraphicBackground} />}
+				{tab === "overlays" && <OverlaysTab onPick={addOverlayPreset} />}
 				{tab === "music" && <MusicTab currentMusic={project.music} onPick={setBgMusic} />}
 				{tab === "upload" && <UploadTab />}
 
@@ -667,6 +716,131 @@ function UploadTab() {
 					</div>
 				</div>
 			)}
+		</div>
+	);
+}
+
+/* ─────────────────────────── Graphics tab ─────────────────────────── */
+
+function GraphicsTab({ onPick }: { onPick: (graphic: GraphicAsset) => void }) {
+	const [filter, setFilter] = useState<"all" | "gradient" | "shape">("all");
+	const filtered = filter === "all"
+		? GRAPHICS_LIBRARY
+		: GRAPHICS_LIBRARY.filter((g) => g.kind === filter);
+	return (
+		<div className="space-y-2">
+			<div className="flex items-center justify-between gap-2">
+				<div className="text-[11px] text-neutral-500 leading-snug">
+					Click a graphic to set it as the active scene's background.
+				</div>
+				<div className="flex gap-1">
+					{(["all", "gradient", "shape"] as const).map((kind) => (
+						<button
+							key={kind}
+							type="button"
+							onClick={() => setFilter(kind)}
+							className={`text-[10px] uppercase tracking-wider px-2 py-1 rounded transition-colors ${
+								filter === kind
+									? "bg-purple-500/20 text-purple-200 ring-1 ring-purple-500/40"
+									: "bg-neutral-900 text-neutral-500 hover:text-white"
+							}`}
+						>
+							{kind}
+						</button>
+					))}
+				</div>
+			</div>
+			<div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+				{filtered.map((graphic) => (
+					<button
+						key={graphic.id}
+						type="button"
+						onClick={() => onPick(graphic)}
+						className="group relative rounded border border-neutral-800 bg-neutral-950 hover:border-purple-500/60 transition-colors overflow-hidden"
+						title={graphic.name}
+					>
+						<div className="aspect-video bg-neutral-900 flex items-center justify-center overflow-hidden">
+							<img
+								src={graphic.src}
+								alt={graphic.name}
+								className="w-full h-full object-cover opacity-90 group-hover:opacity-100"
+								loading="lazy"
+							/>
+						</div>
+						<div className="px-1.5 py-1 text-[10px] text-neutral-400 truncate">
+							{graphic.name}
+						</div>
+					</button>
+				))}
+			</div>
+		</div>
+	);
+}
+
+/* ─────────────────────────── Overlays tab ─────────────────────────── */
+
+function OverlaysTab({ onPick }: { onPick: (preset: OverlayPreset) => void }) {
+	return (
+		<div className="space-y-2">
+			<div className="text-[11px] text-neutral-500 leading-snug">
+				Click an overlay to drop it onto the active scene. The Issac-pack
+				clips ship with{" "}
+				<span className="text-purple-300 font-mono">screen</span> blend so the
+				black background disappears automatically.
+			</div>
+			<div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+				{OVERLAY_PRESETS.map((preset) => (
+					<button
+						key={preset.id}
+						type="button"
+						onClick={() => onPick(preset)}
+						className="group relative rounded border border-neutral-800 bg-neutral-950 hover:border-purple-500/60 transition-colors overflow-hidden text-left"
+					>
+						<div className="aspect-video bg-black flex items-center justify-center overflow-hidden">
+							{/* biome-ignore lint/a11y/useMediaCaption: silent overlay preview */}
+							<video
+								src={preset.src}
+								muted
+								loop
+								playsInline
+								preload="metadata"
+								className="w-full h-full object-cover opacity-90 group-hover:opacity-100"
+								onMouseEnter={(e) => {
+									(e.target as HTMLVideoElement).play().catch(() => {});
+								}}
+								onMouseLeave={(e) => {
+									(e.target as HTMLVideoElement).pause();
+								}}
+							/>
+						</div>
+						<div className="px-2 py-1.5">
+							<div className="text-[12px] text-neutral-100 font-medium truncate">
+								{preset.name}
+							</div>
+							{preset.description ? (
+								<div className="text-[10px] text-neutral-500 leading-snug line-clamp-2 mt-0.5">
+									{preset.description}
+								</div>
+							) : null}
+							<div className="flex items-center gap-1 mt-1 flex-wrap">
+								{preset.defaultBlendMode ? (
+									<span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300">
+										{preset.defaultBlendMode}
+									</span>
+								) : null}
+								{preset.tags.slice(0, 2).map((tag) => (
+									<span
+										key={tag}
+										className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400"
+									>
+										{tag}
+									</span>
+								))}
+							</div>
+						</div>
+					</button>
+				))}
+			</div>
 		</div>
 	);
 }

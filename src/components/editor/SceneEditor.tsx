@@ -2217,6 +2217,8 @@ const MOTION_NAMES: Array<MotionPreset> = [
   "parallax_slow",
   "parallax_fast",
   "bounce_in",
+  "bounce_pop_in",
+  "stagger_fade_scale",
   "fade_in_out",
   "wobble",
 ];

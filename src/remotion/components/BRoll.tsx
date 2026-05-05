@@ -95,6 +95,7 @@ export const BRoll: React.FC<Props> = ({ broll, scene }) => {
     border,
     boxShadow,
     filter: filterCss(broll.filter),
+    mixBlendMode: broll.mixBlendMode as React.CSSProperties["mixBlendMode"],
   };
 
   const mediaStyle: React.CSSProperties = {

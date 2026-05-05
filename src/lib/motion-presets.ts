@@ -186,6 +186,38 @@ export const MOTION_PRESETS: Record<MotionPreset, PresetFn> = {
     { frame: 0, value: 0, easing: "ease_in_out" },
     { frame: dur, value: 180, easing: "ease_in_out" },
   ],
+
+  /**
+   * Spring entrance with a 1.15 overshoot peak then settle to 1.0.
+   * Bigger and snappier than bounce_in. Ported from the Issac-pack
+   * `useBouncePopIn` Remotion hook (damping 12 / stiffness 200) —
+   * sampled into keyframes since this catalog is keyframe-based.
+   */
+  bounce_pop_in: (dur) => {
+    const peakAt = Math.min(10, Math.max(4, Math.round(dur * 0.35)));
+    const settleAt = Math.min(20, Math.max(peakAt + 4, Math.round(dur * 0.6)));
+    return [
+      { frame: 0, value: 0, easing: "ease_out_back" },
+      { frame: peakAt, value: 1.15, easing: "ease_in_out" },
+      { frame: settleAt, value: 1.0, easing: "ease_out" },
+      { frame: dur, value: 1.0 },
+    ];
+  },
+
+  /**
+   * Per-element fade + scale entrance. Ported from `useStaggeredReveal`
+   * (damping 14 / stiffness 180). Stagger across multiple elements is
+   * achieved by offsetting each item's startFrame at the call site, not
+   * inside this preset — the catalog is per-element, not per-list.
+   */
+  stagger_fade_scale: (dur) => {
+    const enter = Math.min(12, Math.round(dur * 0.4));
+    return [
+      { frame: 0, value: 0.8, easing: "ease_out" },
+      { frame: enter, value: 1.0, easing: "ease_out" },
+      { frame: dur, value: 1.0 },
+    ];
+  },
 };
 
 /** Default preset value when no keyframes are specified. */

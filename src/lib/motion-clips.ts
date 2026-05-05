@@ -262,6 +262,8 @@ function presetTarget(name: MotionPreset): PresetTarget {
     case "ken_burns_in":
     case "ken_burns_out":
     case "bounce_in":
+    case "bounce_pop_in":
+    case "stagger_fade_scale":
       return "scale";
     case "fade_in_out":
       return "opacity";

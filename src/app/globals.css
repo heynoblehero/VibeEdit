@@ -3,6 +3,15 @@
 :root {
   --background: #0a0a0a;
   --foreground: #ededed;
+  /* Native chrome insets. Set from env() so the values are real on
+   * iOS/Android with viewport-fit=cover (and on devices with notches /
+   * gesture bars), and harmlessly 0 on plain web. The phone shell
+   * consumes --safe-top on its app bar and --safe-bottom on its tab
+   * bar; landscape uses --safe-left/right. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 /* Light theme. Honest caveat: the UI is heavily Tailwind-class-dark

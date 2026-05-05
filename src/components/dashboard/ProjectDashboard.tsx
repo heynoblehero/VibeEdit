@@ -103,6 +103,10 @@ export function ProjectDashboard() {
 			style={{
 				background:
 					"linear-gradient(180deg, #0a0a0a 0%, #0a0a0a 60%, #060606 100%)",
+				// Native chrome breathing room on Capacitor / iOS Safari.
+				// Falls back to 0 on desktop browsers via the CSS var.
+				paddingTop: "var(--safe-top)",
+				paddingBottom: "var(--safe-bottom)",
 			}}
 		>
 			<header className="px-4 sm:px-8 py-5 border-b border-neutral-800/60 flex items-center gap-3 sticky top-0 z-10 bg-neutral-950/70 backdrop-blur-md">

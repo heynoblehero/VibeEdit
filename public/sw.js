@@ -12,8 +12,8 @@
 // Bump CACHE_VERSION when shipping breaking shell changes; old caches
 // are pruned on activate.
 
-const CACHE_VERSION = "vibeedit-v1";
-const SHELL_PATHS = ["/", "/dashboard", "/manifest.webmanifest"];
+const CACHE_VERSION = "vibeedit-v2";
+const SHELL_PATHS = ["/", "/dashboard", "/changelog", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
 	event.waitUntil(

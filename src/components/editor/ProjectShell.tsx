@@ -38,6 +38,8 @@ import { AutoSaveIndicator } from "@/components/editor/AutoSaveIndicator";
 import { BulkSceneBar } from "@/components/editor/BulkSceneBar";
 import { OnboardingTour } from "@/components/editor/OnboardingTour";
 import { MobileDrawer } from "@/components/mobile/MobileDrawer";
+import { PhoneEditorShell } from "@/components/mobile/PhoneEditorShell";
+import { usePhoneMode } from "@/lib/use-phone-mode";
 
 const Preview = dynamic(
 	() => import("@/components/editor/Preview").then((m) => m.Preview),
@@ -157,6 +159,23 @@ export function ProjectShell() {
 				setRightCollapsedState(true);
 		} catch {}
 	}, []);
+
+	// Phone shell is a completely different product surface — bottom
+	// tab bar, full-bleed preview, no rails. We branch at the very top
+	// instead of trying to make the desktop shell phone-friendly.
+	if (phoneMode) {
+		return (
+			<>
+				<KeyboardShortcuts />
+				<ProjectDropImport />
+				<PasteImage />
+				<PageTitleSync />
+				<PhoneEditorShell />
+				<BulkSceneBar />
+				<ScheduleRenderDialog open={scheduleOpen} onClose={() => setScheduleOpen(false)} />
+			</>
+		);
+	}
 
 	return (
 		<div

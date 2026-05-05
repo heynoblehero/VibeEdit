@@ -7,6 +7,7 @@ import { RenderQueuePanel } from "@/components/editor/RenderQueuePanel";
 import { CommandPalette } from "@/components/shell/CommandPalette";
 import { GlobalDropHint } from "@/components/shell/GlobalDropHint";
 import { RecoveryToast } from "@/components/shell/RecoveryToast";
+import { CapacitorBootstrap } from "@/components/shell/CapacitorBootstrap";
 import { ServiceWorkerRegister } from "@/components/shell/ServiceWorkerRegister";
 import { ShortcutsOverlay } from "@/components/shell/ShortcutsOverlay";
 import { WhatsNewModal } from "@/components/shell/WhatsNewModal";
@@ -55,6 +56,9 @@ export const metadata: Metadata = {
 };
 
 // Mobile viewport: full-width, allow zoom (a11y), respect notch / safe-area.
+// `viewportFit: "cover"` is what makes env(safe-area-inset-*) return real
+// values on Android/iOS — without it the WebView pads the layout itself
+// and our --safe-top vars are all zero.
 export const viewport: Viewport = {
   themeColor: "#0a0a0a",
   width: "device-width",
@@ -103,6 +107,7 @@ export default function RootLayout({
         <GlobalDropHint />
         <RecoveryToast />
         <ServiceWorkerRegister />
+        <CapacitorBootstrap />
         <WhatsNewModal />
         <Toaster
           theme="dark"

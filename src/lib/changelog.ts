@@ -17,6 +17,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
 	{
+		version: "0.36.0",
+		date: "2026-05-06",
+		title: "Phone-first editor — feels like an app",
+		highlights: [
+			"New phone shell at <720px: bottom tab bar (Scenes / Edit / Render), full-bleed preview, big back button. The editor stops feeling like a website opened in an app.",
+			"Native chrome on Android: real splash screen (no more blank-white launch), dark status bar overlaying the WebView, safe-area insets so notched phones don't clip the header.",
+			"Hardware back button now pops the tab stack instead of exiting the app on the first press. Soft keyboard resizes the WebView without breaking the bottom bar.",
+			"Swipe between scenes on the preview, haptic feedback on tab switches and scene swipes, native share sheet for finished renders.",
+			"This APK release bundles @capacitor/{splash-screen, status-bar, keyboard, app, haptics, share}. Reinstall the APK from /download to pick them up.",
+		],
+	},
+	{
 		version: "0.35.0",
 		date: "2026-05-05",
 		title: "Back to one workspace",

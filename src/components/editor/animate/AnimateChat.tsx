@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, RotateCcw, Send, Sparkles, User } from "lucide-react";
+import { Loader2, Pin, PinOff, RotateCcw, Send, Sparkles, Square, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Field";
@@ -54,6 +54,14 @@ export function AnimateChat({ currentSpec, onSpec }: Props) {
 	const [busy, setBusy] = useState(false);
 	const [streamingText, setStreamingText] = useState("");
 	const scrollRef = useRef<HTMLDivElement>(null);
+	const abortRef = useRef<AbortController | null>(null);
+
+	const cancelInflight = () => {
+		const controller = abortRef.current;
+		if (!controller) return;
+		controller.abort();
+		abortRef.current = null;
+	};
 
 	useEffect(() => {
 		if (scrollRef.current) {
@@ -99,6 +107,8 @@ export function AnimateChat({ currentSpec, onSpec }: Props) {
 			kind: "animation",
 			label: `Animate · ${prompt.slice(0, 32)}${prompt.length > 32 ? "…" : ""}`,
 		});
+		const controller = new AbortController();
+		abortRef.current = controller;
 		try {
 			const res = await fetch("/api/animate/chat", {
 				method: "POST",
@@ -108,6 +118,7 @@ export function AnimateChat({ currentSpec, onSpec }: Props) {
 					history: apiHistory,
 					canvas: { fps: project.fps, width: project.width, height: project.height },
 				}),
+				signal: controller.signal,
 			});
 			if (!res.ok || !res.body) {
 				const err = await res.json().catch(() => null);
@@ -186,10 +197,18 @@ export function AnimateChat({ currentSpec, onSpec }: Props) {
 				});
 			}
 		} catch (e) {
-			toast.error("Generation failed", {
-				description: e instanceof Error ? e.message : String(e),
-			});
+			// User cancelled — no toast; the Stop button click is the
+			// signal of intent. Any other failure surfaces normally.
+			const wasAborted =
+				(e as { name?: string } | undefined)?.name === "AbortError" ||
+				controller.signal.aborted;
+			if (!wasAborted) {
+				toast.error("Generation failed", {
+					description: e instanceof Error ? e.message : String(e),
+				});
+			}
 		} finally {
+			abortRef.current = null;
 			setBusy(false);
 			setStreamingText("");
 			useAiStatusStore.getState().end(taskId);
@@ -351,17 +370,28 @@ export function AnimateChat({ currentSpec, onSpec }: Props) {
 					<span className="text-[10px] text-neutral-500 flex items-center gap-1">
 						<Kbd keys={[modKey(), "⏎"]} /> to send
 					</span>
-					<Button
-						variant="primary"
-						accent="animate"
-						size="sm"
-						onClick={send}
-						disabled={!draft.trim()}
-						loading={busy}
-						leadingIcon={!busy && <Send className="h-3.5 w-3.5" />}
-					>
-						{busy ? "Thinking…" : "Send"}
-					</Button>
+					{busy ? (
+						<Button
+							variant="secondary"
+							accent="animate"
+							size="sm"
+							onClick={cancelInflight}
+							leadingIcon={<Square className="h-3.5 w-3.5" />}
+						>
+							Stop
+						</Button>
+					) : (
+						<Button
+							variant="primary"
+							accent="animate"
+							size="sm"
+							onClick={send}
+							disabled={!draft.trim()}
+							leadingIcon={<Send className="h-3.5 w-3.5" />}
+						>
+							Send
+						</Button>
+					)}
 				</div>
 			</div>
 		</div>
@@ -434,20 +464,84 @@ function RecentPromptChips({
 	show: boolean;
 }) {
 	const recent = usePromptHistoryStore((s) => s.prompts.animate);
-	if (!show || recent.length === 0) return null;
+	const pinned = usePromptHistoryStore((s) => s.pinned.animate);
+	const pin = usePromptHistoryStore((s) => s.pin);
+	const unpin = usePromptHistoryStore((s) => s.unpin);
+	if (!show) return null;
+	// Pins always render; recent fills below until 5 chips total. We
+	// dedupe because a pinned prompt is also typically in `recent`.
+	const recentExcludingPinned = recent.filter((p) => !pinned.includes(p));
+	const recentSlots = Math.max(0, 5 - pinned.length);
+	const visibleRecent = recentExcludingPinned.slice(0, recentSlots);
+	if (pinned.length === 0 && visibleRecent.length === 0) return null;
 	return (
 		<div className="flex flex-wrap gap-1">
-			{recent.slice(0, 5).map((p) => (
-				<button
+			{pinned.map((p) => (
+				<Chip
+					key={`pin-${p}`}
+					prompt={p}
+					pinned
+					onPick={() => onPick(p)}
+					onTogglePin={() => unpin("animate", p)}
+				/>
+			))}
+			{visibleRecent.map((p) => (
+				<Chip
 					key={p}
-					type="button"
-					onClick={() => onPick(p)}
-					title={p}
-					className="px-2 py-0.5 rounded-full text-[10px] bg-neutral-950 border border-neutral-800 text-neutral-400 hover:border-fuchsia-500/40 hover:text-fuchsia-200 truncate max-w-[200px]"
-				>
-					{p.length > 36 ? `${p.slice(0, 33)}…` : p}
-				</button>
+					prompt={p}
+					pinned={false}
+					onPick={() => onPick(p)}
+					onTogglePin={() => pin("animate", p)}
+				/>
 			))}
 		</div>
+	);
+}
+
+function Chip({
+	prompt,
+	pinned,
+	onPick,
+	onTogglePin,
+}: {
+	prompt: string;
+	pinned: boolean;
+	onPick: () => void;
+	onTogglePin: () => void;
+}) {
+	const display = prompt.length > 36 ? `${prompt.slice(0, 33)}…` : prompt;
+	return (
+		<span
+			className={`group inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-neutral-950 border ${
+				pinned
+					? "border-fuchsia-500/40 text-fuchsia-200"
+					: "border-neutral-800 text-neutral-400 hover:border-fuchsia-500/40 hover:text-fuchsia-200"
+			}`}
+		>
+			<button
+				type="button"
+				onClick={onPick}
+				title={prompt}
+				className="truncate max-w-[180px]"
+			>
+				{display}
+			</button>
+			<button
+				type="button"
+				onClick={onTogglePin}
+				title={pinned ? "Unpin" : "Pin"}
+				className={`p-0.5 rounded ${
+					pinned
+						? "text-fuchsia-300"
+						: "opacity-0 group-hover:opacity-100 touch-reveal text-neutral-500 hover:text-fuchsia-300"
+				}`}
+			>
+				{pinned ? (
+					<PinOff className="h-2.5 w-2.5" />
+				) : (
+					<Pin className="h-2.5 w-2.5" />
+				)}
+			</button>
+		</span>
 	);
 }

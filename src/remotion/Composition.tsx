@@ -43,7 +43,54 @@ interface CompositionProps {
    * tracks contribute their audio rails but skip visuals.
    */
   tracks?: Track[];
+  /**
+   * Free-tier watermark: when true, render a small "VibeEdit" pill in
+   * the bottom-right corner of every frame. Off by default; turned on
+   * by the render pipeline only for users who haven't paid.
+   */
+  watermark?: boolean;
 }
+
+/**
+ * Bottom-right "Made with VibeEdit" pill. Sized relative to the canvas
+ * height so it stays legible at any export resolution. Drawn into the
+ * composition root above all scene content but below transitions —
+ * unobtrusive but un-removable without re-rendering.
+ */
+const WatermarkBadge: React.FC<{ width: number; height: number }> = ({
+  width,
+  height,
+}) => {
+  const minDim = Math.min(width, height);
+  const fontSize = Math.round(minDim * 0.024);
+  const padX = Math.round(fontSize * 0.9);
+  const padY = Math.round(fontSize * 0.45);
+  const radius = Math.round(fontSize * 1.2);
+  const inset = Math.round(minDim * 0.025);
+  return (
+    <div
+      style={{
+        position: "absolute",
+        right: inset,
+        bottom: inset,
+        background: "rgba(0,0,0,0.55)",
+        color: "#fff",
+        padding: `${padY}px ${padX}px`,
+        borderRadius: radius,
+        fontSize,
+        fontFamily: "Inter, system-ui, sans-serif",
+        fontWeight: 600,
+        letterSpacing: 0.4,
+        lineHeight: 1,
+        backdropFilter: "blur(2px)",
+        pointerEvents: "none",
+        opacity: 0.85,
+      }}
+    >
+      VibeEdit
+    </div>
+  );
+};
 
 const FilmGrain: React.FC = () => {
   // Slowly shift the noise seed so the grain animates instead of looking
@@ -213,6 +260,7 @@ export const VideoComposition: React.FC<CompositionProps> = ({
   audioMix,
   sfxClips,
   tracks,
+  watermark,
 }) => {
   // Multi-track path (M2). Defined tracks → render each as its own
   // layer; legacy single-track render is the fallback.
@@ -232,6 +280,7 @@ export const VideoComposition: React.FC<CompositionProps> = ({
         filmGrain={filmGrain}
         audioMix={audioMix}
         sfxClips={sfxClips}
+        watermark={watermark}
       />
     );
   }
@@ -477,6 +526,7 @@ export const VideoComposition: React.FC<CompositionProps> = ({
         }}
       />
       {filmGrain && <FilmGrain />}
+      {watermark && <WatermarkBadge width={width} height={height} />}
     </AbsoluteFill>
   );
 };
@@ -508,14 +558,13 @@ const MultiTrackRender: React.FC<
   music,
   captionStyle,
   cuts,
-  width: _w,
-  height: _h,
+  width,
+  height,
   filmGrain = true,
   audioMix,
   sfxClips,
+  watermark,
 }) => {
-  void _w;
-  void _h;
   const sceneById = new Map<string, Scene>(rawScenes.map((s) => [s.id, s]));
   const mixVoice = Math.max(0, Math.min(2, audioMix?.voice ?? 1));
   const mixSfx = Math.max(0, Math.min(2, audioMix?.sfx ?? 1));
@@ -581,8 +630,8 @@ const MultiTrackRender: React.FC<
                   <TransitionSeries.Transition
                     key={`trans-${r.track.id}-${scene.id}-${next.id}`}
                     presentation={presentationFor(cut!.kind, {
-                      width: _w,
-                      height: _h,
+                      width,
+                      height,
                       color: cut?.color,
                     })}
                     timing={timingFor(cut!, cutDur)}
@@ -758,6 +807,7 @@ const MultiTrackRender: React.FC<
         }}
       />
       {filmGrain && <FilmGrain />}
+      {watermark && <WatermarkBadge width={width} height={height} />}
     </AbsoluteFill>
   );
 };

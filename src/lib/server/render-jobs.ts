@@ -185,6 +185,11 @@ async function runJob(job: RenderJob): Promise<void> {
     ? { ...project.music, url: inlineUrl(project.music.url, origin) }
     : undefined;
 
+  // Watermark is opt-in per deployment. The hosted SaaS sets
+  // VIBEEDIT_WATERMARK=1; self-hosted owners leave it off and get a
+  // clean export. Branding decisions live in env, not in the schema.
+  const watermark = process.env.VIBEEDIT_WATERMARK === "1";
+
   const inputProps = {
     scenes,
     fps: project.fps,
@@ -198,6 +203,7 @@ async function runJob(job: RenderJob): Promise<void> {
     audioMix: project.audioMix,
     sfxClips: project.sfxClips,
     tracks: project.tracks,
+    watermark,
   };
 
   job.state = "rendering";

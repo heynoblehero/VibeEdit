@@ -9,6 +9,7 @@ import { GlobalDropHint } from "@/components/shell/GlobalDropHint";
 import { RecoveryToast } from "@/components/shell/RecoveryToast";
 import { ServiceWorkerRegister } from "@/components/shell/ServiceWorkerRegister";
 import { ShortcutsOverlay } from "@/components/shell/ShortcutsOverlay";
+import { WhatsNewModal } from "@/components/shell/WhatsNewModal";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -102,12 +103,14 @@ export default function RootLayout({
         <GlobalDropHint />
         <RecoveryToast />
         <ServiceWorkerRegister />
+        <WhatsNewModal />
         <Toaster
           theme="dark"
           position="bottom-right"
           richColors
           expand
-          visibleToasts={5}
+          visibleToasts={3}
+          duration={2400}
         />
       </body>
     </html>

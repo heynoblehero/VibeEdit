@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { toast } from "sonner";
+import type { Scene } from "@/lib/scene-schema";
 import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 
@@ -14,6 +15,71 @@ function isTextInput(el: EventTarget | null): boolean {
     tag === "SELECT" ||
     el.isContentEditable
   );
+}
+
+// Translate a selectedLayerId into the patch that removes that one
+// element from the scene. Returns null when the layer can't be deleted
+// in isolation (e.g. voiceover handle — not yet supported here) so the
+// caller can fall back to its previous behaviour.
+function patchForLayerDelete(
+  scene: Scene,
+  layerId: string,
+): { patch: Partial<Scene>; label: string } | null {
+  if (layerId === "media:bg") {
+    return {
+      patch: {
+        background: {
+          ...scene.background,
+          imageUrl: undefined,
+          videoUrl: undefined,
+        },
+      },
+      label: "Background",
+    };
+  }
+  if (layerId === "media:character") {
+    return {
+      patch: { characterId: undefined, characterUrl: undefined },
+      label: "Character",
+    };
+  }
+  if (layerId.startsWith("media:broll:")) {
+    const id = layerId.slice("media:broll:".length);
+    return {
+      patch: { broll: (scene.broll ?? []).filter((b) => b.id !== id) },
+      label: "B-roll",
+    };
+  }
+  if (layerId.startsWith("text-item:")) {
+    const id = layerId.slice("text-item:".length);
+    return {
+      patch: { textItems: (scene.textItems ?? []).filter((t) => t.id !== id) },
+      label: "Text",
+    };
+  }
+  if (layerId.startsWith("shape:")) {
+    const id = layerId.slice("shape:".length);
+    return {
+      patch: { shapes: (scene.shapes ?? []).filter((s) => s.id !== id) },
+      label: "Shape",
+    };
+  }
+  if (layerId === "text:main") {
+    return { patch: { text: "" }, label: "Text" };
+  }
+  if (layerId === "text:emphasis") {
+    return { patch: { emphasisText: "" }, label: "Emphasis" };
+  }
+  if (layerId === "text:subtitle") {
+    return { patch: { subtitleText: "" }, label: "Subtitle" };
+  }
+  if (layerId.startsWith("effect:")) {
+    const idx = Number(layerId.slice("effect:".length));
+    if (!Number.isFinite(idx)) return null;
+    const next = (scene.effects ?? []).filter((_, i) => i !== idx);
+    return { patch: { effects: next }, label: "Effect" };
+  }
+  return null;
 }
 
 export function KeyboardShortcuts() {
@@ -408,6 +474,28 @@ export function KeyboardShortcuts() {
         (e.key === "Delete" || e.key === "Backspace") &&
         !isTextInput(e.target)
       ) {
+        // If a layer/item inside the scene is selected, Delete removes
+        // *that* element — never the entire scene. Pressing Delete with
+        // a text/shape/broll/bg selected used to wipe the scene, which
+        // was a footgun.
+        const layerId = useEditorStore.getState().selectedLayerId;
+        if (layerId && selectedSceneId) {
+          const scene = useProjectStore
+            .getState()
+            .project.scenes.find((s) => s.id === selectedSceneId);
+          if (scene) {
+            const action = patchForLayerDelete(scene, layerId);
+            if (action) {
+              e.preventDefault();
+              useProjectStore
+                .getState()
+                .updateScene(selectedSceneId, action.patch);
+              useEditorStore.getState().setSelectedLayerId(null);
+              toast(`${action.label} removed`, { duration: 700 });
+              return;
+            }
+          }
+        }
         if (selectedSceneIds.length > 1) {
           e.preventDefault();
           // Confirm large deletes since Cmd+Z is the only escape hatch
@@ -429,7 +517,13 @@ export function KeyboardShortcuts() {
       }
 
       if (e.key === "Escape" && !isTextInput(e.target)) {
-        if (selectedSceneIds.length > 0) {
+        // Layer first, then multi-scene selection — match the visual
+        // hierarchy: a single press dismisses the resize chrome before
+        // collapsing the scene-level selection.
+        if (useEditorStore.getState().selectedLayerId) {
+          useEditorStore.getState().setSelectedLayerId(null);
+          useEditorStore.getState().setEditTarget(null);
+        } else if (selectedSceneIds.length > 0) {
           clearSelection();
         }
       }

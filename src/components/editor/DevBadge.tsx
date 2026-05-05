@@ -1,10 +1,16 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 // Tiny "DEV" pill shown only when the page is served by the local dev server.
 // Checked at runtime (not via NODE_ENV) so it works on Capacitor WebView too.
+// Resolved after mount to keep SSR and first client render in sync.
 export function DevBadge() {
-  if (typeof window === "undefined") return null;
-  const host = window.location.hostname;
+  const [host, setHost] = useState<string | null>(null);
+  useEffect(() => {
+    setHost(window.location.hostname);
+  }, []);
+  if (host === null) return null;
   const isLocal =
     host === "localhost" ||
     host === "127.0.0.1" ||

@@ -91,6 +91,13 @@ interface EditorStore {
   toggleExpandedLayer: (kind: string) => void;
   selectedItemId: string | null;
   setSelectedItemId: (id: string | null) => void;
+  /** Which clip is selected in the Audio workspace timeline. Format
+   *  `{kind}:{id}` — e.g. `vo:scene_abc`, `music:project`, `sfx:scene_xyz`. */
+  audioSelectedClipId: string | null;
+  setAudioSelectedClipId: (id: string | null) => void;
+  /** Animate workspace — currently selected AnimationSpec id. */
+  animateSelectedId: string | null;
+  setAnimateSelectedId: (id: string | null) => void;
   /**
    * Per-scene "show layers nested inside this card" toggle for the
    * SceneList. Persisted across reloads. Scene ids that aren't in the
@@ -109,6 +116,9 @@ interface EditorStore {
    */
   selectedLayerId: string | null;
   setSelectedLayerId: (id: string | null) => void;
+  /** Animate / keyframe editor modal — open from anywhere via setAnimateModalOpen(true). */
+  animateModalOpen: boolean;
+  setAnimateModalOpen: (v: boolean) => void;
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
@@ -263,6 +273,10 @@ export const useEditorStore = create<EditorStore>((set) => ({
     }),
   selectedItemId: null,
   setSelectedItemId: (id) => set({ selectedItemId: id }),
+  audioSelectedClipId: null,
+  setAudioSelectedClipId: (id) => set({ audioSelectedClipId: id }),
+  animateSelectedId: null,
+  setAnimateSelectedId: (id) => set({ animateSelectedId: id }),
   expandedSceneIds: (() => {
     if (typeof window === "undefined") return {};
     try {
@@ -287,4 +301,6 @@ export const useEditorStore = create<EditorStore>((set) => ({
     }),
   selectedLayerId: null,
   setSelectedLayerId: (id) => set({ selectedLayerId: id }),
+  animateModalOpen: false,
+  setAnimateModalOpen: (v) => set({ animateModalOpen: v }),
 }));

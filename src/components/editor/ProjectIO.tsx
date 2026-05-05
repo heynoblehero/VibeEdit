@@ -49,12 +49,7 @@ export function ProjectIO() {
       }
     }
     try {
-      const [voRes, imgRes, upRes] = await Promise.all([
-        fetch("/api/voiceover/gc", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ inUse: inUseVoice }),
-        }),
+      const [imgRes, upRes] = await Promise.all([
         fetch("/api/images/gc", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -66,15 +61,11 @@ export function ProjectIO() {
           body: JSON.stringify({ inUse: inUseUploads }),
         }),
       ]);
-      const voData = await voRes.json();
       const imgData = await imgRes.json();
       const upData = await upRes.json();
-      const deleted =
-        (voData.deleted ?? 0) + (imgData.deleted ?? 0) + (upData.deleted ?? 0);
+      const deleted = (imgData.deleted ?? 0) + (upData.deleted ?? 0);
       const bytesFreed =
-        (voData.bytesFreed ?? 0) +
-        (imgData.bytesFreed ?? 0) +
-        (upData.bytesFreed ?? 0);
+        (imgData.bytesFreed ?? 0) + (upData.bytesFreed ?? 0);
       toast.success(
         `Cleaned ${deleted} unused files`,
         {

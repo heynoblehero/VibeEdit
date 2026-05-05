@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Scissors } from "lucide-react";
 import type { Cut, Scene } from "@/lib/scene-schema";
-import { CutEditPopover } from "./CutEditPopover";
+import { CutModal } from "./CutModal";
 
 interface CutMarkerProps {
   /** The cut between fromScene → toScene. Always non-null because
@@ -18,7 +18,7 @@ interface CutMarkerProps {
 
 /**
  * Small clickable diamond at a scene boundary. Click to open the
- * CutEditPopover with kind / duration / easing / color / J-L offsets.
+ * CutModal with kind / duration / easing / color / J-L offsets.
  *
  * Renders nothing but a hover-revealed badge for `hard` cuts (the
  * default boring boundary) so quiet cuts stay quiet. Non-hard cuts
@@ -63,14 +63,13 @@ export function CutMarker({ cut, fromScene, toScene, orientation }: CutMarkerPro
         <Scissors className="h-3 w-3" />
         {label && <span className="uppercase tracking-wider">{label}</span>}
       </button>
-      {open && (
-        <CutEditPopover
-          cut={cut}
-          fromScene={fromScene}
-          toScene={toScene}
-          onClose={() => setOpen(false)}
-        />
-      )}
+      <CutModal
+        open={open}
+        onClose={() => setOpen(false)}
+        cut={cut}
+        fromScene={fromScene}
+        toScene={toScene}
+      />
     </div>
   );
 }

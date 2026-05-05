@@ -1,8 +1,9 @@
 "use client";
 
-import { Library, Music, Trash2, Upload, Video, Volume2 } from "lucide-react";
-import { useRef, useState } from "react";
+import { Library, Music, Search, Trash2, Upload, Video, Volume2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/Skeleton";
 import {
   useAssetLibraryStore,
   type LibraryAssetKind,
@@ -14,6 +15,7 @@ const KIND_ICON: Record<LibraryAssetKind, typeof Music> = {
   sfx: Volume2,
   clip: Video,
   image: Library,
+  animation: Video,
 };
 
 export function AssetLibraryPanel() {
@@ -24,7 +26,48 @@ export function AssetLibraryPanel() {
 
   const [uploadKind, setUploadKind] = useState<LibraryAssetKind>("music");
   const [uploading, setUploading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [query, setQuery] = useState("");
+  const [kindFilter, setKindFilter] = useState<LibraryAssetKind | "all">("all");
+  const [hoveredAudio, setHoveredAudio] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return assets.filter((a) => {
+      if (kindFilter !== "all" && a.kind !== kindFilter) return false;
+      if (!q) return true;
+      const hay = `${a.name} ${a.kind} ${(a.tags ?? []).join(" ")}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [assets, query, kindFilter]);
+
+  // Hover preview for audio assets — half-volume snippet that auto-stops
+  // when the cursor leaves. Click still uses the asset normally.
+  useEffect(() => {
+    if (!hoveredAudio) {
+      audioRef.current?.pause();
+      audioRef.current = null;
+      return;
+    }
+    const asset = assets.find((a) => a.id === hoveredAudio);
+    if (!asset) return;
+    if (asset.kind !== "music" && asset.kind !== "sfx") return;
+    const el = new Audio(asset.url);
+    el.volume = 0.5;
+    el.play().catch(() => {});
+    audioRef.current = el;
+    return () => {
+      el.pause();
+    };
+  }, [hoveredAudio, assets]);
+
+  useEffect(() => {
+    // Avoid an empty-state flash on first paint while the persisted
+    // store hydrates from storage.
+    setMounted(true);
+  }, []);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -117,14 +160,69 @@ export function AssetLibraryPanel() {
           onChange={handleFile}
         />
       </div>
-      {assets.length > 0 && (
+      {assets.length > 5 && (
+        <>
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-neutral-500" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search…"
+              className="w-full bg-neutral-900 border border-neutral-800 rounded pl-7 pr-2 py-1 text-[11px] text-white focus:outline-none focus:border-emerald-500/60"
+            />
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {(["all", "music", "sfx", "clip", "image", "animation"] as const).map(
+              (k) => {
+                const count =
+                  k === "all"
+                    ? assets.length
+                    : assets.filter((a) => a.kind === k).length;
+                if (count === 0 && k !== "all") return null;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setKindFilter(k)}
+                    className={`px-1.5 py-0.5 rounded text-[10px] border transition-colors ${
+                      kindFilter === k
+                        ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-200"
+                        : "border-neutral-800 text-neutral-500 hover:text-neutral-300"
+                    }`}
+                  >
+                    {k} {count > 0 ? `(${count})` : ""}
+                  </button>
+                );
+              },
+            )}
+          </div>
+        </>
+      )}
+      {!mounted ? (
+        <div className="flex flex-col gap-1">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-6 w-full" />
+          ))}
+        </div>
+      ) : assets.length === 0 ? (
+        <div className="text-[10px] text-neutral-600 italic py-1">
+          Nothing saved yet — uploads land here.
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-[10px] text-neutral-600 italic py-1">
+          No matches.
+        </div>
+      ) : (
         <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
-          {assets.map((a) => {
+          {filtered.map((a) => {
             const Icon = KIND_ICON[a.kind];
             return (
               <div
                 key={a.id}
-                className="group flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded px-2 py-1"
+                onMouseEnter={() => setHoveredAudio(a.id)}
+                onMouseLeave={() => setHoveredAudio(null)}
+                className="group flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded px-2 py-1 hover:border-emerald-500/40 transition-colors"
               >
                 <Icon className="h-3 w-3 text-neutral-500 shrink-0" />
                 <button
@@ -149,3 +247,4 @@ export function AssetLibraryPanel() {
     </div>
   );
 }
+

@@ -88,7 +88,7 @@ export function SavedStylesPanel() {
               </div>
               <button
                 onClick={() => remove(entry.id)}
-                className="opacity-0 group-hover:opacity-100 p-1 text-neutral-500 hover:text-red-400 transition-all"
+                className="opacity-0 group-hover:opacity-100 touch-reveal p-1 text-neutral-500 hover:text-red-400 transition-all"
               >
                 <Trash2 className="h-3 w-3" />
               </button>

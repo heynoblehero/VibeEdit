@@ -196,6 +196,7 @@ async function runJob(job: RenderJob): Promise<void> {
     captionStyle: project.captionStyle,
     cuts: project.cuts,
     audioMix: project.audioMix,
+    sfxClips: project.sfxClips,
     tracks: project.tracks,
   };
 

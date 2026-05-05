@@ -34,6 +34,22 @@ const cache: Map<string, CachedSamples | "pending" | "failed"> = new Map();
 const subscribers: Map<string, Set<() => void>> = new Map();
 const TARGET_BUCKETS = 1024;
 
+/**
+ * Peak amplitude (0..1) at a fractional position (0..1) along the
+ * cached source. Used by the LevelMeter to derive a cheap level
+ * reading without re-tapping the audio graph at runtime.
+ */
+export function peakAt(src: string, frac: number): number {
+  const cached = cache.get(src);
+  if (!cached || cached === "pending" || cached === "failed") return 0;
+  const buckets = cached.buckets;
+  const total = buckets.length / 2;
+  const i = Math.max(0, Math.min(total - 1, Math.floor(frac * total)));
+  const min = buckets[i * 2];
+  const max = buckets[i * 2 + 1];
+  return Math.min(1, Math.max(Math.abs(min), Math.abs(max)));
+}
+
 async function decode(src: string): Promise<CachedSamples | null> {
   const existing = cache.get(src);
   if (existing && existing !== "pending" && existing !== "failed") {
@@ -160,9 +176,15 @@ export function AudioWaveform({ src, height = 24, color = "rgba(56, 189, 248, 0.
     return () => ro.disconnect();
   }, []);
 
+  const cached = cache.get(src);
+  const pending = cached === "pending" || cached === undefined;
+
   return (
     <div ref={containerRef} className="absolute inset-0 pointer-events-none">
-      <canvas ref={canvasRef} className="block" />
+      <canvas
+        ref={canvasRef}
+        className={pending ? "block animate-pulse opacity-60" : "block"}
+      />
     </div>
   );
 }

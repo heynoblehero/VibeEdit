@@ -100,6 +100,9 @@ export function SceneThumbnail({ scene }: { scene: Scene }) {
         characters: charMap,
         sfx: sfxMap,
         orientation,
+        // 2x scale so retina screens don't see pixelated thumbnails;
+        // the cache is content-addressed so we don't repaint per device.
+        scale: 2,
       }),
     })
       .then(async (res) => {

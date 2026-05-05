@@ -1,10 +1,21 @@
 import React from "react";
 import { AbsoluteFill, Audio, Sequence, useCurrentFrame } from "remotion";
 import { TransitionSeries, linearTiming } from "@remotion/transitions";
-import type { CaptionStyle, Cut, MusicBed, Scene, Track } from "@/lib/scene-schema";
+import { resolveEasing } from "@/lib/anim";
+import type { AudioSfxClip, CaptionStyle, Cut, MusicBed, Scene, Track } from "@/lib/scene-schema";
 import { sceneDurationFrames } from "@/lib/scene-schema";
 import { SceneRenderer } from "./SceneRenderer";
 import { presentationFor } from "./cut-presentations";
+
+/** Build a Remotion timing object honoring the cut's `easing` (and
+ *  custom bezier when easing === "custom"). Falls back to the linear
+ *  default when nothing is set. */
+function timingFor(cut: Cut, durationInFrames: number) {
+  return linearTiming({
+    durationInFrames,
+    easing: resolveEasing(cut.easing, cut.bezier),
+  });
+}
 
 interface CompositionProps {
   scenes: Scene[];
@@ -21,6 +32,9 @@ interface CompositionProps {
   filmGrain?: boolean;
   /** Project-wide audio mix gains (0–2). Each defaults to 1. */
   audioMix?: { music?: number; voice?: number; sfx?: number };
+  /** Free-floating SFX clips placed on the project timeline (Audio
+   *  workspace). Each becomes an extra audio rail at its startFrame. */
+  sfxClips?: AudioSfxClip[];
   /**
    * Multi-track timeline (M2). When undefined, falls back to the
    * single-track behaviour using the `scenes` prop directly. When
@@ -66,6 +80,44 @@ interface DuckingRange {
   from: number;
   duration: number;
 }
+
+/**
+ * Renders one free-floating SFX clip as an audio rail. Lives outside
+ * the per-scene loop because the clip is positioned absolutely on the
+ * project timeline (startFrame), not relative to a scene.
+ */
+const FreeSfxClipRail: React.FC<{
+  clip: AudioSfxClip;
+  fps: number;
+  mixSfx: number;
+}> = ({ clip, fps, mixSfx }) => {
+  const startFromFrames = Math.max(0, Math.round((clip.trimStartSec ?? 0) * fps));
+  const endAtFrames = clip.trimEndSec
+    ? Math.max(startFromFrames + 1, Math.round(clip.trimEndSec * fps))
+    : undefined;
+  const fadeInF = Math.max(0, Math.round((clip.fadeInSec ?? 0) * fps));
+  const fadeOutF = Math.max(0, Math.round((clip.fadeOutSec ?? 0) * fps));
+  const gain = Math.max(0, Math.min(2, clip.gain ?? 1));
+  const dur = Math.max(1, clip.durationFrames);
+  return (
+    <Sequence from={Math.max(0, clip.startFrame)} durationInFrames={dur}>
+      <Audio
+        src={clip.url}
+        startFrom={startFromFrames}
+        endAt={endAtFrames}
+        volume={(f) => {
+          const minEdge = 2;
+          const fIn = Math.max(minEdge, fadeInF);
+          const fOut = Math.max(minEdge, fadeOutF);
+          let env = 1;
+          if (f < fIn) env = f / fIn;
+          else if (f > dur - fOut) env = Math.max(0, (dur - f) / fOut);
+          return env * gain * mixSfx;
+        }}
+      />
+    </Sequence>
+  );
+};
 
 /**
  * Per-scene start frame on the global timeline. Index aligns with `scenes`.
@@ -159,6 +211,7 @@ export const VideoComposition: React.FC<CompositionProps> = ({
   height,
   filmGrain = true,
   audioMix,
+  sfxClips,
   tracks,
 }) => {
   // Multi-track path (M2). Defined tracks → render each as its own
@@ -178,6 +231,7 @@ export const VideoComposition: React.FC<CompositionProps> = ({
         height={height}
         filmGrain={filmGrain}
         audioMix={audioMix}
+        sfxClips={sfxClips}
       />
     );
   }
@@ -238,7 +292,7 @@ export const VideoComposition: React.FC<CompositionProps> = ({
           <TransitionSeries.Transition
             key={`trans-${scene.id}-${next.id}`}
             presentation={presentationFor(cut!.kind, { width, height, color: cut?.color })}
-            timing={linearTiming({ durationInFrames: cutDur })}
+            timing={timingFor(cut!, cutDur)}
           />,
         );
       }
@@ -270,12 +324,22 @@ export const VideoComposition: React.FC<CompositionProps> = ({
     if (scene.voiceover?.audioUrl) {
       // Per-scene audioGain multiplies the fade envelope. Defaults to 1.
       const gain = Math.max(0, Math.min(2, scene.audioGain ?? 1));
+      const clipGain = Math.max(0, Math.min(2, scene.voiceover.gain ?? 1));
       // Speed warp: voiceover playback rate follows the scene's speed
       // factor. 0.5 = half-speed playback (slow-mo dialogue); 2.0 =
       // chipmunk audio. Pitch shift is intentional — matches every
       // other NLE's behavior. Visual animations stay scene-locked
       // (durationFrames-scaled springs / interpolates already adapt).
       const speed = Math.max(0.25, Math.min(4, scene.speedFactor ?? 1));
+      const startFromFrames = Math.max(
+        0,
+        Math.round((scene.voiceover.trimStartSec ?? 0) * fps),
+      );
+      const endAtFrames = scene.voiceover.trimEndSec
+        ? Math.max(startFromFrames + 1, Math.round(scene.voiceover.trimEndSec * fps))
+        : undefined;
+      const fadeInF = Math.max(0, Math.round((scene.voiceover.fadeInSec ?? 0) * fps));
+      const fadeOutF = Math.max(0, Math.round((scene.voiceover.fadeOutSec ?? 0) * fps));
       audioRails.push(
         <Sequence
           key={`vo-${scene.id}`}
@@ -284,15 +348,18 @@ export const VideoComposition: React.FC<CompositionProps> = ({
         >
           <Audio
             src={scene.voiceover.audioUrl}
-            startFrom={0}
+            startFrom={startFromFrames}
+            endAt={endAtFrames}
             playbackRate={speed}
             volume={(f) => {
-              const fade = 3;
+              const minEdge = 3;
+              const fIn = Math.max(minEdge, fadeInF);
+              const fOut = Math.max(minEdge, fadeOutF);
               let env = 1;
-              if (f < fade) env = f / fade;
-              else if (f > voDurFrames - fade)
-                env = Math.max(0, (voDurFrames - f) / fade);
-              return env * gain * mixVoice;
+              if (f < fIn) env = f / fIn;
+              else if (f > voDurFrames - fOut)
+                env = Math.max(0, (voDurFrames - f) / fOut);
+              return env * gain * clipGain * mixVoice;
             }}
           />
         </Sequence>,
@@ -314,6 +381,15 @@ export const VideoComposition: React.FC<CompositionProps> = ({
     }
   }
 
+  // Free-floating SFX clips dropped on the project timeline (Audio
+  // workspace). They live alongside scene-bound audio and are
+  // independently positioned, trimmed, and faded.
+  for (const clip of sfxClips ?? []) {
+    audioRails.push(
+      <FreeSfxClipRail key={`sfx-clip-${clip.id}`} clip={clip} fps={fps} mixSfx={mixSfx} />,
+    );
+  }
+
   return (
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
       <TransitionSeries>{seriesChildren}</TransitionSeries>
@@ -322,7 +398,15 @@ export const VideoComposition: React.FC<CompositionProps> = ({
       {music?.url && totalFrames > 0 && (
         <Audio
           src={music.url}
-          startFrom={0}
+          startFrom={Math.max(0, Math.round((music.trimStartSec ?? 0) * fps))}
+          endAt={
+            music.trimEndSec
+              ? Math.max(
+                  Math.round((music.trimStartSec ?? 0) * fps) + 1,
+                  Math.round(music.trimEndSec * fps),
+                )
+              : undefined
+          }
           loop
           volume={(frame) => {
             // Anticipatory ducking: start fading down ~6 frames BEFORE the
@@ -368,11 +452,17 @@ export const VideoComposition: React.FC<CompositionProps> = ({
             }
             // Smooth fade in over first ~0.6s, fade out over last ~0.6s so
             // the bed never pops in/out at boundaries.
-            const fadeFrames = Math.min(Math.round(fps * 0.6), Math.floor(totalFrames / 4));
+            const defaultFade = Math.min(Math.round(fps * 0.6), Math.floor(totalFrames / 4));
+            const fadeInF = music.fadeInSec
+              ? Math.max(1, Math.round(music.fadeInSec * fps))
+              : defaultFade;
+            const fadeOutF = music.fadeOutSec
+              ? Math.max(1, Math.round(music.fadeOutSec * fps))
+              : defaultFade;
             let envelope = 1;
-            if (frame < fadeFrames) envelope = frame / fadeFrames;
-            else if (frame > totalFrames - fadeFrames)
-              envelope = Math.max(0, (totalFrames - frame) / fadeFrames);
+            if (frame < fadeInF) envelope = frame / fadeInF;
+            else if (frame > totalFrames - fadeOutF)
+              envelope = Math.max(0, (totalFrames - frame) / fadeOutF);
             return target * envelope * mixMusic;
           }}
         />
@@ -422,6 +512,7 @@ const MultiTrackRender: React.FC<
   height: _h,
   filmGrain = true,
   audioMix,
+  sfxClips,
 }) => {
   void _w;
   void _h;
@@ -494,7 +585,7 @@ const MultiTrackRender: React.FC<
                       height: _h,
                       color: cut?.color,
                     })}
-                    timing={linearTiming({ durationInFrames: cutDur })}
+                    timing={timingFor(cut!, cutDur)}
                   />,
                 );
               }
@@ -510,10 +601,20 @@ const MultiTrackRender: React.FC<
           const audioStart = acc;
           if (scene.voiceover?.audioUrl) {
             const gain = Math.max(0, Math.min(2, scene.audioGain ?? 1));
+            const clipGain = Math.max(0, Math.min(2, scene.voiceover.gain ?? 1));
             const speed = Math.max(0.25, Math.min(4, scene.speedFactor ?? 1));
             const voDur = scene.voiceover.audioDurationSec
               ? Math.round(scene.voiceover.audioDurationSec * fps)
               : sceneDur;
+            const startFromFrames = Math.max(
+              0,
+              Math.round((scene.voiceover.trimStartSec ?? 0) * fps),
+            );
+            const endAtFrames = scene.voiceover.trimEndSec
+              ? Math.max(startFromFrames + 1, Math.round(scene.voiceover.trimEndSec * fps))
+              : undefined;
+            const fadeInF = Math.max(0, Math.round((scene.voiceover.fadeInSec ?? 0) * fps));
+            const fadeOutF = Math.max(0, Math.round((scene.voiceover.fadeOutSec ?? 0) * fps));
             audioRails.push(
               <Sequence
                 key={`vo-${r.track.id}-${scene.id}`}
@@ -522,15 +623,18 @@ const MultiTrackRender: React.FC<
               >
                 <Audio
                   src={scene.voiceover.audioUrl}
-                  startFrom={0}
+                  startFrom={startFromFrames}
+                  endAt={endAtFrames}
                   playbackRate={speed}
                   volume={(f) => {
-                    const fade = 3;
+                    const minEdge = 3;
+                    const fIn = Math.max(minEdge, fadeInF);
+                    const fOut = Math.max(minEdge, fadeOutF);
                     let env = 1;
-                    if (f < fade) env = f / fade;
-                    else if (f > voDur - fade)
-                      env = Math.max(0, (voDur - f) / fade);
-                    return env * gain * mixVoice;
+                    if (f < fIn) env = f / fIn;
+                    else if (f > voDur - fOut)
+                      env = Math.max(0, (voDur - f) / fOut);
+                    return env * gain * clipGain * mixVoice;
                   }}
                 />
               </Sequence>,
@@ -579,10 +683,22 @@ const MultiTrackRender: React.FC<
         );
       })}
 
+      {(sfxClips ?? []).map((clip) => (
+        <FreeSfxClipRail key={`sfx-clip-${clip.id}`} clip={clip} fps={fps} mixSfx={mixSfx} />
+      ))}
+
       {music?.url && totalFrames > 0 && (
         <Audio
           src={music.url}
-          startFrom={0}
+          startFrom={Math.max(0, Math.round((music.trimStartSec ?? 0) * fps))}
+          endAt={
+            music.trimEndSec
+              ? Math.max(
+                  Math.round((music.trimStartSec ?? 0) * fps) + 1,
+                  Math.round(music.trimEndSec * fps),
+                )
+              : undefined
+          }
           loop
           volume={(frame) => {
             const lead = 6;
@@ -616,11 +732,17 @@ const MultiTrackRender: React.FC<
                 break;
               }
             }
-            const fadeFrames = Math.min(Math.round(fps * 0.6), Math.floor(totalFrames / 4));
+            const defaultFade = Math.min(Math.round(fps * 0.6), Math.floor(totalFrames / 4));
+            const fadeInF = music.fadeInSec
+              ? Math.max(1, Math.round(music.fadeInSec * fps))
+              : defaultFade;
+            const fadeOutF = music.fadeOutSec
+              ? Math.max(1, Math.round(music.fadeOutSec * fps))
+              : defaultFade;
             let envelope = 1;
-            if (frame < fadeFrames) envelope = frame / fadeFrames;
-            else if (frame > totalFrames - fadeFrames)
-              envelope = Math.max(0, (totalFrames - frame) / fadeFrames);
+            if (frame < fadeInF) envelope = frame / fadeInF;
+            else if (frame > totalFrames - fadeOutF)
+              envelope = Math.max(0, (totalFrames - frame) / fadeOutF);
             return target * envelope * mixMusic;
           }}
         />

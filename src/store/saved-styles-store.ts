@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { assetStorage, STORAGE_KEYS } from "@/lib/storage/asset-storage";
 import type { CaptionStyle, StylePack } from "@/lib/scene-schema";
 
 export interface SavedStyle {
@@ -40,8 +41,8 @@ export const useSavedStylesStore = create<SavedStylesStore>()(
         })),
     }),
     {
-      name: "vibeedit-saved-styles",
-      storage: createJSONStorage(() => localStorage),
+      name: STORAGE_KEYS.savedStyles,
+      storage: createJSONStorage(() => assetStorage),
     },
   ),
 );

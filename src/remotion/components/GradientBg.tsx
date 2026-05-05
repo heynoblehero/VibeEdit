@@ -9,6 +9,8 @@ interface GradientBgProps {
   graphicScale?: number;
   graphicOpacity?: number;
   vignette?: number;
+  /** Corner radius applied to the bg media wrapper. */
+  borderRadius?: number;
   imageUrl?: string;
   imageOpacity?: number;
   kenBurns?: boolean;
@@ -30,6 +32,9 @@ interface GradientBgProps {
   videoUrl?: string;
   videoStartSec?: number;
   videoMuted?: boolean;
+  videoEndSec?: number;
+  videoPlaybackRate?: number;
+  videoLoop?: boolean;
   drift?: boolean;
   /** Chroma-key the bg image/video. See SceneBackground.chromaKey. */
   chromaKey?: { color: string; tolerance: number; softness: number };
@@ -53,6 +58,10 @@ interface GradientBgProps {
   /** Explicit px size for the image. When set, image renders centered in a px-sized box instead of full-frame. */
   imageWidthPx?: number;
   imageHeightPx?: number;
+  /** Non-destructive crop applied to the bg image. Sub-rect (0–1)
+   *  expanded to fill the visible bg viewport. */
+  imageCrop?: { x: number; y: number; w: number; h: number };
+  videoCrop?: { x: number; y: number; w: number; h: number };
   /** Free-form rotation (degrees) applied to the bg image / video.
    *  Stacks alongside the 90-step `rotate` field. Used by bgRotation
    *  keyframes / motion clips for flip / spin animations. */
@@ -159,6 +168,24 @@ function gradeFilter(grade: NonNullable<GradientBgProps["colorGrade"]>): string 
   }
 }
 
+/**
+ * Compute the CSS `transform` that magnifies a normalized sub-rect of a
+ * frame-sized element so the sub-rect fills the frame. Combined with
+ * `transform-origin: top left` on the same element. Returns null when
+ * the crop is unset or full-bleed (no-op). Used for image + video crop.
+ */
+function cropTransform(
+  crop: { x: number; y: number; w: number; h: number } | undefined,
+): string | null {
+  if (!crop) return null;
+  const w = Math.max(0.05, Math.min(1, crop.w));
+  const h = Math.max(0.05, Math.min(1, crop.h));
+  if (w >= 0.999 && h >= 0.999) return null;
+  const x = Math.max(0, Math.min(1 - w, crop.x));
+  const y = Math.max(0, Math.min(1 - h, crop.y));
+  return `scale(${1 / w}, ${1 / h}) translate(${(-x * 100).toFixed(4)}%, ${(-y * 100).toFixed(4)}%)`;
+}
+
 function cameraTransform(
   move: NonNullable<GradientBgProps["cameraMove"]>,
   progress: number,
@@ -191,6 +218,7 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   graphicScale = 1.1,
   graphicOpacity = 0.6,
   vignette = 0.5,
+  borderRadius = 0,
   imageUrl,
   imageOpacity = 1,
   kenBurns = false,
@@ -204,6 +232,9 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   videoUrl,
   videoStartSec = 0,
   videoMuted = true,
+  videoEndSec,
+  videoPlaybackRate = 1,
+  videoLoop = false,
   drift = true,
   chromaKey,
   lumaKey,
@@ -218,6 +249,8 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   imageOffsetY = 0,
   imageWidthPx,
   imageHeightPx,
+  imageCrop,
+  videoCrop,
   imageRotation = 0,
   videoRotation = 0,
   videoScale,
@@ -260,7 +293,7 @@ export const GradientBg: React.FC<GradientBgProps> = ({
   if (lumaId) keyFilters.push(`url(#${lumaId})`);
 
   return (
-    <AbsoluteFill style={{ backgroundColor: color, overflow: "hidden" }}>
+    <AbsoluteFill style={{ backgroundColor: color, overflow: "hidden", borderRadius: borderRadius || undefined }}>
       {(chromaKey || lumaKey) && (
         <svg
           width="0"
@@ -312,70 +345,103 @@ export const GradientBg: React.FC<GradientBgProps> = ({
       )}
       {videoUrl && (() => {
         const videoBoxed = videoWidthPx !== undefined || videoHeightPx !== undefined;
-        const boxStyle: React.CSSProperties = videoBoxed
+        // Stacked user transforms (scale/translate/rotate/orientation)
+        // applied at the wrapper level — outside the crop so they affect
+        // the cropped result, not the source.
+        const userTransform = [
+          videoScale !== undefined ? `scale(${videoScale})` : null,
+          videoOffsetX || videoOffsetY ? `translate(${videoOffsetX}px, ${videoOffsetY}px)` : null,
+          videoRotation ? `rotate(${videoRotation}deg)` : null,
+          orientationTransform || null,
+        ]
+          .filter(Boolean)
+          .join(" ");
+        const wrapperStyle: React.CSSProperties = videoBoxed
           ? {
               position: "absolute",
               top: "50%",
               left: "50%",
               width: videoWidthPx !== undefined ? `${videoWidthPx}px` : "100%",
               height: videoHeightPx !== undefined ? `${videoHeightPx}px` : "100%",
-              transform: "translate(-50%, -50%)",
               overflow: "hidden",
+              transform: ["translate(-50%, -50%)", userTransform].filter(Boolean).join(" "),
+              transformOrigin: "center center",
             }
-          : { position: "absolute", inset: 0, overflow: "hidden" };
+          : {
+              position: "absolute",
+              inset: 0,
+              overflow: "hidden",
+              transform: userTransform || undefined,
+              transformOrigin: "center center",
+            };
+        const videoElement = (
+          <OffthreadVideo
+            src={videoUrl}
+            startFrom={Math.round(videoStartSec * 30)}
+            endAt={videoEndSec !== undefined ? Math.round(videoEndSec * 30) : undefined}
+            playbackRate={videoPlaybackRate}
+            muted={videoMuted}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit,
+              objectPosition: resolvedObjectPosition,
+              filter: keyFilters.length ? keyFilters.join(" ") : undefined,
+            }}
+          />
+        );
+        const crop = cropTransform(videoCrop);
         return (
-          <div style={boxStyle}>
-            <OffthreadVideo
-              src={videoUrl}
-              startFrom={Math.round(videoStartSec * 30)}
-              muted={videoMuted}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit,
-                objectPosition: resolvedObjectPosition,
-                filter: keyFilters.length ? keyFilters.join(" ") : undefined,
-                // User scale/offset stacks ON TOP of orientation flips —
-                // lets the user shrink/move a clip without losing flips.
-                transform:
-                  [
-                    videoScale !== undefined ? `scale(${videoScale})` : null,
-                    videoOffsetX || videoOffsetY
-                      ? `translate(${videoOffsetX}px, ${videoOffsetY}px)`
-                      : null,
-                    videoRotation ? `rotate(${videoRotation}deg)` : null,
-                    orientationTransform || null,
-                  ]
-                    .filter(Boolean)
-                    .join(" ") || undefined,
-                transformOrigin: "center center",
-              }}
-            />
+          <div style={wrapperStyle}>
+            {crop ? (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  transform: crop,
+                  transformOrigin: "top left",
+                }}
+              >
+                {videoElement}
+              </div>
+            ) : (
+              videoElement
+            )}
           </div>
         );
       })()}
-      {imageUrl && (
-        <div
-          style={
-            imageWidthPx !== undefined || imageHeightPx !== undefined
-              ? {
-                  position: "absolute",
-                  top: "50%",
-                  left: "50%",
-                  width: imageWidthPx !== undefined ? `${imageWidthPx}px` : "100%",
-                  height: imageHeightPx !== undefined ? `${imageHeightPx}px` : "100%",
-                  transform: "translate(-50%, -50%)",
-                  opacity: imageOpacity,
-                  overflow: "hidden",
-                }
-              : {
-                  position: "absolute",
-                  inset: 0,
-                  opacity: imageOpacity,
-                  overflow: "hidden",
-                }
-          }
-        >
+      {imageUrl && (() => {
+        const imageBoxed = imageWidthPx !== undefined || imageHeightPx !== undefined;
+        const userTransform = [
+          imageScale !== undefined ? `scale(${imageScale})` : null,
+          imageOffsetX || imageOffsetY ? `translate(${imageOffsetX}px, ${imageOffsetY}px)` : null,
+          imageRotation ? `rotate(${imageRotation}deg)` : null,
+          `scale(${cam.scale}) translate(${cam.tx}px, ${cam.ty}px)`,
+          orientationTransform,
+        ]
+          .filter(Boolean)
+          .join(" ");
+        const wrapperStyle: React.CSSProperties = imageBoxed
+          ? {
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              width: imageWidthPx !== undefined ? `${imageWidthPx}px` : "100%",
+              height: imageHeightPx !== undefined ? `${imageHeightPx}px` : "100%",
+              opacity: imageOpacity,
+              overflow: "hidden",
+              transform: ["translate(-50%, -50%)", userTransform].filter(Boolean).join(" "),
+              transformOrigin: "center center",
+            }
+          : {
+              position: "absolute",
+              inset: 0,
+              opacity: imageOpacity,
+              overflow: "hidden",
+              transform: userTransform || undefined,
+              transformOrigin: "center center",
+            };
+        const imageElement = (
           <Img
             src={imageUrl}
             style={{
@@ -383,33 +449,41 @@ export const GradientBg: React.FC<GradientBgProps> = ({
               height: "100%",
               objectFit,
               objectPosition: resolvedObjectPosition,
-              transform: [
-                imageScale !== undefined ? `scale(${imageScale})` : null,
-                imageOffsetX || imageOffsetY
-                  ? `translate(${imageOffsetX}px, ${imageOffsetY}px)`
-                  : null,
-                imageRotation ? `rotate(${imageRotation}deg)` : null,
-                `scale(${cam.scale}) translate(${cam.tx}px, ${cam.ty}px)`,
-                orientationTransform,
-              ]
-                .filter(Boolean)
-                .join(" "),
-              filter: [
-                gradeFilter(colorGrade),
-                brightness !== 1 ? `brightness(${brightness})` : null,
-                contrast !== 1 ? `contrast(${contrast})` : null,
-                saturation !== 1 ? `saturate(${saturation})` : null,
-                temperature !== 0 ? `hue-rotate(${(temperature * 20).toFixed(1)}deg)` : null,
-                blur > 0 ? `blur(${blur}px)` : null,
-                ...keyFilters,
-              ]
-                .filter(Boolean)
-                .join(" "),
-              transformOrigin: "center center",
+              filter:
+                [
+                  gradeFilter(colorGrade),
+                  brightness !== 1 ? `brightness(${brightness})` : null,
+                  contrast !== 1 ? `contrast(${contrast})` : null,
+                  saturation !== 1 ? `saturate(${saturation})` : null,
+                  temperature !== 0 ? `hue-rotate(${(temperature * 20).toFixed(1)}deg)` : null,
+                  blur > 0 ? `blur(${blur}px)` : null,
+                  ...keyFilters,
+                ]
+                  .filter(Boolean)
+                  .join(" ") || undefined,
             }}
           />
-        </div>
-      )}
+        );
+        const crop = cropTransform(imageCrop);
+        return (
+          <div style={wrapperStyle}>
+            {crop ? (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  transform: crop,
+                  transformOrigin: "top left",
+                }}
+              >
+                {imageElement}
+              </div>
+            ) : (
+              imageElement
+            )}
+          </div>
+        );
+      })()}
 
       {graphic && (
         <Img

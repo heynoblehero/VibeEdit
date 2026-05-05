@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { assetStorage, STORAGE_KEYS } from "@/lib/storage/asset-storage";
 
-export type LibraryAssetKind = "music" | "sfx" | "clip" | "image";
+export type LibraryAssetKind = "music" | "sfx" | "clip" | "image" | "animation";
 
 export interface LibraryAsset {
   id: string;
@@ -11,6 +12,9 @@ export interface LibraryAsset {
   tags: string[];
   addedAt: number;
   bytes?: number;
+  /** For kind === "animation": the spec, so the user can re-edit
+   *  later. The rendered mp4 (if any) is stored at `url`. */
+  animationSpec?: import("@/lib/animate/spec").AnimationSpec;
 }
 
 interface AssetLibraryStore {
@@ -52,8 +56,10 @@ export const useAssetLibraryStore = create<AssetLibraryStore>()(
         })),
     }),
     {
-      name: "vibeedit-asset-library",
-      storage: createJSONStorage(() => localStorage),
+      name: STORAGE_KEYS.assetLibrary,
+      // Routed through the storage adapter so swapping in a DB-backed
+      // implementation later is one boot-time call (setStorageAdapter).
+      storage: createJSONStorage(() => assetStorage),
     },
   ),
 );

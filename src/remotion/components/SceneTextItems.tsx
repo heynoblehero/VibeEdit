@@ -67,6 +67,7 @@ export function SceneTextItems({
 	return (
 		<>
 			{items.map((item) => {
+				if (item.hidden) return null;
 				if (!isTextItemActive(item, frame, sceneDurFrames)) return null;
 				const transform = resolveClipsForTextItem(item, frame, sceneDurFrames);
 				const fontStack = FONT_STACKS[item.fontFamily ?? "system"];

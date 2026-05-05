@@ -1,6 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import { Toaster } from "sonner";
+import { RenderOutputStrip } from "@/components/editor/RenderOutputStrip";
+import { RenderQueuePanel } from "@/components/editor/RenderQueuePanel";
+import { CommandPalette } from "@/components/shell/CommandPalette";
+import { GlobalDropHint } from "@/components/shell/GlobalDropHint";
+import { RecoveryToast } from "@/components/shell/RecoveryToast";
+import { ServiceWorkerRegister } from "@/components/shell/ServiceWorkerRegister";
+import { ShortcutsOverlay } from "@/components/shell/ShortcutsOverlay";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -79,11 +87,21 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: resetOnLoadScript }} />
-      </head>
       <body className="min-h-full flex flex-col">
+        <Script
+          id="vibeedit-reset-on-load"
+          strategy="beforeInteractive"
+        >
+          {resetOnLoadScript}
+        </Script>
         {children}
+        <CommandPalette />
+        <ShortcutsOverlay />
+        <RenderQueuePanel />
+        <RenderOutputStrip />
+        <GlobalDropHint />
+        <RecoveryToast />
+        <ServiceWorkerRegister />
         <Toaster
           theme="dark"
           position="bottom-right"

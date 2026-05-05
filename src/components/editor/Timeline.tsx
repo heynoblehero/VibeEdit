@@ -3,6 +3,7 @@
 import { Lock, Plus, Scissors } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerRef } from "@remotion/player";
+import { smpte } from "@/lib/format-time";
 import type { Cut, Scene } from "@/lib/scene-schema";
 import { createId, defaultPlaceholderTextItem, DEFAULT_BG, sceneDurationFrames, totalDurationFrames } from "@/lib/scene-schema";
 import { useEditorStore } from "@/store/editor-store";
@@ -453,10 +454,13 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
           )}
         </div>
 
-        {/* Center — timecode */}
+        {/* Center — SMPTE timecode (HH:MM:SS:FF). Editors expect this. */}
         <div className="flex items-baseline gap-2 justify-self-center text-[11px] font-mono">
-          <span className="tabular-nums text-emerald-300 text-[14px] font-semibold">
-            {(currentFrame / project.fps).toFixed(2)}s
+          <span
+            className="tabular-nums text-emerald-300 text-[14px] font-semibold"
+            title={`${(currentFrame / project.fps).toFixed(2)}s · frame ${currentFrame}`}
+          >
+            {smpte(currentFrame, project.fps)}
           </span>
           <span className="tabular-nums text-neutral-600">
             f{currentFrame.toString().padStart(3, "0")}
@@ -885,27 +889,7 @@ export function Timeline({ playerRef, currentFrame, isFullPreview }: TimelinePro
                   setHoverIndex(null);
                   return;
                 }
-                // 3) AI action → focus this scene + run prefab prompt.
-                const aiPayload = e.dataTransfer.getData("vibeedit/ai-action");
-                if (aiPayload) {
-                  try {
-                    const { prompt } = JSON.parse(aiPayload) as { prompt: string };
-                    void import("@/store/editor-store").then(({ useEditorStore }) => {
-                      useEditorStore.getState().setFocusedSceneId(scene.id);
-                    });
-                    const evt = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true });
-                    window.dispatchEvent(evt);
-                    setTimeout(async () => {
-                      const { useChatStore } = await import("@/store/chat-store");
-                      useChatStore.getState().addUserMessage(prompt);
-                      document.querySelector<HTMLFormElement>("aside form")?.requestSubmit();
-                    }, 80);
-                  } catch {}
-                  setDragIndex(null);
-                  setHoverIndex(null);
-                  return;
-                }
-                // 4) Existing reorder behavior.
+                // 3) Reorder behavior.
                 if (dragIndex !== null && dragIndex !== i) {
                   moveScene(dragIndex, i);
                 }

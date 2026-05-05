@@ -2,6 +2,8 @@
 
 import {
   Copy,
+  Eye,
+  EyeOff,
   Film,
   GripVertical,
   Image as ImageIcon,
@@ -23,7 +25,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { defaultPlaceholderTextItem } from "@/lib/scene-schema";
-import type { BRollPosition, Scene } from "@/lib/scene-schema";
+import type { BRollPosition, Scene, TextItem } from "@/lib/scene-schema";
 import {
   type LayerKind,
   deriveItemsFromScene,
@@ -32,7 +34,9 @@ import {
 import { uploadFiles } from "@/lib/upload-files";
 import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
+import { MediaLibrary } from "./MediaLibrary";
 import { SceneThumbnail } from "./SceneThumbnail";
+import { TextPresetPicker } from "./TextPresetPicker";
 
 const LAYER_ICON: Record<LayerKind, React.ComponentType<{ className?: string }>> = {
   bg: ImageIcon,
@@ -214,14 +218,27 @@ export function SceneCard({ scene, index }: SceneCardProps) {
    *  them un-clickable). Same shape as the "edit me" placeholder so
    *  every text in the scene flows through TextItemPanel — no more
    *  legacy emphasis/main/subtitle fork. */
+  const [textPickerOpen, setTextPickerOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const addTextLayer = () => {
+    setTextPickerOpen(true);
+  };
+  const createTextItem = (style: Partial<TextItem>, copy: string) => {
     const count = (scene.textItems ?? []).length;
     const offset = count * 60;
-    const next = defaultPlaceholderTextItem({
-      content: "New text",
+    const baseline = defaultPlaceholderTextItem({
+      content: copy,
       x: 200 + offset,
       y: 400 + offset,
     });
+    const next: TextItem = {
+      ...baseline,
+      ...style,
+      id: baseline.id,
+      content: copy,
+      x: baseline.x,
+      y: baseline.y,
+    };
     updateScene(scene.id, {
       textItems: [...(scene.textItems ?? []), next],
     });
@@ -260,12 +277,14 @@ export function SceneCard({ scene, index }: SceneCardProps) {
     setEditTarget(null);
   };
 
-  const handleDoubleClick = async (e: React.MouseEvent) => {
-    // Double-click drops you into the chat with an "edit scene N" draft.
+  const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const { useChatStore } = await import("@/store/chat-store");
-    useChatStore.getState().addUserMessage(`Edit scene ${index + 1}: `);
-    document.querySelector<HTMLTextAreaElement>("aside textarea")?.focus();
+    // Focus the scene editor's first input on double-click.
+    document
+      .querySelector<HTMLInputElement | HTMLTextAreaElement>(
+        "[data-scene-editor] input, [data-scene-editor] textarea",
+      )
+      ?.focus();
   };
 
   return (
@@ -418,12 +437,33 @@ export function SceneCard({ scene, index }: SceneCardProps) {
           className={`p-1 transition-colors ${
             scene.locked
               ? "text-amber-400 hover:text-amber-300"
-              : "text-neutral-600 opacity-0 group-hover:opacity-100 hover:text-amber-400"
+              : "text-neutral-600 opacity-0 group-hover:opacity-100 touch-reveal hover:text-amber-400"
           }`}
         >
           {scene.locked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
         </button>
-        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Hide stays visible when active so users can spot a muted
+            scene at a glance; otherwise hover-only along with the rest. */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            updateScene(scene.id, { muted: !scene.muted });
+          }}
+          title={
+            scene.muted
+              ? "Hidden — click to show in render"
+              : "Visible — click to hide from render"
+          }
+          aria-label={scene.muted ? "Show scene" : "Hide scene"}
+          className={`p-1 transition-colors ${
+            scene.muted
+              ? "text-amber-400 hover:text-amber-300"
+              : "text-neutral-500 opacity-0 group-hover:opacity-100 touch-reveal hover:text-amber-400"
+          }`}
+        >
+          {scene.muted ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+        </button>
+        <div className="flex items-center opacity-0 group-hover:opacity-100 touch-reveal transition-opacity">
           {!isFocused && (
             <button
               onClick={(e) => {
@@ -449,9 +489,15 @@ export function SceneCard({ scene, index }: SceneCardProps) {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              removeScene(scene.id);
+              if (
+                window.confirm(
+                  `Delete scene ${index + 1}${scene.label ? ` (${scene.label})` : ""}?`,
+                )
+              ) {
+                removeScene(scene.id);
+              }
             }}
-            title="Delete"
+            title="Delete scene"
             className="p-1 text-neutral-500 hover:text-red-400 transition-colors"
           >
             <Trash2 className="h-3 w-3" />
@@ -468,44 +514,196 @@ export function SceneCard({ scene, index }: SceneCardProps) {
       {layers.map((layer) => {
         const Icon = LAYER_ICON[layer.kind];
         const colorClass = LAYER_COLOR[layer.kind];
+        const brollId =
+          layer.kind === "broll" && layer.index !== undefined
+            ? scene.broll?.[layer.index]?.id
+            : undefined;
+        const shapeId =
+          layer.kind === "shape" && layer.index !== undefined
+            ? scene.shapes?.[layer.index]?.id
+            : undefined;
+        const textItemId =
+          layer.kind === "text-item" && layer.index !== undefined
+            ? scene.textItems?.[layer.index]?.id
+            : undefined;
+
+        // Resolve the target item for hide/delete actions.
+        const textItem = textItemId
+          ? scene.textItems?.find((t) => t.id === textItemId)
+          : undefined;
+        const shapeItem = shapeId
+          ? scene.shapes?.find((s) => s.id === shapeId)
+          : undefined;
+        const brollItem = brollId
+          ? scene.broll?.find((b) => b.id === brollId)
+          : undefined;
+
+        const isHidden =
+          textItem?.hidden ||
+          shapeItem?.hidden ||
+          brollItem?.hidden ||
+          (layer.kind === "voiceover" && false) || // no hide flag for VO
+          false;
+
+        const supportsHide =
+          layer.kind === "text-item" ||
+          layer.kind === "shape" ||
+          layer.kind === "broll";
+
+        const toggleHide = () => {
+          if (textItem) {
+            updateScene(scene.id, {
+              textItems: scene.textItems?.map((t) =>
+                t.id === textItem.id ? { ...t, hidden: !t.hidden } : t,
+              ),
+            });
+          } else if (shapeItem) {
+            updateScene(scene.id, {
+              shapes: scene.shapes?.map((s) =>
+                s.id === shapeItem.id ? { ...s, hidden: !s.hidden } : s,
+              ),
+            });
+          } else if (brollItem) {
+            updateScene(scene.id, {
+              broll: scene.broll?.map((b) =>
+                b.id === brollItem.id ? { ...b, hidden: !b.hidden } : b,
+              ),
+            });
+          }
+        };
+
+        const removeLayer = () => {
+          switch (layer.kind) {
+            case "bg":
+              updateScene(scene.id, {
+                background: {
+                  ...scene.background,
+                  imageUrl: undefined,
+                  videoUrl: undefined,
+                },
+              });
+              break;
+            case "character":
+              updateScene(scene.id, {
+                characterId: undefined,
+                characterUrl: undefined,
+              });
+              break;
+            case "voiceover":
+              updateScene(scene.id, { voiceover: undefined });
+              break;
+            case "text-item":
+              if (textItem) {
+                updateScene(scene.id, {
+                  textItems: scene.textItems?.filter(
+                    (t) => t.id !== textItem.id,
+                  ),
+                });
+              }
+              break;
+            case "text-main":
+              updateScene(scene.id, { text: undefined });
+              break;
+            case "text-emphasis":
+              updateScene(scene.id, { emphasisText: undefined });
+              break;
+            case "text-subtitle":
+              updateScene(scene.id, { subtitleText: undefined });
+              break;
+            case "shape":
+              if (shapeItem) {
+                updateScene(scene.id, {
+                  shapes: scene.shapes?.filter((s) => s.id !== shapeItem.id),
+                });
+              }
+              break;
+            case "broll":
+              if (brollItem) {
+                updateScene(scene.id, {
+                  broll: scene.broll?.filter((b) => b.id !== brollItem.id),
+                });
+              }
+              break;
+          }
+        };
+
+        const openLayer = () => {
+          selectScene(scene.id);
+          const target = kindToEditTarget(layer.kind);
+          if (target !== null) setEditTarget(target);
+          const layerId = computeLayerId(
+            layer.kind,
+            brollId,
+            layer.index,
+            shapeId,
+            textItemId,
+          );
+          setSelectedLayerId(layerId);
+        };
+
         return (
-          <button
+          <div
             key={layer.id}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              selectScene(scene.id);
-              const target = kindToEditTarget(layer.kind);
-              if (target !== null) setEditTarget(target);
-              const brollId =
-                layer.kind === "broll" && layer.index !== undefined
-                  ? scene.broll?.[layer.index]?.id
-                  : undefined;
-              const shapeId =
-                layer.kind === "shape" && layer.index !== undefined
-                  ? scene.shapes?.[layer.index]?.id
-                  : undefined;
-              const textItemId =
-                layer.kind === "text-item" && layer.index !== undefined
-                  ? scene.textItems?.[layer.index]?.id
-                  : undefined;
-              const layerId = computeLayerId(
-                layer.kind,
-                brollId,
-                layer.index,
-                shapeId,
-                textItemId,
-              );
-              setSelectedLayerId(layerId);
-            }}
-            className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-left hover:bg-neutral-800/60 transition-colors"
-            title={`${layer.label} · click to edit`}
+            className="group/layer w-full flex items-center gap-1 px-2 py-1 rounded hover:bg-neutral-800/60 transition-colors"
           >
-            <Icon className={`h-3 w-3 shrink-0 opacity-80 ${colorClass}`} />
-            <span className={`flex-1 truncate text-[10.5px] ${colorClass}`}>
-              {layer.label}
-            </span>
-          </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openLayer();
+              }}
+              className={`flex-1 min-w-0 flex items-center gap-1.5 text-left ${isHidden ? "opacity-50" : ""}`}
+              title={`${layer.label} · click to edit`}
+            >
+              <Icon className={`h-3 w-3 shrink-0 opacity-80 ${colorClass}`} />
+              <span className={`flex-1 truncate text-[10.5px] ${colorClass}`}>
+                {layer.label}
+              </span>
+            </button>
+            <div className="flex items-center opacity-0 group-hover/layer:opacity-100 touch-reveal transition-opacity">
+              {supportsHide && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleHide();
+                  }}
+                  title={isHidden ? "Show layer" : "Hide layer"}
+                  aria-label={isHidden ? "Show layer" : "Hide layer"}
+                  className={`p-0.5 transition-colors ${
+                    isHidden
+                      ? "text-amber-400 hover:text-amber-300"
+                      : "text-neutral-500 hover:text-amber-400"
+                  }`}
+                >
+                  {isHidden ? (
+                    <EyeOff className="h-3 w-3" />
+                  ) : (
+                    <Eye className="h-3 w-3" />
+                  )}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeLayer();
+                }}
+                title="Remove layer"
+                aria-label="Remove layer"
+                className="p-0.5 text-neutral-500 hover:text-red-400 transition-colors"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+            {/* Hidden badge stays visible even without hover so the
+                user can spot muted layers at a glance. */}
+            {isHidden && supportsHide && (
+              <span className="ml-1 group-hover/layer:hidden text-amber-400">
+                <EyeOff className="h-3 w-3" />
+              </span>
+            )}
+          </div>
         );
       })}
       <div className="flex items-center gap-1 pt-0.5">
@@ -525,16 +723,23 @@ export function SceneCard({ scene, index }: SceneCardProps) {
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            fileInputRef.current?.click();
+            selectScene(scene.id);
+            setLibraryOpen(true);
           }}
-          className="flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded text-neutral-400 hover:text-emerald-300 hover:bg-neutral-800/60 border border-neutral-800 hover:border-emerald-500/40 transition-colors"
-          title="Upload an image / video / audio to this scene"
+          className="flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded text-neutral-400 hover:text-purple-300 hover:bg-purple-500/10 border border-neutral-800 hover:border-purple-500/50 transition-colors"
+          title="Open media library — uploads, GIFs, emoji, music"
         >
           <Upload className="h-3 w-3 shrink-0" />
           <span className="text-[10.5px] font-medium">Media</span>
         </button>
       </div>
     </div>
+    <TextPresetPicker
+      open={textPickerOpen}
+      onClose={() => setTextPickerOpen(false)}
+      onPick={(style, copy) => createTextItem(style, copy)}
+    />
+    <MediaLibrary open={libraryOpen} onClose={() => setLibraryOpen(false)} />
     </div>
   );
 }

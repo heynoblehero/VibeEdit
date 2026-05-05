@@ -7,11 +7,19 @@ import { useAssetStore } from "@/store/asset-store";
 import { useEditorStore, type EditTarget } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 import { defaultPlaceholderTextItem, migrateLegacyTextToTextItems } from "@/lib/scene-schema";
-import type { BRoll, EnterDirection, KeyframeProperty, MotionPreset, Scene, SceneShape, TextItem } from "@/lib/scene-schema";
-import { getWorkflow } from "@/lib/workflows/registry";
-import { BRollPanel } from "./BRollPanel";
+import type { BRoll, Easing, EnterDirection, KeyframeProperty, MotionPreset, Scene, SceneShape, TextItem } from "@/lib/scene-schema";
+import { BgRemoveButton } from "./BgRemoveButton";
+import { CropModal } from "./CropModal";
 import { KeyframeGraph } from "./KeyframeGraph";
-import { MediaModelPicker } from "./MediaModelPicker";
+import { VideoEditModal } from "./VideoEditModal";
+import {
+  AnimateModal,
+  AnimateTrigger,
+  EffectsModal,
+  EffectsTrigger,
+  LookModal,
+  LookTrigger,
+} from "./PropertyModals";
 
 const DIRECTIONS: EnterDirection[] = ["left", "right", "bottom", "scale"];
 
@@ -32,6 +40,8 @@ export function SceneEditor() {
   const { editTarget, setEditTarget } = useEditorStore();
   const selectedLayerId = useEditorStore((s) => s.selectedLayerId);
   const setSelectedLayerId = useEditorStore((s) => s.setSelectedLayerId);
+  const animateModalOpen = useEditorStore((s) => s.animateModalOpen);
+  const setAnimateModalOpen = useEditorStore((s) => s.setAnimateModalOpen);
   const { characters, sfx } = useAssetStore();
   const scene = project.scenes.find((s) => s.id === selectedSceneId);
 
@@ -46,18 +56,8 @@ export function SceneEditor() {
   const update = (patch: Partial<Scene>) => updateScene(scene.id, patch);
   const sceneIdx = project.scenes.findIndex((s) => s.id === scene.id) + 1;
 
-  const workflow = getWorkflow(project.workflowId);
-  const allowedTargets = new Set(
-    workflow.sceneEditorTargets ?? [
-      "character",
-      "text",
-      "effects",
-      "background",
-      "counter",
-      "broll",
-    ],
-  );
-  const canShow = (t: Exclude<EditTarget, null>) => allowedTargets.has(t);
+  // Edit targets are always available now that workflow gating is gone.
+  const canShow = (_t: Exclude<EditTarget, null>) => true;
 
   // Figma-style unified chrome. The right panel ALWAYS renders the
   // same shell: a breadcrumb at the top showing "Frame N [ › Selected ]"
@@ -70,27 +70,27 @@ export function SceneEditor() {
     setEditTarget(null);
   };
 
+  const isLayerSelected = selection.kind !== "frame";
+
   return (
     <div className="overflow-y-auto max-h-[calc(100vh-50px)]">
-      <div className="flex items-center gap-1 px-3 py-2.5 text-[11px] border-b border-neutral-700/70 bg-neutral-800 sticky top-0 z-10 shadow-sm">
-        <button
-          onClick={goBackToFrame}
-          title="Back to frame properties"
-          disabled={selection.kind === "frame"}
-          className={`text-[11px] font-semibold transition-colors ${
-            selection.kind === "frame"
-              ? "text-white cursor-default"
-              : "text-neutral-500 hover:text-emerald-300"
-          }`}
-        >
-          Frame {sceneIdx}
-        </button>
-        {selection.kind !== "frame" && (
-          <>
-            <span className="text-neutral-700 mx-1">›</span>
-            <span className={`font-medium ${selection.color}`}>{selection.label}</span>
-          </>
+      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-neutral-700/70 bg-neutral-800 sticky top-0 z-10 shadow-sm">
+        {isLayerSelected && (
+          <button
+            onClick={goBackToFrame}
+            title="Back to scene"
+            aria-label="Back to scene"
+            className="shrink-0 h-5 w-5 rounded flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-700 transition-colors"
+          >
+            <ArrowLeft className="h-3 w-3" />
+          </button>
         )}
+        <span className={`text-[11px] font-semibold truncate ${selection.color}`}>
+          {selection.label}
+          {selection.kind === "frame" && (
+            <span className="text-neutral-500 font-normal"> {sceneIdx}</span>
+          )}
+        </span>
         <button
           onClick={() => navigator.clipboard?.writeText(scene.id).catch(() => {})}
           title="Click to copy scene id"
@@ -107,12 +107,15 @@ export function SceneEditor() {
             update={update}
             canShow={canShow}
             setEditTarget={setEditTarget}
-            workflowId={workflow.id}
-            workflowSceneActions={workflow.sceneActions}
           />
         )}
         {selection.kind === "text-item" && <TextPanel scene={scene} update={update} />}
         {selection.kind === "shape" && <ShapePanel scene={scene} update={update} />}
+        {selection.kind === "background" && <BackgroundPanel scene={scene} update={update} />}
+        {selection.kind === "character" && (
+          <CharacterPanel scene={scene} update={update} characters={characters} />
+        )}
+        {selection.kind === "broll" && <MediaPanel scene={scene} update={update} />}
         {selection.kind === "panel" && (
           <>
             {editTarget === "character" && <CharacterPanel scene={scene} update={update} characters={characters} />}
@@ -120,21 +123,27 @@ export function SceneEditor() {
             {editTarget === "effects" && <EffectsPanel scene={scene} update={update} sfx={sfx} />}
             {editTarget === "background" && <BackgroundPanel scene={scene} update={update} />}
             {editTarget === "counter" && <CounterPanel scene={scene} update={update} />}
-            {editTarget === "broll" && <BRollPanel scene={scene} />}
-            {editTarget === "keyframes" && <AnimatePanel scene={scene} />}
-            {editTarget === "media" && <MediaPanel scene={scene} update={update} />}
             {editTarget === "shape" && <ShapePanel scene={scene} update={update} />}
           </>
         )}
       </div>
+
+      <AnimateModal
+        open={animateModalOpen}
+        onClose={() => setAnimateModalOpen(false)}
+        scene={scene}
+      />
     </div>
   );
 }
 
 type SelectionInfo =
-  | { kind: "frame"; label: null; color: string }
-  | { kind: "text-item"; label: string; color: string }
+  | { kind: "frame"; label: string; color: string }
+  | { kind: "text-item"; label: string; color: string; itemId: string }
   | { kind: "shape"; label: string; color: string }
+  | { kind: "background"; label: string; color: string }
+  | { kind: "character"; label: string; color: string }
+  | { kind: "broll"; label: string; color: string; brollId: string }
   | { kind: "panel"; label: string; color: string };
 
 function computeSelection(
@@ -146,7 +155,7 @@ function computeSelection(
     const itemId = layerId.slice("text-item:".length);
     const item = scene.textItems?.find((it) => it.id === itemId);
     const label = item?.content ? `Text · ${item.content.slice(0, 18)}` : "Text item";
-    return { kind: "text-item", label, color: "text-emerald-300" };
+    return { kind: "text-item", label, color: "text-emerald-300", itemId };
   }
   if (layerId?.startsWith("shape:")) {
     const shapeId = layerId.slice("shape:".length);
@@ -154,11 +163,26 @@ function computeSelection(
     const label = shape ? `Shape · ${shape.kind}` : "Shape";
     return { kind: "shape", label, color: "text-amber-300" };
   }
+  if (layerId === "media:bg") {
+    const mode = scene.background.videoUrl
+      ? "Video"
+      : scene.background.imageUrl
+        ? "Image"
+        : "Media";
+    return { kind: "background", label: `Background · ${mode}`, color: "text-purple-300" };
+  }
+  if (layerId === "media:character") {
+    return { kind: "character", label: "Character", color: "text-emerald-300" };
+  }
+  if (layerId?.startsWith("media:broll:")) {
+    const brollId = layerId.slice("media:broll:".length);
+    return { kind: "broll", label: "B-roll item", color: "text-pink-300", brollId };
+  }
   if (editTarget) {
     const meta = TARGET_META[editTarget];
     return { kind: "panel", label: meta.label, color: meta.color };
   }
-  return { kind: "frame", label: null, color: "text-white" };
+  return { kind: "frame", label: "Scene", color: "text-white" };
 }
 
 /**
@@ -174,21 +198,19 @@ function FrameProperties({
   update,
   canShow,
   setEditTarget,
-  workflowId,
-  workflowSceneActions,
 }: {
   scene: Scene;
   sceneIdx: number;
   update: (p: Partial<Scene>) => void;
   canShow: (t: Exclude<EditTarget, null>) => boolean;
   setEditTarget: (t: EditTarget) => void;
-  workflowId: string;
-  workflowSceneActions: any[] | undefined;
 }) {
   const addUpload = useProjectStore((s) => s.addUpload);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const setSelectedLayerId = useEditorStore((s) => s.setSelectedLayerId);
   const setPaused = useEditorStore((s) => s.setPaused);
+  const setAnimateModalOpen = useEditorStore((s) => s.setAnimateModalOpen);
+  const [effectsOpen, setEffectsOpen] = useState(false);
 
   const addText = () => {
     // Same shape as the "edit me" placeholder so new text behaves
@@ -277,10 +299,6 @@ function FrameProperties({
         }}
       />
 
-      {workflowSceneActions && workflowSceneActions.length > 0 && (
-        <SceneActionsRow workflowId={workflowId} scene={scene} actions={workflowSceneActions} />
-      )}
-
       <AddItemPicker
         canMedia={canShow("background") || canShow("character") || canShow("broll")}
         onAddText={addText}
@@ -318,19 +336,6 @@ function FrameProperties({
               className="input-field w-14 text-[11px] py-0.5 px-1 text-right"
             />
             <span className="text-[10px] text-neutral-500">s</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-[10px] text-neutral-500 w-14">Type</label>
-            <select
-              value={scene.type}
-              onChange={(e) => update({ type: e.target.value as Scene["type"] })}
-              className="input-field flex-1 text-[11px] py-1"
-            >
-              <option value="character_text">Character + Text</option>
-              <option value="text_only">Text Only</option>
-              <option value="big_number">Big Number</option>
-              <option value="character_pop">Character Pop</option>
-            </select>
           </div>
         </div>
       </details>
@@ -467,24 +472,17 @@ function FrameProperties({
         </div>
       </details>
 
-      <details className="rounded-md border border-neutral-700/70 bg-neutral-900 shadow-sm overflow-hidden">
-        <summary className="cursor-pointer flex items-center gap-2 px-3 py-2 text-[10.5px] uppercase tracking-wider text-neutral-100 font-semibold select-none border-b border-neutral-700/60 bg-neutral-800/60 [&::-webkit-details-marker]:hidden">
-          <span className="h-3 w-0.5 rounded-full bg-emerald-400" aria-hidden />
-          Animation
-        </summary>
-        <div className="px-3 pb-3 pt-1">
-          <button
-            type="button"
-            onClick={() => setEditTarget("keyframes")}
-            className="w-full px-3 py-2 rounded border border-neutral-800 hover:border-cyan-500/60 hover:bg-cyan-500/10 text-[11px] text-cyan-300 transition-colors"
-          >
-            Open keyframe editor →
-          </button>
-        </div>
-      </details>
+      <div className="space-y-2 pt-1">
+        <EffectsTrigger scene={scene} onOpen={() => setEffectsOpen(true)} />
+        <AnimateTrigger scene={scene} onOpen={() => setAnimateModalOpen(true)} />
+      </div>
 
-      <VoiceoverSection scene={scene} />
-      <RefineSection scene={scene} />
+      <EffectsModal
+        open={effectsOpen}
+        onClose={() => setEffectsOpen(false)}
+        scene={scene}
+        update={update}
+      />
     </>
   );
 }
@@ -692,73 +690,19 @@ const KEYFRAME_PROPERTIES: KeyframeProperty[] = [
   "overlayOpacity",
 ];
 
-function AnimatePanel({ scene }: { scene: Scene }) {
-  const [property, setProperty] = useState<KeyframeProperty>("textY");
-  const fps = useProjectStore((s) => s.project.fps);
-  const durationFrames = Math.max(1, Math.round(scene.duration * fps));
-  // Sticky tabs: 3 most recently edited channels — for now just track in
-  // local state. A future iteration could persist across tab switches.
-  const [recent, setRecent] = useState<KeyframeProperty[]>([]);
-  const pickProperty = (p: KeyframeProperty) => {
-    setProperty(p);
-    setRecent((prev) => [p, ...prev.filter((x) => x !== p)].slice(0, 3));
-  };
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] uppercase tracking-wider text-neutral-500">Property</span>
-        <select
-          value={property}
-          onChange={(e) => pickProperty(e.target.value as KeyframeProperty)}
-          className="input-field text-xs flex-1"
-        >
-          {KEYFRAME_PROPERTIES.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-      </div>
-      {recent.length > 1 && (
-        <div className="flex items-center gap-1.5">
-          <span className="text-[9px] uppercase text-neutral-600">Recent</span>
-          {recent.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setProperty(p)}
-              className={
-                p === property
-                  ? "px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/60 text-[10px] text-emerald-300"
-                  : "px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-700 text-[10px] text-neutral-400 hover:text-white"
-              }
-            >
-              {p}
-            </button>
-          ))}
-        </div>
-      )}
-      <KeyframeGraph
-        sceneId={scene.id}
-        property={property}
-        durationFrames={durationFrames}
-        fallbackValue={(() => {
-          // Sensible defaults so the curve baseline isn't always at 0.
-          if (property === "textY") return scene.textY ?? 300;
-          if (property === "textScale" || property === "emphasisScale" || property === "characterScale" || property === "bgScale") return 1;
-          if (property.endsWith("Opacity")) return 1;
-          return 0;
-        })()}
-      />
-      <div className="text-[10px] text-neutral-600 leading-relaxed">
-        Click empty space on the graph to add a keyframe at that frame +
-        value. Drag a keyframe to move it. Right-click to delete. Pick the
-        easing for the segment leaving an active keyframe via the dropdown
-        in the graph header.
-      </div>
-    </div>
-  );
-}
+const EASING_OPTIONS: Easing[] = [
+  "linear",
+  "ease_in",
+  "ease_out",
+  "ease_in_out",
+  "ease_in_back",
+  "ease_out_back",
+  "ease_in_out_back",
+  "spring",
+  "snappy",
+  "bouncy",
+];
+
 
 function TargetButton({ target, onClick }: { target: Exclude<EditTarget, null>; onClick: () => void }) {
   const meta = TARGET_META[target];
@@ -793,6 +737,10 @@ function CharacterPanel({ scene, update, characters }: { scene: Scene; update: (
       </Field>
       {scene.characterId && (
         <>
+          <AnimateTrigger
+            scene={scene}
+            onOpen={() => useEditorStore.getState().setAnimateModalOpen(true)}
+          />
           <Field label="X position">
             <input type="range" min={100} max={1800} value={scene.characterX ?? 960} onChange={(e) => update({ characterX: Number(e.target.value) })} className="w-full accent-emerald-500 h-1.5" />
             <div className="flex justify-between text-[9px] text-neutral-600"><span>Left</span><span>{scene.characterX ?? 960}</span><span>Right</span></div>
@@ -1532,7 +1480,7 @@ function TextItemAnimationSection({
         <span>Keyframes: {kfCount}</span>
         <button
           type="button"
-          onClick={() => setEditTarget("keyframes")}
+          onClick={() => useEditorStore.getState().setAnimateModalOpen(true)}
           className="ml-auto text-[10px] text-emerald-400 hover:text-emerald-300 underline decoration-dotted"
         >
           Open keyframes
@@ -2417,299 +2365,319 @@ function EffectsPanel({ scene, update, sfx }: { scene: Scene; update: (p: Partia
 }
 
 function BackgroundPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>) => void }) {
-  // Derived "mode" of the background so the UI is tab-like instead of
-  // three separate fields you have to figure out.
-  const mode: "color" | "image" | "video" = scene.background.videoUrl
-    ? "video"
-    : scene.background.imageUrl
-      ? "image"
-      : "color";
+  const [lookOpen, setLookOpen] = useState(false);
+  const [cropOpen, setCropOpen] = useState(false);
+  const [videoEditOpen, setVideoEditOpen] = useState(false);
+  const addUpload = useProjectStore((s) => s.addUpload);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
 
-  const setMode = (next: "color" | "image" | "video") => {
-    if (next === "color")
-      update({ background: { ...scene.background, imageUrl: undefined, videoUrl: undefined } });
-    if (next === "image")
-      update({ background: { ...scene.background, videoUrl: undefined } });
-    if (next === "video")
-      update({ background: { ...scene.background, imageUrl: undefined } });
+  const handleImageFiles = async (files: FileList | File[]) => {
+    const { uploadFiles } = await import("@/lib/upload-files");
+    const results = await uploadFiles(files, addUpload);
+    const first = results[0];
+    if (first) {
+      update({
+        background: {
+          ...scene.background,
+          imageUrl: first.upload.url,
+          imageUrlOriginal: undefined,
+          imageCrop: undefined,
+        },
+      });
+    }
   };
+
+  const handleVideoFiles = async (files: FileList | File[]) => {
+    const { uploadFiles } = await import("@/lib/upload-files");
+    const results = await uploadFiles(files, addUpload);
+    const first = results[0];
+    if (first) {
+      update({
+        background: {
+          ...scene.background,
+          videoUrl: first.upload.url,
+          videoCrop: undefined,
+          videoStartSec: undefined,
+          videoEndSec: undefined,
+          videoPlaybackRate: undefined,
+          videoLoop: undefined,
+        },
+      });
+    }
+  };
+
+  const hasImage = !!scene.background.imageUrl;
+  const hasVideo = !!scene.background.videoUrl;
+  const hasMedia = hasImage || hasVideo;
 
   return (
     <>
-      <div className="flex gap-1 p-0.5 rounded-md bg-neutral-900 border border-neutral-800">
-        {(["color", "image", "video"] as const).map((m) => (
-          <button
-            key={m}
-            onClick={() => setMode(m)}
-            className={`flex-1 text-[11px] px-2 py-1 rounded capitalize transition-colors ${
-              mode === m ? "bg-emerald-500/20 text-emerald-300" : "text-neutral-500 hover:text-white"
-            }`}
-          >
-            {m}
-          </button>
-        ))}
-      </div>
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          if (e.target.files?.length) handleImageFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/*"
+        hidden
+        onChange={(e) => {
+          if (e.target.files?.length) handleVideoFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
 
-      {mode === "color" && (
-        <>
-          <Field label="Background color">
-            <input type="color" value={scene.background.color} onChange={(e) => update({ background: { ...scene.background, color: e.target.value } })} className="h-10 w-full rounded cursor-pointer bg-transparent border border-neutral-700" />
-          </Field>
-          {/* Dark-mode BG palette for fast picks. */}
-          <div className="flex flex-wrap gap-1">
-            {["#0a0a0a", "#111118", "#1a1a2e", "#0f172a", "#1e1b4b", "#164e63", "#042f2e", "#7c2d12", "#581c87", "#831843", "#fafafa"].map((c) => (
-              <button
-                key={c}
-                onClick={() => update({ background: { ...scene.background, color: c } })}
-                className={`h-5 w-5 rounded border-2 ${scene.background.color === c ? "border-white" : "border-neutral-700"}`}
-                style={{ backgroundColor: c }}
-                title={c}
+      {/* Media card — only renders when something is set. Non-destructive:
+          users explicitly remove with the × button if they want to swap. */}
+      {hasMedia && (
+        <div className="rounded-md border border-neutral-700/70 bg-neutral-900 overflow-hidden">
+          <div className="relative h-24 bg-black">
+            {hasVideo ? (
+              <video
+                src={scene.background.videoUrl}
+                muted
+                playsInline
+                autoPlay
+                loop
+                className="w-full h-full object-cover"
               />
-            ))}
+            ) : (
+              <img
+                src={scene.background.imageUrl}
+                alt="background"
+                className="w-full h-full object-cover"
+              />
+            )}
+            <span className="absolute top-1.5 left-1.5 text-[9px] uppercase tracking-wider text-white/80 bg-black/50 px-1.5 py-0.5 rounded backdrop-blur-sm">
+              {hasVideo ? "Video" : "Image"}
+            </span>
           </div>
-          <Field label="Gradient graphic">
-            <select value={scene.background.graphic ?? ""} onChange={(e) => update({ background: { ...scene.background, graphic: e.target.value || undefined } })} className="input-field w-full text-xs">
-              <option value="">None</option>
-              <option value="gradient1">Blue swoosh</option>
-              <option value="gradient3">Gradient 3</option>
-              <option value="gradient5">Gradient 5</option>
-              <option value="gradient6">Gradient 6</option>
-              <option value="rect1">Rectangle</option>
-              <option value="swoosh1">Swoosh</option>
-            </select>
-          </Field>
-        </>
-      )}
-
-      {mode === "image" && (
-        <>
-          <MediaModelPicker sceneId={scene.id} kind="image" />
-          <Field label="Image URL">
-            <input
-              type="text"
-              value={scene.background.imageUrl ?? ""}
-              onChange={(e) => update({ background: { ...scene.background, imageUrl: e.target.value || undefined } })}
-              placeholder="https://..."
-              className="input-field w-full text-xs"
-            />
-          </Field>
-          {scene.background.imageUrl && (
-            <img
-              src={scene.background.imageUrl}
-              alt="background preview"
-              className="w-full h-20 object-cover rounded border border-neutral-800"
-            />
-          )}
-          <label className="flex items-center gap-2 text-[11px] text-neutral-400">
-            <input
-              type="checkbox"
-              checked={!!scene.background.kenBurns}
-              onChange={(e) => update({ background: { ...scene.background, kenBurns: e.target.checked } })}
-            />
-            Ken Burns (slow zoom)
-          </label>
-          <PxSizeRow
-            widthPx={scene.background.imageWidthPx}
-            heightPx={scene.background.imageHeightPx}
-            onChange={(patch) => update({ background: { ...scene.background, ...patch } })}
-            widthKey="imageWidthPx"
-            heightKey="imageHeightPx"
-          />
-          <span className="text-[10px] text-neutral-600">
-            Tip: ask the agent &ldquo;generate an AI image for this scene&rdquo; to fill this automatically.
-          </span>
-        </>
-      )}
-
-      {mode === "video" && (
-        <>
-          <MediaModelPicker sceneId={scene.id} kind="video" />
-          <Field label="Video URL">
-            <input
-              type="text"
-              value={scene.background.videoUrl ?? ""}
-              onChange={(e) => update({ background: { ...scene.background, videoUrl: e.target.value || undefined } })}
-              placeholder="https://... or /uploads/..."
-              className="input-field w-full text-xs"
-            />
-          </Field>
-          {scene.background.videoUrl && (
-            <video
-              src={scene.background.videoUrl}
-              muted
-              playsInline
-              className="w-full h-20 object-cover rounded border border-neutral-800"
-            />
-          )}
-          <PxSizeRow
-            widthPx={scene.background.videoWidthPx}
-            heightPx={scene.background.videoHeightPx}
-            onChange={(patch) => update({ background: { ...scene.background, ...patch } })}
-            widthKey="videoWidthPx"
-            heightKey="videoHeightPx"
-          />
-          <span className="text-[10px] text-neutral-600">
-            Drag a video file into chat to upload, or run the avatar tool to fill this.
-          </span>
-        </>
-      )}
-
-      <Field label="Vignette">
-        <input type="range" min={0} max={0.8} step={0.05} value={scene.background.vignette ?? 0.5} onChange={(e) => update({ background: { ...scene.background, vignette: Number(e.target.value) } })} className="w-full accent-purple-500 h-1.5" />
-        <span className="text-[10px] text-neutral-500">{((scene.background.vignette ?? 0.5) * 100).toFixed(0)}%</span>
-      </Field>
-
-      {/* Manual color-grading sliders. Compose on top of the
-          colorGrade preset (preset applied first, sliders multiply). */}
-      <div className="pt-2 mt-2 border-t border-neutral-800">
-        <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1.5">
-          Color grade
-        </div>
-        <Field label="Brightness">
-          <input
-            type="range"
-            min={0.5}
-            max={1.5}
-            step={0.02}
-            value={scene.background.brightness ?? 1}
-            onChange={(e) =>
-              update({
-                background: { ...scene.background, brightness: Number(e.target.value) },
-              })
-            }
-            className="w-full accent-purple-500 h-1.5"
-          />
-          <span className="text-[10px] text-neutral-500">
-            {(scene.background.brightness ?? 1).toFixed(2)}×
-          </span>
-        </Field>
-        <Field label="Contrast">
-          <input
-            type="range"
-            min={0.5}
-            max={1.5}
-            step={0.02}
-            value={scene.background.contrast ?? 1}
-            onChange={(e) =>
-              update({
-                background: { ...scene.background, contrast: Number(e.target.value) },
-              })
-            }
-            className="w-full accent-purple-500 h-1.5"
-          />
-          <span className="text-[10px] text-neutral-500">
-            {(scene.background.contrast ?? 1).toFixed(2)}×
-          </span>
-        </Field>
-        <Field label="Saturation">
-          <input
-            type="range"
-            min={0}
-            max={1.5}
-            step={0.02}
-            value={scene.background.saturation ?? 1}
-            onChange={(e) =>
-              update({
-                background: { ...scene.background, saturation: Number(e.target.value) },
-              })
-            }
-            className="w-full accent-purple-500 h-1.5"
-          />
-          <span className="text-[10px] text-neutral-500">
-            {(scene.background.saturation ?? 1).toFixed(2)}×
-          </span>
-        </Field>
-        <Field label="Temperature">
-          <input
-            type="range"
-            min={-1}
-            max={1}
-            step={0.05}
-            value={scene.background.temperature ?? 0}
-            onChange={(e) =>
-              update({
-                background: { ...scene.background, temperature: Number(e.target.value) },
-              })
-            }
-            className="w-full accent-purple-500 h-1.5"
-          />
-          <span className="text-[10px] text-neutral-500">
-            {(scene.background.temperature ?? 0) > 0 ? "warmer" : (scene.background.temperature ?? 0) < 0 ? "cooler" : "neutral"}
-          </span>
-        </Field>
-      </div>
-
-      <KeyingSection scene={scene} update={update} />
-
-      <div className="border-t border-neutral-800 pt-3 mt-2 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            // Copy this scene's color-grade bundle to every other scene.
-            const bundle = {
-              colorGrade: scene.background.colorGrade,
-              brightness: scene.background.brightness,
-              contrast: scene.background.contrast,
-              saturation: scene.background.saturation,
-              temperature: scene.background.temperature,
-              blur: scene.background.blur,
-              chromaKey: scene.background.chromaKey,
-              lumaKey: scene.background.lumaKey,
-            };
-            const all = useProjectStore.getState().project.scenes;
-            for (const sc of all) {
-              if (sc.id === scene.id) continue;
-              useProjectStore.getState().updateScene(sc.id, {
-                background: { ...sc.background, ...bundle },
-              });
-            }
-            toast(`Look applied to ${all.length - 1} other scene${all.length - 1 === 1 ? "" : "s"}`, {
-              duration: 1000,
-            });
-          }}
-          className="text-xs px-2 py-1.5 rounded border border-neutral-700 text-neutral-300 hover:border-emerald-500 hover:text-emerald-300"
-          title="Copy this scene's color grade + keying to every other scene in the project"
-        >
-          Apply to all
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            const looks = [
-              { colorGrade: "warm", contrast: 1.12, saturation: 1.08, brightness: 0.98 },
-              { colorGrade: "punchy", contrast: 1.25, saturation: 1.2 },
-              { colorGrade: "bw", contrast: 1.3, brightness: 0.92 },
-              { blur: 4, contrast: 0.88, saturation: 0.85, brightness: 1.06 },
-              { colorGrade: "warm", saturation: 0.7, contrast: 0.9, temperature: 0.4 },
-              { saturation: 1.5, contrast: 1.15, temperature: -0.5, brightness: 0.95 },
-              { colorGrade: "cool", brightness: 0.88, contrast: 1.1, blur: 1, temperature: -0.3 },
-            ] as const;
-            const pick = looks[Math.floor(Math.random() * looks.length)];
-            const all = useProjectStore.getState().project.scenes;
-            for (const sc of all) {
-              const cleaned = { ...sc.background };
-              for (const k of [
-                "colorGrade",
-                "brightness",
-                "contrast",
-                "saturation",
-                "temperature",
-                "blur",
-              ] as const) {
-                delete (cleaned as Record<string, unknown>)[k];
+          <div className="flex items-center gap-2 px-2 py-1.5 border-t border-neutral-800 bg-neutral-950/40">
+            <button
+              type="button"
+              onClick={() =>
+                hasVideo ? videoInputRef.current?.click() : imageInputRef.current?.click()
               }
-              useProjectStore.getState().updateScene(sc.id, {
-                background: { ...cleaned, ...pick } as Scene["background"],
-              });
-            }
-            toast(`Random look applied to ${all.length} scene${all.length === 1 ? "" : "s"}`, { duration: 800 });
-          }}
-          className="text-xs px-2 py-1.5 rounded border border-neutral-700 text-neutral-300 hover:border-amber-500 hover:text-amber-300"
-          title="Pick a random Look and apply to every scene"
-        >
-          Surprise me ✨
-        </button>
+              className="text-[11px] text-neutral-300 hover:text-emerald-300 px-2 py-1 rounded border border-neutral-700 hover:border-emerald-500"
+            >
+              Replace
+            </button>
+            {hasVideo && (
+              <button
+                type="button"
+                onClick={() => setVideoEditOpen(true)}
+                className={`text-[11px] px-2 py-1 rounded border ${
+                  scene.background.videoStartSec !== undefined ||
+                  scene.background.videoEndSec !== undefined ||
+                  scene.background.videoPlaybackRate !== undefined ||
+                  scene.background.videoLoop ||
+                  scene.background.videoCrop
+                    ? "border-sky-500/60 text-sky-300 bg-sky-500/10"
+                    : "border-neutral-700 text-neutral-300 hover:text-sky-300 hover:border-sky-500"
+                }`}
+                title="Trim, speed, loop, crop, look"
+              >
+                Edit video
+              </button>
+            )}
+            {!hasVideo && (
+              <button
+                type="button"
+                onClick={() => setCropOpen(true)}
+                className={`text-[11px] px-2 py-1 rounded border ${
+                  scene.background.imageCrop
+                    ? "border-cyan-500/60 text-cyan-300 bg-cyan-500/10"
+                    : "border-neutral-700 text-neutral-300 hover:text-cyan-300 hover:border-cyan-500"
+                }`}
+                title="Crop / reframe the visible portion"
+              >
+                Crop
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() =>
+                update({
+                  background: hasVideo
+                    ? {
+                        ...scene.background,
+                        videoUrl: undefined,
+                        videoCrop: undefined,
+                        videoStartSec: undefined,
+                        videoEndSec: undefined,
+                        videoPlaybackRate: undefined,
+                        videoLoop: undefined,
+                      }
+                    : {
+                        ...scene.background,
+                        imageUrl: undefined,
+                        imageCrop: undefined,
+                        imageUrlOriginal: undefined,
+                      },
+                })
+              }
+              className="ml-auto text-[11px] text-neutral-500 hover:text-red-400 px-2 py-1"
+              title="Remove media — color shows through"
+            >
+              Remove
+            </button>
+          </div>
+          {hasImage && !hasVideo && (
+            <div className="flex items-center px-2 py-1.5 border-t border-neutral-800">
+              <BgRemoveButton
+                imageUrl={scene.background.imageUrl ?? ""}
+                originalUrl={scene.background.imageUrlOriginal}
+                onReplace={(nextUrl, originalUrl) =>
+                  update({
+                    background: {
+                      ...scene.background,
+                      imageUrl: nextUrl,
+                      imageUrlOriginal: originalUrl,
+                    },
+                  })
+                }
+              />
+            </div>
+          )}
+          {hasImage && !hasVideo && (
+            <label className="flex items-center gap-2 text-[11px] text-neutral-300 px-2 py-1.5 border-t border-neutral-800">
+              <input
+                type="checkbox"
+                checked={!!scene.background.kenBurns}
+                onChange={(e) =>
+                  update({ background: { ...scene.background, kenBurns: e.target.checked } })
+                }
+                className="accent-emerald-500"
+              />
+              Ken Burns (slow zoom)
+            </label>
+          )}
+          {/* Corner radius — softens the bg media's edges. 0 = sharp. */}
+          <div className="flex items-center gap-2 text-[11px] text-neutral-300 px-2 py-1.5 border-t border-neutral-800">
+            <label className="text-[10px] text-neutral-500 w-20 shrink-0">
+              Corner radius
+            </label>
+            <input
+              type="range"
+              min={0}
+              max={120}
+              step={2}
+              value={scene.background.borderRadius ?? 0}
+              onChange={(e) =>
+                update({
+                  background: {
+                    ...scene.background,
+                    borderRadius: Number(e.target.value),
+                  },
+                })
+              }
+              className="flex-1 accent-emerald-500 h-1"
+            />
+            <span className="text-[10px] text-neutral-500 font-mono tabular-nums w-10 text-right">
+              {scene.background.borderRadius ?? 0}px
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* No media yet — surface upload entry points. The frame's color
+          lives in the Frame Properties panel, not here. */}
+      {!hasMedia && (
+        <div className="rounded-md border border-dashed border-neutral-700 bg-neutral-950/40 p-3 space-y-2">
+          <div className="text-[11px] text-neutral-500">
+            No background image or video on this scene.
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-md border border-neutral-700 hover:border-emerald-500 hover:bg-emerald-500/5 text-[11px] text-neutral-400 hover:text-emerald-300 transition-colors"
+            >
+              + Image
+            </button>
+            <button
+              type="button"
+              onClick={() => videoInputRef.current?.click()}
+              className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-md border border-neutral-700 hover:border-emerald-500 hover:bg-emerald-500/5 text-[11px] text-neutral-400 hover:text-emerald-300 transition-colors"
+            >
+              + Video
+            </button>
+          </div>
+        </div>
+      )}
+
+      {hasMedia && (
+        <AnimateTrigger
+          scene={scene}
+          onOpen={() => useEditorStore.getState().setAnimateModalOpen(true)}
+        />
+      )}
+
+      {hasImage && (
+        <PxSizeRow
+          widthPx={scene.background.imageWidthPx}
+          heightPx={scene.background.imageHeightPx}
+          onChange={(patch) => update({ background: { ...scene.background, ...patch } })}
+          widthKey="imageWidthPx"
+          heightKey="imageHeightPx"
+        />
+      )}
+      {hasVideo && (
+        <PxSizeRow
+          widthPx={scene.background.videoWidthPx}
+          heightPx={scene.background.videoHeightPx}
+          onChange={(patch) => update({ background: { ...scene.background, ...patch } })}
+          widthKey="videoWidthPx"
+          heightKey="videoHeightPx"
+        />
+      )}
+
+      <div className="pt-1">
+        <LookTrigger scene={scene} onOpen={() => setLookOpen(true)} />
       </div>
+
+      <LookModal
+        open={lookOpen}
+        onClose={() => setLookOpen(false)}
+        scene={scene}
+        update={update}
+      />
+
+      {hasMedia && (
+        <CropModal
+          open={cropOpen}
+          onClose={() => setCropOpen(false)}
+          src={(hasVideo ? scene.background.videoUrl : scene.background.imageUrl) ?? ""}
+          mediaKind={hasVideo ? "video" : "image"}
+          value={hasVideo ? scene.background.videoCrop : scene.background.imageCrop}
+          onChange={(rect) =>
+            update({
+              background: hasVideo
+                ? { ...scene.background, videoCrop: rect }
+                : { ...scene.background, imageCrop: rect },
+            })
+          }
+        />
+      )}
+
+      {hasVideo && (
+        <VideoEditModal
+          open={videoEditOpen}
+          onClose={() => setVideoEditOpen(false)}
+          scene={scene}
+          update={update}
+          onOpenCrop={() => setCropOpen(true)}
+          onOpenLook={() => setLookOpen(true)}
+          onOpenAnimate={() => useEditorStore.getState().setAnimateModalOpen(true)}
+        />
+      )}
 
       <div className="border-t border-neutral-800 pt-3 mt-2 space-y-2">
         <div className="text-[11px] uppercase tracking-wide text-neutral-500">
@@ -2819,170 +2787,6 @@ function BackgroundPanel({ scene, update }: { scene: Scene; update: (p: Partial<
   );
 }
 
-function KeyingSection({
-  scene,
-  update,
-}: {
-  scene: Scene;
-  update: (p: Partial<Scene>) => void;
-}) {
-  const chroma = scene.background.chromaKey;
-  const luma = scene.background.lumaKey;
-  const setChroma = (
-    patch: Partial<NonNullable<Scene["background"]["chromaKey"]>> | null,
-  ) => {
-    if (patch === null) {
-      update({ background: { ...scene.background, chromaKey: undefined } });
-      return;
-    }
-    update({
-      background: {
-        ...scene.background,
-        chromaKey: {
-          color: chroma?.color ?? "#00ff00",
-          tolerance: chroma?.tolerance ?? 0.4,
-          softness: chroma?.softness ?? 0.3,
-          ...patch,
-        },
-      },
-    });
-  };
-  const setLuma = (
-    patch: Partial<NonNullable<Scene["background"]["lumaKey"]>> | null,
-  ) => {
-    if (patch === null) {
-      update({ background: { ...scene.background, lumaKey: undefined } });
-      return;
-    }
-    update({
-      background: {
-        ...scene.background,
-        lumaKey: {
-          threshold: luma?.threshold ?? 0.3,
-          softness: luma?.softness ?? 0.05,
-          invert: luma?.invert ?? false,
-          ...patch,
-        },
-      },
-    });
-  };
-
-  return (
-    <div className="border-t border-neutral-800 pt-3 mt-2 space-y-3">
-      <div className="flex items-baseline justify-between">
-        <h4 className="text-[11px] uppercase tracking-wide text-neutral-500">
-          Keying
-        </h4>
-        <span className="text-[10px] text-neutral-600">chroma · luma</span>
-      </div>
-
-      <div className="space-y-2">
-        <label className="flex items-center justify-between text-xs">
-          <span className="text-neutral-300">Chroma key</span>
-          <input
-            type="checkbox"
-            checked={!!chroma}
-            onChange={(e) => (e.target.checked ? setChroma({}) : setChroma(null))}
-            className="accent-emerald-500"
-          />
-        </label>
-        {chroma && (
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Color">
-              <input
-                type="color"
-                value={chroma.color}
-                onChange={(e) => setChroma({ color: e.target.value })}
-                className="h-7 w-full rounded cursor-pointer bg-transparent border border-neutral-700"
-              />
-            </Field>
-            <Field label="Tolerance">
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.02}
-                value={chroma.tolerance}
-                onChange={(e) => setChroma({ tolerance: Number(e.target.value) })}
-                className="w-full accent-emerald-500 h-1.5"
-              />
-              <span className="text-[10px] text-neutral-500">
-                {(chroma.tolerance * 100).toFixed(0)}%
-              </span>
-            </Field>
-            <Field label="Softness">
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={chroma.softness}
-                onChange={(e) => setChroma({ softness: Number(e.target.value) })}
-                className="w-full accent-emerald-500 h-1.5"
-              />
-              <span className="text-[10px] text-neutral-500">
-                {(chroma.softness * 100).toFixed(0)}%
-              </span>
-            </Field>
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <label className="flex items-center justify-between text-xs">
-          <span className="text-neutral-300">Luma key</span>
-          <input
-            type="checkbox"
-            checked={!!luma}
-            onChange={(e) => (e.target.checked ? setLuma({}) : setLuma(null))}
-            className="accent-emerald-500"
-          />
-        </label>
-        {luma && (
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Threshold">
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.02}
-                value={luma.threshold}
-                onChange={(e) => setLuma({ threshold: Number(e.target.value) })}
-                className="w-full accent-emerald-500 h-1.5"
-              />
-              <span className="text-[10px] text-neutral-500">
-                {(luma.threshold * 100).toFixed(0)}%
-              </span>
-            </Field>
-            <Field label="Softness">
-              <input
-                type="range"
-                min={0}
-                max={0.5}
-                step={0.02}
-                value={luma.softness}
-                onChange={(e) => setLuma({ softness: Number(e.target.value) })}
-                className="w-full accent-emerald-500 h-1.5"
-              />
-              <span className="text-[10px] text-neutral-500">
-                {(luma.softness * 100).toFixed(0)}%
-              </span>
-            </Field>
-            <label className="col-span-2 flex items-center gap-2 text-[11px] text-neutral-300">
-              <input
-                type="checkbox"
-                checked={!!luma.invert}
-                onChange={(e) => setLuma({ invert: e.target.checked })}
-                className="accent-emerald-500"
-              />
-              Invert (cull bright pixels instead of dark)
-            </label>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function CounterPanel({ scene, update }: { scene: Scene; update: (p: Partial<Scene>) => void }) {
   return (
@@ -2994,359 +2798,6 @@ function CounterPanel({ scene, update }: { scene: Scene; update: (p: Partial<Sce
       <Field label="Suffix"><input type="text" value={scene.numberSuffix ?? ""} onChange={(e) => update({ numberSuffix: e.target.value })} className="input-field w-full text-xs" placeholder=" subs" /></Field>
       <Field label="Color"><input type="color" value={scene.numberColor ?? "#10b981"} onChange={(e) => update({ numberColor: e.target.value })} className="h-8 w-full rounded cursor-pointer bg-transparent border border-neutral-700" /></Field>
     </>
-  );
-}
-
-function RefineSection({ scene }: { scene: Scene }) {
-  const { updateScene } = useProjectStore();
-  const [prompt, setPrompt] = useState("");
-  const [isRefining, setIsRefining] = useState(false);
-  const [isRegenerating, setIsRegenerating] = useState(false);
-
-  const callRefine = async (instruction: string) => {
-    const res = await fetch("/api/refine", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scene, instruction }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error ?? `Refine failed (${res.status})`);
-    return data.patch;
-  };
-
-  const handleRefine = async () => {
-    if (!prompt.trim()) return;
-    setIsRefining(true);
-    try {
-      const patch = await callRefine(prompt);
-      if (patch) {
-        updateScene(scene.id, patch);
-        toast.success("Scene refined");
-      }
-      setPrompt("");
-    } catch (e) {
-      toast.error("Refine failed", {
-        description: e instanceof Error ? e.message : String(e),
-      });
-    } finally {
-      setIsRefining(false);
-    }
-  };
-
-  const handleRegenerate = async () => {
-    setIsRegenerating(true);
-    try {
-      const patch = await callRefine(
-        "Regenerate this scene: keep the same text/emphasisText/numberFrom/numberTo/type, but vary every visual choice (character, pose, positions, colors, transitions, zoomPunch, background). Pick a fresh bright accent color and different character position than before.",
-      );
-      if (patch) {
-        updateScene(scene.id, patch);
-        toast.success("Scene regenerated");
-      }
-    } catch (e) {
-      toast.error("Regenerate failed", {
-        description: e instanceof Error ? e.message : String(e),
-      });
-    } finally {
-      setIsRegenerating(false);
-    }
-  };
-
-  return (
-    <div className="pt-3 border-t border-neutral-800">
-      <div className="flex items-center gap-2 mb-2">
-        <Sparkles className="h-3.5 w-3.5 text-purple-400" />
-        <span className="text-xs font-semibold text-white">AI Refine</span>
-      </div>
-      <button
-        onClick={handleRegenerate}
-        disabled={isRegenerating || isRefining}
-        className="flex items-center justify-center gap-1.5 w-full bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-600 text-neutral-200 text-xs font-medium px-3 py-1.5 rounded-md mb-2 transition-colors"
-      >
-        {isRegenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-        Regenerate this scene
-      </button>
-      <div className="flex gap-1.5">
-        <input type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleRefine()} placeholder="make it punchier..." className="input-field flex-1 text-xs" />
-        <button onClick={handleRefine} disabled={isRefining || isRegenerating || !prompt.trim()} className="bg-purple-600 hover:bg-purple-500 disabled:bg-neutral-700 text-white text-xs px-3 py-1.5 rounded-md shrink-0">
-          {isRefining ? <Loader2 className="h-3 w-3 animate-spin" /> : "Go"}
-        </button>
-      </div>
-      <div className="flex flex-wrap gap-1 mt-1.5">
-        {["punchier", "bigger text", "zoom + shake", "red theme", "slower"].map((q) => (
-          <button key={q} onClick={() => setPrompt(q)} className="text-[9px] text-neutral-500 hover:text-purple-400 bg-neutral-900 px-1.5 py-0.5 rounded-full border border-neutral-800 hover:border-purple-500/50 transition-colors">{q}</button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-const VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"];
-
-function VoiceoverSection({ scene }: { scene: Scene }) {
-  const setSceneVoiceover = useProjectStore((s) => s.setSceneVoiceover);
-  const setSceneCaptions = useProjectStore((s) => s.setSceneCaptions);
-  const updateScene = useProjectStore((s) => s.updateScene);
-  const [voice, setVoice] = useState(scene.voiceover?.voice ?? "alloy");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
-
-  const narrationText =
-    scene.voiceover?.text ??
-    [scene.text, scene.emphasisText, scene.subtitleText]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-
-  const handleGenerate = async () => {
-    if (!narrationText) {
-      toast.error("No text to narrate in this scene");
-      return;
-    }
-    setIsGenerating(true);
-    try {
-      const res = await fetch("/api/voiceover", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: narrationText, voice }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `voiceover failed (${res.status})`);
-      setSceneVoiceover(scene.id, {
-        audioUrl: data.audioUrl,
-        audioDurationSec: data.audioDurationSec,
-        provider: "openai",
-        voice,
-        text: narrationText,
-        captions: scene.voiceover?.text === narrationText ? scene.voiceover?.captions : undefined,
-      });
-      toast.success("Voiceover ready");
-      // Auto-caption: fire transcription in the background. Non-fatal if it fails.
-      fetch("/api/transcribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audioUrl: data.audioUrl }),
-      })
-        .then((r) => r.json())
-        .then((d) => {
-          if (Array.isArray(d.captions)) {
-            setSceneCaptions(scene.id, d.captions);
-          }
-        })
-        .catch(() => {});
-    } catch (e) {
-      toast.error("Voiceover failed", {
-        description: e instanceof Error ? e.message : String(e),
-      });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleTranscribe = async () => {
-    if (!scene.voiceover?.audioUrl) return;
-    setIsTranscribing(true);
-    try {
-      const res = await fetch("/api/transcribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audioUrl: scene.voiceover.audioUrl }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `transcribe failed (${res.status})`);
-      setSceneCaptions(scene.id, data.captions);
-      toast.success(`Captions ready (${data.captions.length} words)`);
-    } catch (e) {
-      toast.error("Transcribe failed", {
-        description: e instanceof Error ? e.message : String(e),
-      });
-    } finally {
-      setIsTranscribing(false);
-    }
-  };
-
-  const handleClear = () => {
-    setSceneVoiceover(scene.id, undefined);
-    toast.success("Voiceover cleared");
-  };
-
-  return (
-    <div className="pt-3 border-t border-neutral-800">
-      <div className="flex items-center gap-2 mb-2">
-        <Mic className="h-3.5 w-3.5 text-sky-400" />
-        <span className="text-xs font-semibold text-white">Voiceover</span>
-      </div>
-      <div className="flex items-center gap-1.5 mb-2">
-        <select
-          value={voice}
-          onChange={(e) => setVoice(e.target.value)}
-          className="flex-1 input-field text-[10px]"
-        >
-          {VOICES.map((v) => (
-            <option key={v} value={v}>{v}</option>
-          ))}
-        </select>
-        <button
-          onClick={handleGenerate}
-          disabled={isGenerating || !narrationText}
-          className="bg-sky-600 hover:bg-sky-500 disabled:bg-neutral-700 disabled:text-neutral-500 text-white text-xs px-3 py-1.5 rounded-md shrink-0"
-          title={narrationText ? "Generate voiceover" : "Add text/emphasisText to narrate"}
-        >
-          {isGenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : "Narrate"}
-        </button>
-      </div>
-      {scene.voiceover && (
-        <>
-          <audio
-            src={scene.voiceover.audioUrl}
-            controls
-            className="w-full h-7 mb-2"
-            preload="metadata"
-          />
-          <div className="flex items-center gap-1.5 mb-2">
-            <button
-              onClick={handleTranscribe}
-              disabled={isTranscribing}
-              className="flex items-center gap-1 flex-1 justify-center bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-900 text-neutral-200 text-[11px] py-1 rounded-md transition-colors"
-            >
-              {isTranscribing ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <CaptionsIcon className="h-3 w-3" />
-              )}
-              {scene.voiceover.captions?.length
-                ? `Re-transcribe (${scene.voiceover.captions.length} words)`
-                : "Auto-caption"}
-            </button>
-            <label
-              className="text-[11px] text-neutral-500 hover:text-sky-400 px-2 cursor-pointer"
-              title="Import an SRT file"
-            >
-              <input
-                type="file"
-                accept=".srt,text/plain"
-                className="hidden"
-                onChange={async (e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = "";
-                  if (!f) return;
-                  try {
-                    const text = await f.text();
-                    const { parseSrt } = await import("@/lib/srt");
-                    const captions = parseSrt(text);
-                    if (captions.length === 0) throw new Error("no cues parsed");
-                    setSceneCaptions(scene.id, captions);
-                    toast.success(`Imported ${captions.length} caption words`);
-                  } catch (err) {
-                    toast.error("SRT import failed", {
-                      description: err instanceof Error ? err.message : String(err),
-                    });
-                  }
-                }}
-              />
-              srt
-            </label>
-            <button
-              onClick={handleClear}
-              className="text-[11px] text-neutral-500 hover:text-red-400 px-2"
-            >
-              clear
-            </button>
-          </div>
-          {scene.voiceover.captions && (
-            <label className="flex items-center gap-2 text-[11px] text-neutral-400 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={scene.showCaptions !== false}
-                onChange={(e) => updateScene(scene.id, { showCaptions: e.target.checked })}
-                className="accent-sky-500"
-              />
-              <span>Show burned captions</span>
-            </label>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-function SceneActionsRow({
-  workflowId,
-  scene,
-  actions,
-}: {
-  workflowId: string;
-  scene: Scene;
-  actions: Array<{ id: string; label: string; kind: string }>;
-}) {
-  const updateScene = useProjectStore((s) => s.updateScene);
-  const project = useProjectStore((s) => s.project);
-  const [busy, setBusy] = useState<string | null>(null);
-
-  const handle = async (kind: string) => {
-    setBusy(kind);
-    const toastId = toast.loading(actions.find((a) => a.kind === kind)?.label ?? kind);
-    try {
-      if (kind === "reprompt-image") {
-        // Slideshow: generate a fresh image for this scene.
-        const newPrompt = window.prompt(
-          "New prompt for this scene's image:",
-          scene.emphasisText ?? scene.text ?? "",
-        );
-        if (!newPrompt?.trim()) {
-          toast.dismiss(toastId);
-          return;
-        }
-        const orientation =
-          project.height > project.width ? "portrait" : "landscape";
-        const res = await fetch("/api/generate-images", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompts: [newPrompt.trim()],
-            size: orientation === "portrait" ? "1024x1536" : "1536x1024",
-            styleHint: "cinematic storybook illustration, rich colors",
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? `image failed (${res.status})`);
-        const url = data.images?.[0]?.url;
-        if (!url) throw new Error("no image url returned");
-        updateScene(scene.id, {
-          background: { ...scene.background, imageUrl: url },
-        });
-        toast.success("Image updated", { id: toastId });
-      } else {
-        toast.error(`Action "${kind}" not implemented`, { id: toastId });
-      }
-    } catch (e) {
-      toast.error(`Action failed`, {
-        id: toastId,
-        description: e instanceof Error ? e.message : String(e),
-      });
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  return (
-    <div className="flex flex-wrap gap-1 pb-2 border-b border-neutral-800">
-      {actions.map((a) => (
-        <button
-          key={a.id}
-          onClick={() => handle(a.kind)}
-          disabled={busy === a.kind}
-          className="flex items-center gap-1 text-[10px] bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 text-neutral-200 px-2 py-0.5 rounded transition-colors"
-        >
-          {busy === a.kind ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <Sparkles className="h-3 w-3" />
-          )}
-          {a.label}
-        </button>
-      ))}
-    </div>
   );
 }
 

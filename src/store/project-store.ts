@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { throttledLocalStorage } from "./throttled-storage";
 import {
+  type AudioSfxClip,
   type BRoll,
   type CaptionStyle,
   type CaptionWord,
@@ -38,12 +39,23 @@ interface ProjectStore {
   history: Project[];
   future: Project[];
 
+  /**
+   * Drag/resize history coalescing. While `historyGroupDepth > 0`,
+   * every mutation skips its own pushHistory and instead lets the
+   * already-captured snapshot at `begin` time stand in for the whole
+   * burst. The group ends when depth returns to 0.
+   */
+  historyGroupDepth: number;
+
   setProject: (p: Project) => void;
   renameProject: (name: string) => void;
   createProject: () => string;
   duplicateProject: (options?: { copyScenes?: boolean }) => string;
   switchProject: (id: string) => void;
   deleteProject: (id: string) => void;
+  restoreProject: (id: string) => void;
+  purgeProject: (id: string) => void;
+  emptyTrash: () => void;
 
   setScript: (script: string) => void;
   setScenes: (scenes: Scene[]) => void;
@@ -66,6 +78,21 @@ interface ProjectStore {
   setSceneCaptions: (sceneId: string, captions: CaptionWord[] | undefined) => void;
   setMusic: (music: MusicBed | undefined) => void;
   setAudioMix: (patch: Partial<NonNullable<Project["audioMix"]>>) => void;
+  /** Free-floating SFX clip CRUD on the project timeline. */
+  addSfxClip: (clip: AudioSfxClip) => void;
+  updateSfxClip: (id: string, patch: Partial<AudioSfxClip>) => void;
+  removeSfxClip: (id: string) => void;
+  /** Animate workspace — AnimationSpec CRUD on the project. */
+  addAnimation: (anim: import("@/lib/animate/spec").AnimationSpec) => void;
+  updateAnimation: (
+    id: string,
+    patch: Partial<import("@/lib/animate/spec").AnimationSpec>,
+  ) => void;
+  removeAnimation: (id: string) => void;
+  /** Persist chat-panel history with the project. */
+  setAnimateChatHistory: (
+    history: NonNullable<Project["animateChatHistory"]>,
+  ) => void;
   addMarker: (marker: NonNullable<Project["markers"]>[number]) => void;
   removeMarker: (id: string) => void;
   updateMarker: (id: string, patch: Partial<NonNullable<Project["markers"]>[number]>) => void;
@@ -112,12 +139,37 @@ interface ProjectStore {
   redo: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
+
+  /**
+   * Coalesce a burst of mutations into a single undoable history entry.
+   * Call `beginHistoryGroup()` on a drag/resize "start" phase and
+   * `endHistoryGroup()` on "end" — every push between is folded onto
+   * the entry captured at `begin`. Without this, dragging a clip
+   * emits 30+ history entries and the user has to spam Cmd+Z.
+   */
+  beginHistoryGroup: () => void;
+  endHistoryGroup: () => void;
 }
 
 function pushHistory(history: Project[], current: Project): Project[] {
   const next = [...history, current];
   if (next.length > MAX_HISTORY) next.shift();
   return next;
+}
+
+/**
+ * Wrap a pushHistory call so it becomes a no-op while a history group
+ * is active. Use this from any mutator that would otherwise emit a
+ * snapshot during a drag burst. Mutators that already opt out of
+ * history (selection, UI state) don't need this.
+ */
+function maybePushHistory(
+  history: Project[],
+  current: Project,
+  groupDepth: number,
+): Project[] {
+  if (groupDepth > 0) return history;
+  return pushHistory(history, current);
 }
 
 function blankProject(name = "Draft"): Project {
@@ -148,14 +200,40 @@ export const useProjectStore = create<ProjectStore>()(
       renderProgress: 0,
       history: [],
       future: [],
+      historyGroupDepth: 0,
 
-      setProject: (p) =>
+      beginHistoryGroup: () =>
+        set((s) => {
+          if (s.historyGroupDepth === 0) {
+            // Capture the pre-group snapshot once. Any push that would
+            // have happened during the burst is suppressed; this single
+            // entry stands in for the whole drag.
+            return {
+              historyGroupDepth: 1,
+              history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
+              future: [],
+            };
+          }
+          return { historyGroupDepth: s.historyGroupDepth + 1 };
+        }),
+
+      endHistoryGroup: () =>
         set((s) => ({
-          project: p,
-          projects: { ...s.projects, [p.id]: p },
-          history: pushHistory(s.history, s.project),
-          future: [],
+          historyGroupDepth: Math.max(0, s.historyGroupDepth - 1),
         })),
+
+      setProject: (p) => {
+        // Stamp updatedAt so the dashboard can sort by recency. Every
+        // mutation flows through setProject, so this single touch
+        // covers undo/redo, scene edits, etc.
+        const stamped: Project = { ...p, updatedAt: Date.now() };
+        set((s) => ({
+          project: stamped,
+          projects: { ...s.projects, [stamped.id]: stamped },
+          history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
+          future: [],
+        }));
+      },
       renameProject: (name) =>
         set((s) => {
           const updated = { ...s.project, name };
@@ -165,7 +243,7 @@ export const useProjectStore = create<ProjectStore>()(
           };
         }),
       createProject: () => {
-        const p = blankProject();
+        const p: Project = { ...blankProject(), updatedAt: Date.now() };
         set((s) => ({
           project: p,
           projects: { ...s.projects, [p.id]: p },
@@ -231,29 +309,83 @@ export const useProjectStore = create<ProjectStore>()(
       },
       deleteProject: (id) =>
         set((s) => {
-          if (!(id in s.projects)) return s;
-          const rest = { ...s.projects };
-          delete rest[id];
-          // if the deleted project was active, switch to another (or make a blank)
+          // Soft delete: stamp deletedAt so the dashboard hides it but
+          // the user can restore from Trash. Hard purge happens via
+          // purgeProject (manual) or emptyTrash (auto, 30-day cutoff).
+          const target = s.projects[id];
+          if (!target) return s;
+          const stamped: Project = { ...target, deletedAt: Date.now() };
+          const projects = { ...s.projects, [id]: stamped };
+          // If the trashed project was active, switch to another live
+          // project (or make a blank if none exist).
           let project = s.project;
-          let projectsMap = rest;
           if (id === s.project.id) {
-            const first = Object.values(rest)[0];
-            if (first) {
-              project = first;
+            const live = Object.values(projects).filter(
+              (p) => p.id !== id && !p.deletedAt,
+            );
+            if (live.length > 0) {
+              project = live[0];
             } else {
               project = blankProject();
-              projectsMap = { [project.id]: project };
+              projects[project.id] = project;
             }
           }
           return {
             project,
-            projects: projectsMap,
+            projects,
             selectedSceneId: null,
             selectedSceneIds: [],
             history: [],
             future: [],
           };
+        }),
+
+      restoreProject: (id) =>
+        set((s) => {
+          const target = s.projects[id];
+          if (!target || !target.deletedAt) return s;
+          const { deletedAt: _drop, ...rest } = target;
+          return {
+            projects: { ...s.projects, [id]: rest as Project },
+          };
+        }),
+
+      purgeProject: (id) =>
+        set((s) => {
+          if (!(id in s.projects)) return s;
+          const rest = { ...s.projects };
+          delete rest[id];
+          let project = s.project;
+          let projects = rest;
+          if (id === s.project.id) {
+            const first = Object.values(rest).find((p) => !p.deletedAt);
+            if (first) {
+              project = first;
+            } else {
+              project = blankProject();
+              projects = { ...rest, [project.id]: project };
+            }
+          }
+          return {
+            project,
+            projects,
+            selectedSceneId: null,
+            selectedSceneIds: [],
+          };
+        }),
+
+      emptyTrash: () =>
+        set((s) => {
+          const projects: Record<string, Project> = {};
+          for (const [id, p] of Object.entries(s.projects)) {
+            if (!p.deletedAt) projects[id] = p;
+          }
+          if (Object.keys(projects).length === 0) {
+            const blank = blankProject();
+            projects[blank.id] = blank;
+            return { projects, project: blank };
+          }
+          return { projects };
         }),
 
       setScript: (script) =>
@@ -271,7 +403,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -285,7 +417,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -299,7 +431,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -331,7 +463,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -356,7 +488,7 @@ export const useProjectStore = create<ProjectStore>()(
           projects: { ...s.projects, [updated.id]: updated },
           selectedSceneId: copy.id,
           selectedSceneIds: [copy.id],
-          history: pushHistory(s.history, s.project),
+          history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
           future: [],
         }));
         return copy.id;
@@ -372,7 +504,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -385,7 +517,7 @@ export const useProjectStore = create<ProjectStore>()(
             projects: { ...s.projects, [result.project.id]: result.project },
             selectedSceneId: s.selectedSceneId === id ? null : s.selectedSceneId,
             selectedSceneIds: s.selectedSceneIds.filter((x) => x !== id),
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -413,7 +545,7 @@ export const useProjectStore = create<ProjectStore>()(
                 ? null
                 : s.selectedSceneId,
             selectedSceneIds: s.selectedSceneIds.filter((x) => !idSet.has(x)),
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -432,7 +564,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -476,7 +608,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -493,7 +625,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -515,7 +647,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -537,7 +669,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -562,7 +694,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -577,8 +709,101 @@ export const useProjectStore = create<ProjectStore>()(
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
             // Slider tweaks land in history so Cmd+Z works on mix moves.
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
+          };
+        }),
+      addSfxClip: (clip) =>
+        set((s) => {
+          const updated = {
+            ...s.project,
+            sfxClips: [...(s.project.sfxClips ?? []), clip],
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
+            future: [],
+          };
+        }),
+      updateSfxClip: (id, patch) =>
+        set((s) => {
+          const updated = {
+            ...s.project,
+            sfxClips: (s.project.sfxClips ?? []).map((c) =>
+              c.id === id ? { ...c, ...patch } : c,
+            ),
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
+            future: [],
+          };
+        }),
+      removeSfxClip: (id) =>
+        set((s) => {
+          const updated = {
+            ...s.project,
+            sfxClips: (s.project.sfxClips ?? []).filter((c) => c.id !== id),
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
+            future: [],
+          };
+        }),
+      addAnimation: (anim) =>
+        set((s) => {
+          const updated = {
+            ...s.project,
+            animations: [...(s.project.animations ?? []), anim],
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
+            future: [],
+          };
+        }),
+      updateAnimation: (id, patch) =>
+        set((s) => {
+          const updated = {
+            ...s.project,
+            animations: (s.project.animations ?? []).map((a) =>
+              a.id === id ? { ...a, ...patch } : a,
+            ),
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
+            future: [],
+          };
+        }),
+      removeAnimation: (id) =>
+        set((s) => {
+          const updated = {
+            ...s.project,
+            animations: (s.project.animations ?? []).filter((a) => a.id !== id),
+          };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
+            future: [],
+          };
+        }),
+      setAnimateChatHistory: (history) =>
+        set((s) => {
+          // Chat history is persisted UI state, not document content —
+          // skip the undo stack so undoing a chat message doesn't
+          // surprise the user.
+          const updated = { ...s.project, animateChatHistory: history };
+          return {
+            project: updated,
+            projects: { ...s.projects, [updated.id]: updated },
           };
         }),
       addMarker: (marker) =>
@@ -590,7 +815,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -603,7 +828,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -648,7 +873,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -678,7 +903,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -693,7 +918,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -720,7 +945,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -776,7 +1001,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -811,7 +1036,7 @@ export const useProjectStore = create<ProjectStore>()(
             activePresetId: presetId,
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -833,7 +1058,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -846,7 +1071,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -868,7 +1093,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -890,7 +1115,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -908,7 +1133,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -1001,7 +1226,7 @@ export const useProjectStore = create<ProjectStore>()(
         set((s) => ({
           project: updated,
           projects: { ...s.projects, [updated.id]: updated },
-          history: pushHistory(s.history, s.project),
+          history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
           future: [],
         }));
         return newId;
@@ -1022,7 +1247,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -1035,7 +1260,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -1086,7 +1311,7 @@ export const useProjectStore = create<ProjectStore>()(
           return {
             project: updated,
             projects: { ...s.projects, [updated.id]: updated },
-            history: pushHistory(s.history, s.project),
+            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
           };
         }),
@@ -1140,6 +1365,21 @@ export const useProjectStore = create<ProjectStore>()(
           // demos manually if they want.
         }
         return persisted;
+      },
+      // Recover from corrupted localStorage instead of white-screening.
+      // If the persist hydrate throws (malformed JSON, schema drift),
+      // wipe just our key, drop a one-shot recovery flag for the UI,
+      // and let the store fall back to its initial state.
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) {
+          try {
+            window.localStorage.removeItem("vibeedit-project");
+            window.sessionStorage.setItem("vibeedit-recovery", "1");
+          } catch {
+            // best-effort
+          }
+          console.error("[project-store] rehydrate failed; storage cleared", error);
+        }
       },
     },
   ),

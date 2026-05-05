@@ -15,6 +15,11 @@ export interface QueueItem {
   error: string | null;
   sizeBytes: number | null;
   createdAt: number;
+  /** Final mp4 URL once `state` reaches "done". Used by the recent-
+   *  renders strip + the in-app preview modal. */
+  outputUrl?: string;
+  /** Poster frame URL written by the render pipeline. */
+  posterUrl?: string;
 }
 
 interface RenderQueueStore {

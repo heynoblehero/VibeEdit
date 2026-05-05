@@ -134,7 +134,7 @@ export const BRollLayer: React.FC<{ brolls?: BRollType[]; scene: Scene }> = ({ b
   if (!brolls || brolls.length === 0) return null;
   return (
     <>
-      {brolls.map((b) => (
+      {brolls.filter((b) => !b.hidden).map((b) => (
         <BRoll key={b.id} broll={b} scene={scene} />
       ))}
     </>

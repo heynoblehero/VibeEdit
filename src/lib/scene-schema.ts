@@ -45,6 +45,9 @@ export interface BRoll {
   shadow?: "none" | "soft" | "hard" | "glow";
   /** When shadow="glow", the halo color (hex). Defaults to white. */
   shadowColor?: string;
+  /** When true, the b-roll is skipped from the render but kept in the
+   *  timeline. Toggled via the eye icon in the scene list. */
+  hidden?: boolean;
 }
 
 export interface ImageFilter {
@@ -89,6 +92,8 @@ export interface SceneShape {
   opacity?: number;
   /** Px corner radius for rect. Ignored on other kinds. */
   borderRadius?: number;
+  /** When true, the shape is skipped from the render. */
+  hidden?: boolean;
 }
 
 /**
@@ -219,6 +224,9 @@ export interface TextItem {
 
   /** Per-property keyframes. Frames are item-local (0 = item start). */
   keyframes?: Partial<Record<TextItemKeyframeProperty, Keyframe[]>>;
+
+  /** When true, the text item is skipped from the render. */
+  hidden?: boolean;
 }
 
 export interface StylePreset {
@@ -243,6 +251,10 @@ export interface SceneBackground {
   graphicY?: number;
   graphicOpacity?: number;
   vignette?: number;
+  /** Px corner radius applied to the bg media wrapper. 0 = sharp,
+   *  larger = softer pill/card corners. Visible only when imageUrl
+   *  or videoUrl is set; for color-only bgs it's a no-op. */
+  borderRadius?: number;
   /** Full-bleed background image (covers the frame). */
   imageUrl?: string;
   /** If true, apply a slow Ken Burns zoom to the imageUrl. */
@@ -328,16 +340,41 @@ export interface SceneBackground {
    */
   imageWidthPx?: number;
   imageHeightPx?: number;
+  /**
+   * Non-destructive crop on the bg image. All four fields are normalized
+   * 0–1 against the original image (x,y = top-left corner; w,h = size of
+   * the visible sub-rect). Renderer expands the cropped portion to fill
+   * the bg viewport, preserving every other transform (scale/offset/cam).
+   * Omit to render the full image. Stored — never mutates the source.
+   */
+  imageCrop?: { x: number; y: number; w: number; h: number };
+  /**
+   * URL of the original image before in-browser background removal.
+   * Set when the user runs "Remove BG" on imageUrl, so a single undo
+   * can restore. Cleared once the user re-uploads or removes the bg
+   * image entirely.
+   */
+  imageUrlOriginal?: string;
   videoScale?: number;
   videoOffsetX?: number;
   videoOffsetY?: number;
   /** Same as imageWidthPx / imageHeightPx, for the bg video. */
   videoWidthPx?: number;
   videoHeightPx?: number;
+  /** Same shape as imageCrop, but for the bg video. */
+  videoCrop?: { x: number; y: number; w: number; h: number };
   /** Full-bleed background video. Used by commentary/movie-review/gaming. */
   videoUrl?: string;
   videoStartSec?: number;
   videoMuted?: boolean;
+  /** Source-time end (sec) for the bg video. Trims any source past this
+   *  point — combined with videoStartSec gives the in/out window. */
+  videoEndSec?: number;
+  /** Playback rate for the bg video. 1 = normal, 0.5 = slow-mo, 2 = fast.
+   *  Range 0.25 – 4. Applied during render via OffthreadVideo. */
+  videoPlaybackRate?: number;
+  /** When the trimmed clip is shorter than the scene, loop it. */
+  videoLoop?: boolean;
   /**
    * Chroma-key the background image/video — pixels close to `color` are
    * removed (replaced with transparency). Implemented via SVG
@@ -378,6 +415,18 @@ export interface Voiceover {
   captions?: CaptionWord[];
   /** Optional hint for which speaker this line belongs to. Useful for multi-voice workflows like comic-dub. */
   speaker?: string;
+  /** Absolute seconds into the source file to start playback from.
+   *  Maps directly to Remotion Audio.startFrom (frames). */
+  trimStartSec?: number;
+  /** Absolute seconds into the source file at which to stop playback.
+   *  Maps to Remotion Audio.endAt (frames). */
+  trimEndSec?: number;
+  /** Fade-in / fade-out in seconds, applied via volume envelope. */
+  fadeInSec?: number;
+  fadeOutSec?: number;
+  /** Per-clip gain multiplier (0..2, 1 = unity). Stacks with the
+   *  scene-level audioGain and the project audioMix.voice. */
+  gain?: number;
 }
 
 export interface Scene {
@@ -702,11 +751,42 @@ export const DEFAULT_CAPTION_STYLE: CaptionStyle = {
   uppercase: true,
 };
 
+/**
+ * Free-floating SFX clip placed directly on the project timeline (not
+ * bound to a scene). Great for "drop a whoosh halfway through scene 2"
+ * use cases where the per-scene sfxId/sceneSfxUrl model is too coarse.
+ * Renderer treats these like extra audio rails on top of the scene
+ * voiceover/SFX rails.
+ */
+export interface AudioSfxClip {
+  id: string;
+  url: string;
+  name: string;
+  /** Absolute frame on the project timeline. */
+  startFrame: number;
+  /** How long the clip plays for (in frames). The renderer wraps the
+   *  Audio in a Sequence of this length. */
+  durationFrames: number;
+  trimStartSec?: number;
+  trimEndSec?: number;
+  fadeInSec?: number;
+  fadeOutSec?: number;
+  /** 0..2 multiplier; stacks with project.audioMix.sfx. */
+  gain?: number;
+}
+
 export interface MusicBed {
   url: string;
   name: string;
   volume: number; // 0..1 when no voiceover
   duckedVolume: number; // 0..1 under voiceover
+  /** Trim into the source file (seconds). */
+  trimStartSec?: number;
+  /** Hard cap from the trimmed start (seconds). */
+  trimEndSec?: number;
+  /** Fade-in / fade-out applied at clip edges. */
+  fadeInSec?: number;
+  fadeOutSec?: number;
 }
 
 export interface StylePack {
@@ -729,6 +809,14 @@ export interface Project {
   fps: number;
   width: number;
   height: number;
+  /** Wall-clock millis of the most recent mutation. Used by the
+   *  dashboard to sort projects by recency. Optional for backwards
+   *  compat with persisted projects from before this field existed. */
+  updatedAt?: number;
+  /** Wall-clock millis when the user moved the project to trash.
+   *  When set, dashboard hides the project unless the Trash view is
+   *  active. Auto-purged after 30 days. */
+  deletedAt?: number;
   music?: MusicBed;
   captionStyle?: CaptionStyle;
   stylePack?: StylePack;
@@ -823,6 +911,25 @@ export interface Project {
     voice?: number;
     sfx?: number;
   };
+  /** Free-floating SFX clips dropped directly on the project timeline.
+   *  Edited from the Audio workspace (drop from library or upload).
+   *  Renderer ignores when absent for backwards compat. */
+  sfxClips?: AudioSfxClip[];
+  /** Animation specs generated in the Animate workspace. Persisted on
+   *  the project so the user can re-edit / re-render them; the
+   *  rendered mp4 (when "Use in project" is clicked) flows through
+   *  the existing scene bgVideoUrl / B-roll fields, so the renderer
+   *  doesn't need to know about animations directly. */
+  animations?: import("@/lib/animate/spec").AnimationSpec[];
+  /** Persisted chat history for the Animate workspace, keyed to this
+   *  project. Survives reload. Lightweight — just role + content +
+   *  optional specId. */
+  animateChatHistory?: Array<{
+    role: "user" | "assistant";
+    content: string;
+    specId?: string;
+    at?: number;
+  }>;
   /**
    * User-placed timeline markers. Render as vertical bars in the
    * Timeline ruler. M key while editing sets a marker at the
@@ -925,7 +1032,10 @@ export type Easing =
   | "ease_in_out_back"
   | "spring"
   | "snappy"
-  | "bouncy";
+  | "bouncy"
+  /** Use the sibling `bezier` field as the curve. Set when the user
+   *  drags the easing-curve graph handles. */
+  | "custom";
 
 /** Cut treatments at the boundary BETWEEN two scenes. */
 export type CutKind =
@@ -966,6 +1076,9 @@ export interface Cut {
   /** How long the transition spans, in frames. 0 for hard / instant. */
   durationFrames: number;
   easing?: Easing;
+  /** Custom cubic-bezier control points [x1, y1, x2, y2] used when
+   *  `easing === "custom"`. Drawn by dragging the easing graph handles. */
+  bezier?: [number, number, number, number];
   /** For colored cuts (beat_flash_colored / dip_to_<color>). */
   color?: string;
   audioLeadFrames?: number;
@@ -999,6 +1112,9 @@ export interface Keyframe {
   frame: number;
   value: number;
   easing?: Easing;
+  /** Custom cubic-bezier control points [x1, y1, x2, y2] for the
+   *  segment leading INTO the next keyframe. Used when easing === "custom". */
+  bezier?: [number, number, number, number];
   /** Pro-mode bezier control points. [t, value] in 0..1. Ignored in v1. */
   bezierIn?: [number, number];
   bezierOut?: [number, number];
@@ -1493,6 +1609,7 @@ export const VALID_BACKGROUND_FIELDS: ReadonlySet<keyof SceneBackground> = new S
   "graphicY",
   "graphicOpacity",
   "vignette",
+  "borderRadius",
   "imageUrl",
   "kenBurns",
   "cameraMove",
@@ -1513,14 +1630,20 @@ export const VALID_BACKGROUND_FIELDS: ReadonlySet<keyof SceneBackground> = new S
   "imageOffsetY",
   "imageWidthPx",
   "imageHeightPx",
+  "imageCrop",
+  "imageUrlOriginal",
   "videoScale",
   "videoOffsetX",
   "videoOffsetY",
   "videoWidthPx",
   "videoHeightPx",
+  "videoCrop",
   "videoUrl",
   "videoStartSec",
   "videoMuted",
+  "videoEndSec",
+  "videoPlaybackRate",
+  "videoLoop",
   "chromaKey",
   "lumaKey",
 ]);

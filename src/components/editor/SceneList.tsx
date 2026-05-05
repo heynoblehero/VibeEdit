@@ -4,7 +4,8 @@ import { Plus } from "lucide-react";
 import {
   DndContext,
   type DragEndEvent,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -14,6 +15,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import React, { useEffect, useRef, useState } from "react";
+import { useLongPress } from "@/components/mobile/BottomSheet";
 import { createId, defaultPlaceholderTextItem, DEFAULT_BG, type Cut, type Scene } from "@/lib/scene-schema";
 import { totalDurationSeconds } from "@/lib/scene-schema";
 import {
@@ -23,7 +25,6 @@ import {
   getRememberAspect,
   setDefaultAspect,
 } from "@/lib/aspect-prefs";
-import { getWorkflow } from "@/lib/workflows/registry";
 import { useProjectStore } from "@/store/project-store";
 import { AspectPicker } from "./AspectPicker";
 import { CutMarker } from "./CutMarker";
@@ -43,8 +44,16 @@ export function SceneList() {
     y: number;
   } | null>(null);
 
+  // Mouse: any 4px movement starts a drag (fast on desktop).
+  // Touch: 220ms long-press with 6px tolerance — leaves a window for
+  // scrolling the scene list with a finger; only sustained holds
+  // become drags. Without this split, taps to scroll were being
+  // hijacked as drag-starts on phones.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 220, tolerance: 6 },
+    }),
   );
 
   const [aspectPickerOpen, setAspectPickerOpenState] = useState(false);
@@ -65,44 +74,19 @@ export function SceneList() {
     return () => window.removeEventListener("mousedown", onDown);
   }, [aspectPickerOpen]);
 
-  const buildScene = (portrait: boolean): Scene => {
-    const workflow = getWorkflow(project.workflowId);
-    const hasCharacter = workflow.sceneEditorTargets?.includes("character") ?? true;
-    if (hasCharacter) {
-      return {
-        id: createId(),
-        type: "character_text",
-        duration: 2,
-        characterId: "point",
-        characterX: portrait ? 540 : 1350,
-        characterY: portrait ? 1500 : 850,
-        characterScale: 1.3,
-        enterFrom: "right",
-        sfxId: "click1",
-        transition: "beat_flash",
-        background: { ...DEFAULT_BG },
-        textItems: [
-          defaultPlaceholderTextItem({
-            fontSize: portrait ? 96 : 72,
-            y: portrait ? 300 : 300,
-          }),
-        ],
-      };
-    }
-    return {
-      id: createId(),
-      type: "text_only",
-      duration: 2,
-      transition: "beat_flash",
-      background: { ...DEFAULT_BG },
-      textItems: [
-        defaultPlaceholderTextItem({
-          fontSize: portrait ? 96 : 72,
-          y: portrait ? 500 : 380,
-        }),
-      ],
-    };
-  };
+  const buildScene = (portrait: boolean): Scene => ({
+    id: createId(),
+    type: "text_only",
+    duration: 2,
+    transition: "beat_flash",
+    background: { ...DEFAULT_BG },
+    textItems: [
+      defaultPlaceholderTextItem({
+        fontSize: portrait ? 96 : 72,
+        y: portrait ? 500 : 380,
+      }),
+    ],
+  });
 
   const addAtAspect = (opt: AspectOption) => {
     // First scene in a project also sets its dimensions. Subsequent
@@ -231,14 +215,12 @@ export function SceneList() {
                 : null;
               return (
                 <React.Fragment key={scene.id}>
-                  <div
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setCtxMenu({ scene, index: i, x: e.clientX, y: e.clientY });
-                    }}
-                  >
-                    <SceneCard scene={scene} index={i} />
-                  </div>
+                  <SceneRow
+                    scene={scene}
+                    index={i}
+                    virtualize={project.scenes.length > 30}
+                    onOpenMenu={(x, y) => setCtxMenu({ scene, index: i, x, y })}
+                  />
                   {cutToNext && next && (
                     <div className="relative">
                       <CutMarker
@@ -269,10 +251,20 @@ export function SceneList() {
           </div>
         )}
         {isGenerating && (
-          <div className="flex items-center gap-2 px-2 py-2 rounded-lg border border-neutral-800 bg-neutral-900/60 animate-pulse">
-            <div className="h-7 w-12 rounded bg-neutral-800" />
-            <div className="flex-1 h-3 rounded bg-neutral-800" />
-            <span className="text-[10px] text-neutral-600 font-mono">...</span>
+          <div className="flex flex-col gap-1.5">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="flex items-center gap-2 px-2 py-2 rounded-lg border border-neutral-800 bg-neutral-900/60 animate-pulse"
+                style={{ animationDelay: `${i * 120}ms` }}
+              >
+                <div className="h-7 w-12 rounded bg-neutral-800" />
+                <div className="flex-1 h-3 rounded bg-neutral-800" />
+                <span className="text-[10px] text-emerald-400/60 font-mono">
+                  {i === 0 ? "..." : ""}
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -285,6 +277,47 @@ export function SceneList() {
           onClose={() => setCtxMenu(null)}
         />
       )}
+    </div>
+  );
+}
+
+interface SceneRowProps {
+  scene: Scene;
+  index: number;
+  virtualize: boolean;
+  onOpenMenu: (x: number, y: number) => void;
+}
+
+// Per-scene wrapper that owns the long-press handlers for touch.
+// Lives outside SceneList so we can call the useLongPress hook once
+// per row without breaking the rules of hooks.
+function SceneRow({ scene, index, virtualize, onOpenMenu }: SceneRowProps) {
+  const longPress = useLongPress(({ clientX, clientY }) => {
+    // Phone position: don't paint the menu under the user's thumb at
+    // the press point; clamp to the upper-left of the viewport so
+    // it's reachable. SceneContextMenu is fixed-position with its
+    // own dismiss handlers.
+    const x = Math.min(clientX, window.innerWidth - 240);
+    const y = Math.min(clientY, window.innerHeight - 360);
+    onOpenMenu(x, y);
+  });
+  return (
+    <div
+      style={
+        virtualize
+          ? {
+              contentVisibility: "auto",
+              containIntrinsicSize: "auto 88px",
+            }
+          : undefined
+      }
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onOpenMenu(e.clientX, e.clientY);
+      }}
+      {...longPress}
+    >
+      <SceneCard scene={scene} index={index} />
     </div>
   );
 }

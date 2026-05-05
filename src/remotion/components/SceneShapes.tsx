@@ -17,7 +17,7 @@ export function SceneShapes({
   if (!shapes || shapes.length === 0) return null;
   return (
     <>
-      {shapes.map((shape) => (
+      {shapes.filter((shape) => !shape.hidden).map((shape) => (
         <ShapeNode key={shape.id} shape={shape} canvasW={width} canvasH={height} />
       ))}
     </>

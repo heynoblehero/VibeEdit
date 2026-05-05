@@ -8,11 +8,10 @@ import { sceneDurationFrames, projectTotalFrames } from "@/lib/scene-schema";
 import { SceneRenderer } from "@/remotion/SceneRenderer";
 import { VideoComposition } from "@/remotion/Composition";
 import { useAssetStore } from "@/store/asset-store";
-import { useEditorStore, type EditTarget } from "@/store/editor-store";
+import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
-import { AspectPicker } from "./AspectPicker";
-import { CanvasItemHandles } from "./CanvasItemHandles";
-import { CanvasManipulator, type ManipulatorTarget } from "./CanvasManipulator";
+import { CanvasOverlay } from "./CanvasOverlay";
+import { ProjectChooser } from "./ProjectChooser";
 
 function SingleSceneWrapper({ scene, characters, sfx, captionStyle }: any) {
   return (
@@ -30,10 +29,10 @@ function SingleSceneWrapper({ scene, characters, sfx, captionStyle }: any) {
 export function Preview() {
   const { project, selectedSceneId } = useProjectStore();
   const { characters, sfx } = useAssetStore();
-  const { isPaused, setPaused, setEditTarget, setPlayingSceneId } = useEditorStore();
+  const { isPaused, setPaused, setPlayingSceneId } = useEditorStore();
   const playerRef = useRef<PlayerRef>(null);
-  // Wrapper ref used by CanvasManipulator for pointer-pixel math —
-  // converts screen-px deltas into canvas-px when dragging handles.
+  // Wrapper ref CanvasOverlay reads to convert screen-px pointer deltas
+  // into canvas-px against the displayed (letterboxed) frame.
   const playerWrapperRef = useRef<HTMLDivElement>(null);
 
   const charMap = useMemo(() => {
@@ -49,6 +48,39 @@ export function Preview() {
   }, [sfx]);
 
   const selectedScene = project.scenes.find((s) => s.id === selectedSceneId);
+
+  // Player is sensitive to identity churn on inputProps — memoize so
+  // render-engine cache survives unrelated state changes.
+  const fullPlayerInputProps = useMemo(
+    () => ({
+      scenes: project.scenes,
+      fps: project.fps,
+      characters: charMap,
+      sfx: sfxMap,
+      music: project.music,
+      captionStyle: project.captionStyle,
+      cuts: project.cuts,
+      width: project.width,
+      height: project.height,
+      audioMix: project.audioMix,
+      sfxClips: project.sfxClips,
+      tracks: project.tracks,
+    }),
+    [
+      project.scenes,
+      project.fps,
+      charMap,
+      sfxMap,
+      project.music,
+      project.captionStyle,
+      project.cuts,
+      project.width,
+      project.height,
+      project.audioMix,
+      project.sfxClips,
+      project.tracks,
+    ],
+  );
 
   const totalFrames = useMemo(
     () => Math.max(1, projectTotalFrames(project)),
@@ -225,37 +257,16 @@ export function Preview() {
     return () => window.removeEventListener("keydown", onKey);
   }, [handlePlay, handlePause]);
 
-  // Which layer the canvas-handle overlay is editing. Defaults to the
-  // first available layer (image > video > character) and only renders
-  // toggle pills when more than one layer is present.
-  // Declared BEFORE the early return so hooks run in the same order
-  // on every render — going from 0 → 1 scene must not change the hook
-  // count or React throws #310.
-  const availableTargets = useMemo<ManipulatorTarget[]>(() => {
-    if (!selectedScene) return [];
-    const out: ManipulatorTarget[] = [];
-    if (selectedScene.background?.imageUrl) out.push("image");
-    if (selectedScene.background?.videoUrl) out.push("video");
-    if (selectedScene.characterId || selectedScene.characterUrl) out.push("character");
-    return out;
-  }, [selectedScene]);
-  const [manipTarget, setManipTarget] = useState<ManipulatorTarget>("image");
-  useEffect(() => {
-    if (availableTargets.length === 0) return;
-    if (!availableTargets.includes(manipTarget)) {
-      setManipTarget(availableTargets[0]);
-    }
-  }, [availableTargets, manipTarget]);
 
   if (project.scenes.length === 0) {
-    return <EmptyProjectInstruction />;
+    return <ProjectChooser />;
   }
 
   return (
     <div className="flex flex-col h-full">
       {/* Header: clearly separates the preview column from the side
           panels. Title + scene info + play/pause inline. */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b-2 border-emerald-500/40 bg-neutral-900 shrink-0">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-neutral-800 bg-neutral-900 shrink-0">
         <div className="flex items-center gap-3">
           <span className="text-[11px] uppercase tracking-wider text-emerald-300 font-semibold">
             Preview
@@ -280,11 +291,21 @@ export function Preview() {
       </div>
 
       {/* Player frame — distinct dark stage with a clear border so the
-          canvas area reads as separate from the surrounding chrome. */}
-      <div className="flex-1 min-h-0 p-6 bg-neutral-925 dark:bg-neutral-950 flex">
+          canvas area reads as separate from the surrounding chrome.
+          The inner box sizes itself to the project's aspect ratio
+          using container-query units so the preview scales up to fill
+          the available space without letterboxing. */}
+      <div
+        className="flex-1 min-h-0 p-6 bg-neutral-925 dark:bg-neutral-950 flex items-center justify-center"
+        style={{ containerType: "size" }}
+      >
       <div
         ref={playerWrapperRef}
-        className="flex-1 min-h-0 relative bg-black rounded-xl overflow-hidden border-2 border-emerald-500/60 hover:border-emerald-500/80 shadow-2xl shadow-emerald-500/20 transition-colors"
+        className="relative bg-black rounded-xl overflow-hidden border-2 border-emerald-500/60 hover:border-emerald-500/80 shadow-2xl shadow-emerald-500/20 transition-colors"
+        style={{
+          width: `min(100cqw, 100cqh * ${project.width} / ${project.height})`,
+          height: `min(100cqh, 100cqw * ${project.height} / ${project.width})`,
+        }}
       >
         {selectedScene && (
           <div className="absolute top-2 left-2 z-30 px-1.5 py-1 rounded bg-neutral-900/70 backdrop-blur-sm border border-neutral-800 text-[10px] text-neutral-300 font-mono pointer-events-none">
@@ -340,19 +361,7 @@ export function Preview() {
           <Player
             key="full"
             component={VideoComposition}
-            inputProps={{
-              scenes: project.scenes,
-              fps: project.fps,
-              characters: charMap,
-              sfx: sfxMap,
-              music: project.music,
-              captionStyle: project.captionStyle,
-              cuts: project.cuts,
-              width: project.width,
-              height: project.height,
-              audioMix: project.audioMix,
-              tracks: project.tracks,
-            }}
+            inputProps={fullPlayerInputProps}
             durationInFrames={totalFrames}
             fps={project.fps}
             compositionWidth={project.width}
@@ -365,51 +374,17 @@ export function Preview() {
           />
         )}
 
-        {/* Direct-manipulation handles — drag corners to scale, drag
-            center to move, double-click to reset. Only shows on a
-            single selected scene while paused. The target picker below
-            switches between image / character / video when more than
-            one layer is present. */}
-        {selectedScene && isPaused && availableTargets.length > 0 && (
-          <CanvasManipulator
-            scene={selectedScene}
-            frameW={project.width}
-            frameH={project.height}
-            containerRef={playerWrapperRef}
-            target={manipTarget}
-          />
-        )}
-        {selectedScene && (
-          <CanvasItemHandles
+        {/* Unified canvas overlay — selection, drag-to-move, corner
+            resize, snap guides, live readout. Owns every manipulable
+            layer (bg image/video, character, broll, shape, text). */}
+        {selectedScene && isPaused && (
+          <CanvasOverlay
             scene={selectedScene}
             frameW={project.width}
             frameH={project.height}
             containerRef={playerWrapperRef}
           />
         )}
-        {selectedScene && isPaused && availableTargets.length > 1 && (
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 px-1.5 py-1 rounded bg-neutral-900/80 backdrop-blur-sm border border-neutral-800 text-[10px]">
-            <span className="text-neutral-500 mr-1">Drag</span>
-            {availableTargets.map((t) => (
-              <button
-                key={t}
-                onClick={() => setManipTarget(t)}
-                className={`px-1.5 py-0.5 rounded font-medium ${
-                  manipTarget === t
-                    ? t === "image"
-                      ? "bg-emerald-500/20 text-emerald-300"
-                      : t === "character"
-                        ? "bg-amber-400/20 text-amber-300"
-                        : "bg-cyan-400/20 text-cyan-300"
-                    : "text-neutral-400 hover:text-white"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        )}
-
       </div>
       </div>
     </div>
@@ -508,55 +483,5 @@ function PreviewGuidesToggle() {
   );
 }
 
-/**
- * Empty-state shown inside the player frame when the project has no
- * scenes. Uses the same AspectPicker as the SceneList so the user
- * picks aspect once + an optional "use this for every new scene"
- * tickbox. Pick a row → first scene is added at that ratio and the
- * project's dimensions are set.
- */
-function EmptyProjectInstruction() {
-  const project = useProjectStore((s) => s.project);
-  const setDimensions = useProjectStore((s) => s.setDimensions);
-  const addScene = useProjectStore((s) => s.addScene);
-
-  const onPick = async (opt: { width: number; height: number }) => {
-    const { createId, defaultPlaceholderTextItem, DEFAULT_BG } = await import("@/lib/scene-schema");
-    const { setDefaultAspect } = await import("@/lib/aspect-prefs");
-    if (project.scenes.length === 0) setDimensions(opt.width, opt.height);
-    const portrait = opt.height > opt.width;
-    addScene({
-      id: createId(),
-      type: "text_only",
-      duration: 2,
-      textItems: [
-        defaultPlaceholderTextItem({
-          fontSize: portrait ? 96 : 72,
-          y: portrait ? 500 : 380,
-        }),
-      ],
-      transition: "beat_flash",
-      background: { ...DEFAULT_BG },
-    });
-    setDefaultAspect(opt as never);
-  };
-
-  return (
-    <div className="flex items-center justify-center h-full p-8">
-      <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-950 shadow-2xl overflow-hidden">
-        <div className="flex flex-col items-center text-center gap-1 px-5 py-4 border-b border-neutral-800/60">
-          <Plus className="h-5 w-5 text-emerald-400 mb-1" />
-          <h2 className="text-base font-semibold text-white">Add a scene</h2>
-          <p className="text-[11px] text-neutral-500">
-            Pick an aspect ratio to start. Sets the project canvas.
-          </p>
-        </div>
-        <AspectPicker
-          currentWidth={project.width}
-          currentHeight={project.height}
-          onPick={(opt) => onPick(opt)}
-        />
-      </div>
-    </div>
-  );
-}
+/* EmptyProjectInstruction was replaced by ProjectChooser — kept the
+ * comment as a breadcrumb for anyone hunting the old empty state. */

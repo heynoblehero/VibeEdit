@@ -60,6 +60,19 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
 }
 
+/* Editor readability bump — the original UI was tuned for a 13" laptop
+ * and reads cramped on a 24"+ desktop. Push the smallest arbitrary
+ * Tailwind text sizes up by 1–2 px each so labels, chip rows, mono
+ * counters, and uppercase trackers all gain a step without rewriting
+ * every component. The sizes that already read large (text-xs, text-sm,
+ * text-base) are unchanged so headlines and modal titles don't bloat. */
+.text-\[8px\]   { font-size: 10px !important; line-height: 1.4 !important; }
+.text-\[9px\]   { font-size: 11px !important; line-height: 1.45 !important; }
+.text-\[10px\]  { font-size: 12px !important; line-height: 1.45 !important; }
+.text-\[10\.5px\] { font-size: 12.5px !important; line-height: 1.45 !important; }
+.text-\[11px\]  { font-size: 13px !important; line-height: 1.45 !important; }
+.text-\[12px\]  { font-size: 13.5px !important; line-height: 1.45 !important; }
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -68,6 +81,56 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Motion language — applied to modals, popovers, panels, command
+   palette, etc. Centralized so the whole app shares timing and feel. */
+@keyframes motionFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes motionScaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes motionSlideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes motionSlideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes motionSlideInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes motionSlideInRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+.motion-fade   { animation: motionFade 200ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.motion-scale  { animation: motionScaleIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.motion-slide-up   { animation: motionSlideUp 220ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.motion-slide-down { animation: motionSlideDown 200ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.motion-slide-in-left  { animation: motionSlideInLeft 240ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.motion-slide-in-right { animation: motionSlideInRight 240ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.motion-pop {
+  animation: motionScaleIn 280ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-fade,
+  .motion-scale,
+  .motion-pop,
+  .motion-slide-up,
+  .motion-slide-down,
+  .motion-slide-in-left,
+  .motion-slide-in-right {
+    animation: none;
   }
 }
 
@@ -93,4 +156,24 @@ body {
 ::-webkit-scrollbar-thumb {
   background: #333;
   border-radius: 3px;
+}
+
+/* Touch-target floor. On coarse-pointer devices (phones, tablets), every
+ * native interactive element gets a 44x44px hit-box via padding without
+ * altering its visual size — buttons render as before but the tappable
+ * area meets WCAG AA. Skips inputs/selects/textareas (already large)
+ * and elements that opt out via data-no-touch-pad. */
+@media (pointer: coarse) {
+  button:not([data-no-touch-pad]),
+  [role="button"]:not([data-no-touch-pad]),
+  a[role="button"]:not([data-no-touch-pad]) {
+    min-height: 36px;
+    min-width: 36px;
+  }
+  /* Hover-reveal action affordances are invisible on touch (no hover).
+   * Anything tagged .touch-reveal is forced visible on coarse pointers
+   * so delete / duplicate / overflow controls are reachable. */
+  .touch-reveal {
+    opacity: 1 !important;
+  }
 }

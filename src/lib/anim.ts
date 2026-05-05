@@ -152,7 +152,10 @@ export function keyframes(
  * function for character entry / impact beats; this resolver is for
  * the keyframe / cut paths where we just need a curve.
  */
-export function resolveEasing(name: EasingName | undefined): (n: number) => number {
+export function resolveEasing(
+  name: EasingName | undefined,
+  bezier?: [number, number, number, number],
+): (n: number) => number {
   switch (name) {
     case "linear":
     case undefined:
@@ -178,6 +181,12 @@ export function resolveEasing(name: EasingName | undefined): (n: number) => numb
       return snappy;
     case "bouncy":
       return bouncy;
+    case "custom":
+      // User-drawn curve from the interactive easing graph. Falls back
+      // to ease_in_out if no bezier was provided (defensive — UI should
+      // always set bezier when picking custom).
+      if (bezier) return Easing.bezier(bezier[0], bezier[1], bezier[2], bezier[3]);
+      return Easing.inOut(Easing.cubic);
   }
 }
 
@@ -200,7 +209,7 @@ export function evaluateKeyframes(frame: number, kfs: Keyframe[]): number {
     const b = kfs[i + 1];
     if (frame >= a.frame && frame <= b.frame) {
       return interpolate(frame, [a.frame, b.frame], [a.value, b.value], {
-        easing: resolveEasing(a.easing),
+        easing: resolveEasing(a.easing, a.bezier),
         extrapolateLeft: 'clamp',
         extrapolateRight: 'clamp',
       });

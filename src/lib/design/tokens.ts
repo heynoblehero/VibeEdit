@@ -113,8 +113,9 @@ export const border = {
 } as const;
 
 /**
- * Workspace accent colors. Chrome should be subtle (neutral); accents
- * are a 4px strip + a small icon tint, not full 2px enclosures.
+ * Accent palette. Today there's only one workspace (video), but the
+ * shape is preserved as a Record so future tints (e.g. mobile vs
+ * desktop) can plug in without touching every callsite.
  */
 export const accent = {
 	video: {
@@ -125,33 +126,6 @@ export const accent = {
 		ring: "ring-emerald-500/40",
 		strip: "bg-emerald-500",
 		border: "border-emerald-500/30",
-	},
-	audio: {
-		text: "text-orange-300",
-		bg: "bg-orange-500",
-		bgSoft: "bg-orange-500/15",
-		bgHover: "hover:bg-orange-500/20",
-		ring: "ring-orange-500/40",
-		strip: "bg-orange-500",
-		border: "border-orange-500/30",
-	},
-	animate: {
-		text: "text-fuchsia-300",
-		bg: "bg-fuchsia-500",
-		bgSoft: "bg-fuchsia-500/15",
-		bgHover: "hover:bg-fuchsia-500/20",
-		ring: "ring-fuchsia-500/40",
-		strip: "bg-fuchsia-500",
-		border: "border-fuchsia-500/30",
-	},
-	image: {
-		text: "text-sky-300",
-		bg: "bg-sky-500",
-		bgSoft: "bg-sky-500/15",
-		bgHover: "hover:bg-sky-500/20",
-		ring: "ring-sky-500/40",
-		strip: "bg-sky-500",
-		border: "border-sky-500/30",
 	},
 } as const;
 

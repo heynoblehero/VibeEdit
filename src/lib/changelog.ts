@@ -17,11 +17,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
 	{
+		version: "0.35.0",
+		date: "2026-05-05",
+		title: "Back to one workspace",
+		highlights: [
+			"Removed the Audio, Animate, and Image workspace tabs. The product is one thing again: chat → video.",
+			"Audio editing (voiceover, music, SFX, ducking) lives inside the scene editor, not a parallel tab.",
+			"Animate (AI motion graphics) and Image (Canva-style canvas) cut entirely — they were drifting away from the core promise.",
+		],
+	},
+	{
 		version: "0.34.0",
 		date: "2026-05-05",
-		title: "Polish wave + Image workspace lands",
+		title: "Polish pass",
 		highlights: [
-			"Image workspace: Canva-style canvas with smart guides, layer locking, right-click context menu, and PNG export.",
 			"Render queue: free-tier watermark badge for hosted renders (env-flagged so self-hosters keep clean exports).",
 			"Chat: Stop button cancels in-flight generations cleanly. Pin prompts to keep your favourites in the suggestions row.",
 			"Issac Pack: 9 character poses, 20 graphics, 13 SFX, and screen-blend overlays available from Media Library.",

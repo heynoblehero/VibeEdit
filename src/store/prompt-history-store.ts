@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-export type PromptSurface = "animate" | "agent" | "voiceover";
+export type PromptSurface = "agent" | "voiceover";
 
 interface PromptHistoryStore {
 	prompts: Record<PromptSurface, string[]>;
@@ -27,8 +27,8 @@ const MAX_PINNED = 5;
 export const usePromptHistoryStore = create<PromptHistoryStore>()(
 	persist(
 		(set, get) => ({
-			prompts: { animate: [], agent: [], voiceover: [] },
-			pinned: { animate: [], agent: [], voiceover: [] },
+			prompts: { agent: [], voiceover: [] },
+			pinned: { agent: [], voiceover: [] },
 			push: (surface, prompt) =>
 				set((s) => {
 					const trimmed = prompt.trim();
@@ -68,7 +68,7 @@ export const usePromptHistoryStore = create<PromptHistoryStore>()(
 				// v1 had no `pinned`; backfill empty per-surface arrays.
 				const s = (state ?? {}) as Partial<PromptHistoryStore>;
 				if (version < 2 && !s.pinned) {
-					s.pinned = { animate: [], agent: [], voiceover: [] };
+					s.pinned = { agent: [], voiceover: [] };
 				}
 				return s as PromptHistoryStore;
 			},

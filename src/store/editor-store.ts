@@ -95,9 +95,6 @@ interface EditorStore {
    *  `{kind}:{id}` — e.g. `vo:scene_abc`, `music:project`, `sfx:scene_xyz`. */
   audioSelectedClipId: string | null;
   setAudioSelectedClipId: (id: string | null) => void;
-  /** Animate workspace — currently selected AnimationSpec id. */
-  animateSelectedId: string | null;
-  setAnimateSelectedId: (id: string | null) => void;
   /**
    * Per-scene "show layers nested inside this card" toggle for the
    * SceneList. Persisted across reloads. Scene ids that aren't in the
@@ -275,8 +272,6 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setSelectedItemId: (id) => set({ selectedItemId: id }),
   audioSelectedClipId: null,
   setAudioSelectedClipId: (id) => set({ audioSelectedClipId: id }),
-  animateSelectedId: null,
-  setAnimateSelectedId: (id) => set({ animateSelectedId: id }),
   expandedSceneIds: (() => {
     if (typeof window === "undefined") return {};
     try {

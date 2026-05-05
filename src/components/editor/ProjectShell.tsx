@@ -30,7 +30,6 @@ import { ThumbnailExporter } from "@/components/editor/ThumbnailExporter";
 import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
 import { useRenderQueueStore } from "@/store/render-queue-store";
-import { useWorkspaceStore } from "@/store/workspace-store";
 import { toast } from "@/lib/toast";
 import { WorkspaceErrorBoundary } from "@/components/shell/WorkspaceErrorBoundary";
 import { ActivityIndicator } from "@/components/editor/ActivityIndicator";
@@ -38,7 +37,6 @@ import { AiStatusIndicator } from "@/components/editor/AiStatusIndicator";
 import { AutoSaveIndicator } from "@/components/editor/AutoSaveIndicator";
 import { BulkSceneBar } from "@/components/editor/BulkSceneBar";
 import { OnboardingTour } from "@/components/editor/OnboardingTour";
-import { WorkspaceTabs } from "@/components/editor/WorkspaceTabs";
 import { MobileDrawer } from "@/components/mobile/MobileDrawer";
 
 const Preview = dynamic(
@@ -53,35 +51,6 @@ const Preview = dynamic(
 	},
 );
 
-// Lazy-load heavy workspaces — Audio pulls in MediaRecorder helpers,
-// Animate pulls in the Anthropic SDK + animation templates. Skip the
-// cost on first paint of the Video tab.
-const WorkspaceLoading = ({ tone }: { tone: string }) => (
-	<div className="flex-1 flex items-center justify-center text-[12px] text-neutral-500">
-		<span className={`${tone} animate-pulse`}>Loading workspace…</span>
-	</div>
-);
-const AudioWorkspace = dynamic(
-	() =>
-		import("@/components/editor/audio/AudioWorkspace").then(
-			(m) => m.AudioWorkspace,
-		),
-	{ ssr: false, loading: () => <WorkspaceLoading tone="text-orange-300/70" /> },
-);
-const AnimateWorkspace = dynamic(
-	() =>
-		import("@/components/editor/animate/AnimateWorkspace").then(
-			(m) => m.AnimateWorkspace,
-		),
-	{ ssr: false, loading: () => <WorkspaceLoading tone="text-fuchsia-300/70" /> },
-);
-const ImageWorkspace = dynamic(
-	() =>
-		import("@/components/editor/image/ImageWorkspace").then(
-			(m) => m.ImageWorkspace,
-		),
-	{ ssr: false, loading: () => <WorkspaceLoading tone="text-sky-300/70" /> },
-);
 // ImageEditor is mounted always-on (overlay opens on demand) but the
 // canvas stack is heavy. Defer its bundle until the first paint settles.
 const ImageEditor = dynamic(
@@ -93,10 +62,6 @@ const ImageEditor = dynamic(
  * The full editor experience for a single project: topbar, scene list,
  * preview, scene editor. Mounted at /projects/[id] — the [id] page is
  * responsible for switching the active project before this renders.
- *
- * Extracted from src/app/page.tsx so the same shell hosts both the
- * Video workspace (today's UI) and the Audio workspace (added in a
- * follow-up phase via WorkspaceTabs).
  */
 export function ProjectShell() {
 	const project = useProjectStore((s) => s.project);
@@ -123,20 +88,6 @@ export function ProjectShell() {
 	const selectedSceneId = useProjectStore((s) => s.selectedSceneId);
 	const queueCount = useRenderQueueStore((s) => s.items.length);
 	const toggleQueue = useRenderQueueStore((s) => s.togglePanel);
-	const tab = useWorkspaceStore((s) => s.activeTabs[project.id] ?? "video");
-	const setTab = useWorkspaceStore((s) => s.setTab);
-
-	// Allow ?tab=audio in the URL to override the persisted tab on first
-	// render — lets shareable links open straight into the right mode.
-	useEffect(() => {
-		try {
-			const url = new URL(window.location.href);
-			const fromUrl = url.searchParams.get("tab");
-			if (fromUrl === "audio" || fromUrl === "video" || fromUrl === "animate") {
-				setTab(project.id, fromUrl);
-			}
-		} catch {}
-	}, [project.id, setTab]);
 
 	const [scheduleOpen, setScheduleOpen] = useState(false);
 
@@ -224,18 +175,7 @@ export function ProjectShell() {
 			<header
 				className="relative flex items-center justify-between px-2 sm:px-4 py-2 gap-2 border-b border-neutral-800 bg-neutral-950/70 backdrop-blur-md shrink-0"
 			>
-				{/* Workspace identity strip — switches color per active tab. */}
-				<div
-					className={`absolute top-0 left-0 right-0 h-0.5 ${
-						tab === "audio"
-							? "bg-gradient-to-r from-orange-500/0 via-orange-500/60 to-orange-500/0"
-							: tab === "animate"
-								? "bg-gradient-to-r from-fuchsia-500/0 via-fuchsia-500/60 to-fuchsia-500/0"
-								: tab === "image"
-									? "bg-gradient-to-r from-sky-500/0 via-sky-500/60 to-sky-500/0"
-									: "bg-gradient-to-r from-emerald-500/0 via-emerald-500/60 to-emerald-500/0"
-					}`}
-				/>
+				<div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500/0 via-emerald-500/60 to-emerald-500/0" />
 				<div className="flex items-center gap-2 min-w-0">
 					<a
 						href="/dashboard"
@@ -252,7 +192,6 @@ export function ProjectShell() {
 					<AiStatusIndicator />
 					<ProjectStats />
 					<AspectSwitcher />
-					<WorkspaceTabs />
 				</div>
 				<div className="flex items-center gap-1 sm:gap-3">
 					<div className="flex items-center gap-1">
@@ -324,25 +263,6 @@ export function ProjectShell() {
 				</div>
 			</header>
 
-			{tab === "audio" ? (
-				<WorkspaceErrorBoundary label="Audio" accent="audio">
-					<div key="audio" className="flex-1 flex flex-col min-h-0 motion-fade">
-						<AudioWorkspace />
-					</div>
-				</WorkspaceErrorBoundary>
-			) : tab === "image" ? (
-				<WorkspaceErrorBoundary label="Image" accent="image">
-					<div key="image" className="flex-1 flex flex-col min-h-0 motion-fade">
-						<ImageWorkspace />
-					</div>
-				</WorkspaceErrorBoundary>
-			) : tab === "animate" ? (
-				<WorkspaceErrorBoundary label="Animate" accent="animate">
-					<div key="animate" className="flex-1 flex flex-col min-h-0 motion-fade">
-						<AnimateWorkspace />
-					</div>
-				</WorkspaceErrorBoundary>
-			) : (
 			<WorkspaceErrorBoundary label="Video" accent="video">
 			<div key="video" className="flex flex-1 min-h-0 motion-fade">
 				{phoneMode && project.scenes.length > 0 && (
@@ -439,7 +359,6 @@ export function ProjectShell() {
 					)}
 			</div>
 			</WorkspaceErrorBoundary>
-			)}
 
 			<ImageEditor />
 			<BulkSceneBar />

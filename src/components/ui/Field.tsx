@@ -14,9 +14,6 @@ const INPUT_BASE =
 
 const ACCENT_FOCUS: Record<AccentName, string> = {
 	video: "focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/20",
-	audio: "focus:border-orange-500/60 focus:ring-1 focus:ring-orange-500/20",
-	animate: "focus:border-fuchsia-500/60 focus:ring-1 focus:ring-fuchsia-500/20",
-	image: "focus:border-sky-500/60 focus:ring-1 focus:ring-sky-500/20",
 };
 
 export function Label({
@@ -30,9 +27,7 @@ export function Label({
 	hint?: ReactNode;
 	accent?: AccentName;
 }) {
-	const accentCls = accentName
-		? `text-${accentName === "animate" ? "fuchsia" : accentName === "audio" ? "orange" : "emerald"}-300/80`
-		: "text-neutral-400";
+	const accentCls = accentName ? "text-emerald-300/80" : "text-neutral-400";
 	return (
 		<label
 			htmlFor={htmlFor}
@@ -141,9 +136,6 @@ export const Range = forwardRef<HTMLInputElement, RangeProps>(function Range(
 ) {
 	const accentMap: Record<AccentName, string> = {
 		video: "accent-emerald-400",
-		audio: "accent-orange-400",
-		animate: "accent-fuchsia-400",
-		image: "accent-sky-400",
 	};
 	return (
 		<div className="space-y-1">

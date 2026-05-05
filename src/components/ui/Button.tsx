@@ -26,28 +26,15 @@ const SIZE_CLASS: Record<Size, string> = {
 const ACCENT_PRIMARY: Record<AccentName, string> = {
 	video:
 		"bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-black ring-emerald-300/40",
-	audio:
-		"bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-black ring-orange-300/40",
-	animate:
-		"bg-fuchsia-500 hover:bg-fuchsia-400 active:bg-fuchsia-600 text-black ring-fuchsia-300/40",
-	image:
-		"bg-sky-500 hover:bg-sky-400 active:bg-sky-600 text-black ring-sky-300/40",
 };
 
 const ACCENT_SECONDARY: Record<AccentName, string> = {
 	video: "bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-200",
-	audio: "bg-orange-500/15 hover:bg-orange-500/25 text-orange-200",
-	animate: "bg-fuchsia-500/15 hover:bg-fuchsia-500/25 text-fuchsia-200",
-	image: "bg-sky-500/15 hover:bg-sky-500/25 text-sky-200",
 };
 
 /**
  * Single button primitive. `variant` controls visual style; `accent`
- * picks the workspace tint (video/audio/animate). Use `accent` only
- * with primary/secondary — ghost/danger ignore it.
- *
- * Replaces ~30 ad-hoc inline button styles across the audio + animate
- * panels.
+ * is reserved for future workspace tints; today only "video" is wired.
  */
 export const Button = forwardRef<HTMLButtonElement, Props>(function Button(
 	{

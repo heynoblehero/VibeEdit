@@ -15,7 +15,6 @@ const KIND_ICON: Record<LibraryAssetKind, typeof Music> = {
   sfx: Volume2,
   clip: Video,
   image: Library,
-  animation: Video,
 };
 
 export function AssetLibraryPanel() {
@@ -173,7 +172,7 @@ export function AssetLibraryPanel() {
             />
           </div>
           <div className="flex flex-wrap gap-1">
-            {(["all", "music", "sfx", "clip", "image", "animation"] as const).map(
+            {(["all", "music", "sfx", "clip", "image"] as const).map(
               (k) => {
                 const count =
                   k === "all"

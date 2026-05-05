@@ -3,10 +3,8 @@
 import {
 	BookOpen,
 	Copy,
-	Film,
 	Layers,
 	Library,
-	Music,
 	Plus,
 	Scissors,
 	Search,
@@ -21,7 +19,6 @@ import { cls } from "@/lib/design/tokens";
 import { searchGlossary } from "@/lib/whatisthis";
 import { useEditorStore } from "@/store/editor-store";
 import { useProjectStore } from "@/store/project-store";
-import { useWorkspaceStore } from "@/store/workspace-store";
 
 interface Command {
 	id: string;
@@ -55,7 +52,6 @@ export function CommandPalette() {
 	const removeScene = useProjectStore((s) => s.removeScene);
 	const undo = useProjectStore((s) => s.undo);
 	const redo = useProjectStore((s) => s.redo);
-	const setTab = useWorkspaceStore((s) => s.setTab);
 	const setSelectedSceneId = useEditorStore((s) => s.setFocusedSceneId);
 	const focusedSceneId = useEditorStore((s) => s.focusedSceneId);
 
@@ -120,30 +116,6 @@ export function CommandPalette() {
 
 		// Navigation
 		out.push({
-			id: "tab-video",
-			label: "Switch to Video tab",
-			keywords: "edit cut scene",
-			icon: <Film className="h-3.5 w-3.5 text-emerald-300" />,
-			section: "navigate",
-			run: () => setTab(project.id, "video"),
-		});
-		out.push({
-			id: "tab-audio",
-			label: "Switch to Audio tab",
-			keywords: "voice music sfx mix",
-			icon: <Music className="h-3.5 w-3.5 text-orange-300" />,
-			section: "navigate",
-			run: () => setTab(project.id, "audio"),
-		});
-		out.push({
-			id: "tab-animate",
-			label: "Switch to Animate tab",
-			keywords: "ai motion graphic",
-			icon: <Sparkles className="h-3.5 w-3.5 text-fuchsia-300" />,
-			section: "navigate",
-			run: () => setTab(project.id, "animate"),
-		});
-		out.push({
 			id: "go-dashboard",
 			label: "Go to dashboard",
 			keywords: "projects home",
@@ -162,7 +134,6 @@ export function CommandPalette() {
 				icon: <span className="h-3.5 w-3.5 rounded-full bg-emerald-500/30 text-emerald-200 text-[10px] flex items-center justify-center">{i + 1}</span>,
 				section: "scenes",
 				run: () => {
-					setTab(project.id, "video");
 					setSelectedSceneId(scene.id);
 				},
 			});
@@ -256,7 +227,6 @@ export function CommandPalette() {
 	}, [
 		project,
 		projects,
-		setTab,
 		switchProject,
 		createProject,
 		router,

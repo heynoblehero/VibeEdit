@@ -82,17 +82,6 @@ interface ProjectStore {
   addSfxClip: (clip: AudioSfxClip) => void;
   updateSfxClip: (id: string, patch: Partial<AudioSfxClip>) => void;
   removeSfxClip: (id: string) => void;
-  /** Animate workspace — AnimationSpec CRUD on the project. */
-  addAnimation: (anim: import("@/lib/animate/spec").AnimationSpec) => void;
-  updateAnimation: (
-    id: string,
-    patch: Partial<import("@/lib/animate/spec").AnimationSpec>,
-  ) => void;
-  removeAnimation: (id: string) => void;
-  /** Persist chat-panel history with the project. */
-  setAnimateChatHistory: (
-    history: NonNullable<Project["animateChatHistory"]>,
-  ) => void;
   addMarker: (marker: NonNullable<Project["markers"]>[number]) => void;
   removeMarker: (id: string) => void;
   updateMarker: (id: string, patch: Partial<NonNullable<Project["markers"]>[number]>) => void;
@@ -752,58 +741,6 @@ export const useProjectStore = create<ProjectStore>()(
             projects: { ...s.projects, [updated.id]: updated },
             history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
             future: [],
-          };
-        }),
-      addAnimation: (anim) =>
-        set((s) => {
-          const updated = {
-            ...s.project,
-            animations: [...(s.project.animations ?? []), anim],
-          };
-          return {
-            project: updated,
-            projects: { ...s.projects, [updated.id]: updated },
-            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
-            future: [],
-          };
-        }),
-      updateAnimation: (id, patch) =>
-        set((s) => {
-          const updated = {
-            ...s.project,
-            animations: (s.project.animations ?? []).map((a) =>
-              a.id === id ? { ...a, ...patch } : a,
-            ),
-          };
-          return {
-            project: updated,
-            projects: { ...s.projects, [updated.id]: updated },
-            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
-            future: [],
-          };
-        }),
-      removeAnimation: (id) =>
-        set((s) => {
-          const updated = {
-            ...s.project,
-            animations: (s.project.animations ?? []).filter((a) => a.id !== id),
-          };
-          return {
-            project: updated,
-            projects: { ...s.projects, [updated.id]: updated },
-            history: maybePushHistory(s.history, s.project, s.historyGroupDepth),
-            future: [],
-          };
-        }),
-      setAnimateChatHistory: (history) =>
-        set((s) => {
-          // Chat history is persisted UI state, not document content —
-          // skip the undo stack so undoing a chat message doesn't
-          // surprise the user.
-          const updated = { ...s.project, animateChatHistory: history };
-          return {
-            project: updated,
-            projects: { ...s.projects, [updated.id]: updated },
           };
         }),
       addMarker: (marker) =>

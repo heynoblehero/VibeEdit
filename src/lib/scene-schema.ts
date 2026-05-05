@@ -920,24 +920,8 @@ export interface Project {
     sfx?: number;
   };
   /** Free-floating SFX clips dropped directly on the project timeline.
-   *  Edited from the Audio workspace (drop from library or upload).
    *  Renderer ignores when absent for backwards compat. */
   sfxClips?: AudioSfxClip[];
-  /** Animation specs generated in the Animate workspace. Persisted on
-   *  the project so the user can re-edit / re-render them; the
-   *  rendered mp4 (when "Use in project" is clicked) flows through
-   *  the existing scene bgVideoUrl / B-roll fields, so the renderer
-   *  doesn't need to know about animations directly. */
-  animations?: import("@/lib/animate/spec").AnimationSpec[];
-  /** Persisted chat history for the Animate workspace, keyed to this
-   *  project. Survives reload. Lightweight — just role + content +
-   *  optional specId. */
-  animateChatHistory?: Array<{
-    role: "user" | "assistant";
-    content: string;
-    specId?: string;
-    at?: number;
-  }>;
   /**
    * User-placed timeline markers. Render as vertical bars in the
    * Timeline ruler. M key while editing sets a marker at the

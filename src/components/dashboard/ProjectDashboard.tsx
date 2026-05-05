@@ -1,6 +1,6 @@
 "use client";
 
-import { Film, Plus, RotateCcw, Search, Smartphone, SortDesc, Trash2, X } from "lucide-react";
+import { Film, Plus, RotateCcw, Search, Smartphone, SortDesc, Sparkles, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -165,6 +165,14 @@ export function ProjectDashboard() {
 				>
 					<Smartphone className="h-3.5 w-3.5" />
 					<span className="hidden sm:inline">Get the app</span>
+				</Link>
+				<Link
+					href="/changelog"
+					className="flex items-center gap-1.5 px-2.5 py-2 rounded-md border border-neutral-800 text-xs text-neutral-400 hover:text-white hover:border-neutral-600"
+					title="What's new in VibeEdit"
+				>
+					<Sparkles className="h-3.5 w-3.5" />
+					<span className="hidden sm:inline">What's new</span>
 				</Link>
 				{view === "trash" ? (
 					<button

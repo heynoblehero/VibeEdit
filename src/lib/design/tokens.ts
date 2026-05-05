@@ -144,6 +144,15 @@ export const accent = {
 		strip: "bg-fuchsia-500",
 		border: "border-fuchsia-500/30",
 	},
+	image: {
+		text: "text-sky-300",
+		bg: "bg-sky-500",
+		bgSoft: "bg-sky-500/15",
+		bgHover: "hover:bg-sky-500/20",
+		ring: "ring-sky-500/40",
+		strip: "bg-sky-500",
+		border: "border-sky-500/30",
+	},
 } as const;
 
 export type AccentName = keyof typeof accent;

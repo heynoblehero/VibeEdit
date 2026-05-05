@@ -1,6 +1,6 @@
 "use client";
 
-import { Film, Music, Sparkles } from "lucide-react";
+import { Film, Image as ImageIcon, Music, Sparkles } from "lucide-react";
 import { useProjectStore } from "@/store/project-store";
 import { useWorkspaceStore, type WorkspaceTab } from "@/store/workspace-store";
 
@@ -65,6 +65,19 @@ export function WorkspaceTabs() {
 			>
 				<Sparkles className="h-3.5 w-3.5" />
 				Animate
+			</button>
+			<button
+				type="button"
+				onClick={() => pick("image")}
+				aria-pressed={tab === "image"}
+				className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+					tab === "image"
+						? "bg-sky-500/20 text-sky-200 ring-1 ring-sky-500/40"
+						: "text-neutral-400 hover:text-white"
+				}`}
+			>
+				<ImageIcon className="h-3.5 w-3.5" />
+				Image
 			</button>
 		</div>
 	);

@@ -9,7 +9,7 @@ import { assetStorage } from "@/lib/storage/asset-storage";
  * is used as a one-shot override that wins on first paint.
  */
 
-export type WorkspaceTab = "video" | "audio" | "animate";
+export type WorkspaceTab = "video" | "audio" | "animate" | "image";
 
 interface WorkspaceStore {
 	/** Map of projectId → last active tab. */

@@ -75,6 +75,13 @@ const AnimateWorkspace = dynamic(
 		),
 	{ ssr: false, loading: () => <WorkspaceLoading tone="text-fuchsia-300/70" /> },
 );
+const ImageWorkspace = dynamic(
+	() =>
+		import("@/components/editor/image/ImageWorkspace").then(
+			(m) => m.ImageWorkspace,
+		),
+	{ ssr: false, loading: () => <WorkspaceLoading tone="text-sky-300/70" /> },
+);
 // ImageEditor is mounted always-on (overlay opens on demand) but the
 // canvas stack is heavy. Defer its bundle until the first paint settles.
 const ImageEditor = dynamic(
@@ -224,7 +231,9 @@ export function ProjectShell() {
 							? "bg-gradient-to-r from-orange-500/0 via-orange-500/60 to-orange-500/0"
 							: tab === "animate"
 								? "bg-gradient-to-r from-fuchsia-500/0 via-fuchsia-500/60 to-fuchsia-500/0"
-								: "bg-gradient-to-r from-emerald-500/0 via-emerald-500/60 to-emerald-500/0"
+								: tab === "image"
+									? "bg-gradient-to-r from-sky-500/0 via-sky-500/60 to-sky-500/0"
+									: "bg-gradient-to-r from-emerald-500/0 via-emerald-500/60 to-emerald-500/0"
 					}`}
 				/>
 				<div className="flex items-center gap-2 min-w-0">
@@ -319,6 +328,12 @@ export function ProjectShell() {
 				<WorkspaceErrorBoundary label="Audio" accent="audio">
 					<div key="audio" className="flex-1 flex flex-col min-h-0 motion-fade">
 						<AudioWorkspace />
+					</div>
+				</WorkspaceErrorBoundary>
+			) : tab === "image" ? (
+				<WorkspaceErrorBoundary label="Image" accent="image">
+					<div key="image" className="flex-1 flex flex-col min-h-0 motion-fade">
+						<ImageWorkspace />
 					</div>
 				</WorkspaceErrorBoundary>
 			) : tab === "animate" ? (

@@ -30,12 +30,15 @@ const ACCENT_PRIMARY: Record<AccentName, string> = {
 		"bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-black ring-orange-300/40",
 	animate:
 		"bg-fuchsia-500 hover:bg-fuchsia-400 active:bg-fuchsia-600 text-black ring-fuchsia-300/40",
+	image:
+		"bg-sky-500 hover:bg-sky-400 active:bg-sky-600 text-black ring-sky-300/40",
 };
 
 const ACCENT_SECONDARY: Record<AccentName, string> = {
 	video: "bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-200",
 	audio: "bg-orange-500/15 hover:bg-orange-500/25 text-orange-200",
 	animate: "bg-fuchsia-500/15 hover:bg-fuchsia-500/25 text-fuchsia-200",
+	image: "bg-sky-500/15 hover:bg-sky-500/25 text-sky-200",
 };
 
 /**

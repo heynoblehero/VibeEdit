@@ -37,7 +37,9 @@ import { AiStatusIndicator } from "@/components/editor/AiStatusIndicator";
 import { AutoSaveIndicator } from "@/components/editor/AutoSaveIndicator";
 import { BulkSceneBar } from "@/components/editor/BulkSceneBar";
 import { OnboardingTour } from "@/components/editor/OnboardingTour";
+import { AgentSheet } from "@/components/mobile/AgentSheet";
 import { MobileDrawer } from "@/components/mobile/MobileDrawer";
+import { PhoneAgentFab } from "@/components/mobile/PhoneAgentFab";
 import { PhoneEditorShell } from "@/components/mobile/PhoneEditorShell";
 import { usePhoneMode } from "@/lib/use-phone-mode";
 
@@ -407,6 +409,9 @@ export function ProjectShell() {
 					</MobileDrawer>
 				</>
 			) : null}
+
+			<PhoneAgentFab placement="desktop" />
+			<AgentSheet />
 		</div>
 	);
 }

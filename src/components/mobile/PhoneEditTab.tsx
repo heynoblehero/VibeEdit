@@ -2,6 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef } from "react";
+import { AgentSheet } from "@/components/mobile/AgentSheet";
+import { PhoneAgentFab } from "@/components/mobile/PhoneAgentFab";
 import { PhoneSceneEditor } from "@/components/mobile/PhoneSceneEditor";
 import { haptics } from "@/lib/haptics";
 import { useProjectStore } from "@/store/project-store";
@@ -82,14 +84,19 @@ export function PhoneEditTab() {
 
 	if (!firstSceneId) {
 		return (
-			<div className="flex-1 flex items-center justify-center px-6 text-center text-[12px] text-neutral-500">
-				No scenes yet — open the Scenes tab and tap + to add one.
+			<div className="relative flex-1 flex items-center justify-center px-6 text-center text-[12px] text-neutral-500">
+				<div className="space-y-1">
+					<div>No scenes yet — open the Scenes tab and tap + to add one.</div>
+					<div className="text-emerald-300/80">Or tap ✨ AI to generate a video for you.</div>
+				</div>
+				<PhoneAgentFab />
+				<AgentSheet />
 			</div>
 		);
 	}
 
 	return (
-		<div className="flex-1 min-h-0 flex flex-col overflow-y-auto">
+		<div className="relative flex-1 min-h-0 flex flex-col overflow-y-auto">
 			<div
 				className="shrink-0 bg-black border-b border-neutral-800"
 				onTouchStart={onTouchStart}
@@ -100,6 +107,8 @@ export function PhoneEditTab() {
 			<div className="flex-1 min-h-0">
 				<PhoneSceneEditor />
 			</div>
+			<PhoneAgentFab />
+			<AgentSheet />
 		</div>
 	);
 }

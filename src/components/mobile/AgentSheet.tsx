@@ -1,7 +1,7 @@
 "use client";
 
-import { Loader2, Sparkles, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Loader2, Sparkles, Upload, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { haptics } from "@/lib/haptics";
 import { toast } from "@/lib/toast";
@@ -10,7 +10,9 @@ import { useProjectStore } from "@/store/project-store";
 
 const STAGE_LABEL: Record<string, string> = {
 	queued: "Queueing…",
-	generating: "Composing your video…",
+	thinking: "Thinking…",
+	awaiting_clarify: "Waiting on your answer",
+	awaiting_upload: "Waiting on your upload",
 	validating: "Checking the draft…",
 	done: "Ready",
 	failed: "Failed",
@@ -23,17 +25,20 @@ const PROMPT_SUGGESTIONS = [
 	"Quote-driven motivational short, dark moody background",
 ];
 
+const ACCEPT_BY_KIND = {
+	image: "image/*",
+	video: "video/*",
+	audio: "audio/*",
+};
+
 /**
  * Phone Edit-tab agent sheet.
  *
- * Slides up from the bottom when the ✨ FAB is tapped. Three views:
+ * Slides up from the bottom when the ✨ FAB is tapped. Views:
  *   idle    — prompt input + start button
- *   running — stage progress strip + cancel
+ *   running — stage strip + inline clarify / upload cards as they arrive
  *   done    — preview of the agent's draft + Apply / Discard
  *   error   — the agent's failure message + Retry
- *
- * The sheet is mounted by `PhoneEditTab` so it inherits the safe-area
- * inset from the tab body. Tap-outside dismiss + Escape close.
  */
 export function AgentSheet() {
 	const open = useAgentRunStore((s) => s.open);
@@ -42,10 +47,14 @@ export function AgentSheet() {
 	const error = useAgentRunStore((s) => s.error);
 	const draft = useAgentRunStore((s) => s.draft);
 	const finalProject = useAgentRunStore((s) => s.finalProject);
+	const pendingClarify = useAgentRunStore((s) => s.pendingClarify);
+	const pendingUpload = useAgentRunStore((s) => s.pendingUpload);
 	const closeSheet = useAgentRunStore((s) => s.closeSheet);
 	const start = useAgentRunStore((s) => s.start);
 	const cancel = useAgentRunStore((s) => s.cancel);
 	const reset = useAgentRunStore((s) => s.reset);
+	const submitClarify = useAgentRunStore((s) => s.submitClarify);
+	const submitUpload = useAgentRunStore((s) => s.submitUpload);
 
 	const setProject = useProjectStore((s) => s.setProject);
 	const projectId = useProjectStore((s) => s.project.id);
@@ -70,11 +79,11 @@ export function AgentSheet() {
 
 	const onApply = useCallback(() => {
 		if (!finalProject) return;
-		// Reuse the user's current project id so we don't sprout a
-		// duplicate entry in the dashboard every time the agent runs.
 		setProject({ ...finalProject, id: projectId });
 		haptics.success();
-		toast.success(`Applied "${finalProject.name}" — ${finalProject.scenes.length} scenes`);
+		toast.success(
+			`Applied "${finalProject.name}" — ${finalProject.scenes.length} scenes`,
+		);
 		reset();
 		closeSheet();
 	}, [finalProject, projectId, setProject, reset, closeSheet]);
@@ -133,7 +142,14 @@ export function AgentSheet() {
 							onStart={onStart}
 						/>
 					) : view === "running" ? (
-						<RunningView stage={stage ?? "queued"} onCancel={cancel} />
+						<RunningView
+							stage={stage ?? "queued"}
+							pendingClarify={pendingClarify}
+							pendingUpload={pendingUpload}
+							onSubmitClarify={submitClarify}
+							onSubmitUpload={submitUpload}
+							onCancel={cancel}
+						/>
 					) : view === "done" ? (
 						<DoneView
 							projectName={finalProject?.name ?? draft?.name ?? "Draft"}
@@ -199,18 +215,28 @@ function IdleView({
 	);
 }
 
+interface RunningProps {
+	stage: string;
+	pendingClarify: ReturnType<typeof useAgentRunStore.getState>["pendingClarify"];
+	pendingUpload: ReturnType<typeof useAgentRunStore.getState>["pendingUpload"];
+	onSubmitClarify: (answers: Record<string, string>) => Promise<void>;
+	onSubmitUpload: (file: File) => Promise<void>;
+	onCancel: () => Promise<void>;
+}
+
 function RunningView({
 	stage,
+	pendingClarify,
+	pendingUpload,
+	onSubmitClarify,
+	onSubmitUpload,
 	onCancel,
-}: {
-	stage: string;
-	onCancel: () => void;
-}) {
+}: RunningProps) {
 	const STAGES: Array<{ id: string; label: string }> = [
-		{ id: "queued", label: "Queue" },
-		{ id: "generating", label: "Compose" },
+		{ id: "thinking", label: "Plan" },
+		{ id: "awaiting_clarify", label: "Clarify" },
+		{ id: "awaiting_upload", label: "Upload" },
 		{ id: "validating", label: "Validate" },
-		{ id: "done", label: "Ready" },
 	];
 	const currentIdx = STAGES.findIndex((s) => s.id === stage);
 	return (
@@ -222,7 +248,7 @@ function RunningView({
 			<div className="grid grid-cols-4 gap-1">
 				{STAGES.map((s, idx) => {
 					const isActive = idx === currentIdx;
-					const isDone = idx < currentIdx;
+					const isDone = currentIdx >= 0 && idx < currentIdx;
 					return (
 						<div
 							key={s.id}
@@ -252,14 +278,153 @@ function RunningView({
 					);
 				})}
 			</div>
-			<p className="text-[11px] text-neutral-500 leading-relaxed">
-				This usually takes 10–20 seconds. You can cancel anytime — your
-				current project stays untouched until you tap Apply.
-			</p>
+
+			{pendingClarify && pendingClarify.length > 0 ? (
+				<ClarifyCard
+					questions={pendingClarify}
+					onSubmit={onSubmitClarify}
+				/>
+			) : pendingUpload ? (
+				<UploadCard request={pendingUpload} onSubmit={onSubmitUpload} />
+			) : (
+				<p className="text-[11px] text-neutral-500 leading-relaxed">
+					This usually takes 10-20 seconds. The agent may pause to ask
+					questions or request a file — you&apos;ll see those here.
+				</p>
+			)}
+
 			<Button variant="ghost" size="sm" fullWidth onClick={() => void onCancel()}>
 				Cancel
 			</Button>
 		</>
+	);
+}
+
+function ClarifyCard({
+	questions,
+	onSubmit,
+}: {
+	questions: NonNullable<ReturnType<typeof useAgentRunStore.getState>["pendingClarify"]>;
+	onSubmit: (answers: Record<string, string>) => Promise<void>;
+}) {
+	const [answers, setAnswers] = useState<Record<string, string>>({});
+	const [submitting, setSubmitting] = useState(false);
+
+	const submit = useCallback(async () => {
+		if (submitting) return;
+		setSubmitting(true);
+		haptics.medium();
+		try {
+			await onSubmit(answers);
+		} finally {
+			setSubmitting(false);
+		}
+	}, [answers, onSubmit, submitting]);
+
+	return (
+		<div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-3">
+			<div className="text-[10px] uppercase tracking-wider text-emerald-300 font-semibold">
+				A few quick questions
+			</div>
+			{questions.map((q) => (
+				<div key={q.id} className="space-y-1.5">
+					<label className="block text-[12px] text-neutral-200" htmlFor={`agent-q-${q.id}`}>
+						{q.prompt}
+					</label>
+					<input
+						id={`agent-q-${q.id}`}
+						type="text"
+						value={answers[q.id] ?? ""}
+						onChange={(e) =>
+							setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))
+						}
+						placeholder="Your answer…"
+						className="w-full rounded-md bg-neutral-950 border border-neutral-800 focus:border-emerald-500/40 focus:outline-none text-[12px] text-neutral-100 placeholder-neutral-600 px-2.5 py-1.5"
+					/>
+					{q.suggestions && q.suggestions.length > 0 ? (
+						<div className="flex flex-wrap gap-1">
+							{q.suggestions.map((s) => (
+								<button
+									key={s}
+									type="button"
+									onClick={() =>
+										setAnswers((prev) => ({ ...prev, [q.id]: s }))
+									}
+									className="text-[10px] px-2 py-0.5 rounded-full bg-neutral-800/70 hover:bg-emerald-500/20 text-neutral-400 hover:text-emerald-200 transition-colors"
+								>
+									{s}
+								</button>
+							))}
+						</div>
+					) : null}
+				</div>
+			))}
+			<Button
+				variant="primary"
+				size="sm"
+				accent="video"
+				fullWidth
+				loading={submitting}
+				onClick={() => void submit()}
+			>
+				Send answers
+			</Button>
+		</div>
+	);
+}
+
+function UploadCard({
+	request,
+	onSubmit,
+}: {
+	request: NonNullable<ReturnType<typeof useAgentRunStore.getState>["pendingUpload"]>;
+	onSubmit: (file: File) => Promise<void>;
+}) {
+	const inputRef = useRef<HTMLInputElement>(null);
+	const [submitting, setSubmitting] = useState(false);
+
+	const onPick = useCallback(
+		async (e: React.ChangeEvent<HTMLInputElement>) => {
+			const file = e.target.files?.[0];
+			if (!file) return;
+			setSubmitting(true);
+			haptics.medium();
+			try {
+				await onSubmit(file);
+			} finally {
+				setSubmitting(false);
+			}
+		},
+		[onSubmit],
+	);
+
+	return (
+		<div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-2">
+			<div className="text-[10px] uppercase tracking-wider text-emerald-300 font-semibold">
+				Upload a {request.mediaType}
+			</div>
+			<p className="text-[12px] text-neutral-200 leading-relaxed">
+				{request.description}
+			</p>
+			<input
+				ref={inputRef}
+				type="file"
+				accept={ACCEPT_BY_KIND[request.mediaType]}
+				className="hidden"
+				onChange={onPick}
+			/>
+			<Button
+				variant="primary"
+				size="sm"
+				accent="video"
+				fullWidth
+				loading={submitting}
+				leadingIcon={<Upload className="h-3.5 w-3.5" />}
+				onClick={() => inputRef.current?.click()}
+			>
+				{submitting ? "Uploading…" : `Pick ${request.mediaType}`}
+			</Button>
+		</div>
 	);
 }
 

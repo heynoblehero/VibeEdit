@@ -1,11 +1,22 @@
 import type { NextRequest } from "next/server";
+import { type AssetSurvey, buildSurvey } from "@/lib/agent/asset-survey";
 import { startRun } from "@/lib/agent/runner";
+import type { Project } from "@/lib/scene-schema";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 interface StartRequest {
 	prompt: string;
+	/**
+	 * Snapshot of the user's project + asset stores at run-start.
+	 * Sent because asset state is client-side (Zustand-persisted) —
+	 * the server has no other way to see it. Trimmed to what the
+	 * agent actually needs to plan with.
+	 */
+	project: Project;
+	characters?: Array<{ id: string; name: string; src: string }>;
+	sfx?: Array<{ id: string; name: string; src: string }>;
 }
 
 export async function POST(request: NextRequest) {
@@ -25,7 +36,19 @@ export async function POST(request: NextRequest) {
 			{ status: 400 },
 		);
 	}
+	if (!body?.project?.id) {
+		return Response.json(
+			{ error: "project snapshot is required" },
+			{ status: 400 },
+		);
+	}
 
-	const run = startRun({ prompt });
+	const survey: AssetSurvey = buildSurvey({
+		project: body.project,
+		characters: body.characters ?? [],
+		sfx: body.sfx ?? [],
+	});
+
+	const run = startRun({ prompt, survey });
 	return Response.json({ runId: run.id });
 }

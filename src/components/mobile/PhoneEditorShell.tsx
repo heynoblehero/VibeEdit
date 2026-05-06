@@ -2,7 +2,7 @@
 
 import { ChevronLeft, Film, ListVideo, Pencil, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PhoneEditTab } from "@/components/mobile/PhoneEditTab";
 import { PhoneRenderTab } from "@/components/mobile/PhoneRenderTab";
 import { PhoneScenesTab } from "@/components/mobile/PhoneScenesTab";
@@ -36,20 +36,31 @@ const HISTORY_SENTINEL = "vibeedit-phone-tab";
  * from re-pushing on its own pop (infinite loop).
  */
 export function PhoneEditorShell() {
-	const project = useProjectStore((s) => s.project);
+	// Subscribe to the primitive name only. `s.project` would cause this
+	// shell to re-render on every store action that returns a fresh
+	// project object — which is most of them.
+	const projectName = useProjectStore((s) => s.project.name);
 	const [tab, setTab] = useState<PhoneTab>("scenes");
 	const isPoppingRef = useRef(false);
 
-	const switchTab = (next: PhoneTab) => {
-		if (next === tab) return;
-		haptics.light();
-		setTab(next);
-		try {
-			window.history.pushState({ [HISTORY_SENTINEL]: next }, "");
-		} catch {
-			// pushState can throw in sandboxed contexts; non-fatal.
-		}
-	};
+	// Stable identity so child useEffect deps don't churn on parent
+	// re-renders. We read the current tab via the functional setter
+	// inside instead of closing over `tab`, so the callback only needs
+	// to be created once.
+	const switchTab = useCallback((next: PhoneTab) => {
+		setTab((current) => {
+			if (current === next) return current;
+			haptics.light();
+			try {
+				window.history.pushState({ [HISTORY_SENTINEL]: next }, "");
+			} catch {
+				// pushState can throw in sandboxed contexts; non-fatal.
+			}
+			return next;
+		});
+	}, []);
+
+	const onOpenEdit = useCallback(() => switchTab("edit"), [switchTab]);
 
 	useEffect(() => {
 		const onPop = (event: PopStateEvent) => {
@@ -89,7 +100,7 @@ export function PhoneEditorShell() {
 				<div className="flex-1 min-w-0 flex items-center justify-center gap-1.5">
 					<Film className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
 					<span className="text-[13px] font-medium truncate max-w-[180px]">
-						{project.name || "Untitled"}
+						{projectName || "Untitled"}
 					</span>
 					<SaveIndicator />
 				</div>
@@ -105,7 +116,7 @@ export function PhoneEditorShell() {
 					className="absolute inset-0 motion-fade overflow-hidden flex flex-col"
 				>
 					{tab === "scenes" ? (
-						<PhoneScenesTab onOpenEdit={() => switchTab("edit")} />
+						<PhoneScenesTab onOpenEdit={onOpenEdit} />
 					) : tab === "edit" ? (
 						<PhoneEditTab />
 					) : (

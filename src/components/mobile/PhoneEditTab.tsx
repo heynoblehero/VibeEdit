@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { PhoneSceneEditor } from "@/components/mobile/PhoneSceneEditor";
 import { haptics } from "@/lib/haptics";
 import { useProjectStore } from "@/store/project-store";
+import type { Scene } from "@/lib/scene-schema";
 
 const Preview = dynamic(
 	() => import("@/components/editor/Preview").then((m) => m.Preview),
@@ -30,12 +31,23 @@ const Preview = dynamic(
  */
 export function PhoneEditTab() {
 	const selectedSceneId = useProjectStore((s) => s.selectedSceneId);
-	const firstSceneId = useProjectStore((s) => s.project.scenes[0]?.id);
-	const sceneIds = useProjectStore((s) => s.project.scenes.map((scene) => scene.id));
+	// Read scenes by reference so React's `===` compare on the selector
+	// stays cheap — `.map(s => s.id)` would mint a new array per render
+	// and put us in a render loop with the auto-select effect below.
+	const scenes = useProjectStore((s) => s.project.scenes);
+	const firstSceneId = scenes[0]?.id;
 	const selectScene = useProjectStore((s) => s.selectScene);
 
+	// Fire the "if no scene picked, pick the first one" exactly once per
+	// mount instead of every render whose deps changed — defensive
+	// against any selector that subtly mutates the dep array.
+	const didAutoSelectRef = useRef(false);
 	useEffect(() => {
-		if (!selectedSceneId && firstSceneId) selectScene(firstSceneId);
+		if (didAutoSelectRef.current) return;
+		if (!selectedSceneId && firstSceneId) {
+			didAutoSelectRef.current = true;
+			selectScene(firstSceneId);
+		}
 	}, [selectedSceneId, firstSceneId, selectScene]);
 
 	// Swipe-between-scenes on the preview surface.
@@ -58,10 +70,10 @@ export function PhoneEditTab() {
 		const dx = t.clientX - start.x;
 		const dy = t.clientY - start.y;
 		if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-		const idx = sceneIds.indexOf(selectedSceneId ?? "");
+		const idx = scenes.findIndex((scene: Scene) => scene.id === selectedSceneId);
 		if (idx < 0) return;
 		const next = dx < 0 ? idx + 1 : idx - 1;
-		const target = sceneIds[next];
+		const target = scenes[next]?.id;
 		if (target) {
 			haptics.medium();
 			selectScene(target);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { SceneList } from "@/components/editor/SceneList";
 import { useProjectStore } from "@/store/project-store";
 
@@ -13,21 +13,32 @@ interface Props {
  *
  * Reuses the existing `<SceneList />`: it already has the touch-friendly
  * dnd-kit drag, long-press → context-menu, scene cards with thumbnails,
- * empty-state CTA + aspect picker for the first scene. We just give it
- * its own scroll container and bridge a side-effect: when the user
- * selects a scene, jump them straight to the Edit tab so the flow is
- * obvious. Without this jump, users tap a card and nothing visible
- * changes (the editor that would render is on the next tab).
+ * empty-state CTA + aspect picker for the first scene.
+ *
+ * UX bridge: when the user picks a scene we want to jump to the Edit
+ * tab (otherwise tapping a card does nothing visible — the editor that
+ * would render is on the next tab). Care: only fire when the selection
+ * actually CHANGES from one we've already seen on this tab. Without
+ * that guard, mounting with a pre-selected scene (re-entering the
+ * Scenes tab while a scene is selected) would auto-jump immediately,
+ * making the tab unreachable.
  */
 export function PhoneScenesTab({ onOpenEdit }: Props) {
 	const selectedSceneId = useProjectStore((s) => s.selectedSceneId);
+	const lastSeenRef = useRef<string | null | undefined>(undefined);
 
 	useEffect(() => {
-		if (selectedSceneId) {
-			// Defer one frame so the user sees the selection ring on the
-			// card briefly before the tab swap — feels less abrupt.
-			const id = requestAnimationFrame(() => onOpenEdit());
-			return () => cancelAnimationFrame(id);
+		// First render after mount: just record the current value, do
+		// nothing. Subsequent changes are real selection events.
+		if (lastSeenRef.current === undefined) {
+			lastSeenRef.current = selectedSceneId;
+			return;
+		}
+		if (selectedSceneId && selectedSceneId !== lastSeenRef.current) {
+			lastSeenRef.current = selectedSceneId;
+			onOpenEdit();
+		} else {
+			lastSeenRef.current = selectedSceneId;
 		}
 	}, [selectedSceneId, onOpenEdit]);
 

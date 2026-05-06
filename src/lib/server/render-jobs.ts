@@ -94,14 +94,24 @@ export function listJobs(): Array<ReturnType<typeof jobSnapshot>> {
     .map(jobSnapshot);
 }
 
-export function consumeJobOutput(jobId: string): { path: string; size: number; extension: string } | null {
+/**
+ * Reads the rendered output for a finished job. Idempotent — multiple
+ * fetches return the same path so the user can share / re-download
+ * without losing the file. Old contract used to delete on first read,
+ * which broke any flow where the auto-download fails (Capacitor
+ * Android WebView ignores synthetic-anchor downloads, leaving the
+ * user unable to re-fetch). A separate background cleanup (TODO)
+ * removes outputs older than 24h.
+ */
+export function readJobOutput(jobId: string): { path: string; size: number; extension: string } | null {
   const job = jobs.get(jobId);
   if (!job || job.state !== "done" || !job.outputPath) return null;
   const extension = getRenderPreset(job.presetId).extension;
-  const result = { path: job.outputPath, size: job.sizeBytes ?? 0, extension };
-  jobs.delete(jobId);
-  return result;
+  return { path: job.outputPath, size: job.sizeBytes ?? 0, extension };
 }
+
+/** Back-compat alias — old name still imported in routes. */
+export const consumeJobOutput = readJobOutput;
 
 export function startRenderJob(input: StartJobInput): RenderJob {
   const id = randomUUID();

@@ -128,40 +128,55 @@ export function PhoneRenderTab() {
 						Finished renders show up here.
 					</div>
 				) : (
-					<div className="space-y-1.5">
+					<div className="space-y-3">
 						{finished.map((item) => (
 							<div
 								key={item.jobId}
-								className="rounded border border-neutral-800 bg-neutral-900/50 p-3 flex items-center gap-2"
+								className="rounded-lg border border-emerald-500/30 bg-neutral-900/50 overflow-hidden"
 							>
-								<div className="flex-1 min-w-0">
-									<div className="text-[12px] text-white truncate">
-										{item.projectName}
-									</div>
-									<div className="text-[10px] text-neutral-500">
-										{item.sizeBytes
-											? `${(item.sizeBytes / 1024 / 1024).toFixed(1)} MB`
-											: "Ready"}
-									</div>
-								</div>
-								<Button
-									size="sm"
-									variant="secondary"
-									leadingIcon={<Share2 className="h-3.5 w-3.5" />}
-									onClick={() => onShare(item)}
-								>
-									Share
-								</Button>
+								{/* Inline preview so the user actually sees what
+								    they made before deciding to share / save. */}
 								{item.outputUrl ? (
-									<a
-										href={item.outputUrl}
-										download
-										className="p-2 rounded text-neutral-300 hover:text-white hover:bg-neutral-800"
-										title="Download"
-									>
-										<Download className="h-3.5 w-3.5" />
-									</a>
+									<video
+										src={item.outputUrl}
+										className="w-full bg-black aspect-video"
+										controls
+										playsInline
+										preload="metadata"
+									/>
 								) : null}
+								<div className="p-3 flex items-center gap-2">
+									<div className="flex-1 min-w-0">
+										<div className="text-[12px] text-white truncate">
+											{item.projectName}
+										</div>
+										<div className="text-[10px] text-neutral-500">
+											{item.sizeBytes
+												? `${(item.sizeBytes / 1024 / 1024).toFixed(1)} MB · ${item.presetId}`
+												: item.presetId}
+										</div>
+									</div>
+									<Button
+										size="sm"
+										variant="primary"
+										leadingIcon={<Share2 className="h-3.5 w-3.5" />}
+										onClick={() => onShare(item)}
+									>
+										Share
+									</Button>
+									{item.outputUrl ? (
+										<a
+											href={item.outputUrl}
+											download
+											target="_blank"
+											rel="noreferrer"
+											className="p-2 rounded text-neutral-300 hover:text-white hover:bg-neutral-800"
+											title="Download"
+										>
+											<Download className="h-4 w-4" />
+										</a>
+									) : null}
+								</div>
 							</div>
 						))}
 					</div>

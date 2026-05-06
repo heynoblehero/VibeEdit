@@ -2,6 +2,7 @@
 
 import { Download, Film, Play, X } from "lucide-react";
 import { useState } from "react";
+import { usePhoneMode } from "@/lib/use-phone-mode";
 import { useRenderQueueStore } from "@/store/render-queue-store";
 
 /**
@@ -18,6 +19,11 @@ export function RenderOutputStrip() {
 	const items = useRenderQueueStore((s) => s.items);
 	const [previewing, setPreviewing] = useState<string | null>(null);
 	const [collapsed, setCollapsed] = useState(false);
+	const isPhone = usePhoneMode();
+
+	// On phone the Render tab carries the same data inline + bigger;
+	// hiding the floating strip keeps the tab bar uncovered.
+	if (isPhone) return null;
 
 	const completed = items.filter(
 		(i) => (i.state === "done" || i.state === "downloaded") && i.outputUrl,

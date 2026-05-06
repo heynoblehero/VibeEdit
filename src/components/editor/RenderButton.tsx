@@ -99,12 +99,21 @@ export function RenderButton() {
             break;
           case "done": {
             events.close();
+            // Stable, shareable URL the queue item exposes to the
+            // Render tab + share sheet. We point at the same /download
+            // endpoint we'd auto-fetch from; the server keeps the file
+            // around for re-download (no longer one-shot). Building it
+            // off `location.origin` so links work both on the live web
+            // and inside the Capacitor WebView.
+            const origin = typeof window !== "undefined" ? window.location.origin : "";
+            const outputUrl = `${origin}/api/render/${jobId}/download`;
             updateQueue(jobId, {
               state: "done",
               progress: 1,
               sizeBytes: evt.sizeBytes,
+              outputUrl,
             });
-            await downloadRender(jobId, project.name, selectedPresetId);
+            await finishRender(jobId, project.name, selectedPresetId, outputUrl);
             updateQueue(jobId, { state: "downloaded" });
             break;
           }
@@ -232,34 +241,75 @@ export function RenderButton() {
   );
 }
 
-async function downloadRender(
+/**
+ * Render-completion handler.
+ *
+ * On a desktop browser we trigger a synthetic-anchor download so the
+ * file lands in the user's Downloads folder automatically — that's
+ * the existing UX, no reason to break it.
+ *
+ * On Capacitor (Android/iOS WebView) the synthetic-click pattern
+ * silently fails: the WebView has no DownloadListener wired by
+ * default, so the click goes nowhere and the user thinks the render
+ * vanished. Skip the auto-download there entirely; instead the queue
+ * item's `outputUrl` (set by the caller) drives the Render tab's
+ * Share + Download buttons, which use the system share sheet.
+ *
+ * Either way we toast prominently with a "Render tab" action so the
+ * user always knows where the file is.
+ */
+async function finishRender(
   jobId: string,
   projectName: string,
   presetId: RenderPresetId,
+  outputUrl: string,
 ) {
+  let isNative = false;
   try {
-    const dlRes = await fetch(`/api/render/${jobId}/download`);
-    if (!dlRes.ok) {
-      const err = await dlRes.text();
-      throw new Error(`Download failed: ${err.slice(0, 200)}`);
-    }
-    const blob = await dlRes.blob();
-    const extension =
-      RENDER_PRESETS.find((p) => p.id === presetId)?.extension ?? "mp4";
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${projectName || "vibeedit"}-${Date.now()}.${extension}`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    toast.success(`Render complete: ${projectName}`, {
-      description: `${(blob.size / 1024 / 1024).toFixed(1)} MB · ${presetId}`,
-    });
-  } catch (e) {
-    toast.error("Download failed", {
-      description: e instanceof Error ? e.message : String(e),
-    });
+    const { Capacitor } = await import("@capacitor/core");
+    isNative = Capacitor.isNativePlatform();
+  } catch {
+    isNative = false;
   }
+
+  // Read size for the toast — cheap HEAD probe, doesn't pull the bytes.
+  let sizeMb: string | null = null;
+  try {
+    const head = await fetch(outputUrl, { method: "HEAD" });
+    const len = Number(head.headers.get("content-length") || 0);
+    if (len > 0) sizeMb = `${(len / 1024 / 1024).toFixed(1)} MB`;
+  } catch {
+    // non-fatal
+  }
+
+  if (!isNative) {
+    // Desktop / web: auto-save to Downloads as before.
+    try {
+      const res = await fetch(outputUrl);
+      if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+      const blob = await res.blob();
+      const extension =
+        RENDER_PRESETS.find((p) => p.id === presetId)?.extension ?? "mp4";
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `${projectName || "vibeedit"}-${Date.now()}.${extension}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      toast.error("Auto-download failed", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  // Always toast — on phone this is the only signal the user gets.
+  toast.success(`Render complete: ${projectName}`, {
+    description: sizeMb
+      ? `${sizeMb} · ${presetId} · open the Render tab to save or share`
+      : `${presetId} · open the Render tab to save or share`,
+    duration: 8000,
+  });
 }

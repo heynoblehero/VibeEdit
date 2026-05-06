@@ -2,6 +2,7 @@
 
 import { CheckCircle2, Download, Loader2, Trash2, X, XCircle } from "lucide-react";
 import { toast } from "@/lib/toast";
+import { usePhoneMode } from "@/lib/use-phone-mode";
 import { useRenderQueueStore } from "@/store/render-queue-store";
 
 function formatEta(item: {
@@ -37,7 +38,12 @@ export function RenderQueuePanel() {
   const setOpen = useRenderQueueStore((s) => s.setPanelOpen);
   const remove = useRenderQueueStore((s) => s.remove);
   const clearDone = useRenderQueueStore((s) => s.clearDone);
+  const isPhone = usePhoneMode();
 
+  // The Render tab on the phone shell already shows the queue inline,
+  // and this floating pill at bottom-right collides visually with the
+  // bottom tab bar. Hide it entirely on phone.
+  if (isPhone) return null;
   if (items.length === 0) return null;
 
   // Collapsed pill — visible on every page (dashboard included) so the

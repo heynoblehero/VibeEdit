@@ -10,6 +10,7 @@ import { RenderButton } from "@/components/editor/RenderButton";
 import { SaveIndicator } from "@/components/editor/SaveIndicator";
 import { haptics } from "@/lib/haptics";
 import { useProjectStore } from "@/store/project-store";
+import { useRenderQueueStore } from "@/store/render-queue-store";
 
 export type PhoneTab = "scenes" | "edit" | "render";
 
@@ -61,6 +62,24 @@ export function PhoneEditorShell() {
 	}, []);
 
 	const onOpenEdit = useCallback(() => switchTab("edit"), [switchTab]);
+
+	// Auto-jump to the Render tab when a brand-new render lands. We
+	// track only the count of finished renders, not their ids, so this
+	// doesn't churn on every queue update; the ref guards against
+	// re-firing if React re-runs the effect with the same count.
+	const finishedCount = useRenderQueueStore(
+		(s) => s.items.filter((item) => item.state === "done" || item.state === "downloaded").length,
+	);
+	const lastFinishedRef = useRef(finishedCount);
+	useEffect(() => {
+		if (finishedCount > lastFinishedRef.current) {
+			lastFinishedRef.current = finishedCount;
+			haptics.success();
+			switchTab("render");
+		} else {
+			lastFinishedRef.current = finishedCount;
+		}
+	}, [finishedCount, switchTab]);
 
 	useEffect(() => {
 		const onPop = (event: PopStateEvent) => {

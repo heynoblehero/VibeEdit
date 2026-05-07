@@ -21,7 +21,7 @@ import { randomUUID } from "node:crypto";
 export interface SampledFrame {
 	/** Timestamp in seconds. */
 	tSec: number;
-	/** Base64-encoded PNG (no data:image prefix). */
+	/** Base64-encoded JPEG (no data:image prefix). */
 	base64: string;
 }
 
@@ -31,7 +31,16 @@ export interface SamplingResult {
 	audioPeaks: number[];
 }
 
-const DEFAULT_FRAME_COUNT = 12;
+const DEFAULT_FRAME_COUNT = 8;
+// JPEG quality for vision payload — 75 is the sweet spot for
+// photographic content. PNGs of UI text were blowing past 200KB
+// each and stacking 12 of them put the request over nginx's 1MB
+// default limit (cliproxy returns 413 when set up). JPEG drops
+// per-frame size to ~30-50KB without meaningful detail loss for
+// the Critic's text-and-color level reasoning.
+const JPEG_QUALITY = 4;
+// ffmpeg's -q:v scale is 1 (best) to 31 (worst); 4-6 ≈ JPEG quality 80-85.
+const MAX_LONG_EDGE = 640;
 
 /**
  * Run a child process and capture stdout into a Buffer (for binary
@@ -72,7 +81,7 @@ async function sampleOneFrame(
 	tSec: number,
 	tmpDir: string,
 ): Promise<string> {
-	const out = path.join(tmpDir, `${randomUUID()}.png`);
+	const out = path.join(tmpDir, `${randomUUID()}.jpg`);
 	const args = [
 		"-hide_banner",
 		"-loglevel",
@@ -83,12 +92,10 @@ async function sampleOneFrame(
 		videoPath,
 		"-frames:v",
 		"1",
-		// Slight downscale for token economy — vision API handles 768
-		// long-edge thumbs without losing meaningful detail. 540p source
-		// → 540 long edge for portrait, 960 for landscape; cap at 768
-		// either way.
 		"-vf",
-		"scale='min(768,iw)':'min(768,ih)':force_original_aspect_ratio=decrease",
+		`scale='min(${MAX_LONG_EDGE},iw)':'min(${MAX_LONG_EDGE},ih)':force_original_aspect_ratio=decrease`,
+		"-q:v",
+		String(JPEG_QUALITY),
 		"-y",
 		out,
 	];

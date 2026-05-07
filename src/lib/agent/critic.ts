@@ -75,7 +75,7 @@ const CRITIC_TOOL: Anthropic.Tool = {
 
 const CRITIC_SYSTEM_PROMPT = `You are the Critic agent inside VibeEdit's AI pipeline.
 
-A Creator agent just generated a video and the renderer produced an MP4. You're now reviewing 12 frames sampled evenly across the timeline plus the audio RMS levels per second. Your job is to score the result honestly and identify what to fix on the next iteration.
+A Creator agent just generated a video and the renderer produced an MP4. You're now reviewing 8 frames sampled evenly across the timeline plus the audio RMS levels per second. Your job is to score the result honestly and identify what to fix on the next iteration.
 
 # Scoring rubric (be honest, not generous)
 - 10: Genuinely great. Tight pacing, strong hook, clean typography, consistent visual language. You'd share this.
@@ -137,7 +137,7 @@ export async function critiqueDraft(input: {
 			? `[${audioPeaks.map((p) => p.toFixed(2)).join(", ")}]`
 			: "(no audio detected)",
 		"",
-		`12 frames are attached below in chronological order at timestamps: ${frames
+		`${frames.length} frames are attached below in chronological order at timestamps: ${frames
 			.map((f) => f.tSec.toFixed(1) + "s")
 			.join(", ")}.`,
 	].join("\n");
@@ -149,7 +149,7 @@ export async function critiqueDraft(input: {
 				type: "image",
 				source: {
 					type: "base64",
-					media_type: "image/png",
+					media_type: "image/jpeg",
 					data: f.base64,
 				},
 			}),

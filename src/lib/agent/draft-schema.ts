@@ -147,7 +147,7 @@ export type DraftProject = z.infer<typeof DraftProjectSchema>;
  * editor's `setProject()` can accept and the renderer can ingest.
  *
  * - mints scene ids when missing
- * - converts seconds → frames at 30fps
+ * - sets project fps to 30 (scene.duration stays in seconds)
  * - fills in DEFAULT_BG fields the agent didn't bother with
  * - resolves orientation → width/height from DIMENSIONS
  *
@@ -173,7 +173,11 @@ export function materializeDraft(
 		const scene: Scene = {
 			id: s.id ?? createId(),
 			type: s.type,
-			duration: Math.max(1, Math.round(s.durationSec * fps)),
+			// scene.duration is in SECONDS in the existing schema (see
+			// totalDurationSeconds + voiceover auto-lengthen logic in
+			// project-store.ts) — NOT frames. Earlier I converted to
+			// frames here and ended up with 30× too-long scenes.
+			duration: Math.max(0.1, s.durationSec),
 			background,
 			...(s.text ? { text: s.text } : {}),
 			...(s.emphasisText ? { emphasisText: s.emphasisText } : {}),

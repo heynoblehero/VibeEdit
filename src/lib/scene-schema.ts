@@ -647,6 +647,7 @@ export type RenderPresetId =
   | "1080p"
   | "4k"
   | "720p"
+  | "540p_internal"
   | "gif"
   | "webm"
   | "tiktok"
@@ -683,6 +684,10 @@ export const RENDER_PRESETS: RenderPreset[] = [
   { id: "1080p", label: "1080p MP4", description: "YouTube / default", scale: 1, codec: "h264", extension: "mp4" },
   { id: "4k", label: "4K MP4", description: "2× upscale, slower", scale: 2, codec: "h264", extension: "mp4" },
   { id: "720p", label: "720p MP4", description: "Fast / preview", scale: 2 / 3, codec: "h264", extension: "mp4" },
+  // Internal-only — used by the AI critic loop to render fast 540p
+  // previews for vision-model evaluation. Hidden from the user-facing
+  // preset dropdown via Render UI filtering.
+  { id: "540p_internal", label: "540p (internal)", description: "Critic-loop only", scale: 0.5, codec: "h264", extension: "mp4" },
   { id: "webm", label: "WebM", description: "Web-native, smaller", scale: 1, codec: "vp9", extension: "webm" },
   { id: "gif", label: "GIF", description: "Silent loop", scale: 0.5, codec: "gif", extension: "gif" },
   // Platform-tuned presets. Bitrates land on each platform's preferred

@@ -1,14 +1,18 @@
 import { randomUUID } from "node:crypto";
 import type Anthropic from "@anthropic-ai/sdk";
 import { AGENT_MODEL, getAnthropic } from "@/lib/server/anthropic-client";
+import { runRenderJobAsync } from "@/lib/server/render-jobs";
+import { sampleVideo } from "@/lib/server/sample-frames";
 import type { Project } from "@/lib/scene-schema";
 import { type AssetSurvey, renderSurveyBlock } from "./asset-survey";
+import { type Critique, critiqueDraft } from "./critic";
 import {
 	type DraftProject,
 	DraftProjectSchema,
 	materializeDraft,
 } from "./draft-schema";
 import { AGENT_SYSTEM_PROMPT } from "./prompts";
+import { refineDraft } from "./refine";
 import {
 	type ClarifyQuestion,
 	type UploadRequest,
@@ -16,24 +20,30 @@ import {
 } from "./tools";
 
 /**
- * Multi-turn agentic loop.
+ * Multi-turn agentic loop + Critic-Refine outer loop.
  *
- * The Phase A runner was a single shot: prompt → tool call → done.
- * Phase B turns it into a loop where the model picks one of:
- *   ask_user             → run pauses; resumes when user answers
- *   request_user_upload  → run pauses; resumes when user uploads
- *   emit_project         → terminal; validate + materialize
+ * Phase B: model picks ask_user / request_user_upload / emit_project
+ * inside a paused-resume agentic loop. Once it emits the first draft,
+ * we enter Phase D's critic loop:
  *
- * Pause/resume uses a Promise-resolver pattern: when the agent
- * requests user input, we register an async resolver on the run, emit
- * an SSE event, and `await` until /respond fulfils the resolver.
+ *   for round in 1..3:
+ *     render at 540p_internal
+ *     sample 12 frames + audio peaks
+ *     critique
+ *     if score >= 8 or round == 3: done
+ *     refine → next round
  *
- * Hard cap of 8 tool turns prevents infinite loops if the model
- * misuses the question loop.
+ * Returns the highest-scoring draft. Each attempt is preserved in
+ * `attempts` so the user can pick an earlier round if they prefer.
+ *
+ * `skipCritique: true` short-circuits the critic loop and finishes
+ * after the first emit_project — useful if the user just wants speed.
  */
 
 const MAX_TURNS = 8;
 const MAX_TOKENS_PER_CALL = 4096;
+const MAX_CRITIC_ROUNDS = 3;
+const SHIPPABLE_SCORE = 8;
 
 export type RunStage =
 	| "queued"
@@ -41,6 +51,9 @@ export type RunStage =
 	| "awaiting_clarify"
 	| "awaiting_upload"
 	| "validating"
+	| "critic_rendering"
+	| "critic_critiquing"
+	| "critic_refining"
 	| "done"
 	| "failed"
 	| "cancelled";
@@ -61,25 +74,46 @@ interface PendingUpload {
 
 type Pending = PendingClarify | PendingUpload;
 
+export interface CriticAttempt {
+	round: number;
+	draft: DraftProject;
+	project: Project;
+	critique: Critique;
+}
+
 export interface AgentRun {
 	id: string;
 	prompt: string;
 	survey: AssetSurvey | null;
+	skipCritique: boolean;
+	/** Server-resolved origin (e.g. https://vibevideoedit.com) used by
+	 *  the critic-loop render pipeline so its preflight HEAD requests
+	 *  hit the right host. */
+	origin: string;
 	stage: RunStage;
 	createdAt: number;
 	updatedAt: number;
 	error: string | null;
 	finalProject: Project | null;
 	draftPreview: DraftProject | null;
+	/** Critic loop history. Empty when skipCritique is true. */
+	attempts: CriticAttempt[];
+	/** Current critic round (1..MAX_CRITIC_ROUNDS). 0 when not in loop. */
+	criticRound: number;
 	subscribers: Set<(evt: string) => void>;
 	cancelled: boolean;
-	/** Currently-paused tool call awaiting user input. */
 	pending: Pending | null;
-	/** Conversation history accumulated across turns. */
 	messages: Anthropic.MessageParam[];
 }
 
 const runs = new Map<string, AgentRun>();
+
+function snapshotPending(run: AgentRun) {
+	if (!run.pending) return null;
+	if (run.pending.kind === "clarify")
+		return { kind: "clarify" as const, questions: run.pending.questions };
+	return { kind: "upload" as const, request: run.pending.request };
+}
 
 function snapshot(run: AgentRun) {
 	return {
@@ -88,13 +122,17 @@ function snapshot(run: AgentRun) {
 		error: run.error,
 		draft: run.draftPreview,
 		finalProject: run.finalProject,
+		attempts: run.attempts.map(({ round, draft, project, critique }) => ({
+			round,
+			draftName: draft.name,
+			project,
+			score: critique.score,
+			summary: critique.summary,
+			issueCount: critique.issues.length,
+		})),
+		criticRound: run.criticRound,
 		updatedAt: run.updatedAt,
-		pending:
-			run.pending?.kind === "clarify"
-				? { kind: "clarify", questions: run.pending.questions }
-				: run.pending?.kind === "upload"
-				? { kind: "upload", request: run.pending.request }
-				: null,
+		pending: snapshotPending(run),
 	};
 }
 
@@ -141,13 +179,9 @@ export function cancelRun(runId: string): boolean {
 		return false;
 	run.cancelled = true;
 	run.stage = "cancelled";
-	// If a pending resolver is waiting, fail it so the loop unwinds.
 	if (run.pending) {
 		const pending = run.pending;
 		run.pending = null;
-		// Reject resolver by calling with throw-equivalent: we resolve
-		// with empty data and let the loop check `cancelled` before
-		// continuing.
 		if (pending.kind === "clarify") pending.resolve({});
 		else pending.resolve("");
 	}
@@ -155,11 +189,6 @@ export function cancelRun(runId: string): boolean {
 	return true;
 }
 
-/**
- * Resume a paused run with the user's answers (clarify) or uploaded
- * URL (upload). Returns true if the resume was actually applied —
- * false when the run isn't paused or the kind doesn't match.
- */
 export function respondToRun(
 	runId: string,
 	body:
@@ -197,6 +226,8 @@ export function respondToRun(
 export interface StartRunInput {
 	prompt: string;
 	survey: AssetSurvey;
+	skipCritique?: boolean;
+	origin: string;
 }
 
 export function startRun(input: StartRunInput): AgentRun {
@@ -205,12 +236,16 @@ export function startRun(input: StartRunInput): AgentRun {
 		id,
 		prompt: input.prompt,
 		survey: input.survey,
+		skipCritique: input.skipCritique ?? false,
+		origin: input.origin,
 		stage: "queued",
 		createdAt: Date.now(),
 		updatedAt: Date.now(),
 		error: null,
 		finalProject: null,
 		draftPreview: null,
+		attempts: [],
+		criticRound: 0,
 		subscribers: new Set(),
 		cancelled: false,
 		pending: null,
@@ -227,11 +262,13 @@ export function startRun(input: StartRunInput): AgentRun {
 	return run;
 }
 
+/**
+ * Top-level: agentic loop produces the first draft, then we enter
+ * the critic loop (or finalize directly if skipCritique).
+ */
 async function runAgent(run: AgentRun): Promise<void> {
 	if (run.cancelled) return;
 
-	// Seed the conversation with the user prompt + asset survey so
-	// every model turn has full context without re-injection.
 	const surveyBlock = run.survey ? renderSurveyBlock(run.survey) : "";
 	const firstUser = [
 		surveyBlock,
@@ -243,10 +280,26 @@ async function runAgent(run: AgentRun): Promise<void> {
 		.join("\n");
 	run.messages = [{ role: "user", content: firstUser }];
 
+	const firstDraft = await runAgenticLoop(run);
+	if (run.cancelled || !firstDraft) return;
+
+	if (run.skipCritique) {
+		finalizeRun(run, firstDraft);
+		return;
+	}
+
+	await runCriticLoop(run, firstDraft);
+}
+
+/**
+ * Phase B agentic loop — paused-resume with ask_user / upload until
+ * the model emits a draft.
+ */
+async function runAgenticLoop(run: AgentRun): Promise<DraftProject | null> {
 	const client = getAnthropic();
 
 	for (let turn = 0; turn < MAX_TURNS; turn++) {
-		if (run.cancelled) return;
+		if (run.cancelled) return null;
 
 		run.stage = "thinking";
 		emit(run, { type: "stage", stage: "thinking", turn });
@@ -268,10 +321,8 @@ async function runAgent(run: AgentRun): Promise<void> {
 			);
 		}
 
-		if (run.cancelled) return;
+		if (run.cancelled) return null;
 
-		// Append the assistant turn to history regardless of how it
-		// terminates — the next iteration needs it.
 		run.messages.push({ role: "assistant", content: response.content });
 
 		const toolUses = response.content.filter(
@@ -279,8 +330,6 @@ async function runAgent(run: AgentRun): Promise<void> {
 		);
 
 		if (toolUses.length === 0) {
-			// Model produced text but no tool call. Nudge it back on
-			// track once; if it still won't, fail loud.
 			if (turn === MAX_TURNS - 1) {
 				const text = response.content.find(
 					(b): b is Anthropic.TextBlock => b.type === "text",
@@ -299,23 +348,17 @@ async function runAgent(run: AgentRun): Promise<void> {
 			continue;
 		}
 
-		// Process tool calls. We process serially because ask_user /
-		// request_user_upload pause the loop. If the model emits multiple
-		// tool calls in one turn (rare but allowed), we resolve each
-		// before the next iteration.
 		const toolResults: Anthropic.ToolResultBlockParam[] = [];
 
 		for (const tu of toolUses) {
-			if (run.cancelled) return;
+			if (run.cancelled) return null;
 
 			if (tu.name === "emit_project") {
-				return finalizeWithEmit(run, tu);
+				return validateEmit(run, tu);
 			}
 
 			if (tu.name === "ask_user") {
-				const input = tu.input as {
-					questions?: ClarifyQuestion[];
-				};
+				const input = tu.input as { questions?: ClarifyQuestion[] };
 				const questions = (input.questions ?? []).slice(0, 4);
 				if (questions.length === 0) {
 					toolResults.push({
@@ -327,7 +370,7 @@ async function runAgent(run: AgentRun): Promise<void> {
 					continue;
 				}
 				const answers = await waitForClarify(run, tu.id, questions);
-				if (run.cancelled) return;
+				if (run.cancelled) return null;
 				toolResults.push({
 					type: "tool_result",
 					tool_use_id: tu.id,
@@ -353,7 +396,7 @@ async function runAgent(run: AgentRun): Promise<void> {
 					description: input.description,
 					mediaType: input.mediaType,
 				});
-				if (run.cancelled) return;
+				if (run.cancelled) return null;
 				if (!uploadUrl) {
 					toolResults.push({
 						type: "tool_result",
@@ -371,7 +414,6 @@ async function runAgent(run: AgentRun): Promise<void> {
 				continue;
 			}
 
-			// Unknown tool — surface as error so the model can recover.
 			toolResults.push({
 				type: "tool_result",
 				tool_use_id: tu.id,
@@ -386,6 +428,183 @@ async function runAgent(run: AgentRun): Promise<void> {
 	throw new Error(
 		`Hit ${MAX_TURNS}-turn cap without calling emit_project. Try a more concrete prompt.`,
 	);
+}
+
+/**
+ * Phase D outer loop — render → critique → refine.
+ */
+async function runCriticLoop(
+	run: AgentRun,
+	firstDraft: DraftProject,
+): Promise<void> {
+	let currentDraft: DraftProject = firstDraft;
+
+	for (let round = 1; round <= MAX_CRITIC_ROUNDS; round++) {
+		if (run.cancelled) return;
+
+		run.criticRound = round;
+
+		// Render the draft at low res for vision review.
+		run.stage = "critic_rendering";
+		emit(run, {
+			type: "critic_round",
+			stage: "critic_rendering",
+			round,
+		});
+
+		const project = materializeDraft(currentDraft);
+		let renderResult: Awaited<ReturnType<typeof runRenderJobAsync>>;
+		try {
+			renderResult = await runRenderJobAsync({
+				project,
+				characters: {},
+				sfx: {},
+				origin: run.origin,
+				presetId: "540p_internal",
+			});
+		} catch (err) {
+			// If round 1 renders fail, the whole pipeline fails. If a
+			// later round fails, we can fall back on the previous best.
+			if (run.attempts.length === 0) {
+				throw new Error(
+					`Critic-loop render failed (round ${round}): ${
+						err instanceof Error ? err.message : String(err)
+					}`,
+				);
+			}
+			emit(run, {
+				type: "critic_warning",
+				message: `Round ${round} render failed; returning best previous attempt.`,
+			});
+			break;
+		}
+
+		if (run.cancelled) return;
+
+		// Sample 12 frames + audio peaks for the Critic.
+		run.stage = "critic_critiquing";
+		emit(run, {
+			type: "critic_round",
+			stage: "critic_critiquing",
+			round,
+		});
+
+		let critique: Critique;
+		try {
+			const sampled = await sampleVideo(
+				renderResult.outputPath,
+				renderResult.durationSec,
+			);
+			critique = await critiqueDraft({
+				draft: currentDraft,
+				frames: sampled.frames,
+				audioPeaks: sampled.audioPeaks,
+			});
+		} catch (err) {
+			// Critic failure: fall back to a default mid-score so we can
+			// still surface this draft to the user.
+			emit(run, {
+				type: "critic_warning",
+				message: `Round ${round} critique failed: ${
+					err instanceof Error ? err.message : String(err)
+				}. Treating as score 5.`,
+			});
+			critique = {
+				score: 5,
+				summary: "Critic unavailable for this round.",
+				issues: [],
+			};
+		}
+
+		if (run.cancelled) return;
+
+		const attempt: CriticAttempt = {
+			round,
+			draft: currentDraft,
+			project,
+			critique,
+		};
+		run.attempts.push(attempt);
+		emit(run, {
+			type: "critic_score",
+			round,
+			score: critique.score,
+			summary: critique.summary,
+			issues: critique.issues,
+		});
+
+		if (critique.score >= SHIPPABLE_SCORE || round === MAX_CRITIC_ROUNDS) {
+			break;
+		}
+
+		// Refine for the next round.
+		run.stage = "critic_refining";
+		emit(run, {
+			type: "critic_round",
+			stage: "critic_refining",
+			round: round + 1,
+		});
+		try {
+			currentDraft = await refineDraft({
+				previous: currentDraft,
+				critique,
+			});
+		} catch (err) {
+			emit(run, {
+				type: "critic_warning",
+				message: `Refine failed at round ${round}: ${
+					err instanceof Error ? err.message : String(err)
+				}. Returning best so far.`,
+			});
+			break;
+		}
+	}
+
+	// Pick the highest-scoring attempt as the winner.
+	const winner = pickBestAttempt(run.attempts);
+	if (!winner) {
+		throw new Error("Critic loop produced no attempts");
+	}
+	finalizeWithWinner(run, winner);
+}
+
+function pickBestAttempt(attempts: CriticAttempt[]): CriticAttempt | null {
+	if (attempts.length === 0) return null;
+	return attempts.reduce((best, cur) =>
+		cur.critique.score > best.critique.score ? cur : best,
+	);
+}
+
+function finalizeWithWinner(run: AgentRun, winner: CriticAttempt): void {
+	run.draftPreview = winner.draft;
+	run.finalProject = winner.project;
+	run.stage = "done";
+	emit(run, {
+		type: "done",
+		stage: "done",
+		draft: winner.draft,
+		finalProject: winner.project,
+		winningRound: winner.round,
+		winningScore: winner.critique.score,
+		attempts: run.attempts.map((a) => ({
+			round: a.round,
+			project: a.project,
+			score: a.critique.score,
+			summary: a.critique.summary,
+		})),
+	});
+}
+
+function finalizeRun(run: AgentRun, draft: DraftProject): void {
+	run.draftPreview = draft;
+	run.finalProject = materializeDraft(draft);
+	run.stage = "done";
+	emit(run, {
+		type: "done",
+		stage: "done",
+		draft,
+		finalProject: run.finalProject,
+	});
 }
 
 async function waitForClarify(
@@ -433,7 +652,10 @@ function formatClarifyAnswers(
 	return lines.join("\n");
 }
 
-function finalizeWithEmit(run: AgentRun, toolUse: Anthropic.ToolUseBlock): void {
+function validateEmit(
+	run: AgentRun,
+	toolUse: Anthropic.ToolUseBlock,
+): DraftProject {
 	run.stage = "validating";
 	emit(run, { type: "stage", stage: "validating" });
 
@@ -443,21 +665,7 @@ function finalizeWithEmit(run: AgentRun, toolUse: Anthropic.ToolUseBlock): void 
 			.slice(0, 8)
 			.map((i) => `· ${i.path.join(".") || "(root)"}: ${i.message}`)
 			.join("\n");
-		run.stage = "failed";
-		run.error = `Draft failed validation:\n${issues}`;
-		emit(run, { type: "failed", error: run.error });
-		return;
+		throw new Error(`Draft failed validation:\n${issues}`);
 	}
-
-	const draft = parsed.data;
-	const project = materializeDraft(draft);
-	run.draftPreview = draft;
-	run.finalProject = project;
-	run.stage = "done";
-	emit(run, {
-		type: "done",
-		stage: "done",
-		draft,
-		finalProject: project,
-	});
+	return parsed.data;
 }

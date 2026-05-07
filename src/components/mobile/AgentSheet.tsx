@@ -5,7 +5,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { haptics } from "@/lib/haptics";
 import { toast } from "@/lib/toast";
-import { useAgentRunStore } from "@/store/agent-run-store";
+import {
+	type AttemptSummary,
+	useAgentRunStore,
+} from "@/store/agent-run-store";
 import { useProjectStore } from "@/store/project-store";
 
 const STAGE_LABEL: Record<string, string> = {
@@ -14,6 +17,9 @@ const STAGE_LABEL: Record<string, string> = {
 	awaiting_clarify: "Waiting on your answer",
 	awaiting_upload: "Waiting on your upload",
 	validating: "Checking the draft…",
+	critic_rendering: "Rendering preview for critic…",
+	critic_critiquing: "Critic is reviewing…",
+	critic_refining: "Refining based on feedback…",
 	done: "Ready",
 	failed: "Failed",
 	cancelled: "Cancelled",
@@ -31,15 +37,6 @@ const ACCEPT_BY_KIND = {
 	audio: "audio/*",
 };
 
-/**
- * Phone Edit-tab agent sheet.
- *
- * Slides up from the bottom when the ✨ FAB is tapped. Views:
- *   idle    — prompt input + start button
- *   running — stage strip + inline clarify / upload cards as they arrive
- *   done    — preview of the agent's draft + Apply / Discard
- *   error   — the agent's failure message + Retry
- */
 export function AgentSheet() {
 	const open = useAgentRunStore((s) => s.open);
 	const view = useAgentRunStore((s) => s.view);
@@ -47,16 +44,20 @@ export function AgentSheet() {
 	const error = useAgentRunStore((s) => s.error);
 	const draft = useAgentRunStore((s) => s.draft);
 	const finalProject = useAgentRunStore((s) => s.finalProject);
+	const attempts = useAgentRunStore((s) => s.attempts);
+	const criticRound = useAgentRunStore((s) => s.criticRound);
 	const pendingClarify = useAgentRunStore((s) => s.pendingClarify);
 	const pendingUpload = useAgentRunStore((s) => s.pendingUpload);
+	const skipCritique = useAgentRunStore((s) => s.skipCritique);
+	const setSkipCritique = useAgentRunStore((s) => s.setSkipCritique);
 	const closeSheet = useAgentRunStore((s) => s.closeSheet);
 	const start = useAgentRunStore((s) => s.start);
 	const cancel = useAgentRunStore((s) => s.cancel);
 	const reset = useAgentRunStore((s) => s.reset);
 	const submitClarify = useAgentRunStore((s) => s.submitClarify);
 	const submitUpload = useAgentRunStore((s) => s.submitUpload);
+	const applyAttempt = useAgentRunStore((s) => s.applyAttempt);
 
-	const setProject = useProjectStore((s) => s.setProject);
 	const projectId = useProjectStore((s) => s.project.id);
 
 	const [draftPrompt, setDraftPrompt] = useState("");
@@ -77,16 +78,29 @@ export function AgentSheet() {
 		void start(trimmed);
 	}, [draftPrompt, start]);
 
-	const onApply = useCallback(() => {
+	const onApplyAttempt = useCallback(
+		(attempt: AttemptSummary) => {
+			applyAttempt(attempt.project);
+			haptics.success();
+			toast.success(
+				`Applied round ${attempt.round} (score ${attempt.score}/10) — ${attempt.project.scenes?.length ?? 0} scenes`,
+			);
+			reset();
+			closeSheet();
+		},
+		[applyAttempt, reset, closeSheet],
+	);
+
+	const onApplyFinal = useCallback(() => {
 		if (!finalProject) return;
-		setProject({ ...finalProject, id: projectId });
+		applyAttempt({ ...finalProject, id: projectId });
 		haptics.success();
 		toast.success(
 			`Applied "${finalProject.name}" — ${finalProject.scenes.length} scenes`,
 		);
 		reset();
 		closeSheet();
-	}, [finalProject, projectId, setProject, reset, closeSheet]);
+	}, [finalProject, projectId, applyAttempt, reset, closeSheet]);
 
 	const onDiscard = useCallback(() => {
 		haptics.light();
@@ -140,10 +154,14 @@ export function AgentSheet() {
 							value={draftPrompt}
 							onChange={setDraftPrompt}
 							onStart={onStart}
+							skipCritique={skipCritique}
+							onToggleSkipCritique={setSkipCritique}
 						/>
 					) : view === "running" ? (
 						<RunningView
 							stage={stage ?? "queued"}
+							criticRound={criticRound}
+							skipCritique={skipCritique}
 							pendingClarify={pendingClarify}
 							pendingUpload={pendingUpload}
 							onSubmitClarify={submitClarify}
@@ -153,8 +171,10 @@ export function AgentSheet() {
 					) : view === "done" ? (
 						<DoneView
 							projectName={finalProject?.name ?? draft?.name ?? "Draft"}
-							sceneCount={finalProject?.scenes.length ?? 0}
-							onApply={onApply}
+							sceneCount={finalProject?.scenes?.length ?? 0}
+							attempts={attempts}
+							onApplyFinal={onApplyFinal}
+							onApplyAttempt={onApplyAttempt}
 							onDiscard={onDiscard}
 						/>
 					) : (
@@ -170,16 +190,21 @@ function IdleView({
 	value,
 	onChange,
 	onStart,
+	skipCritique,
+	onToggleSkipCritique,
 }: {
 	value: string;
 	onChange: (v: string) => void;
 	onStart: () => void;
+	skipCritique: boolean;
+	onToggleSkipCritique: (v: boolean) => void;
 }) {
 	return (
 		<>
 			<p className="text-[12px] text-neutral-400 leading-relaxed">
-				Describe the video you want. The agent will compose scenes, text, and
-				timing for you. You can edit anything afterwards.
+				Describe the video you want. The agent composes scenes, renders a
+				preview, and a Critic reviews + refines until it&apos;s good — up to
+				3 rounds.
 			</p>
 			<textarea
 				value={value}
@@ -200,6 +225,18 @@ function IdleView({
 					</button>
 				))}
 			</div>
+			<label className="flex items-center gap-2 text-[11px] text-neutral-400 cursor-pointer select-none">
+				<input
+					type="checkbox"
+					checked={skipCritique}
+					onChange={(e) => onToggleSkipCritique(e.target.checked)}
+					className="accent-emerald-500"
+				/>
+				<span>
+					<span className="text-neutral-200">Quick generate</span> — skip the
+					Critic loop, finish in ~15 seconds (rougher result).
+				</span>
+			</label>
 			<Button
 				variant="primary"
 				size="md"
@@ -209,7 +246,7 @@ function IdleView({
 				onClick={onStart}
 				leadingIcon={<Sparkles className="h-3.5 w-3.5" />}
 			>
-				Generate
+				{skipCritique ? "Quick generate" : "Generate + Critic"}
 			</Button>
 		</>
 	);
@@ -217,6 +254,8 @@ function IdleView({
 
 interface RunningProps {
 	stage: string;
+	criticRound: number;
+	skipCritique: boolean;
 	pendingClarify: ReturnType<typeof useAgentRunStore.getState>["pendingClarify"];
 	pendingUpload: ReturnType<typeof useAgentRunStore.getState>["pendingUpload"];
 	onSubmitClarify: (answers: Record<string, string>) => Promise<void>;
@@ -226,24 +265,44 @@ interface RunningProps {
 
 function RunningView({
 	stage,
+	criticRound,
+	skipCritique,
 	pendingClarify,
 	pendingUpload,
 	onSubmitClarify,
 	onSubmitUpload,
 	onCancel,
 }: RunningProps) {
-	const STAGES: Array<{ id: string; label: string }> = [
-		{ id: "thinking", label: "Plan" },
-		{ id: "awaiting_clarify", label: "Clarify" },
-		{ id: "awaiting_upload", label: "Upload" },
-		{ id: "validating", label: "Validate" },
-	];
+	const inCriticLoop =
+		stage === "critic_rendering" ||
+		stage === "critic_critiquing" ||
+		stage === "critic_refining";
+
+	const STAGES: Array<{ id: string; label: string }> = skipCritique
+		? [
+				{ id: "thinking", label: "Plan" },
+				{ id: "awaiting_clarify", label: "Clarify" },
+				{ id: "awaiting_upload", label: "Upload" },
+				{ id: "validating", label: "Done" },
+		  ]
+		: [
+				{ id: "thinking", label: "Plan" },
+				{ id: "validating", label: "Compose" },
+				{ id: "critic_rendering", label: "Render" },
+				{ id: "critic_critiquing", label: "Critic" },
+		  ];
 	const currentIdx = STAGES.findIndex((s) => s.id === stage);
+
 	return (
 		<>
 			<div className="flex items-center gap-2 text-[13px] text-emerald-300">
 				<Loader2 className="h-4 w-4 animate-spin" />
 				<span>{STAGE_LABEL[stage] ?? stage}</span>
+				{inCriticLoop && criticRound > 0 ? (
+					<span className="ml-auto text-[10px] uppercase tracking-wider text-emerald-200/70">
+						Round {criticRound} of 3
+					</span>
+				) : null}
 			</div>
 			<div className="grid grid-cols-4 gap-1">
 				{STAGES.map((s, idx) => {
@@ -288,8 +347,9 @@ function RunningView({
 				<UploadCard request={pendingUpload} onSubmit={onSubmitUpload} />
 			) : (
 				<p className="text-[11px] text-neutral-500 leading-relaxed">
-					This usually takes 10-20 seconds. The agent may pause to ask
-					questions or request a file — you&apos;ll see those here.
+					{skipCritique
+						? "This usually takes 10-20 seconds. The agent may pause to ask questions or request a file — you'll see those here."
+						: "First draft → low-res render → Critic review → refine. Up to 3 rounds, total ~2-3 minutes. The agent may pause for questions or uploads."}
 				</p>
 			)}
 
@@ -431,25 +491,88 @@ function UploadCard({
 function DoneView({
 	projectName,
 	sceneCount,
-	onApply,
+	attempts,
+	onApplyFinal,
+	onApplyAttempt,
 	onDiscard,
 }: {
 	projectName: string;
 	sceneCount: number;
-	onApply: () => void;
+	attempts: AttemptSummary[];
+	onApplyFinal: () => void;
+	onApplyAttempt: (a: AttemptSummary) => void;
 	onDiscard: () => void;
 }) {
+	const hasMultipleAttempts = attempts.length > 1;
+	const winner =
+		attempts.length > 0
+			? attempts.reduce((best, cur) =>
+					cur.score > best.score ? cur : best,
+			  )
+			: null;
+
 	return (
 		<>
 			<div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
 				<div className="text-[10px] uppercase tracking-wider text-emerald-300 font-semibold mb-1">
 					Draft ready
+					{winner ? ` · score ${winner.score}/10 (round ${winner.round})` : ""}
 				</div>
 				<div className="text-[14px] text-white font-medium">{projectName}</div>
 				<div className="text-[11px] text-neutral-400 mt-0.5">
 					{sceneCount} scene{sceneCount === 1 ? "" : "s"} · ready to render
 				</div>
+				{winner?.summary ? (
+					<div className="mt-2 text-[11px] text-neutral-400 leading-relaxed">
+						{winner.summary}
+					</div>
+				) : null}
 			</div>
+
+			{hasMultipleAttempts ? (
+				<div className="space-y-1.5">
+					<div className="text-[10px] uppercase tracking-wider text-neutral-500 font-semibold">
+						All rounds
+					</div>
+					{attempts.map((a) => {
+						const isWinner = winner && a.round === winner.round;
+						return (
+							<button
+								key={a.round}
+								type="button"
+								onClick={() => onApplyAttempt(a)}
+								className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md border text-left transition-colors ${
+									isWinner
+										? "border-emerald-500/40 bg-emerald-500/5"
+										: "border-neutral-800 hover:border-neutral-700 hover:bg-neutral-800/40"
+								}`}
+							>
+								<span
+									className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+										a.score >= 8
+											? "bg-emerald-500/20 text-emerald-200"
+											: a.score >= 6
+											? "bg-amber-500/20 text-amber-200"
+											: "bg-red-500/20 text-red-200"
+									}`}
+								>
+									{a.score}/10
+								</span>
+								<div className="flex-1 min-w-0">
+									<div className="text-[11px] text-neutral-200 font-medium">
+										Round {a.round}
+										{isWinner ? " · winner" : ""}
+									</div>
+									<div className="text-[10px] text-neutral-500 truncate">
+										{a.summary || "(no summary)"}
+									</div>
+								</div>
+							</button>
+						);
+					})}
+				</div>
+			) : null}
+
 			<p className="text-[11px] text-neutral-500 leading-relaxed">
 				Applying replaces the current project&apos;s scenes. Hit Render after
 				to produce the MP4.
@@ -463,9 +586,9 @@ function DoneView({
 					size="md"
 					accent="video"
 					fullWidth
-					onClick={onApply}
+					onClick={onApplyFinal}
 				>
-					Apply to project
+					Apply best
 				</Button>
 			</div>
 		</>

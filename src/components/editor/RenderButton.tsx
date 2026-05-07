@@ -221,7 +221,7 @@ export function RenderButton() {
       </button>
       {menuOpen && (
         <div className="absolute top-full right-4 mt-1 w-60 bg-neutral-950 border border-neutral-800 rounded-lg shadow-xl z-50 p-1.5">
-          {RENDER_PRESETS.map((p) => (
+          {RENDER_PRESETS.filter((p) => p.id !== "540p_internal").map((p) => (
             <button
               key={p.id}
               onClick={() => handlePresetClick(p.id)}

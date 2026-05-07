@@ -3,25 +3,22 @@
 import { create } from "zustand";
 import type { Project } from "@/lib/scene-schema";
 import type { DraftProject } from "@/lib/agent/draft-schema";
+import type { Critique } from "@/lib/agent/critic";
 import type { RunStage } from "@/lib/agent/runner";
 import type { ClarifyQuestion, UploadRequest } from "@/lib/agent/tools";
 import { useAssetStore } from "@/store/asset-store";
 import { useProjectStore } from "@/store/project-store";
 
-/**
- * Client-side mirror of one server AgentRun.
- *
- * The Phase A lifecycle (start → SSE → done) extends to handle:
- *   clarify_request — server is paused awaiting answers; the sheet
- *     shows a question card; submit goes via POST /respond.
- *   upload_request  — server is paused awaiting a file; the sheet
- *     shows an upload card; submit goes via POST /upload.
- *
- * One run at a time. Starting another while one is live cancels the
- * previous via /cancel.
- */
-
 export type SheetView = "idle" | "running" | "done" | "error";
+
+export interface AttemptSummary {
+	round: number;
+	project: Project;
+	score: number;
+	summary: string;
+	issueCount?: number;
+	draftName?: string;
+}
 
 interface AgentRunState {
 	open: boolean;
@@ -32,16 +29,22 @@ interface AgentRunState {
 	error: string | null;
 	draft: DraftProject | null;
 	finalProject: Project | null;
+	attempts: AttemptSummary[];
+	criticRound: number;
+	lastCritiqueIssues: Critique["issues"] | null;
 	pendingClarify: ClarifyQuestion[] | null;
 	pendingUpload: UploadRequest | null;
+	skipCritique: boolean;
 	openSheet: () => void;
 	closeSheet: () => void;
 	setPrompt: (p: string) => void;
+	setSkipCritique: (v: boolean) => void;
 	start: (prompt: string) => Promise<void>;
 	cancel: () => Promise<void>;
 	reset: () => void;
 	submitClarify: (answers: Record<string, string>) => Promise<void>;
 	submitUpload: (file: File) => Promise<void>;
+	applyAttempt: (project: Project) => void;
 }
 
 let activeEventSource: EventSource | null = null;
@@ -62,12 +65,17 @@ export const useAgentRunStore = create<AgentRunState>((set, get) => ({
 	error: null,
 	draft: null,
 	finalProject: null,
+	attempts: [],
+	criticRound: 0,
+	lastCritiqueIssues: null,
 	pendingClarify: null,
 	pendingUpload: null,
+	skipCritique: false,
 
 	openSheet: () => set({ open: true }),
 	closeSheet: () => set({ open: false }),
 	setPrompt: (p) => set({ prompt: p }),
+	setSkipCritique: (v) => set({ skipCritique: v }),
 
 	reset: () => {
 		teardownEventSource();
@@ -78,6 +86,9 @@ export const useAgentRunStore = create<AgentRunState>((set, get) => ({
 			error: null,
 			draft: null,
 			finalProject: null,
+			attempts: [],
+			criticRound: 0,
+			lastCritiqueIssues: null,
 			pendingClarify: null,
 			pendingUpload: null,
 		});
@@ -92,6 +103,9 @@ export const useAgentRunStore = create<AgentRunState>((set, get) => ({
 			error: null,
 			draft: null,
 			finalProject: null,
+			attempts: [],
+			criticRound: 0,
+			lastCritiqueIssues: null,
 			pendingClarify: null,
 			pendingUpload: null,
 			prompt,
@@ -99,6 +113,7 @@ export const useAgentRunStore = create<AgentRunState>((set, get) => ({
 
 		const project = useProjectStore.getState().project;
 		const assetStoreState = useAssetStore.getState();
+		const skipCritique = get().skipCritique;
 
 		let runId: string;
 		try {
@@ -110,6 +125,7 @@ export const useAgentRunStore = create<AgentRunState>((set, get) => ({
 					project,
 					characters: assetStoreState.characters,
 					sfx: assetStoreState.sfx,
+					skipCritique,
 				}),
 			});
 			if (!res.ok) {
@@ -143,6 +159,15 @@ export const useAgentRunStore = create<AgentRunState>((set, get) => ({
 					finalProject?: Project;
 					questions?: ClarifyQuestion[];
 					request?: UploadRequest;
+					round?: number;
+					score?: number;
+					summary?: string;
+					issues?: Critique["issues"];
+					message?: string;
+					winningRound?: number;
+					winningScore?: number;
+					attempts?: AttemptSummary[];
+					criticRound?: number;
 					pending?: {
 						kind: "clarify" | "upload";
 						questions?: ClarifyQuestion[];
@@ -152,6 +177,8 @@ export const useAgentRunStore = create<AgentRunState>((set, get) => ({
 				if (evt.stage) set({ stage: evt.stage });
 				if (evt.draft) set({ draft: evt.draft });
 				if (evt.finalProject) set({ finalProject: evt.finalProject });
+				if (typeof evt.criticRound === "number")
+					set({ criticRound: evt.criticRound });
 
 				if (evt.type === "snapshot" && evt.pending) {
 					if (evt.pending.kind === "clarify" && evt.pending.questions) {
@@ -165,13 +192,32 @@ export const useAgentRunStore = create<AgentRunState>((set, get) => ({
 							pendingClarify: null,
 						});
 					}
+					if (Array.isArray(evt.attempts))
+						set({ attempts: evt.attempts });
 				} else if (evt.type === "clarify_request" && evt.questions) {
 					set({ pendingClarify: evt.questions, pendingUpload: null });
 				} else if (evt.type === "upload_request" && evt.request) {
 					set({ pendingUpload: evt.request, pendingClarify: null });
 				} else if (evt.type === "stage" && evt.stage === "thinking") {
-					// Once we're back to thinking, clear any stale prompts.
 					set({ pendingClarify: null, pendingUpload: null });
+				} else if (evt.type === "critic_round" && typeof evt.round === "number") {
+					set({ criticRound: evt.round });
+				} else if (evt.type === "critic_score" && typeof evt.round === "number") {
+					set((cur) => ({
+						lastCritiqueIssues: evt.issues ?? null,
+						attempts: [
+							...cur.attempts,
+							{
+								round: evt.round ?? 0,
+								// Project not available on this event — set placeholder
+								// shape; the snapshot/done event refreshes with real data.
+								project: cur.finalProject ?? ({} as Project),
+								score: evt.score ?? 0,
+								summary: evt.summary ?? "",
+								issueCount: evt.issues?.length ?? 0,
+							},
+						],
+					}));
 				}
 
 				if (evt.type === "done") {
@@ -180,6 +226,7 @@ export const useAgentRunStore = create<AgentRunState>((set, get) => ({
 						stage: "done",
 						pendingClarify: null,
 						pendingUpload: null,
+						attempts: Array.isArray(evt.attempts) ? evt.attempts : get().attempts,
 					});
 					teardownEventSource();
 				} else if (evt.type === "failed") {
@@ -273,5 +320,10 @@ export const useAgentRunStore = create<AgentRunState>((set, get) => ({
 				error: err instanceof Error ? err.message : String(err),
 			});
 		}
+	},
+
+	applyAttempt: (project) => {
+		const projectId = useProjectStore.getState().project.id;
+		useProjectStore.getState().setProject({ ...project, id: projectId });
 	},
 }));

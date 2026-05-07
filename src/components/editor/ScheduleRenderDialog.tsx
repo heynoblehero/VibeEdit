@@ -126,7 +126,7 @@ export function ScheduleRenderDialog({
             onChange={(e) => setPresetId(e.target.value as RenderPresetId)}
             className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500"
           >
-            {RENDER_PRESETS.map((p) => (
+            {RENDER_PRESETS.filter((p) => p.id !== "540p_internal").map((p) => (
               <option key={p.id} value={p.id}>{p.label}</option>
             ))}
           </select>

@@ -113,6 +113,76 @@ export function readJobOutput(jobId: string): { path: string; size: number; exte
 /** Back-compat alias — old name still imported in routes. */
 export const consumeJobOutput = readJobOutput;
 
+/**
+ * Internal helper for the AI critic loop.
+ *
+ * Same as startRenderJob() but returns a Promise that resolves with
+ * the finished job's outputPath once the render completes (or rejects
+ * on failure). The agent runner awaits this so it can drive its own
+ * higher-level state machine without juggling SSE plumbing.
+ *
+ * Cancellation: if the caller aborts the AbortSignal, we mark the job
+ * failed and reject. Cancellation mid-render is best-effort — Remotion
+ * doesn't expose a clean abort, so we let the render finish but ignore
+ * the result.
+ */
+export function runRenderJobAsync(
+	input: StartJobInput,
+	options: { signal?: AbortSignal } = {},
+): Promise<{ outputPath: string; sizeBytes: number; durationSec: number; jobId: string }> {
+	return new Promise((resolve, reject) => {
+		const job = startRenderJob(input);
+		let settled = false;
+
+		const onAbort = () => {
+			if (settled) return;
+			settled = true;
+			unsubscribe();
+			reject(new Error("render aborted"));
+		};
+
+		const unsubscribe = (() => {
+			const send = (evt: string) => {
+				if (settled) return;
+				try {
+					const parsed = JSON.parse(evt.slice(6).trim()) as {
+						type?: string;
+						error?: string;
+					};
+					if (parsed.type === "done") {
+						settled = true;
+						options.signal?.removeEventListener("abort", onAbort);
+						unsub();
+						const fps = input.project.fps ?? 30;
+						const durationSec = job.totalFrames > 0 ? job.totalFrames / fps : 0;
+						if (!job.outputPath) {
+							reject(new Error("render finished but outputPath missing"));
+							return;
+						}
+						resolve({
+							outputPath: job.outputPath,
+							sizeBytes: job.sizeBytes ?? 0,
+							durationSec,
+							jobId: job.id,
+						});
+					} else if (parsed.type === "failed") {
+						settled = true;
+						options.signal?.removeEventListener("abort", onAbort);
+						unsub();
+						reject(new Error(parsed.error ?? "render failed"));
+					}
+				} catch {
+					// non-JSON SSE chunk — ignore
+				}
+			};
+			const unsub = subscribe(job.id, send);
+			return unsub;
+		})();
+
+		options.signal?.addEventListener("abort", onAbort);
+	});
+}
+
 export function startRenderJob(input: StartJobInput): RenderJob {
   const id = randomUUID();
   const job: RenderJob = {

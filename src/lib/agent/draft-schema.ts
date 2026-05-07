@@ -54,8 +54,10 @@ const draftSceneBase = z.object({
 	durationSec: z
 		.number()
 		.min(0.5)
-		.max(15)
-		.describe("Scene duration in seconds (0.5 – 15). Will be converted to frames."),
+		.max(4)
+		.describe(
+			"Scene duration in seconds (0.5 – 4). Short-form pacing — 1.5-3.5s typical. NEVER 5s+ (that's broadcast pacing, dead on a phone).",
+		),
 	background: draftBackground.default({ color: "#0a0a0a" }),
 
 	text: z.string().max(140).optional().describe("Primary headline text"),
@@ -137,7 +139,28 @@ export const DraftProjectSchema = z.object({
 		.enum(["landscape", "portrait"])
 		.default("landscape")
 		.describe("9:16 portrait for shorts/reels, 16:9 landscape otherwise"),
-	scenes: z.array(DraftSceneSchema).min(1).max(20),
+	scenes: z.array(DraftSceneSchema).min(3).max(20),
+}).superRefine((draft, ctx) => {
+	// Reject all-same-grade outputs — a uniform color grade across
+	// every scene is the #1 reason critic scores got pinned at 4.
+	const grades = draft.scenes.map((s) => s.background?.colorGrade ?? "neutral");
+	const uniqueGrades = new Set(grades);
+	if (draft.scenes.length >= 4 && uniqueGrades.size === 1) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ["scenes"],
+			message: `All ${draft.scenes.length} scenes share colorGrade "${[...uniqueGrades][0]}". Vary at least 2 grades across the video.`,
+		});
+	}
+	// Reject all-text_only outputs — visual variety is required.
+	const types = new Set(draft.scenes.map((s) => s.type));
+	if (draft.scenes.length >= 5 && types.size === 1) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ["scenes"],
+			message: `All ${draft.scenes.length} scenes are type "${[...types][0]}". Mix in at least one other scene type.`,
+		});
+	}
 });
 
 export type DraftProject = z.infer<typeof DraftProjectSchema>;
@@ -175,9 +198,10 @@ export function materializeDraft(
 			type: s.type,
 			// scene.duration is in SECONDS in the existing schema (see
 			// totalDurationSeconds + voiceover auto-lengthen logic in
-			// project-store.ts) — NOT frames. Earlier I converted to
-			// frames here and ended up with 30× too-long scenes.
-			duration: Math.max(0.1, s.durationSec),
+			// project-store.ts) — NOT frames. Final backstop clamp to
+			// 4s max so even a misbehaving model can't emit broadcast-
+			// paced scenes.
+			duration: Math.min(4, Math.max(0.5, s.durationSec)),
 			background,
 			...(s.text ? { text: s.text } : {}),
 			...(s.emphasisText ? { emphasisText: s.emphasisText } : {}),
@@ -226,10 +250,10 @@ export const emitProjectInputSchema = {
 		},
 		scenes: {
 			type: "array",
-			minItems: 1,
+			minItems: 3,
 			maxItems: 20,
 			description:
-				"Ordered scenes that play back-to-back. Aim for 3-8 scenes, ~3-6s each.",
+				"Ordered scenes for short-form social video. Aim for 6-9 scenes for 15-30s, 3 minimum. Each scene 1.5-3.5s. Vary scene types and color grades — uniformity is rejected by the validator.",
 			items: {
 				type: "object",
 				required: ["type", "durationSec"],
@@ -243,7 +267,9 @@ export const emitProjectInputSchema = {
 					durationSec: {
 						type: "number",
 						minimum: 0.5,
-						maximum: 15,
+						maximum: 4,
+						description:
+							"Short-form pacing — 1.5-3.5s typical, NEVER over 4s. A 4s scene is the upper limit and should be reserved for landings.",
 					},
 					background: {
 						type: "object",

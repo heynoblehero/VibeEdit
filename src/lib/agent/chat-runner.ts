@@ -21,7 +21,11 @@ import { renderProjectSummary } from "./project-summary";
  * tool_use / tool_result events so the client UI streams live.
  */
 
-const MAX_TOOL_LOOPS = 8;
+// Composition tasks legitimately fire 10+ tool calls (orientation +
+// 6 scenes + 5 cuts + closing message ≈ 13 turns). 8 was too tight.
+// 24 is comfortable headroom; if we hit it, something's wrong (e.g.
+// the model is in a degenerate retry loop) and bailing is correct.
+const MAX_TOOL_LOOPS = 24;
 const MAX_TOKENS_PER_CALL = 4096;
 
 export type ChatEvent =

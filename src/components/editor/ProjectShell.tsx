@@ -38,6 +38,7 @@ import { AutoSaveIndicator } from "@/components/editor/AutoSaveIndicator";
 import { BulkSceneBar } from "@/components/editor/BulkSceneBar";
 import { OnboardingTour } from "@/components/editor/OnboardingTour";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { EditorLock } from "@/components/chat/EditorLock";
 import { AgentSheet } from "@/components/mobile/AgentSheet";
 import { MobileDrawer } from "@/components/mobile/MobileDrawer";
 import { PhoneAgentFab } from "@/components/mobile/PhoneAgentFab";
@@ -73,6 +74,7 @@ export function ProjectShell() {
 	const project = useProjectStore((s) => s.project);
 	const createProject = useProjectStore((s) => s.createProject);
 	const chatOpen = useChatStore((s) => s.open);
+	const chatStreaming = useChatStore((s) => s.streaming);
 	const toggleChat = useChatStore((s) => s.togglePanel);
 	const undoRaw = useProjectStore((s) => s.undo);
 	const redoRaw = useProjectStore((s) => s.redo);
@@ -256,14 +258,25 @@ export function ProjectShell() {
 					</button>
 					<button
 						onClick={toggleChat}
-						title={chatOpen ? "Hide AI chat" : "Open AI chat"}
-						className={`hidden md:flex items-center justify-center w-8 h-8 rounded-md transition-colors ${
-							chatOpen
+						title={
+							chatStreaming
+								? "Agent is working — click to view chat"
+								: chatOpen
+								? "Hide AI chat"
+								: "Open AI chat"
+						}
+						className={`relative hidden md:flex items-center justify-center w-8 h-8 rounded-md transition-colors ${
+							chatStreaming
+								? "bg-emerald-500/20 text-emerald-200 animate-pulse"
+								: chatOpen
 								? "bg-emerald-500/15 text-emerald-200"
 								: "text-neutral-400 hover:text-white hover:bg-neutral-800"
 						}`}
 					>
 						<MessageSquare className="h-4 w-4" aria-label="AI chat" />
+						{chatStreaming && !chatOpen ? (
+							<span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+						) : null}
 					</button>
 					<button
 						onClick={toggleQueue}
@@ -300,7 +313,7 @@ export function ProjectShell() {
 			</header>
 
 			<WorkspaceErrorBoundary label="Video" accent="video">
-			<div key="video" className="flex flex-1 min-h-0 motion-fade">
+			<div key="video" className="relative flex flex-1 min-h-0 motion-fade">
 				{phoneMode && project.scenes.length > 0 && (
 					<button
 						onClick={() => setLeftDrawerOpen(true)}
@@ -393,6 +406,7 @@ export function ProjectShell() {
 							‹
 						</button>
 					)}
+				{!phoneMode ? <EditorLock /> : null}
 				{!phoneMode ? <ChatPanel /> : null}
 			</div>
 			</WorkspaceErrorBoundary>

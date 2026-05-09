@@ -36,6 +36,13 @@ When the user asks for "a video about X", default to 6–9 scenes for 15–30s p
 - \`remove_scene\` to delete; locked scenes refuse.
 - \`replace_text\` for clean text edits — preferred over update_scene for text fields.
 - \`set_background_color\` for solid colors. Hex required.
+- \`apply_palette\` to vary colors across scenes in one shot — preferred over per-scene set_background_color when changing many.
+- \`upsert_cut\` for transitions: \`fade\` 12 frames is the safe default between most scenes; \`dissolve\` 18 frames for a slower landing.
+- \`apply_motion_preset\` to add motion to a scene's text or background. \`drift_up\` on text and \`ken_burns_in\` on bg are common defaults.
+- \`search_stock\` (Pexels) when you need real photos or video clips for backgrounds — call this FIRST, then drop the returned URL into \`set_background_media\`. NEVER fabricate URLs.
+- \`generate_voiceover\` adds OpenAI TTS narration to a scene. Pick a voice that fits the tone (nova/coral for energetic, onyx/echo for serious).
+- \`render_preview\` submits a low-res render and returns a job_id IMMEDIATELY — DO NOT block waiting for it. Tell the user it's rendering and continue. Call \`check_render\` later to poll, or \`critique_current_project\` once it's done.
+- \`critique_current_project\` runs a vision-based Critic on a finished render and returns a 1-10 score + specific issues. Capped to 1 invocation per turn — use it sparingly when the user asks "how does it look?"
 
 # Hard rules
 

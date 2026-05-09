@@ -1,6 +1,14 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { dispatchAction } from "@/lib/actions/dispatch";
-import type { Project, Scene } from "@/lib/scene-schema";
+import type { Project, Scene, Voiceover } from "@/lib/scene-schema";
+import { searchStock, type StockKind } from "@/lib/server/pexels";
+import {
+	getJob,
+	startRenderJob,
+} from "@/lib/server/render-jobs";
+import { sampleVideo } from "@/lib/server/sample-frames";
+import { generateTts } from "@/lib/server/tts";
+import { critiqueDraft } from "./critic";
 
 /**
  * Tool registry for the chat agent.
@@ -26,6 +34,16 @@ import type { Project, Scene } from "@/lib/scene-schema";
 export interface ChatToolContext {
 	/** The current working project for this turn. */
 	project: Project;
+	/** Server-resolved request origin (e.g. https://vibevideoedit.com).
+	 *  Needed by render_preview's preflight HEAD checks against any
+	 *  scene-referenced URLs. */
+	origin: string;
+	/** Mutable per-turn counters. Tools can check + increment to
+	 *  enforce caps (e.g. 1 critique per turn). */
+	turnCounters: {
+		critiqueCalls: number;
+		renderPreviewCalls: number;
+	};
 }
 
 export interface ChatToolResult {
@@ -643,8 +661,294 @@ const readScene: ChatTool = {
 };
 
 /* ------------------------------------------------------------------
- * Registry
+ * Phase 3 — assets, voiceover, preview render, critique
  * ------------------------------------------------------------------ */
+
+const searchStockTool: ChatTool = {
+	name: "search_stock",
+	description:
+		"Search Pexels for stock photos or videos. Returns up to 6 results with URLs already cached locally so the renderer can use them. Use the returned URLs in `set_background_media`. Don't fabricate — only use URLs from this tool's output OR from project.uploads.",
+	input_schema: {
+		type: "object",
+		required: ["query", "kind"],
+		properties: {
+			query: { type: "string", description: "Search term, e.g. 'morning coffee'" },
+			kind: { type: "string", enum: ["photo", "video"] },
+			count: { type: "integer", minimum: 1, maximum: 6, description: "How many results to fetch (default 3)" },
+			orientation: {
+				type: "string",
+				enum: ["landscape", "portrait", "square"],
+				description: "Match the project orientation when possible",
+			},
+		},
+	},
+	async run(_ctx, args) {
+		const a = args as {
+			query?: string;
+			kind?: StockKind;
+			count?: number;
+			orientation?: "landscape" | "portrait" | "square";
+		};
+		try {
+			const results = await searchStock({
+				query: (a.query ?? "").trim(),
+				kind: a.kind ?? "photo",
+				count: a.count ?? 3,
+				orientation: a.orientation,
+			});
+			if (results.length === 0) {
+				return {
+					project: _ctx.project,
+					content: `No Pexels results for "${a.query}".`,
+				};
+			}
+			const summary = results
+				.map(
+					(r, i) =>
+						`${i + 1}. ${r.kind} · ${r.width}×${r.height} · credit ${r.credit} · url=${r.url}`,
+				)
+				.join("\n");
+			return {
+				project: _ctx.project,
+				content: `${results.length} ${a.kind} result${results.length === 1 ? "" : "s"}:\n${summary}`,
+			};
+		} catch (err) {
+			return {
+				project: _ctx.project,
+				content: err instanceof Error ? err.message : String(err),
+				isError: true,
+			};
+		}
+	},
+};
+
+const generateVoiceoverTool: ChatTool = {
+	name: "generate_voiceover",
+	description:
+		"Generate a TTS voiceover for a scene using OpenAI's text-to-speech and attach it to the scene. The scene's duration auto-extends to fit the audio if needed.",
+	input_schema: {
+		type: "object",
+		required: ["scene_id", "text"],
+		properties: {
+			scene_id: { type: "string" },
+			text: {
+				type: "string",
+				maxLength: 4000,
+				description: "The script to speak. Keep it tight — short-form pacing.",
+			},
+			voice: {
+				type: "string",
+				enum: [
+					"alloy",
+					"ash",
+					"ballad",
+					"coral",
+					"echo",
+					"fable",
+					"onyx",
+					"nova",
+					"sage",
+					"shimmer",
+					"verse",
+				],
+				description:
+					"OpenAI voice ID. nova/coral/ballad work well for energetic shorts; onyx/echo for serious/dramatic.",
+			},
+		},
+	},
+	async run(ctx, args) {
+		const a = args as { scene_id?: string; text?: string; voice?: string };
+		const sceneIdx = ctx.project.scenes.findIndex((s) => s.id === a.scene_id);
+		if (sceneIdx < 0) {
+			return {
+				project: ctx.project,
+				content: `no scene with id ${a.scene_id}`,
+				isError: true,
+			};
+		}
+		try {
+			const tts = await generateTts({
+				text: a.text ?? "",
+				voice: a.voice,
+			});
+			const voiceover: Voiceover = {
+				audioUrl: tts.url,
+				audioDurationSec: tts.durationSec,
+				provider: "openai",
+				voice: tts.voice,
+				text: a.text ?? "",
+			};
+			const update = dispatch(ctx.project, "scene.update", {
+				id: a.scene_id ?? "",
+				patch: { voiceover },
+			});
+			return {
+				project: update.project,
+				content: `${update.content}; voiceover ${(tts.durationSec).toFixed(1)}s @ ${tts.voice}`,
+				isError: update.isError,
+			};
+		} catch (err) {
+			return {
+				project: ctx.project,
+				content: err instanceof Error ? err.message : String(err),
+				isError: true,
+			};
+		}
+	},
+};
+
+const renderPreview: ChatTool = {
+	name: "render_preview",
+	description:
+		"Submit a low-res 540p render of the current project for preview. Returns a job_id IMMEDIATELY (does NOT block — renders take 30-90s). Call check_render(job_id) on a later turn to poll status, or critique_current_project(job_id) once it's done. Don't await this in the same turn — submit it then continue your work.",
+	input_schema: {
+		type: "object",
+		properties: {},
+	},
+	async run(ctx) {
+		if (ctx.project.scenes.length === 0) {
+			return {
+				project: ctx.project,
+				content: "Cannot render an empty project — add at least one scene first.",
+				isError: true,
+			};
+		}
+		ctx.turnCounters.renderPreviewCalls += 1;
+		try {
+			const job = startRenderJob({
+				project: ctx.project,
+				characters: {},
+				sfx: {},
+				origin: ctx.origin,
+				presetId: "540p_internal",
+			});
+			return {
+				project: ctx.project,
+				content: `Render job submitted: job_id=${job.id}. Use check_render to poll, or critique_current_project once it's done. Renders typically take 30-60s for short videos.`,
+			};
+		} catch (err) {
+			return {
+				project: ctx.project,
+				content: err instanceof Error ? err.message : String(err),
+				isError: true,
+			};
+		}
+	},
+};
+
+const checkRender: ChatTool = {
+	name: "check_render",
+	description:
+		"Check the status of a render job submitted via render_preview. Returns state (queued/rendering/done/failed) + progress. When done, ready for critique_current_project.",
+	input_schema: {
+		type: "object",
+		required: ["job_id"],
+		properties: {
+			job_id: { type: "string" },
+		},
+	},
+	async run(ctx, args) {
+		const a = args as { job_id?: string };
+		const job = getJob(a.job_id ?? "");
+		if (!job) {
+			return {
+				project: ctx.project,
+				content: `unknown job_id ${a.job_id}`,
+				isError: true,
+			};
+		}
+		const pct = Math.round(job.progress * 100);
+		const status =
+			job.state === "done"
+				? `done (${pct}%, ${(job.sizeBytes ?? 0) / 1024 / 1024 < 0.05 ? "tiny" : `${((job.sizeBytes ?? 0) / 1024 / 1024).toFixed(1)} MB`})`
+				: job.state === "failed"
+				? `failed: ${job.error ?? "unknown error"}`
+				: `${job.state} ${pct}% (${job.renderedFrames}/${job.totalFrames || "?"} frames, stage=${job.stage})`;
+		return {
+			project: ctx.project,
+			content: `job ${job.id}: ${status}`,
+			isError: job.state === "failed",
+		};
+	},
+};
+
+const critiqueProject: ChatTool = {
+	name: "critique_current_project",
+	description:
+		"Run the Critic agent against a finished render. Samples 8 frames + audio peaks, sends to a vision-capable Sonnet, returns score (1-10) + summary + specific issues. Capped to 1 invocation per chat turn (each call costs ~$0.05). Pass the job_id from a render_preview that has finished.",
+	input_schema: {
+		type: "object",
+		required: ["job_id"],
+		properties: {
+			job_id: { type: "string" },
+		},
+	},
+	async run(ctx, args) {
+		if (ctx.turnCounters.critiqueCalls >= 1) {
+			return {
+				project: ctx.project,
+				content:
+					"Critique already called once this turn. Apply the suggestions then ask the user (or wait for the next turn) before re-critiquing.",
+				isError: true,
+			};
+		}
+		const a = args as { job_id?: string };
+		const job = getJob(a.job_id ?? "");
+		if (!job) {
+			return {
+				project: ctx.project,
+				content: `unknown job_id ${a.job_id}`,
+				isError: true,
+			};
+		}
+		if (job.state !== "done" || !job.outputPath) {
+			return {
+				project: ctx.project,
+				content: `job ${job.id} is ${job.state} — wait until done before critiquing`,
+				isError: true,
+			};
+		}
+		ctx.turnCounters.critiqueCalls += 1;
+		try {
+			const fps = ctx.project.fps || 30;
+			const durationSec = job.totalFrames > 0 ? job.totalFrames / fps : 0;
+			if (durationSec <= 0) {
+				return {
+					project: ctx.project,
+					content: "render duration unknown — cannot sample frames",
+					isError: true,
+				};
+			}
+			const sampled = await sampleVideo(job.outputPath, durationSec);
+			const critique = await critiqueDraft({
+				draft: ctx.project,
+				frames: sampled.frames,
+				audioPeaks: sampled.audioPeaks,
+			});
+			const issues =
+				critique.issues.length > 0
+					? critique.issues
+							.map(
+								(i, idx) =>
+									`${idx + 1}. [${i.severity}]${
+										i.sceneId ? ` (scene ${i.sceneId.slice(0, 6)})` : ""
+									} ${i.suggestion}`,
+							)
+							.join("\n")
+					: "(no specific issues)";
+			return {
+				project: ctx.project,
+				content: `Critic score: ${critique.score}/10\n\n${critique.summary}\n\nIssues:\n${issues}`,
+			};
+		} catch (err) {
+			return {
+				project: ctx.project,
+				content: err instanceof Error ? err.message : String(err),
+				isError: true,
+			};
+		}
+	},
+};
 
 export const CHAT_TOOLS: ChatTool[] = [
 	addScene,
@@ -665,6 +969,11 @@ export const CHAT_TOOLS: ChatTool[] = [
 	setCaptionStyle,
 	renameProject,
 	readScene,
+	searchStockTool,
+	generateVoiceoverTool,
+	renderPreview,
+	checkRender,
+	critiqueProject,
 ];
 
 export const CHAT_TOOL_BY_NAME: Record<string, ChatTool> = Object.fromEntries(

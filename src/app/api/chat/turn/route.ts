@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
 					project: body.project,
 					priorMessages: body.priorMessages ?? [],
 					userMessage: body.userMessage,
+					origin: request.nextUrl.origin,
 					signal: abort.signal,
 				})) {
 					send(evt);

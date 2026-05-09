@@ -58,6 +58,9 @@ export interface RunChatTurnInput {
 	project: Project;
 	priorMessages: Anthropic.MessageParam[];
 	userMessage: string;
+	/** Server-resolved origin from the request — used by render_preview's
+	 *  preflight URL checks so they hit the right host. */
+	origin: string;
 	signal?: AbortSignal;
 }
 
@@ -101,6 +104,10 @@ export async function* runChatTurn(
 		input.userMessage,
 		workingProject,
 	);
+	const turnCounters = {
+		critiqueCalls: 0,
+		renderPreviewCalls: 0,
+	};
 
 	for (let loop = 0; loop < MAX_TOOL_LOOPS; loop++) {
 		if (signal?.aborted) {
@@ -215,7 +222,11 @@ export async function* runChatTurn(
 			}
 			try {
 				const result = await tool.run(
-					{ project: workingProject },
+					{
+						project: workingProject,
+						origin: input.origin,
+						turnCounters,
+					},
 					tu.input as Record<string, unknown>,
 				);
 				workingProject = result.project;

@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { AGENT_MODEL, getAnthropic } from "@/lib/server/anthropic-client";
+import type { Project } from "@/lib/scene-schema";
 import type { DraftProject } from "./draft-schema";
 
 /**
@@ -111,35 +112,79 @@ If the video genuinely scores ≥ 8, keep issues short — only flag what would 
 
 Tool calls are your output. Don't narrate.`;
 
+/**
+ * Subset of project fields the critic actually needs. Both DraftProject
+ * (one-shot generator) and full Project (chat agent) supply this shape.
+ */
+interface CritiqueProject {
+	name: string;
+	orientation?: "portrait" | "landscape";
+	scenes: Array<{
+		id?: string;
+		type: string;
+		duration?: number;
+		durationSec?: number;
+		text?: string;
+		emphasisText?: string;
+		statValue?: string;
+		bulletItems?: string[];
+		quoteText?: string;
+		transition?: string;
+	}>;
+}
+
+function projectToCritique(input: Project | DraftProject): CritiqueProject {
+	if ("orientation" in input) {
+		return input as CritiqueProject;
+	}
+	const project = input;
+	return {
+		name: project.name,
+		orientation: project.height > project.width ? "portrait" : "landscape",
+		scenes: project.scenes.map((s) => ({
+			id: s.id,
+			type: s.type,
+			duration: s.duration,
+			text: s.text,
+			emphasisText: s.emphasisText,
+			statValue: s.statValue,
+			bulletItems: s.bulletItems,
+			quoteText: s.quoteText,
+			transition: s.transition,
+		})),
+	};
+}
+
 export async function critiqueDraft(input: {
-	draft: DraftProject;
+	draft: Project | DraftProject;
 	frames: Array<{ tSec: number; base64: string }>;
 	audioPeaks: number[];
 }): Promise<Critique> {
-	const { draft, frames, audioPeaks } = input;
+	const draft = projectToCritique(input.draft);
+	const { frames, audioPeaks } = input;
 	const client = getAnthropic();
 
 	const summary = [
 		"Project metadata:",
 		`- Name: ${draft.name}`,
-		`- Orientation: ${draft.orientation}`,
+		`- Orientation: ${draft.orientation ?? "landscape"}`,
 		`- Scene count: ${draft.scenes.length}`,
 		"",
 		"Scene graph (for matching frames to scene structure):",
-		...draft.scenes.map(
-			(s, i) =>
-				`${i + 1}. type=${s.type}, durationSec=${s.durationSec}` +
+		...draft.scenes.map((s, i) => {
+			const dur = s.durationSec ?? s.duration ?? 0;
+			return (
+				`${i + 1}. type=${s.type}, durationSec=${dur}` +
 				(s.text ? `, text="${s.text.slice(0, 60)}"` : "") +
 				(s.emphasisText
 					? `, emphasisText="${s.emphasisText.slice(0, 40)}"`
 					: "") +
 				(s.statValue ? `, statValue="${s.statValue}"` : "") +
-				(s.bulletItems
-					? `, bulletItems=[${s.bulletItems.length}]`
-					: "") +
+				(s.bulletItems ? `, bulletItems=[${s.bulletItems.length}]` : "") +
 				(s.quoteText ? `, quoteText="${s.quoteText.slice(0, 40)}"` : "") +
-				(s.transition ? `, transition=${s.transition}` : ""),
-		),
+				(s.transition ? `, transition=${s.transition}` : "")
+			);
+		}),
 		"",
 		`Audio RMS peaks (1Hz, ${audioPeaks.length} samples, 0=silent → 1=loud):`,
 		audioPeaks.length > 0

@@ -1321,18 +1321,54 @@ export interface ProjectUpload {
   uploadedAt: number;
 }
 
+/**
+ * One entry in the project's chat log. The chat surface (ChatPanel)
+ * reads this directly — it's both the persisted history AND the input
+ * shape Anthropic expects on resume.
+ *
+ * Per turn (one user prompt + the assistant's full reply), entries
+ * arrive in this order:
+ *   1× user (role="user", kind="text")
+ *   1× assistant (role="assistant", kind="text") — the assistant's reply
+ *      AS A SINGLE entry containing the full block list (text + tool_use blocks).
+ *      We store the original block list verbatim so resume after a paused
+ *      tool_use can echo it back to Anthropic without orphan-block errors.
+ *   N× tool_result (role="user" by Anthropic convention, kind="tool_result")
+ */
 export interface AgentLogEntry {
-  /** Epoch ms when this event was logged. */
-  ts: number;
-  /** Conversation turn ordinal — increments per user message. */
-  turn: number;
-  kind: "text" | "tool_call" | "tool_result" | "gate";
-  /** For tool_call / tool_result. */
-  tool?: string;
-  /** Compact arg/result preview. Args trimmed to ~200 chars per value. */
-  preview?: string;
-  /** ok flag for tool_result and gate. */
-  ok?: boolean;
+	/** Epoch ms when this event was logged. */
+	ts: number;
+	/** Conversation turn ordinal — increments per user message. */
+	turn: number;
+	/** Anthropic message role. "user" covers user prompts AND tool_result
+	 *  blocks (Anthropic's API convention). "assistant" is the model's
+	 *  reply. */
+	role?: "user" | "assistant";
+	kind: "text" | "tool_call" | "tool_result" | "gate" | "assistant_blocks";
+	/** For text entries: the visible message body. */
+	text?: string;
+	/** For tool_call: the tool name. */
+	tool?: string;
+	/** For tool_call: original tool_use_id from Anthropic — needed so
+	 *  the matching tool_result can reference it on resume. */
+	toolUseId?: string;
+	/** For tool_call: the parsed input JSON. */
+	toolInput?: unknown;
+	/** For tool_result: the tool_use_id this result responds to. */
+	toolUseRef?: string;
+	/** For tool_result: the result content (string or content blocks). */
+	toolResult?: unknown;
+	/** Compact arg/result preview, ≤ 200 chars per value. Used for
+	 *  log-style rendering when toolInput/toolResult are too verbose. */
+	preview?: string;
+	/** ok flag for tool_result and gate. */
+	ok?: boolean;
+	/** For assistant_blocks: the full Anthropic content block array
+	 *  verbatim. Critical for resume — Anthropic rejects orphan tool_use
+	 *  blocks, so the next request must echo this exact block list +
+	 *  append tool_results. Stored as `unknown` because the SDK type
+	 *  isn't worth importing into the schema file. */
+	blocks?: unknown;
 }
 
 export interface ExperimentRecord {

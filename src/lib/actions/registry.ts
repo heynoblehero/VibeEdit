@@ -4,11 +4,17 @@ import {
   cutUpsertAction,
   keyframeUpsertAction,
   motionPresetSetAction,
+  projectOrientationSetAction,
+  projectPaletteApplyAction,
+  projectRenameAction,
+  projectStylePresetApplyAction,
   sceneCreateAction,
   workflowSetAction,
 } from "./handlers/project";
 import {
   musicSetAction,
+  sceneDuplicateAction,
+  sceneMoveAction,
   sceneRemoveAction,
   sceneUpdateAction,
   scriptSetAction,
@@ -17,7 +23,7 @@ import {
 /**
  * The single source of truth for "things that can mutate the project".
  *
- * Both surfaces (agent-tools.ts on the server, Zustand stores on the
+ * Both surfaces (chat-tools.ts on the server, Zustand stores on the
  * client) call dispatchAction(name, args) instead of mutating state
  * directly. Adding a new mutation = add one handler here; both
  * surfaces pick it up automatically.
@@ -26,6 +32,8 @@ export const ACTION_REGISTRY: Record<string, AnyAction> = {
   [sceneCreateAction.name]: sceneCreateAction as AnyAction,
   [sceneUpdateAction.name]: sceneUpdateAction as AnyAction,
   [sceneRemoveAction.name]: sceneRemoveAction as AnyAction,
+  [sceneMoveAction.name]: sceneMoveAction as AnyAction,
+  [sceneDuplicateAction.name]: sceneDuplicateAction as AnyAction,
   [scriptSetAction.name]: scriptSetAction as AnyAction,
   [musicSetAction.name]: musicSetAction as AnyAction,
   [captionStyleSetAction.name]: captionStyleSetAction as AnyAction,
@@ -33,6 +41,10 @@ export const ACTION_REGISTRY: Record<string, AnyAction> = {
   [cutUpsertAction.name]: cutUpsertAction as AnyAction,
   [keyframeUpsertAction.name]: keyframeUpsertAction as AnyAction,
   [workflowSetAction.name]: workflowSetAction as AnyAction,
+  [projectOrientationSetAction.name]: projectOrientationSetAction as AnyAction,
+  [projectRenameAction.name]: projectRenameAction as AnyAction,
+  [projectStylePresetApplyAction.name]: projectStylePresetApplyAction as AnyAction,
+  [projectPaletteApplyAction.name]: projectPaletteApplyAction as AnyAction,
 };
 
 export function getAction(name: string): AnyAction | undefined {

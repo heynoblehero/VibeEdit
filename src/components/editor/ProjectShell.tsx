@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Film, ListVideo, Redo2, Smartphone, Undo2 } from "lucide-react";
+import { CalendarClock, Film, ListVideo, MessageSquare, Redo2, Smartphone, Undo2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { AspectSwitcher } from "@/components/editor/AspectSwitcher";
@@ -37,11 +37,13 @@ import { AiStatusIndicator } from "@/components/editor/AiStatusIndicator";
 import { AutoSaveIndicator } from "@/components/editor/AutoSaveIndicator";
 import { BulkSceneBar } from "@/components/editor/BulkSceneBar";
 import { OnboardingTour } from "@/components/editor/OnboardingTour";
+import { ChatPanel } from "@/components/chat/ChatPanel";
 import { AgentSheet } from "@/components/mobile/AgentSheet";
 import { MobileDrawer } from "@/components/mobile/MobileDrawer";
 import { PhoneAgentFab } from "@/components/mobile/PhoneAgentFab";
 import { PhoneEditorShell } from "@/components/mobile/PhoneEditorShell";
 import { usePhoneMode } from "@/lib/use-phone-mode";
+import { useChatStore } from "@/store/chat-store";
 
 const Preview = dynamic(
 	() => import("@/components/editor/Preview").then((m) => m.Preview),
@@ -70,6 +72,8 @@ const ImageEditor = dynamic(
 export function ProjectShell() {
 	const project = useProjectStore((s) => s.project);
 	const createProject = useProjectStore((s) => s.createProject);
+	const chatOpen = useChatStore((s) => s.open);
+	const toggleChat = useChatStore((s) => s.togglePanel);
 	const undoRaw = useProjectStore((s) => s.undo);
 	const redoRaw = useProjectStore((s) => s.redo);
 	const historyLen = useProjectStore((s) => s.history.length);
@@ -251,6 +255,17 @@ export function ProjectShell() {
 						?
 					</button>
 					<button
+						onClick={toggleChat}
+						title={chatOpen ? "Hide AI chat" : "Open AI chat"}
+						className={`hidden md:flex items-center justify-center w-8 h-8 rounded-md transition-colors ${
+							chatOpen
+								? "bg-emerald-500/15 text-emerald-200"
+								: "text-neutral-400 hover:text-white hover:bg-neutral-800"
+						}`}
+					>
+						<MessageSquare className="h-4 w-4" aria-label="AI chat" />
+					</button>
+					<button
 						onClick={toggleQueue}
 						title="Render queue"
 						className="relative p-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
@@ -378,6 +393,7 @@ export function ProjectShell() {
 							‹
 						</button>
 					)}
+				{!phoneMode ? <ChatPanel /> : null}
 			</div>
 			</WorkspaceErrorBoundary>
 

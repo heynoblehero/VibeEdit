@@ -1,12 +1,11 @@
 import {
-  type Project,
   type Scene,
   type SceneBackground,
   createId,
   VALID_BACKGROUND_FIELDS,
   VALID_SCENE_FIELDS,
 } from "@/lib/scene-schema";
-import type { Action, ActionResult } from "../types";
+import type { Action } from "../types";
 
 /**
  * Bridge createScene-style flat aliases (backgroundColor, backgroundImageUrl,
@@ -182,6 +181,92 @@ export const scriptSetAction: Action<ScriptSetArgs> = {
       ok: true,
       project: { ...project, script: args.script },
       message: `script set (${lines} lines)`,
+    };
+  },
+};
+
+interface SceneMoveArgs extends Record<string, unknown> {
+  /** id is preferred — index is fragile when the agent's view drifts. */
+  id?: string;
+  /** Index in the scenes array. Optional, only used if id is missing. */
+  fromIndex?: number;
+  /** Target index (0-based, inclusive). Clamped to [0, scenes.length-1]. */
+  toIndex: number;
+}
+
+export const sceneMoveAction: Action<SceneMoveArgs> = {
+  name: "scene.move",
+  description:
+    "Move a scene to a new index in the timeline. Identify the scene by id (preferred) or fromIndex. Locked scenes are refused.",
+  validate(args) {
+    if (typeof args?.toIndex !== "number") return "toIndex required";
+    if (typeof args?.id !== "string" && typeof args?.fromIndex !== "number")
+      return "id or fromIndex required";
+    return null;
+  },
+  handler(project, args) {
+    const fromIdx =
+      typeof args.id === "string"
+        ? project.scenes.findIndex((s) => s.id === args.id)
+        : Math.floor(args.fromIndex ?? -1);
+    if (fromIdx < 0 || fromIdx >= project.scenes.length) {
+      return {
+        ok: false,
+        project,
+        message: `scene not found (id=${args.id ?? "n/a"} fromIndex=${args.fromIndex ?? "n/a"})`,
+      };
+    }
+    const toIdx = Math.max(0, Math.min(project.scenes.length - 1, Math.floor(args.toIndex)));
+    if (fromIdx === toIdx) {
+      return { ok: true, project, message: "no-op (already at index)" };
+    }
+    const from = project.scenes[fromIdx];
+    const to = project.scenes[toIdx];
+    if (from.locked) return { ok: false, project, message: `scene ${from.id} is locked` };
+    if (to?.locked)
+      return { ok: false, project, message: `landing slot scene ${to.id} is locked` };
+    const scenes = [...project.scenes];
+    const [moved] = scenes.splice(fromIdx, 1);
+    scenes.splice(toIdx, 0, moved);
+    return {
+      ok: true,
+      project: { ...project, scenes },
+      message: `moved scene ${from.id} from ${fromIdx} → ${toIdx}`,
+    };
+  },
+};
+
+interface SceneDuplicateArgs extends Record<string, unknown> {
+  id: string;
+}
+
+export const sceneDuplicateAction: Action<SceneDuplicateArgs> = {
+  name: "scene.duplicate",
+  description:
+    "Duplicate a scene. The copy is inserted directly after the source and gets a fresh id. Returns the new id in data.",
+  validate(args) {
+    if (typeof args?.id !== "string") return "id required";
+    return null;
+  },
+  handler(project, args) {
+    const idx = project.scenes.findIndex((s) => s.id === args.id);
+    if (idx < 0) return { ok: false, project, message: `no scene with id ${args.id}` };
+    const src = project.scenes[idx];
+    const copy: Scene = {
+      ...src,
+      id: createId(),
+      broll: src.broll?.map((b) => ({ ...b, id: createId() })),
+    };
+    const scenes = [
+      ...project.scenes.slice(0, idx + 1),
+      copy,
+      ...project.scenes.slice(idx + 1),
+    ];
+    return {
+      ok: true,
+      project: { ...project, scenes },
+      message: `duplicated scene ${args.id} → ${copy.id}`,
+      data: { id: copy.id, index: idx + 1 },
     };
   },
 };

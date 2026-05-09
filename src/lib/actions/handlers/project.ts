@@ -6,11 +6,14 @@ import {
   type Keyframe,
   type KeyframeProperty,
   type MotionPreset,
+  type Orientation,
   type Scene,
   type SceneBackground,
   createId,
   DEFAULT_CAPTION_STYLE,
+  DIMENSIONS,
 } from "@/lib/scene-schema";
+import { applyPresetToScene, getPreset } from "@/lib/style-presets";
 import type { Action } from "../types";
 
 interface SceneCreateArgs extends Record<string, unknown> {
@@ -245,6 +248,120 @@ export const keyframeUpsertAction: Action<KeyframeUpsertArgs> = {
         scenes: project.scenes.map((s, i) => (i === idx ? next : s)),
       },
       message: `keyframe set ${args.sceneId.slice(0, 6)} ${args.property} @ ${kf.frame} = ${kf.value}`,
+    };
+  },
+};
+
+interface ProjectOrientationSetArgs extends Record<string, unknown> {
+  orientation: Orientation;
+}
+
+export const projectOrientationSetAction: Action<ProjectOrientationSetArgs> = {
+  name: "project.orientation.set",
+  description:
+    "Set the project canvas orientation. portrait = 9:16 (1080×1920), landscape = 16:9 (1920×1080). Resizes the canvas; existing scenes don't reflow.",
+  validate(args) {
+    if (args?.orientation !== "portrait" && args?.orientation !== "landscape")
+      return "orientation must be 'portrait' or 'landscape'";
+    return null;
+  },
+  handler(project, args) {
+    const dims = DIMENSIONS[args.orientation];
+    if (project.width === dims.width && project.height === dims.height) {
+      return { ok: true, project, message: `already ${args.orientation}` };
+    }
+    return {
+      ok: true,
+      project: { ...project, width: dims.width, height: dims.height },
+      message: `orientation set to ${args.orientation} (${dims.width}×${dims.height})`,
+    };
+  },
+};
+
+interface ProjectRenameArgs extends Record<string, unknown> {
+  name: string;
+}
+
+export const projectRenameAction: Action<ProjectRenameArgs> = {
+  name: "project.rename",
+  description:
+    "Rename the project. Visible in the dashboard, the editor header, and exported file names.",
+  validate(args) {
+    if (typeof args?.name !== "string" || !args.name.trim()) return "name required";
+    if (args.name.length > 80) return "name too long (max 80 chars)";
+    return null;
+  },
+  handler(project, args) {
+    const trimmed = args.name.trim();
+    return {
+      ok: true,
+      project: { ...project, name: trimmed },
+      message: `renamed to "${trimmed}"`,
+    };
+  },
+};
+
+interface ProjectStylePresetApplyArgs extends Record<string, unknown> {
+  presetId: string;
+}
+
+export const projectStylePresetApplyAction: Action<ProjectStylePresetApplyArgs> = {
+  name: "project.style.preset.apply",
+  description:
+    "Apply a named style preset (palette + typography + motion defaults) to every scene. Examples: 'minimal', 'bold', 'punchy', 'pastel', 'editorial'.",
+  validate(args) {
+    if (typeof args?.presetId !== "string") return "presetId required";
+    return null;
+  },
+  handler(project, args) {
+    const preset = getPreset(args.presetId);
+    if (!preset)
+      return { ok: false, project, message: `unknown preset "${args.presetId}"` };
+    return {
+      ok: true,
+      project: {
+        ...project,
+        scenes: project.scenes.map((sc, i) => applyPresetToScene(sc, preset, i)),
+      },
+      message: `applied style preset "${args.presetId}" to ${project.scenes.length} scene${project.scenes.length === 1 ? "" : "s"}`,
+    };
+  },
+};
+
+interface ProjectPaletteApplyArgs extends Record<string, unknown> {
+  /** 2-6 hex colors. First is canonical bg, rest cycle across scenes. */
+  colors: string[];
+}
+
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+
+export const projectPaletteApplyAction: Action<ProjectPaletteApplyArgs> = {
+  name: "project.palette.apply",
+  description:
+    "Apply a 2-6 color palette across the scene backgrounds. First color is the bg base; subsequent colors cycle as accent backgrounds across scenes for visual variety. Hex format #rrggbb required.",
+  validate(args) {
+    if (!Array.isArray(args?.colors) || args.colors.length < 2 || args.colors.length > 6)
+      return "colors must be a 2-6 element array";
+    for (const c of args.colors) {
+      if (typeof c !== "string" || !HEX_RE.test(c))
+        return `invalid color "${c}" — must be #rrggbb`;
+    }
+    return null;
+  },
+  handler(project, args) {
+    const colors = args.colors;
+    const scenes = project.scenes.map((sc, i) => ({
+      ...sc,
+      background: { ...sc.background, color: colors[i % colors.length] },
+    }));
+    return {
+      ok: true,
+      project: {
+        ...project,
+        scenes,
+        paletteLock: { colors, appliedAt: Date.now() },
+      },
+      message: `applied palette across ${project.scenes.length} scene${project.scenes.length === 1 ? "" : "s"}`,
     };
   },
 };

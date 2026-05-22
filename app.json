@@ -1,0 +1,32 @@
+{
+	"name": "vibeedit",
+	"description": "VibeEdit Video — prompt an AI, get an MP4.",
+	"healthchecks": {
+		"web": [
+			{
+				"type": "uptime",
+				"name": "container uptime",
+				"uptime": 10
+			},
+			{
+				"type": "listening",
+				"name": "port listening check",
+				"port": 3000,
+				"attempts": 3,
+				"timeout": 5,
+				"wait": 5,
+				"retries": 2
+			}
+		]
+	},
+	"cron": [
+		{
+			"command": "cd /app/apps/web && bun run cron:lifecycle-emails",
+			"schedule": "0 16 * * *"
+		},
+		{
+			"command": "cd /app/apps/web && bun run cron:trial-reminders",
+			"schedule": "0 14 * * *"
+		}
+	]
+}

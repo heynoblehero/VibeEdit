@@ -2,6 +2,7 @@
 node_modules/
 .env
 .env.local
-storage/
+# Anchor to the app root so we don't also exclude src/lib/storage/.
+/storage/
 bench-output/
 *.tsbuildinfo

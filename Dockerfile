@@ -43,12 +43,14 @@ COPY . .
 
 # Build only the workspace artifacts apps/web actually needs:
 #  - @hyperframes/core's hyperframe.runtime artifact (the iife the player loads)
-#  - @hyperframes/cli (compiled to dist so spawn('hyperframes') works in queue.ts)
-# We skip the full `bun run build` because @hyperframes/core's tsc step
-# typechecks server code we don't ship (studio-api/routes/files.ts) and
-# upstream currently has a benign type error there.
-RUN bun run --filter @hyperframes/core build:hyperframes-runtime \
- && bun run --filter @hyperframes/cli build
+#  - @hyperframes/cli — but only the runtime bits, not the studio-assets copy
+#    step (build:copy waits for @hyperframes/studio/dist, which we don't build
+#    because our deploy doesn't ship the standalone studio UI).
+RUN bun run --filter @hyperframes/core build:hyperframes-runtime
+RUN cd packages/cli \
+ && bun run build:fonts \
+ && bunx tsup \
+ && bun run build:runtime
 
 # Build the Next.js app.
 RUN cd apps/web && bun run build

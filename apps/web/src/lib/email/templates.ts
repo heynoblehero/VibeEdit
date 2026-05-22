@@ -39,12 +39,42 @@ function button(href: string, label: string): string {
 	return `<a href="${href}" style="display:inline-block;background:${ACCENT};color:#000;padding:12px 24px;border-radius:8px;font-weight:600;text-decoration:none;">${label}</a>`;
 }
 
+export function verifyEmailEmail(args: { name: string; url: string }) {
+	const body = `
+<h1 style="font-size:24px;margin:0 0 12px;">Confirm your email, ${args.name}.</h1>
+<p style="color:${MUTED};margin:0 0 24px;">Tap the button to verify your email and unlock rendering on VibeEdit Video. The link expires in 24 hours.</p>
+${button(args.url, "Verify email")}
+<p style="margin:24px 0 0;font-size:14px;color:${MUTED};">Didn't sign up? You can safely ignore this — your address won't be used.</p>
+`;
+	return wrap(body);
+}
+
 export function welcomeEmail(args: { name: string }) {
 	const body = `
 <h1 style="font-size:24px;margin:0 0 12px;">Welcome, ${args.name}.</h1>
 <p style="color:${MUTED};margin:0 0 24px;">VibeEdit Video is Claude Code for video. Prompt the agent, watch it build, render to MP4. Three steps.</p>
 ${button(`${siteUrl()}/app/projects`, "Open the editor")}
 <p style="margin:24px 0 0;font-size:14px;color:${MUTED};">Stuck? Reply to this email — a human reads it.</p>
+`;
+	return wrap(body);
+}
+
+export function reengageNoProjectEmail(args: { name: string }) {
+	const body = `
+<h1 style="font-size:22px;margin:0 0 12px;">Still curious about VibeEdit?</h1>
+<p style="color:${MUTED};margin:0 0 16px;">You signed up a week ago, ${args.name}, but haven't shipped a project yet. The fastest way in: click a sample prompt — first MP4 takes about 90 seconds.</p>
+${button(`${siteUrl()}/app/projects`, "Try a sample prompt")}
+<p style="margin:24px 0 0;font-size:13px;color:${MUTED};">Reply if you got stuck — I read every message.</p>
+`;
+	return wrap(body);
+}
+
+export function reengageNoRenderEmail(args: { name: string }) {
+	const body = `
+<h1 style="font-size:22px;margin:0 0 12px;">Ship one video this week.</h1>
+<p style="color:${MUTED};margin:0 0 16px;">${args.name}, you have a project but no renders yet. The MP4 is the magic moment — let's get you there.</p>
+${button(`${siteUrl()}/app/projects`, "Open the editor")}
+<p style="margin:24px 0 0;font-size:13px;color:${MUTED};">Hit ⌘R in the editor when you're ready to render. Reply with the error if anything's broken.</p>
 `;
 	return wrap(body);
 }

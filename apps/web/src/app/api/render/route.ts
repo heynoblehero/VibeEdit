@@ -10,6 +10,19 @@ export async function POST(req: Request) {
 	const session = await requireServerSession().catch((r) => r);
 	if (session instanceof Response) return session;
 	const userId = session.user.id;
+	// Email-verified gate: unverified accounts can build/preview in the editor
+	// but cannot kick off a render. Resending a verification link is one click
+	// away in /app/settings/account.
+	if (!session.user.emailVerified) {
+		return NextResponse.json(
+			{
+				error: "email_not_verified",
+				message:
+					"Verify your email before rendering. We sent a link to your inbox at signup — request a new one at /app/settings/account.",
+			},
+			{ status: 403 },
+		);
+	}
 	const body = (await req.json()) as {
 		projectId: string;
 		fps?: number;

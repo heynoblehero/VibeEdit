@@ -16,17 +16,18 @@ export type Plan = {
 	stripePriceEnv: string | null; // kept for any unmigrated callers; will remove
 };
 
-// Free is generous (unlimited count + chat) but has a visible watermark and
-// caps resolution at 720p — enough friction to push working creators to pay,
-// not so much that the product feels crippled in evaluation.
+// Real monthly caps so a single user can't burn the Anthropic bill, with
+// watermark/resolution as the visible "upgrade" trigger. Numbers tuned for
+// faceless-YT economics: ~1 video/day means Creator covers ~3× daily output,
+// Studio covers a small channel team.
 export const PLANS: Record<PlanId, Plan> = {
 	free: {
 		id: "free",
 		name: "Free",
 		priceMonthly: 0,
 		priceLabel: "$0",
-		renderLimit: -1,
-		chatTurnLimit: -1,
+		renderLimit: 5, // 5 MP4s / month — enough to evaluate
+		chatTurnLimit: 50, // 50 chat turns / month
 		resolution: "720p",
 		watermark: true,
 		providerPriceEnv: null,
@@ -37,8 +38,8 @@ export const PLANS: Record<PlanId, Plan> = {
 		name: "Creator",
 		priceMonthly: 19,
 		priceLabel: "$19",
-		renderLimit: -1,
-		chatTurnLimit: -1,
+		renderLimit: 100,
+		chatTurnLimit: 1000,
 		resolution: "1080p",
 		watermark: false,
 		providerPriceEnv: "POLAR_PRODUCT_CREATOR",
@@ -49,8 +50,8 @@ export const PLANS: Record<PlanId, Plan> = {
 		name: "Studio",
 		priceMonthly: 49,
 		priceLabel: "$49",
-		renderLimit: -1,
-		chatTurnLimit: -1,
+		renderLimit: 300,
+		chatTurnLimit: 5000,
 		resolution: "4k",
 		watermark: false,
 		providerPriceEnv: "POLAR_PRODUCT_STUDIO",

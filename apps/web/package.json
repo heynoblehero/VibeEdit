@@ -14,6 +14,7 @@
     "db:push": "drizzle-kit push",
     "db:backup": "tsx scripts/backup-db.ts",
     "cron:trial-reminders": "tsx scripts/trial-reminders.ts",
+    "cron:lifecycle-emails": "tsx scripts/lifecycle-emails.ts",
     "preflight": "tsx scripts/preflight.ts",
     "bench": "tsx scripts/bench.ts",
     "bench:nightly": "tsx scripts/bench.ts --ci --min-win-rate 0.7",

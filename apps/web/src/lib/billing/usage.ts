@@ -110,6 +110,20 @@ export function canRender(userId: string): {
 	return { ok: used < plan.renderLimit, used, limit: plan.renderLimit };
 }
 
+// Symmetric to canRender — gates the chat route so a single user can't burn
+// the Anthropic bill by holding the agent in a loop. Counts one per user
+// message; tool calls are not counted (they're part of the same turn).
+export function canChat(userId: string): {
+	ok: boolean;
+	used: number;
+	limit: number;
+} {
+	const plan = getUserPlan(userId);
+	const used = getUsage(userId, "chat_turn");
+	if (plan.chatTurnLimit === -1) return { ok: true, used, limit: -1 };
+	return { ok: used < plan.chatTurnLimit, used, limit: plan.chatTurnLimit };
+}
+
 export function hasActiveWorker(userId: string): boolean {
 	const cutoff = new Date(Date.now() - WORKER_HEARTBEAT_WINDOW_MS);
 	const row = db

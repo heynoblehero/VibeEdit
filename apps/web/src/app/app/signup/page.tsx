@@ -2,15 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { signUp } from "@/lib/auth-client";
 
 export default function SignupPage() {
-	const router = useRouter();
 	const [name, setName] = useState("");
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [busy, setBusy] = useState(false);
+	const [submitted, setSubmitted] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
 	async function submit(event: React.FormEvent) {
@@ -23,7 +22,35 @@ export default function SignupPage() {
 			setError(result.error.message || "sign up failed");
 			return;
 		}
-		router.push("/app/projects");
+		// Signup creates the user + fires a verification email. We don't redirect
+		// to /app/projects anymore — the user needs to click the email link first.
+		setSubmitted(true);
+	}
+
+	if (submitted) {
+		return (
+			<main className="flex min-h-screen items-center justify-center p-4 sm:p-6">
+				<div className="w-full max-w-sm space-y-3 rounded-xl border border-neutral-800 p-6 text-center sm:p-8">
+					<div className="text-4xl">📬</div>
+					<h1 className="text-2xl font-bold">Check your inbox</h1>
+					<p className="text-sm text-neutral-400">
+						We sent a verification link to{" "}
+						<strong className="text-white">{email}</strong>. Click it to
+						confirm your email and unlock rendering. The link expires in 24
+						hours.
+					</p>
+					<p className="text-xs text-neutral-500">
+						Not in inbox? Check spam — verification can take up to a minute.
+					</p>
+					<Link
+						href="/app/login"
+						className="block pt-2 text-sm text-[var(--color-accent)] underline"
+					>
+						Back to sign in
+					</Link>
+				</div>
+			</main>
+		);
 	}
 
 	return (

@@ -5,7 +5,7 @@ import { messages, projects } from "@/lib/db/schema";
 import { requireServerSession } from "@/lib/server-session";
 import { runAgent, type AgentEvent } from "@/lib/ai/agent";
 import { enqueue } from "@/lib/render/queue";
-import { recordUsage } from "@/lib/billing/usage";
+import { canChat, recordUsage } from "@/lib/billing/usage";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -78,9 +78,17 @@ export async function POST(req: Request) {
 		.get();
 	if (!owned) return new Response("not found", { status: 404 });
 
-	// Per-user rate limit — protects us from a single account burning the
-	// Anthropic bill in an afternoon. Limits are sliding windows; see
-	// CHAT_PER_MINUTE / CHAT_PER_DAY envs to tune.
+	// Monthly chat-turn cap per plan (hard ceiling).
+	const chatGate = canChat(userId);
+	if (!chatGate.ok) {
+		return new Response(
+			`Chat limit reached for your plan (${chatGate.used}/${chatGate.limit} turns this month). Upgrade at /app/billing.`,
+			{ status: 402 },
+		);
+	}
+
+	// Per-user sliding-window rate limit — protects against a single account
+	// burning the Anthropic bill in an afternoon (separate from the monthly cap).
 	const rate = checkRateLimit(`chat:${userId}`);
 	if (!rate.ok) {
 		return new Response(rate.reason || "rate limited", {

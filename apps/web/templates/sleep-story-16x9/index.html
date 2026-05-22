@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=1920, height=1080" />
+		<title>Sleep story</title>
+		<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;500&display=block"
+			rel="stylesheet"
+		/>
+		<style>
+			* { box-sizing: border-box; margin: 0; padding: 0; }
+			html, body { width: 1920px; height: 1080px; overflow: hidden; background: #07070d; }
+			#root {
+				position: relative;
+				width: 1920px;
+				height: 1080px;
+				background: radial-gradient(
+					ellipse at 50% 60%,
+					#2a234b 0%,
+					#120e2a 50%,
+					#05030e 100%
+				);
+				font-family: "Cormorant Garamond", serif;
+				color: #e8e3f5;
+			}
+			.title {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%, -50%);
+				font-size: 200px;
+				font-weight: 300;
+				letter-spacing: 12px;
+				text-align: center;
+				line-height: 1.1;
+			}
+			.sub {
+				position: absolute;
+				top: calc(50% + 160px);
+				left: 50%;
+				transform: translateX(-50%);
+				font-size: 36px;
+				letter-spacing: 18px;
+				text-transform: uppercase;
+				color: #9b8bd9;
+			}
+			.glow {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				width: 1200px;
+				height: 1200px;
+				transform: translate(-50%, -50%);
+				background: radial-gradient(circle, rgba(155, 139, 217, 0.18) 0%, transparent 60%);
+				pointer-events: none;
+			}
+		</style>
+	</head>
+	<body>
+		<div
+			id="root"
+			data-composition-id="sleep-story"
+			data-width="1920"
+			data-height="1080"
+			data-start="0"
+			data-duration="20"
+		>
+			<div class="glow" id="glow"></div>
+			<div class="title" id="title">Ancient Stars</div>
+			<div class="sub" id="sub">a sleep story</div>
+		</div>
+
+		<script>
+			window.__timelines = window.__timelines || {};
+			const tl = gsap.timeline({ paused: true });
+			window.__timelines["sleep-story"] = tl;
+
+			tl.from("#title", { opacity: 0, letterSpacing: "30px", duration: 3, ease: "power2.out" }, 0)
+				.from("#sub", { opacity: 0, duration: 2.5 }, 1.5)
+				.to("#glow", { scale: 1.15, duration: 18, ease: "sine.inOut" }, 0)
+				.to("#title", { scale: 1.04, duration: 18, ease: "sine.inOut" }, 0);
+		</script>
+	</body>
+</html>

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=1920, height=1080" />
+		<title>Finance intro</title>
+		<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@900&family=JetBrains+Mono:wght@700&display=block"
+			rel="stylesheet"
+		/>
+		<style>
+			* { box-sizing: border-box; margin: 0; padding: 0; }
+			html, body {
+				width: 1920px;
+				height: 1080px;
+				background: #000;
+				overflow: hidden;
+			}
+			#root {
+				position: relative;
+				width: 1920px;
+				height: 1080px;
+				background:
+					linear-gradient(180deg, #0d1115 0%, #04060a 100%);
+				font-family: "Inter", sans-serif;
+				color: #fff;
+			}
+			.scanlines {
+				position: absolute;
+				inset: 0;
+				background-image: repeating-linear-gradient(
+					0deg,
+					rgba(91, 227, 154, 0.04) 0,
+					rgba(91, 227, 154, 0.04) 1px,
+					transparent 1px,
+					transparent 3px
+				);
+				pointer-events: none;
+			}
+			.tag {
+				position: absolute;
+				top: 90px;
+				left: 90px;
+				font-family: "JetBrains Mono", monospace;
+				font-size: 28px;
+				color: #5be39a;
+				letter-spacing: 4px;
+			}
+			.headline {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%, -50%);
+				font-size: 200px;
+				font-weight: 900;
+				letter-spacing: -2px;
+				line-height: 1;
+				text-align: center;
+				color: #fff;
+			}
+			.headline .num {
+				color: #5be39a;
+				display: block;
+				font-family: "JetBrains Mono", monospace;
+				font-size: 260px;
+			}
+			.foot {
+				position: absolute;
+				bottom: 110px;
+				left: 50%;
+				transform: translateX(-50%);
+				font-size: 32px;
+				color: #9999a8;
+				letter-spacing: 3px;
+				text-transform: uppercase;
+			}
+		</style>
+	</head>
+	<body>
+		<div
+			id="root"
+			data-composition-id="finance-intro"
+			data-width="1920"
+			data-height="1080"
+			data-start="0"
+			data-duration="12"
+		>
+			<div class="tag" id="tag">// EPISODE_07</div>
+			<div class="headline">
+				<span>I MADE</span>
+				<span class="num" id="num">$10,420</span>
+				<span>IN 30 DAYS.</span>
+			</div>
+			<div class="foot" id="foot">Here's exactly how →</div>
+			<div class="scanlines"></div>
+		</div>
+
+		<script>
+			window.__timelines = window.__timelines || {};
+			const tl = gsap.timeline({ paused: true });
+			window.__timelines["finance-intro"] = tl;
+
+			tl.from(".tag", { y: -30, opacity: 0, duration: 0.5 }, 0)
+				.from(".headline > span:nth-child(1)", { y: 60, opacity: 0, duration: 0.5 }, 0.3)
+				.from("#num", { y: 80, opacity: 0, scale: 0.8, duration: 0.6, ease: "back.out(1.7)" }, 0.6)
+				.from(".headline > span:nth-child(3)", { y: 60, opacity: 0, duration: 0.5 }, 1.0)
+				.from("#foot", { opacity: 0, duration: 0.5 }, 1.5)
+				.to("#num", { scale: 1.05, duration: 0.4, yoyo: true, repeat: 3, ease: "sine.inOut" }, 2.5);
+		</script>
+	</body>
+</html>

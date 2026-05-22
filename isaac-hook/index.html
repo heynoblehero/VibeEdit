@@ -1,0 +1,1744 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>I Tried Faceless Marvel YouTube for 365 Days — Hook v4</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Inter:wght@400;600;700;800;900&family=Roboto:wght@400;500;700&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #000;
+        font-family: "Inter", system-ui, sans-serif;
+        color: #fff;
+      }
+
+      #stage {
+        position: absolute;
+        inset: 0;
+        will-change: transform, filter;
+      }
+
+      .scene {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        overflow: hidden;
+      }
+      .scene .bg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        will-change: transform;
+      }
+      /* Per-scene clean backgrounds (replace wavy gradient PNGs) */
+      #s1 .bg { background:
+        radial-gradient(ellipse at 50% 45%, #5a0000 0%, #1a0202 55%, #050000 100%); }
+      #s2 .bg { background:
+        radial-gradient(ellipse at 50% 50%, #15151a 0%, #07070a 70%, #000 100%); }
+      #s3 .bg { background:
+        radial-gradient(ellipse at 50% 40%, #1a1a2e 0%, #0a0a18 60%, #000 100%); }
+      #s4 .bg { background:
+        radial-gradient(ellipse at 50% 50%, #1c1c20 0%, #0a0a0c 70%, #000 100%); }
+      #s5 .bg { background:
+        radial-gradient(ellipse at 50% 50%, #2a0808 0%, #110404 60%, #000 100%); }
+      #s6 .bg { background:
+        radial-gradient(ellipse at 50% 50%, #0e1a26 0%, #060c14 60%, #000 100%); }
+      #s7 .bg { background:
+        radial-gradient(ellipse at 50% 55%, #2a0006 0%, #0a0002 50%, #000 100%); }
+      .scene::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,.65) 100%);
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      .character {
+        position: absolute;
+        bottom: 0;
+        height: 55%;
+        max-height: 580px;
+        object-fit: contain;
+        object-position: bottom;
+        filter: drop-shadow(0 24px 36px rgba(0,0,0,.6));
+        will-change: transform;
+        z-index: 15;
+      }
+      .character.right { right: 1%; }
+      .character.left  { left: 1%; }
+      .character.center { left: 50%; transform: translateX(-50%); }
+
+      .overlay-video {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        mix-blend-mode: screen;
+        pointer-events: none;
+        z-index: 50;
+      }
+
+      /* ========== Global FX overlays ========== */
+      #scanlines {
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(
+          to bottom,
+          rgba(255,255,255,.05) 0px,
+          rgba(255,255,255,.05) 1px,
+          transparent 1px,
+          transparent 4px
+        );
+        mix-blend-mode: overlay;
+        opacity: 0;
+        z-index: 45;
+        pointer-events: none;
+      }
+      #grain {
+        position: absolute;
+        inset: 0;
+        background-image:
+          url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='240' height='240' filter='url(%23n)' opacity='0.55'/></svg>");
+        background-size: 240px 240px;
+        mix-blend-mode: overlay;
+        opacity: 0;
+        z-index: 46;
+        pointer-events: none;
+      }
+      #glass-crack {
+        position: absolute;
+        inset: 0;
+        z-index: 47;
+        opacity: 0;
+        pointer-events: none;
+        mix-blend-mode: screen;
+      }
+      #red-flash {
+        position: absolute;
+        inset: 0;
+        background: #ff003c;
+        mix-blend-mode: screen;
+        opacity: 0;
+        z-index: 48;
+        pointer-events: none;
+      }
+      #white-flash {
+        position: absolute;
+        inset: 0;
+        background: #fff;
+        opacity: 0;
+        z-index: 49;
+        pointer-events: none;
+      }
+
+      .title-layer { z-index: 10; }
+
+      /* ============ SCENE 1: HOOK ============ */
+      #s1 .marvel-plate {
+        position: absolute;
+        top: 60px;
+        left: 60px;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        z-index: 11;
+        opacity: 0;
+        transform: rotate(-3deg);
+      }
+      #s1 .marvel-plate .marvel-img {
+        height: 78px;
+        filter: drop-shadow(0 6px 0 #000);
+      }
+      #s1 .marvel-plate .plus {
+        font-family: "Anton", sans-serif;
+        font-size: 50px;
+        color: #ffd166;
+      }
+      #s1 .marvel-plate .zio {
+        background: #fff;
+        color: #d11;
+        font-family: "Anton", sans-serif;
+        font-size: 56px;
+        padding: 6px 22px;
+        letter-spacing: 0.05em;
+        box-shadow: 0 6px 0 #000;
+      }
+      #s1 .date-stamp {
+        position: absolute;
+        top: 235px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #ffd166;
+        color: #1a0606;
+        font-family: "Anton", sans-serif;
+        font-size: 40px;
+        letter-spacing: 0.3em;
+        padding: 10px 28px;
+        box-shadow: 0 8px 0 #000;
+        opacity: 0;
+        z-index: 11;
+      }
+      /* "365 DAYS" mega title with shimmer sweep */
+      #s1 .mega-wrap {
+        position: absolute;
+        top: 53%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0);
+        z-index: 12;
+      }
+      #s1 .mega {
+        font-family: "Anton", sans-serif;
+        font-size: 320px;
+        line-height: 0.85;
+        letter-spacing: -0.02em;
+        color: #fff;
+        text-shadow: 0 10px 0 #000, 0 12px 30px rgba(0,0,0,.7);
+        white-space: nowrap;
+        position: relative;
+      }
+      #s1 .mega .num-yellow {
+        color: #ffd166;
+      }
+      #s1 .mega-sub {
+        text-align: center;
+        font-family: "Anton", sans-serif;
+        font-size: 44px;
+        letter-spacing: 0.3em;
+        color: #ffd166;
+        margin-top: 12px;
+        text-shadow: 0 4px 0 #000;
+      }
+      /* shimmer */
+      #s1 .mega::after {
+        content: "365 DAYS";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.95) 50%, transparent 70%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        transform: translateX(-130%);
+        will-change: transform;
+      }
+      .rgb-split {
+        text-shadow:
+          -5px 0 0 #ff003c,
+           5px 0 0 #00e5ff,
+           0 12px 0 #000 !important;
+      }
+
+      /* ============ SCENE 2: YT STUDIO DASHBOARD ============ */
+      #s2 .dashboard {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0.85);
+        width: 1500px;
+        height: 800px;
+        background: #0f0f0f;
+        border: 4px solid #2a2a2a;
+        border-radius: 14px;
+        box-shadow: 0 40px 80px rgba(0,0,0,.7);
+        opacity: 0;
+        overflow: hidden;
+        z-index: 10;
+        transform-origin: 50% 50%;
+      }
+      .yts-topbar {
+        height: 64px;
+        background: #181818;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 0 24px;
+        border-bottom: 1px solid #2a2a2a;
+      }
+      .yts-topbar .yt-logo { height: 36px; }
+      .yts-topbar .studio-brand {
+        font-family: "Roboto", sans-serif;
+        font-size: 20px;
+        color: #e8e8e8;
+      }
+      .yts-topbar .search {
+        flex: 1;
+        margin: 0 60px;
+        background: #121212;
+        border: 1px solid #303030;
+        border-radius: 6px;
+        height: 36px;
+        padding: 0 16px;
+        color: #888;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+      }
+      .yts-topbar .avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: #d11;
+        color: #fff;
+        text-align: center;
+        line-height: 36px;
+        font-family: "Anton", sans-serif;
+        font-size: 24px;
+      }
+      .yts-body { display: flex; height: calc(100% - 64px); }
+      .yts-sidebar {
+        width: 220px;
+        background: #0f0f0f;
+        border-right: 1px solid #2a2a2a;
+        padding: 16px 0;
+        font-family: "Roboto", sans-serif;
+        font-size: 14px;
+      }
+      .yts-sidebar .item {
+        padding: 12px 24px;
+        color: #ccc;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .yts-sidebar .item.active {
+        background: #2a2a2a;
+        color: #fff;
+        border-left: 3px solid #d11;
+      }
+      .yts-sidebar .item .icon { font-size: 16px; opacity: 0.8; }
+      .yts-main {
+        flex: 1;
+        padding: 32px;
+        overflow: hidden;
+        position: relative;
+      }
+      .yts-main h2 {
+        font-family: "Roboto", sans-serif;
+        font-weight: 500;
+        font-size: 26px;
+        margin-bottom: 22px;
+      }
+      .yts-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 22px;
+        height: calc(100% - 60px);
+      }
+      .yts-card {
+        background: #181818;
+        border-radius: 10px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      .yts-card .label {
+        font-family: "Roboto", sans-serif;
+        font-size: 14px;
+        color: #aaa;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+      .yts-card .big {
+        font-family: "Roboto", sans-serif;
+        font-weight: 700;
+        font-size: 64px;
+        line-height: 1;
+        color: #fff;
+      }
+      .yts-card .delta {
+        font-family: "Roboto", sans-serif;
+        font-size: 18px;
+        color: #4ade80;
+        margin-top: 6px;
+      }
+      .retention-chart { flex: 1; margin-top: 14px; position: relative; }
+      .retention-chart svg { width: 100%; height: 100%; display: block; }
+      .video-row {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        margin-top: 14px;
+      }
+      .video-thumb {
+        width: 200px;
+        height: 112px;
+        background: linear-gradient(135deg,#d11,#761b1b);
+        border-radius: 8px;
+        position: relative;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: "Anton", sans-serif;
+        font-size: 26px;
+        text-align: center;
+        line-height: 0.95;
+        color: #fff;
+        padding: 8px;
+      }
+      .video-thumb::after {
+        content: "0:42";
+        position: absolute;
+        right: 6px;
+        bottom: 6px;
+        background: rgba(0,0,0,.8);
+        color: #fff;
+        font-family: "Roboto", sans-serif;
+        font-size: 11px;
+        padding: 2px 6px;
+        border-radius: 3px;
+      }
+      .video-meta {
+        font-family: "Roboto", sans-serif;
+        font-size: 15px;
+        line-height: 1.4;
+      }
+      .video-meta .title { font-weight: 500; color: #fff; font-size: 18px; margin-bottom: 4px;}
+      .video-meta .stat { color: #aaa; }
+      .video-meta .stat .num { color: #fff; font-weight: 500; }
+      /* Email notification */
+      .email-notif {
+        position: absolute;
+        top: 90px;
+        right: 220px;
+        width: 460px;
+        background: #1f1f1f;
+        border: 2px solid #d11;
+        border-radius: 10px;
+        padding: 16px 18px;
+        box-shadow: 0 20px 40px rgba(0,0,0,.8);
+        opacity: 0;
+        transform: translateX(40px) scale(0.9);
+        z-index: 13;
+        font-family: "Roboto", sans-serif;
+      }
+      .email-notif .head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 12px;
+        color: #ff7070;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+      .email-notif .head .dot {
+        width: 8px; height: 8px; border-radius: 50%; background: #d11;
+      }
+      .email-notif .from {
+        font-weight: 700;
+        font-size: 17px;
+        color: #fff;
+      }
+      .email-notif .subj {
+        font-size: 14px;
+        color: #ccc;
+        margin-top: 4px;
+      }
+      .email-notif .body {
+        font-size: 12px;
+        color: #888;
+        margin-top: 8px;
+        line-height: 1.4;
+      }
+      /* The DEMONETIZED slam */
+      #s2 .demonetized {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-8deg) scale(2.4);
+        font-family: "Anton", sans-serif;
+        font-size: 160px;
+        line-height: 0.9;
+        text-align: center;
+        color: #fff;
+        background: #d11;
+        padding: 22px 60px;
+        border: 12px solid #fff;
+        letter-spacing: 0.04em;
+        opacity: 0;
+        box-shadow: 0 30px 80px rgba(0,0,0,.7);
+        z-index: 14;
+        white-space: nowrap;
+      }
+      #s2 .copyright-banner {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, calc(-50% + 110px)) rotate(-8deg);
+        font-family: "Anton", sans-serif;
+        font-size: 50px;
+        color: #fff;
+        text-shadow: 0 6px 0 #000;
+        opacity: 0;
+        z-index: 14;
+        white-space: nowrap;
+        letter-spacing: 0.06em;
+      }
+
+      /* ============ SCENE 3: 4 STEPS ============ */
+      #s3 .steps-mega {
+        position: absolute;
+        top: 42%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0);
+        font-family: "Anton", sans-serif;
+        font-size: 380px;
+        line-height: 0.85;
+        letter-spacing: -0.02em;
+        color: #fff;
+        text-shadow: 0 12px 0 #000, 0 16px 40px rgba(0,0,0,.7);
+        white-space: nowrap;
+        z-index: 11;
+      }
+      #s3 .steps-mega .num-yellow {
+        color: #ffd166;
+        margin-right: 0.18em;
+      }
+      #s3 .steps-sub {
+        position: absolute;
+        top: 70%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-family: "Anton", sans-serif;
+        font-size: 52px;
+        letter-spacing: 0.34em;
+        color: #ffd166;
+        text-transform: uppercase;
+        opacity: 0;
+        white-space: nowrap;
+        z-index: 11;
+      }
+      #s3 .scribble-line {
+        position: absolute;
+        top: 60%;
+        left: 50%;
+        width: 0;
+        height: 20px;
+        background: #ffd166;
+        transform: translate(-50%, -50%) rotate(-1.5deg);
+        border-radius: 4px;
+        z-index: 11;
+      }
+
+      /* ============ SCENE 4: CHANNEL PAGE MOCK ============ */
+      #s4 .step-pill, #s5 .step-pill, #s6 .step-pill, #s7 .step-pill {
+        position: absolute;
+        top: 60px;
+        left: 60px;
+        background: #d11;
+        color: #fff;
+        font-family: "Anton", sans-serif;
+        font-size: 44px;
+        letter-spacing: 0.2em;
+        padding: 10px 28px;
+        border: 5px solid #fff;
+        box-shadow: 0 8px 0 #000;
+        z-index: 12;
+        transform: rotate(-2deg);
+      }
+      #s4 .channel-mock {
+        position: absolute;
+        top: 170px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 1500px;
+        height: 800px;
+        background: #0f0f0f;
+        border: 4px solid #2a2a2a;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 30px 60px rgba(0,0,0,.7);
+        opacity: 0;
+        z-index: 10;
+      }
+      #s4 .channel-banner {
+        height: 280px;
+        background:
+          radial-gradient(circle at 30% 50%, #ff4040, transparent 50%),
+          radial-gradient(circle at 70% 50%, #ffd166 0%, transparent 40%),
+          linear-gradient(135deg, #5a0000, #2a0000);
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: "Anton", sans-serif;
+        font-size: 80px;
+        color: #fff;
+        letter-spacing: 0.1em;
+        text-shadow: 0 8px 0 #000;
+        opacity: 0;
+      }
+      #s4 .channel-banner::before {
+        content: "MARVEL FACTS · DAILY";
+      }
+      #s4 .channel-header {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        padding: 30px 40px;
+        position: relative;
+      }
+      #s4 .channel-avatar {
+        width: 130px;
+        height: 130px;
+        border-radius: 50%;
+        background: #d11;
+        color: #fff;
+        font-family: "Anton", sans-serif;
+        font-size: 100px;
+        line-height: 130px;
+        text-align: center;
+        border: 4px solid #fff;
+        margin-top: -90px;
+        z-index: 2;
+        box-shadow: 0 10px 0 #000;
+        opacity: 0;
+      }
+      #s4 .channel-info {
+        flex: 1;
+        opacity: 0;
+      }
+      #s4 .channel-info .name {
+        font-family: "Anton", sans-serif;
+        font-size: 50px;
+        letter-spacing: 0.02em;
+        color: #fff;
+      }
+      #s4 .channel-info .handle {
+        font-family: "Roboto", sans-serif;
+        font-size: 18px;
+        color: #aaa;
+        margin-top: 4px;
+      }
+      #s4 .channel-info .stats {
+        font-family: "Roboto", sans-serif;
+        font-size: 16px;
+        color: #888;
+        margin-top: 8px;
+      }
+      #s4 .subscribe-btn {
+        background: #d11;
+        color: #fff;
+        font-family: "Roboto", sans-serif;
+        font-weight: 700;
+        font-size: 20px;
+        padding: 14px 28px;
+        border-radius: 6px;
+        letter-spacing: 0.05em;
+        opacity: 0;
+      }
+      #s4 .channel-videos {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        padding: 12px 40px 40px;
+        opacity: 0;
+      }
+      #s4 .vid-card {
+        background: #181818;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      #s4 .vid-card .thumb {
+        height: 110px;
+        background: linear-gradient(135deg, #d11, #500);
+        font-family: "Anton", sans-serif;
+        font-size: 22px;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        line-height: 0.95;
+        padding: 6px;
+      }
+      #s4 .vid-card .title {
+        font-family: "Roboto", sans-serif;
+        font-size: 13px;
+        color: #ddd;
+        padding: 8px 10px;
+        line-height: 1.3;
+      }
+      #s4 .vid-card .views {
+        font-family: "Roboto", sans-serif;
+        font-size: 11px;
+        color: #888;
+        padding: 0 10px 8px;
+      }
+      /* Callout overlay (SVG lines + labels) */
+      #s4 .callouts {
+        position: absolute;
+        inset: 0;
+        z-index: 13;
+        pointer-events: none;
+      }
+      #s4 .callout-label {
+        position: absolute;
+        background: #ffd166;
+        color: #1a0606;
+        font-family: "Anton", sans-serif;
+        font-size: 32px;
+        letter-spacing: 0.15em;
+        padding: 8px 18px;
+        opacity: 0;
+        box-shadow: 0 6px 0 #000;
+        white-space: nowrap;
+      }
+      #s4 #co-logo   { top: 360px; left: 30px; transform: rotate(-3deg); }
+      #s4 #co-banner { top: 170px; right: 60px; transform: rotate(3deg); }
+      #s4 #co-fonts  { top: 460px; right: 40px; transform: rotate(-2deg); }
+      #s4 .callout-lines {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 12;
+        pointer-events: none;
+      }
+      #s4 .callout-lines polyline {
+        fill: none;
+        stroke: #ffd166;
+        stroke-width: 4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-dasharray: 600;
+        stroke-dashoffset: 600;
+        filter: drop-shadow(0 3px 0 #000);
+      }
+      #s4 .callout-lines circle {
+        fill: #ffd166;
+        stroke: #000;
+        stroke-width: 2;
+      }
+
+      /* ============ SCENE 5: NICHE STRIKE CASCADE ============ */
+      #s5 .niche-list {
+        position: absolute;
+        top: 55%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        font-family: "Anton", sans-serif;
+        font-size: 68px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        z-index: 11;
+        text-align: center;
+      }
+      #s5 .niche-list .row {
+        position: relative;
+        padding: 4px 24px;
+        opacity: 0;
+        color: #fff;
+        text-shadow: 0 6px 0 #000;
+      }
+      #s5 .niche-list .row .x-strike {
+        position: absolute;
+        left: 0; right: 0;
+        top: 50%;
+        height: 12px;
+        background: #d11;
+        transform: scaleX(0);
+        transform-origin: left center;
+        margin-top: -6px;
+      }
+      #s5 .niche-list .winner {
+        background: #ffd166;
+        color: #1a0606;
+        text-shadow: none;
+        box-shadow: 0 8px 0 #000;
+        padding: 10px 28px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        justify-content: center;
+      }
+      #s5 .niche-list .winner .check {
+        font-family: "Anton", sans-serif;
+        color: #2e7d32;
+        font-size: 70px;
+      }
+      #s5 .step-label-top {
+        position: absolute;
+        top: 170px;
+        left: 50%;
+        transform: translate(-50%, 0);
+        font-family: "Anton", sans-serif;
+        font-size: 76px;
+        letter-spacing: 0.1em;
+        color: #fff;
+        text-shadow: 0 6px 0 #000;
+        z-index: 11;
+        opacity: 0;
+        white-space: nowrap;
+      }
+
+      /* ============ SCENE 6: WINNERS GRID + CURSOR ============ */
+      #s6 .step-label-top {
+        position: absolute;
+        top: 170px;
+        left: 50%;
+        transform: translate(-50%, 0);
+        font-family: "Anton", sans-serif;
+        font-size: 76px;
+        letter-spacing: 0.1em;
+        color: #fff;
+        text-shadow: 0 6px 0 #000;
+        z-index: 11;
+        opacity: 0;
+        white-space: nowrap;
+      }
+      #s6 .thumbs {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 22px;
+        width: 1620px;
+        z-index: 11;
+      }
+      #s6 .thumb {
+        height: 220px;
+        background: linear-gradient(135deg, #2a0606 0%, #d11 100%);
+        border: 4px solid #fff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-family: "Anton", sans-serif;
+        font-size: 30px;
+        line-height: 1;
+        text-align: center;
+        color: #fff;
+        opacity: 0;
+        transform: scale(0.7);
+        box-shadow: 0 6px 0 #000;
+        position: relative;
+        padding: 10px;
+        text-shadow: 0 3px 0 #000;
+        gap: 8px;
+        overflow: hidden;
+      }
+      /* themed thumb backgrounds */
+      #s6 #s6-t0 { background:
+        radial-gradient(circle at 30% 30%, #ff5555, transparent 60%),
+        linear-gradient(135deg, #3a0606, #b51010); }
+      #s6 #s6-t1 { background:
+        radial-gradient(circle at 30% 30%, #4d8eff, transparent 60%),
+        linear-gradient(135deg, #0a1e3a, #2563eb); }
+      #s6 #s6-t2 { background:
+        radial-gradient(circle at 30% 30%, #ff3333, transparent 60%),
+        linear-gradient(135deg, #1a0a2e, #c11020); }
+      #s6 #s6-t3 { background:
+        radial-gradient(circle at 30% 30%, #b566ff, transparent 60%),
+        linear-gradient(135deg, #2a0a4d, #6d28d9); }
+      #s6 #s6-t4 { background:
+        radial-gradient(circle at 30% 30%, #4ade80, transparent 60%),
+        linear-gradient(135deg, #052e16, #15803d); }
+      /* Character icon (top) */
+      #s6 .thumb .char-icon {
+        width: 80px;
+        height: 80px;
+        color: #fff;
+        filter: drop-shadow(0 3px 0 #000);
+        flex-shrink: 0;
+      }
+      /* Marvel watermark badge (bottom-left of each thumb) */
+      #s6 .thumb .marvel-wm {
+        position: absolute;
+        bottom: 6px;
+        left: 6px;
+        height: 18px;
+        opacity: 0.92;
+        filter: drop-shadow(0 1px 0 #000);
+      }
+      /* Subtle background scanline pattern on every thumb */
+      #s6 .thumb::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(
+          to bottom,
+          rgba(255,255,255,0.03) 0,
+          rgba(255,255,255,0.03) 1px,
+          transparent 1px,
+          transparent 4px
+        );
+        pointer-events: none;
+      }
+      #s6 .thumb .views {
+        position: absolute;
+        bottom: -38px;
+        left: 0; right: 0;
+        text-align: center;
+        font-family: "Roboto", sans-serif;
+        font-weight: 700;
+        font-size: 22px;
+        color: #fff;
+        text-shadow: 0 2px 0 #000;
+      }
+      #s6 .thumb .duration {
+        position: absolute;
+        right: 6px;
+        bottom: 6px;
+        background: rgba(0,0,0,.85);
+        font-family: "Roboto", sans-serif;
+        font-size: 14px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        color: #fff;
+        text-shadow: none;
+      }
+      #s6 .cursor {
+        position: absolute;
+        top: 50%; left: 50%;
+        width: 72px;
+        height: 72px;
+        z-index: 16;
+        opacity: 0;
+        filter: drop-shadow(0 6px 12px rgba(0,0,0,.9));
+        pointer-events: none;
+      }
+      #s6 .formula-callout {
+        position: absolute;
+        bottom: 60px;
+        left: 50%;
+        transform: translate(-50%, 40px);
+        display: flex;
+        gap: 18px;
+        z-index: 13;
+        opacity: 0;
+      }
+      #s6 .formula-callout .chip {
+        background: #ffd166;
+        color: #1a0606;
+        font-family: "Anton", sans-serif;
+        font-size: 40px;
+        letter-spacing: 0.12em;
+        padding: 14px 26px;
+        box-shadow: 0 6px 0 #000;
+      }
+      #s6 .formula-title {
+        position: absolute;
+        bottom: 140px;
+        left: 50%;
+        transform: translate(-50%, 0);
+        font-family: "Anton", sans-serif;
+        font-size: 38px;
+        letter-spacing: 0.3em;
+        color: #ffd166;
+        text-shadow: 0 4px 0 #000;
+        opacity: 0;
+        z-index: 13;
+      }
+
+      /* ============ SCENE 7: IT GETS DARK ============ */
+      #s7 .step-label-big {
+        position: absolute;
+        top: 32%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-family: "Anton", sans-serif;
+        font-size: 200px;
+        line-height: 0.9;
+        letter-spacing: 0.02em;
+        color: #fff;
+        text-shadow: 0 14px 0 #000, 0 0 80px rgba(255,0,60,.5);
+        text-align: center;
+        z-index: 11;
+        opacity: 0;
+      }
+      #s7 .step-label-big .red {
+        color: #ff003c;
+        text-shadow:
+          -4px 0 0 #ff003c,
+           4px 0 0 #00e5ff,
+           0 14px 0 #000,
+           0 0 80px rgba(255,0,60,.5);
+      }
+      #s7 .strikes {
+        position: absolute;
+        bottom: 220px;
+        left: 0; right: 0;
+        display: flex;
+        justify-content: center;
+        gap: 32px;
+        z-index: 18;
+      }
+      #s7 .strike-stamp {
+        font-family: "Anton", sans-serif;
+        font-size: 70px;
+        letter-spacing: 0.06em;
+        color: #fff;
+        background: #d11;
+        border: 6px solid #fff;
+        padding: 12px 24px;
+        box-shadow: 0 8px 0 #000;
+        opacity: 0;
+        transform: rotate(-12deg) scale(1.4);
+        margin-top: 0;
+      }
+      #s7 .strike-stamp:nth-child(2) { transform: rotate(7deg) scale(1.4); margin-top: 20px; }
+      #s7 .strike-stamp:nth-child(3) { transform: rotate(-5deg) scale(1.4); margin-top: -15px; }
+      #s7 .cta {
+        position: absolute;
+        bottom: 90px;
+        left: 50%;
+        transform: translate(-50%, 80px);
+        background: #d11;
+        color: #fff;
+        font-family: "Anton", sans-serif;
+        font-size: 64px;
+        letter-spacing: 0.18em;
+        padding: 22px 50px;
+        border: 6px solid #fff;
+        box-shadow: 0 12px 0 #000;
+        opacity: 0;
+        text-transform: uppercase;
+        z-index: 18;
+      }
+
+      #blackout {
+        position: absolute;
+        inset: 0;
+        background: #000;
+        opacity: 0;
+        z-index: 99;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="30"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div id="stage">
+        <!-- ============ S1 (0–3s) HOOK ============ -->
+        <div id="s1" class="scene">
+          <div class="bg"></div>
+          <div class="marvel-plate" id="s1-marvel">
+            <img class="marvel-img" src="assets/isaac-pack/Web/marvel.svg" alt="Marvel" />
+            <span class="plus">+</span>
+            <div class="zio">ZIO</div>
+          </div>
+          <div class="date-stamp" id="s1-date">BEFORE I WAS DEMONETIZED →</div>
+          <div class="mega-wrap" id="s1-mega-wrap">
+            <div class="mega" id="s1-mega"><span class="num-yellow">365</span> DAYS</div>
+            <div class="mega-sub" id="s1-mega-sub">FACELESS MARVEL CHANNEL</div>
+          </div>
+          <img class="character right" id="s1-char" src="assets/isaac-pack/Characters/isaac-1.png" alt="" />
+        </div>
+
+        <!-- ============ S2 (3–7s) YT STUDIO ============ -->
+        <div id="s2" class="scene">
+          <div class="bg"></div>
+          <div class="dashboard" id="s2-dashboard">
+            <div class="yts-topbar">
+              <img class="yt-logo" src="assets/isaac-pack/Web/youtube.svg" alt="YouTube" />
+              <span class="studio-brand">Studio</span>
+              <div class="search">Search across your channel</div>
+              <div class="avatar">Z</div>
+            </div>
+            <div class="yts-body">
+              <div class="yts-sidebar">
+                <div class="item"><span class="icon">▦</span>Dashboard</div>
+                <div class="item"><span class="icon">▶</span>Content</div>
+                <div class="item active"><span class="icon">📈</span>Analytics</div>
+                <div class="item"><span class="icon">$</span>Monetization</div>
+                <div class="item"><span class="icon">⚙</span>Settings</div>
+              </div>
+              <div class="yts-main">
+                <h2>Channel analytics · Last 28 days</h2>
+                <div class="yts-row">
+                  <div class="yts-card" id="s2-card-views">
+                    <div class="label">Views</div>
+                    <div class="big" id="s2-views">4.2M</div>
+                    <div class="delta">▲ +312%</div>
+                    <div class="retention-chart">
+                      <svg viewBox="0 0 600 200" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id="gradFill" x1="0" x2="0" y1="0" y2="1">
+                            <stop offset="0%" stop-color="#d11" stop-opacity="0.6"/>
+                            <stop offset="100%" stop-color="#d11" stop-opacity="0"/>
+                          </linearGradient>
+                        </defs>
+                        <path id="s2-curve-fill"
+                          d="M 0 180 L 100 175 L 200 160 L 300 110 L 400 60 L 500 35 L 600 18 L 600 200 L 0 200 Z"
+                          fill="url(#gradFill)" stroke="none" opacity="0"/>
+                        <path id="s2-curve"
+                          d="M 0 180 L 100 175 L 200 160 L 300 110 L 400 60 L 500 35 L 600 18"
+                          fill="none" stroke="#ff4d4d" stroke-width="3" stroke-linecap="round"
+                          stroke-dasharray="900" stroke-dashoffset="900"/>
+                      </svg>
+                    </div>
+                  </div>
+                  <div class="yts-card" id="s2-card-rev">
+                    <div class="label">Top Performing Short</div>
+                    <div class="video-row">
+                      <div class="video-thumb">DID YOU KNOW<br/>SPIDER-VERSE?</div>
+                      <div class="video-meta">
+                        <div class="title">DID YOU KNOW THIS ABOUT SPIDER-VERSE?</div>
+                        <div class="stat"><span class="num">3.8M</span> views · 12% rev share</div>
+                        <div class="stat" style="margin-top:8px"><span class="num">96.2%</span> avg view duration</div>
+                      </div>
+                    </div>
+                    <div style="margin-top:18px">
+                      <div class="label" style="font-size:13px">Est. revenue</div>
+                      <div class="big" style="font-size:48px; color:#4ade80; margin-top:6px;" id="s2-rev">$156</div>
+                      <div class="delta">▲ +740% vs prior 28d</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="email-notif" id="s2-email">
+                  <div class="head"><div class="dot"></div>COPYRIGHT NOTICE</div>
+                  <div class="from">Sony Pictures Entertainment</div>
+                  <div class="subj">Re: 3 video takedowns — fair use violation</div>
+                  <div class="body">Your videos referencing Spider-Verse (2018) have been removed. A copyright strike has been issued on your channel.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <img class="character left" id="s2-char" style="height: 52%;" src="assets/isaac-pack/Characters/isaac-3.png" alt="" />
+          <div class="copyright-banner" id="s2-cr">3 VIDEOS REMOVED · SONY ENTERTAINMENT</div>
+          <div class="demonetized" id="s2-demo">DEMONETIZED</div>
+        </div>
+
+        <!-- ============ S3 (7–11s) 4 STEPS ============ -->
+        <div id="s3" class="scene">
+          <div class="bg"></div>
+          <div class="steps-mega" id="s3-steps"><span class="num-yellow">4</span>STEPS</div>
+          <div class="scribble-line" id="s3-line"></div>
+          <div class="steps-sub" id="s3-sub">THE EXACT VIRAL METHOD</div>
+          <img class="character left" id="s3-char" style="height: 60%;" src="assets/isaac-pack/Characters/isaac-4.png" alt="" />
+        </div>
+
+        <!-- ============ S4 (11–15s) CHANNEL PAGE MOCK ============ -->
+        <div id="s4" class="scene">
+          <div class="bg"></div>
+          <div class="step-pill" id="s4-pill">STEP 01 — BRAND</div>
+          <div class="channel-mock" id="s4-mock">
+            <div class="channel-banner" id="s4-banner"></div>
+            <div class="channel-header">
+              <div class="channel-avatar" id="s4-avatar">Z</div>
+              <div class="channel-info" id="s4-info">
+                <div class="name">ZIO</div>
+                <div class="handle">@ziomarvel · 245K subscribers · 412 videos</div>
+                <div class="stats">Daily Marvel facts & deep-dives</div>
+              </div>
+              <div class="subscribe-btn" id="s4-sub-btn">SUBSCRIBED</div>
+            </div>
+            <div class="channel-videos" id="s4-videos">
+              <div class="vid-card"><div class="thumb">SPIDEY<br/>SECRET</div><div class="title">Did you know this Spider-Verse fact?</div><div class="views">3.8M views</div></div>
+              <div class="vid-card"><div class="thumb">THOR<br/>LOVE</div><div class="title">Thor's hammer secret revealed</div><div class="views">1.1M views</div></div>
+              <div class="vid-card"><div class="thumb">ENDGAME<br/>FACT</div><div class="title">Endgame post-credit explained</div><div class="views">5.0M views</div></div>
+              <div class="vid-card"><div class="thumb">LOKI<br/>TRUTH</div><div class="title">Loki's hidden timeline twist</div><div class="views">912K views</div></div>
+            </div>
+          </div>
+          <div class="callouts">
+            <svg class="callout-lines" viewBox="0 0 1920 1080" preserveAspectRatio="none">
+              <!-- LOGO: from label (180, 390) to avatar center (315, 425) -->
+              <polyline id="co-line-logo" points="200,395 260,395 310,425"/>
+              <circle cx="315" cy="425" r="6" opacity="0"/>
+              <!-- BANNER: from label (1750, 200) to banner center (1500, 310) -->
+              <polyline id="co-line-banner" points="1730,210 1620,250 1500,310"/>
+              <circle cx="1500" cy="310" r="6" opacity="0"/>
+              <!-- FONTS: from label (1750, 490) to channel name (~600, 460) -->
+              <polyline id="co-line-fonts" points="1690,485 1100,475 620,470"/>
+              <circle cx="620" cy="470" r="6" opacity="0"/>
+            </svg>
+            <div class="callout-label" id="co-logo">LOGO ▶</div>
+            <div class="callout-label" id="co-banner">◀ BANNER</div>
+            <div class="callout-label" id="co-fonts">◀ FONTS</div>
+          </div>
+        </div>
+
+        <!-- ============ S5 (15–19s) NICHE CASCADE ============ -->
+        <div id="s5" class="scene">
+          <div class="bg"></div>
+          <div class="step-pill" id="s5-pill">STEP 02 — NICHE</div>
+          <div class="step-label-top" id="s5-label">PICK A NICHE</div>
+          <div class="niche-list" id="s5-list">
+            <div class="row" id="s5-r1">FITNESS<span class="x-strike"></span></div>
+            <div class="row" id="s5-r2">FINANCE<span class="x-strike"></span></div>
+            <div class="row" id="s5-r3">TRAVEL<span class="x-strike"></span></div>
+            <div class="row" id="s5-r4">GAMING<span class="x-strike"></span></div>
+            <div class="row winner" id="s5-winner"><span class="check">✓</span>MARVEL FACTS</div>
+          </div>
+          <img class="character left" id="s5-char" style="height: 55%;" src="assets/isaac-pack/Characters/isaac-7.png" alt="" />
+        </div>
+
+        <!-- ============ S6 (19–23s) WINNERS SCAN ============ -->
+        <div id="s6" class="scene">
+          <div class="bg"></div>
+          <div class="step-pill" id="s6-pill">STEP 03 — STUDY WINNERS</div>
+          <div class="step-label-top" id="s6-label">STUDY WHAT WORKS</div>
+          <div class="thumbs" id="s6-thumbs">
+            <!-- DID YOU KNOW — shield with ? -->
+            <div class="thumb" id="s6-t0">
+              <svg class="char-icon" viewBox="0 0 100 100" fill="currentColor">
+                <path d="M50 8 Q22 12 22 32 Q22 72 50 96 Q78 72 78 32 Q78 12 50 8 Z" stroke="#fff" stroke-width="2"/>
+                <text x="50" y="68" text-anchor="middle" font-family="Anton, sans-serif" font-size="58" fill="#1a0606" font-weight="900">?</text>
+              </svg>
+              <div>DID YOU<br/>KNOW?</div>
+              <img class="marvel-wm" src="assets/isaac-pack/Web/marvel.svg" alt="" />
+              <div class="duration">0:38</div>
+              <div class="views">2.4M</div>
+            </div>
+            <!-- THOR — Mjolnir hammer -->
+            <div class="thumb" id="s6-t1">
+              <svg class="char-icon" viewBox="0 0 100 100" fill="currentColor">
+                <rect x="15" y="22" width="70" height="32" rx="3" stroke="#fff" stroke-width="2"/>
+                <rect x="44" y="54" width="12" height="38" rx="2" stroke="#fff" stroke-width="2"/>
+                <rect x="34" y="90" width="32" height="6" rx="1" stroke="#fff" stroke-width="2"/>
+                <line x1="20" y1="30" x2="20" y2="46" stroke="#fff" stroke-width="2"/>
+                <line x1="80" y1="30" x2="80" y2="46" stroke="#fff" stroke-width="2"/>
+              </svg>
+              <div>THOR<br/>FACTS</div>
+              <img class="marvel-wm" src="assets/isaac-pack/Web/marvel.svg" alt="" />
+              <div class="duration">0:42</div>
+              <div class="views">1.1M</div>
+            </div>
+            <!-- SPIDEY — spider -->
+            <div class="thumb" id="s6-t2">
+              <svg class="char-icon" viewBox="0 0 100 100" fill="currentColor">
+                <ellipse cx="50" cy="58" rx="20" ry="22" stroke="#fff" stroke-width="2"/>
+                <circle cx="50" cy="32" r="11" stroke="#fff" stroke-width="2"/>
+                <path d="M32 50 L10 32 M32 60 L8 60 M32 72 L10 86 M32 76 L18 96 M68 50 L90 32 M68 60 L92 60 M68 72 L90 86 M68 76 L82 96"
+                  stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/>
+                <circle cx="46" cy="30" r="2.5" fill="#fff"/>
+                <circle cx="54" cy="30" r="2.5" fill="#fff"/>
+              </svg>
+              <div>SPIDEY<br/>SECRET</div>
+              <img class="marvel-wm" src="assets/isaac-pack/Web/marvel.svg" alt="" />
+              <div class="duration">0:35</div>
+              <div class="views">3.8M</div>
+            </div>
+            <!-- ENDGAME — Avengers A in circle -->
+            <div class="thumb" id="s6-t3">
+              <svg class="char-icon" viewBox="0 0 100 100" fill="none">
+                <circle cx="50" cy="50" r="42" stroke="currentColor" stroke-width="5"/>
+                <path d="M27 82 L50 18 L73 82 M37 65 L63 65" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M50 18 L73 82" stroke="#fff" stroke-width="2"/>
+              </svg>
+              <div>END<br/>GAME</div>
+              <img class="marvel-wm" src="assets/isaac-pack/Web/marvel.svg" alt="" />
+              <div class="duration">0:48</div>
+              <div class="views">5.0M</div>
+            </div>
+            <!-- LOKI — horned helmet -->
+            <div class="thumb" id="s6-t4">
+              <svg class="char-icon" viewBox="0 0 100 100" fill="currentColor">
+                <path d="M28 75 Q28 42 50 38 Q72 42 72 75 Z" stroke="#fff" stroke-width="2"/>
+                <path d="M28 58 Q12 30 22 12 Q30 35 30 58 Z" stroke="#fff" stroke-width="2"/>
+                <path d="M72 58 Q88 30 78 12 Q70 35 70 58 Z" stroke="#fff" stroke-width="2"/>
+                <rect x="35" y="62" width="30" height="6" rx="2" fill="#fff"/>
+              </svg>
+              <div>LOKI<br/>TRUTH</div>
+              <img class="marvel-wm" src="assets/isaac-pack/Web/marvel.svg" alt="" />
+              <div class="duration">0:30</div>
+              <div class="views">912K</div>
+            </div>
+          </div>
+          <svg class="cursor" id="s6-cursor" viewBox="0 0 24 24">
+            <path d="M3 2 L3 22 L8 17 L11 22 L14 21 L11 16 L18 16 Z"
+                  fill="#fff" stroke="#000" stroke-width="3" stroke-linejoin="round"
+                  paint-order="stroke fill"/>
+          </svg>
+          <div class="formula-title" id="s6-formula-title">THE FORMULA</div>
+          <div class="formula-callout" id="s6-formula">
+            <div class="chip">0:35 SHORT</div>
+            <div class="chip">HOOK &lt; 1s</div>
+            <div class="chip">"DID YOU KNOW"</div>
+          </div>
+        </div>
+
+        <!-- ============ S7 (23–29s) IT GETS DARK ============ -->
+        <div id="s7" class="scene">
+          <div class="bg"></div>
+          <div class="step-pill" id="s7-pill" style="background:#000">STEP 04 — IT GETS DARK</div>
+          <div class="step-label-big" id="s7-label">IT GETS<br/><span class="red">DARK</span></div>
+          <img class="character center" id="s7-char" style="height: 75%;" src="assets/isaac-pack/Characters/Isaac8.png" alt="" />
+          <div class="strikes">
+            <div class="strike-stamp" id="s7-strike1">STRIKE 1</div>
+            <div class="strike-stamp" id="s7-strike2">STRIKE 2</div>
+            <div class="strike-stamp" id="s7-strike3">STRIKE 3</div>
+          </div>
+          <div class="cta" id="s7-cta">WATCH PART 2 →</div>
+        </div>
+
+        <!-- Global FX layers -->
+        <div id="scanlines"></div>
+        <div id="grain"></div>
+        <div id="red-flash"></div>
+        <div id="white-flash"></div>
+        <svg id="glass-crack" viewBox="0 0 1920 1080" preserveAspectRatio="none">
+          <g fill="none" stroke="white" stroke-width="3" stroke-linecap="round">
+            <path d="M 960 540 L 200 100 M 960 540 L 1700 80 M 960 540 L 1850 600 M 960 540 L 1500 1000 M 960 540 L 600 1050 M 960 540 L 80 700 M 960 540 L 100 400"/>
+            <path d="M 960 540 L 500 300 M 500 300 L 200 320 M 500 300 L 420 100" stroke-width="2"/>
+            <path d="M 960 540 L 1380 320 M 1380 320 L 1700 280 M 1380 320 L 1420 80" stroke-width="2"/>
+            <path d="M 960 540 L 1300 800 M 1300 800 L 1500 950 M 1300 800 L 1700 720" stroke-width="2"/>
+            <path d="M 960 540 L 600 800 M 600 800 L 400 950 M 600 800 L 280 720" stroke-width="2"/>
+            <circle cx="960" cy="540" r="80" stroke-width="3" fill="none"/>
+            <circle cx="960" cy="540" r="40" stroke-width="2" fill="none"/>
+          </g>
+        </svg>
+
+        <div id="blackout"></div>
+      </div>
+
+      <!-- All catalog sub-comp mounts removed (they have showcase docs/text baked in).
+           All overlay videos removed (they have "GLASS BREAKING" / "NEON EFFECT" labels
+           baked into the source video files). Pure inline FX from here on. -->
+
+      <!-- SFX -->
+      <audio id="sfx-dist-in"     class="clip" data-start="0"    data-duration="2"   data-track-index="10" data-volume="0.9"
+             src="assets/isaac-pack/SFX/distortion.mp3"></audio>
+      <audio id="sfx-shut-in"     class="clip" data-start="0.05" data-duration="2"   data-track-index="11" data-volume="0.8"
+             src="assets/isaac-pack/SFX/camera-shutter-314056.mp3"></audio>
+      <audio id="sfx-swoosh-s2"   class="clip" data-start="3"    data-duration="2"   data-track-index="10" data-volume="0.9"
+             src="assets/isaac-pack/SFX/swoosh-2-359826.mp3"></audio>
+      <audio id="sfx-mouse-dash"  class="clip" data-start="3.4"  data-duration="0.6" data-track-index="12" data-volume="0.7"
+             src="assets/isaac-pack/SFX/mouse-click-290204.mp3"></audio>
+      <audio id="sfx-mouse-dash2" class="clip" data-start="4.4"  data-duration="0.6" data-track-index="12" data-volume="0.7"
+             src="assets/isaac-pack/SFX/click-tap-computer-mouse-352734.mp3"></audio>
+      <audio id="sfx-dist-strike" class="clip" data-start="5.9"  data-duration="2"   data-track-index="11" data-volume="1.0"
+             src="assets/isaac-pack/SFX/distortion.mp3"></audio>
+      <audio id="sfx-riser-s3"    class="clip" data-start="7"    data-duration="4"   data-track-index="10" data-volume="0.7"
+             src="assets/isaac-pack/SFX/riser-build.mp3"></audio>
+      <audio id="sfx-whip-s4"     class="clip" data-start="10.8" data-duration="0.6" data-track-index="14" data-volume="0.9"
+             src="assets/isaac-pack/SFX/swoosh-2-359826.mp3"></audio>
+      <audio id="sfx-shut-s4-a"   class="clip" data-start="12"   data-duration="0.7" data-track-index="11" data-volume="0.9"
+             src="assets/isaac-pack/SFX/camera-shutter-6305.mp3"></audio>
+      <audio id="sfx-shut-s4-b"   class="clip" data-start="12.8" data-duration="0.7" data-track-index="11" data-volume="0.8"
+             src="assets/isaac-pack/SFX/camera-shutter-6305.mp3"></audio>
+      <audio id="sfx-shut-s4-c"   class="clip" data-start="13.6" data-duration="0.7" data-track-index="11" data-volume="0.8"
+             src="assets/isaac-pack/SFX/camera-shutter-6305.mp3"></audio>
+      <audio id="sfx-whip-s5"     class="clip" data-start="14.8" data-duration="0.6" data-track-index="14" data-volume="0.9"
+             src="assets/isaac-pack/SFX/swoosh-5-359829.mp3"></audio>
+      <audio id="sfx-click-x1"    class="clip" data-start="15.9" data-duration="0.4" data-track-index="11" data-volume="0.85"
+             src="assets/isaac-pack/SFX/click-234708.mp3"></audio>
+      <audio id="sfx-click-x2"    class="clip" data-start="16.4" data-duration="0.4" data-track-index="11" data-volume="0.85"
+             src="assets/isaac-pack/SFX/click-234708.mp3"></audio>
+      <audio id="sfx-click-x3"    class="clip" data-start="16.9" data-duration="0.4" data-track-index="11" data-volume="0.85"
+             src="assets/isaac-pack/SFX/click-234708.mp3"></audio>
+      <audio id="sfx-click-x4"    class="clip" data-start="17.4" data-duration="0.4" data-track-index="11" data-volume="0.85"
+             src="assets/isaac-pack/SFX/click-234708.mp3"></audio>
+      <audio id="sfx-gear-winner" class="clip" data-start="18.1" data-duration="0.8" data-track-index="12" data-volume="0.9"
+             src="assets/isaac-pack/SFX/gear-click-351962.mp3"></audio>
+      <audio id="sfx-whip-s6"     class="clip" data-start="18.8" data-duration="0.6" data-track-index="14" data-volume="0.9"
+             src="assets/isaac-pack/SFX/swoosh-2-359826.mp3"></audio>
+      <audio id="sfx-mouse-s6-a"  class="clip" data-start="20.0" data-duration="0.4" data-track-index="11" data-volume="0.6"
+             src="assets/isaac-pack/SFX/mouse-click-290204.mp3"></audio>
+      <audio id="sfx-mouse-s6-b"  class="clip" data-start="20.4" data-duration="0.4" data-track-index="11" data-volume="0.6"
+             src="assets/isaac-pack/SFX/mouse-click-290204.mp3"></audio>
+      <audio id="sfx-mouse-s6-c"  class="clip" data-start="20.8" data-duration="0.4" data-track-index="11" data-volume="0.6"
+             src="assets/isaac-pack/SFX/computer-mouse-click-351398.mp3"></audio>
+      <audio id="sfx-whip-s7"     class="clip" data-start="22.8" data-duration="0.6" data-track-index="14" data-volume="0.9"
+             src="assets/isaac-pack/SFX/swoosh-2-359826.mp3"></audio>
+      <audio id="sfx-riser-met"   class="clip" data-start="23"   data-duration="5"   data-track-index="13" data-volume="0.85"
+             src="assets/isaac-pack/SFX/riser-metallic.mp3"></audio>
+      <audio id="sfx-stamp-1"     class="clip" data-start="25.0" data-duration="0.5" data-track-index="11" data-volume="0.9"
+             src="assets/isaac-pack/SFX/camera-shutter-314056.mp3"></audio>
+      <audio id="sfx-stamp-2"     class="clip" data-start="25.8" data-duration="0.5" data-track-index="11" data-volume="0.9"
+             src="assets/isaac-pack/SFX/camera-shutter-314056.mp3"></audio>
+      <audio id="sfx-stamp-3"     class="clip" data-start="26.6" data-duration="0.5" data-track-index="11" data-volume="0.9"
+             src="assets/isaac-pack/SFX/camera-shutter-314056.mp3"></audio>
+      <audio id="sfx-dist-out"    class="clip" data-start="29"   data-duration="1.2" data-track-index="11" data-volume="1.0"
+             src="assets/isaac-pack/SFX/distortion.mp3"></audio>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // ===== helpers =====
+      const shake = (start, amp = 14, count = 6) => {
+        for (let i = 0; i < count; i++) {
+          tl.to("#stage",
+            { x: (i % 2 === 0 ? 1 : -1) * amp, y: (i % 2 === 0 ? -1 : 1) * (amp * 0.5),
+              duration: 0.04, ease: "none" }, start + i * 0.04);
+        }
+        tl.to("#stage", { x: 0, y: 0, duration: 0.04 }, start + count * 0.04);
+      };
+      const crackFlash = (at) => {
+        tl.fromTo("#glass-crack",
+          { opacity: 0, scale: 0.6, transformOrigin: "50% 50%" },
+          { opacity: 0.95, scale: 1, duration: 0.06, ease: "power2.out" }, at);
+        tl.to("#glass-crack", { opacity: 0, duration: 0.5, ease: "power2.in" }, at + 0.12);
+      };
+      const whiteFlash = (at, peak = 0.7) => {
+        tl.to("#white-flash", { opacity: peak, duration: 0.05, overwrite: "auto" }, at);
+        tl.to("#white-flash", { opacity: 0, duration: 0.18, overwrite: "auto" }, at + 0.05);
+      };
+      const redFlash = (at, peak = 0.8) => {
+        tl.to("#red-flash", { opacity: peak, duration: 0.05, overwrite: "auto" }, at);
+        tl.to("#red-flash", { opacity: 0, duration: 0.3, overwrite: "auto" }, at + 0.05);
+      };
+      // whip-pan transition: blur + slide stage out one side, swap, slide back from opposite
+      const whipPan = (at, dir = 1) => {
+        tl.to("#stage",
+          { xPercent: dir * 5, filter: "blur(8px)", duration: 0.14, ease: "power2.in" }, at);
+        tl.set("#stage", { xPercent: -dir * 5 }, at + 0.14);
+        tl.to("#stage",
+          { xPercent: 0, filter: "blur(0px)", duration: 0.18, ease: "power3.out" }, at + 0.14);
+      };
+      // scene visibility
+      const sceneIn  = (sel, at) => tl.to(sel, { opacity: 1, duration: 0.14 }, at);
+      const sceneOut = (sel, at) => {
+        tl.to(sel, { opacity: 0, duration: 0.14 }, at);
+        tl.set(sel, { opacity: 0 }, at + 0.16);
+      };
+      // background ken-burns (continuous slow zoom for the scene's window)
+      const bgZoom = (sel, at, dur) => {
+        tl.fromTo(sel + " .bg",
+          { scale: 1, x: 0 }, { scale: 1.08, x: -20, duration: dur, ease: "none" }, at);
+      };
+      // character idle variants
+      const charBob = (sel, at, dur) =>
+        tl.to(sel, { y: -12, duration: 0.45, ease: "sine.inOut", repeat: Math.floor(dur / 0.9), yoyo: true }, at);
+      const charLean = (sel, at, dur) =>
+        tl.to(sel, { rotation: 2, duration: 0.7, ease: "sine.inOut", repeat: Math.floor(dur / 1.4), yoyo: true }, at);
+      const charPulse = (sel, at, dur) =>
+        tl.to(sel, { scale: 1.03, duration: 0.55, ease: "sine.inOut", repeat: Math.floor(dur / 1.1), yoyo: true }, at);
+
+      // =================== SCENE 1 (0–3) ===================
+      sceneIn("#s1", 0);
+      bgZoom("#s1", 0, 3);
+
+      // hook smash — flash + shake hit first, crack arrives slightly delayed so title can land
+      whiteFlash(0.05, 0.55);
+      shake(0.05, 22, 6);
+      // glass crack delayed to 0.18s — title is ~85% scaled by then, viewer sees it FIRST
+      crackFlash(0.18);
+
+      tl.fromTo("#s1-mega-wrap", { scale: 0, rotation: -4 },
+        { scale: 1, rotation: 0, duration: 0.42, ease: "back.out(2.4)" }, 0.05);
+      // RGB chromatic split on landing, settle after 0.25s (shortened from 0.45s to reduce visual chaos)
+      tl.set("#s1-mega", { attr: { class: "mega rgb-split" } }, 0.05);
+      tl.set("#s1-mega", { attr: { class: "mega" } }, 0.3);
+      // shimmer sweep across the title (translates the gradient mask)
+      tl.fromTo("#s1-mega::after",
+        { x: "-130%" }, { x: "130%", duration: 0.9, ease: "power2.out" }, 0.6);
+      // Marvel + ZIO plate lands fast — on screen by 0.28s for first impression
+      tl.fromTo("#s1-marvel", { x: -200, opacity: 0, rotation: -10 },
+        { x: 0, opacity: 1, rotation: -3, duration: 0.28, ease: "back.out(2)" }, 0.0);
+      tl.fromTo("#s1-date", { y: -40, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.25, ease: "back.out(2)" }, 0.2);
+      // character
+      tl.fromTo("#s1-char", { y: 220, opacity: 0, rotation: 6 },
+        { y: 0, opacity: 1, rotation: 0, duration: 0.5, ease: "back.out(1.4)" }, 0.2);
+      charBob("#s1-char", 0.9, 1.8);
+      tl.to("#s1-mega-wrap", { scale: 1.04, duration: 0.18, yoyo: true, repeat: 1 }, 1.6);
+      // mid-hold character breathe so 1-2s isn't static
+      tl.to("#s1-char", { scale: 1.05, duration: 0.4, yoyo: true, repeat: 1, ease: "sine.inOut" }, 1.3);
+      // mega title slight pulse near the end of the hold
+      tl.to("#s1-mega-wrap", { scale: 0.98, duration: 0.25, yoyo: true, repeat: 1, ease: "sine.inOut" }, 2.2);
+      sceneOut("#s1", 2.82);
+
+      // =================== S1 → S2 transition (whip-pan) ===================
+      whipPan(2.78, 1);
+
+      // =================== SCENE 2 (3–7) ===================
+      sceneIn("#s2", 2.82);
+      bgZoom("#s2", 3.0, 4);
+      // dashboard slide-in
+      tl.to("#s2-dashboard", { scale: 1, opacity: 1, duration: 0.4, ease: "power3.out" }, 2.82);
+      tl.from("#s2-char", { x: -260, opacity: 0, duration: 0.4, ease: "back.out(1.6)" }, 2.82);
+      charPulse("#s2-char", 3.5, 2.0);
+
+      // Both card SHELLS appear together so the layout reads as a complete dashboard
+      tl.to("#s2-card-views, #s2-card-rev", { opacity: 1, y: 0, duration: 0.3 }, 3.3);
+      // Card 1: Views — counter scales in
+      tl.fromTo("#s2-views",
+        { opacity: 0, scale: 0.5, y: 30 },
+        { opacity: 1, scale: 1, y: 0, duration: 0.45, ease: "back.out(2.2)" }, 3.5);
+      tl.to("#s2-views", { scale: 1.1, duration: 0.18, yoyo: true, repeat: 1 }, 4.2);
+      // Retention curve draws after counter
+      tl.to("#s2-curve", { strokeDashoffset: 0, duration: 1.4, ease: "power2.out" }, 3.8);
+      tl.to("#s2-curve-fill", { opacity: 1, duration: 0.6 }, 4.2);
+      // Card 2: Revenue counter scales in (card shell already showing)
+      tl.fromTo("#s2-rev",
+        { opacity: 0, scale: 0.5, y: 30 },
+        { opacity: 1, scale: 1, y: 0, duration: 0.45, ease: "back.out(2.2)" }, 4.6);
+      tl.to("#s2-rev", { scale: 1.15, duration: 0.18, yoyo: true, repeat: 1 }, 5.1);
+
+      // Sony email pops in at 5.4s
+      tl.to("#s2-email", { opacity: 1, x: 0, scale: 1, duration: 0.32, ease: "back.out(2)" }, 5.4);
+      // tiny shake on the email
+      tl.to("#s2-email", { x: "+=4", duration: 0.04, repeat: 5, yoyo: true }, 5.7);
+
+      // ====== 5.9s — DEMONETIZE SLAM (FX hit #2) ======
+      // red flash peak reduced 0.9 → 0.5 so DEMONETIZED stays readable through the slam
+      redFlash(5.9, 0.5);
+      crackFlash(5.95); // crack arrives slightly after to not crowd the stamp
+      shake(5.9, 24, 8);
+      // dashboard "shatters" — skew, blur, grayscale, collapse
+      tl.to("#s2-dashboard",
+        { skewX: -4, scale: 0.92, filter: "grayscale(1) brightness(0.3) blur(2px)",
+          opacity: 0.45, duration: 0.25, ease: "power2.out" }, 5.92);
+      tl.to("#s2-email", { opacity: 0, scale: 0.85, duration: 0.2 }, 5.95);
+      // swap character to a defeated pose right at the slam
+      tl.set("#s2-char", { attr: { src: "assets/isaac-pack/Characters/Isaac10.png" } }, 5.92);
+      // copyright banner + DEMONETIZED stamp
+      tl.fromTo("#s2-cr", { opacity: 0, scale: 1.3 }, { opacity: 1, scale: 1, duration: 0.22 }, 5.95);
+      tl.fromTo("#s2-demo",
+        { opacity: 0, scale: 2.4, rotation: -8 },
+        { opacity: 1, scale: 1, rotation: -8, duration: 0.22, ease: "back.out(3)" }, 5.95);
+      // chromatic jitter on demonetize for 0.5s
+      tl.to("#s2-demo", {
+        keyframes: [
+          { textShadow: "-3px 0 0 #00e5ff, 3px 0 0 #ff003c", duration: 0.05 },
+          { textShadow: "3px 0 0 #00e5ff, -3px 0 0 #ff003c", duration: 0.05 },
+          { textShadow: "-3px 0 0 #00e5ff, 3px 0 0 #ff003c", duration: 0.05 },
+          { textShadow: "0 0 0 transparent", duration: 0.05 },
+        ]
+      }, 6.15);
+      tl.to("#s2-demo", { x: "+=4", duration: 0.04, repeat: 7, yoyo: true }, 6.2);
+      sceneOut("#s2", 6.82);
+
+      // =================== SCENE 3 (7–11) ===================
+      sceneIn("#s3", 6.82);
+      bgZoom("#s3", 7.0, 4);
+      tl.fromTo("#s3-char", { x: -250, opacity: 0, rotation: -8 },
+        { x: 0, opacity: 1, rotation: 0, duration: 0.45, ease: "back.out(1.6)" }, 7.05);
+      charBob("#s3-char", 7.6, 3.0);
+      // Clean bold scale-in for "4 STEPS" (replaces janky SVG draw-on)
+      tl.fromTo("#s3-steps",
+        { scale: 0, rotation: -3 },
+        { scale: 1, rotation: 0, duration: 0.5, ease: "back.out(2.4)" }, 7.3);
+      // brief chromatic split on landing (settles in 0.3s)
+      tl.set("#s3-steps", { attr: { class: "steps-mega rgb-split" } }, 7.3);
+      tl.set("#s3-steps", { attr: { class: "steps-mega" } }, 7.6);
+      tl.to("#s3-line", { width: 700, duration: 0.5, ease: "power3.out" }, 8.0);
+      // mid-scene character pose cut to break stagnation (9.0s)
+      tl.set("#s3-char", { attr: { src: "assets/isaac-pack/Characters/isaac-9.png" } }, 9.0);
+      // title scale-pulse to add motion mid-hold
+      tl.to("#s3-steps", { scale: 1.05, duration: 0.22, yoyo: true, repeat: 1, ease: "sine.inOut" }, 9.4);
+      tl.to("#s3-line", { scaleY: 1.4, duration: 0.2, yoyo: true, repeat: 1, ease: "sine.inOut", transformOrigin: "50% 50%" }, 9.6);
+      tl.fromTo("#s3-sub", { y: 40, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.32, ease: "back.out(2)" }, 8.9);
+      sceneOut("#s3", 10.82);
+
+      // =================== S3 → S4 whip ===================
+      whipPan(10.78, -1);
+
+      // =================== SCENE 4 (11–15) ===================
+      sceneIn("#s4", 10.82);
+      bgZoom("#s4", 11.0, 4);
+      tl.fromTo("#s4-pill", { y: -120, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.3, ease: "back.out(2)" }, 11.0);
+      // channel mock slides up
+      tl.fromTo("#s4-mock", { y: 80, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.4, ease: "power3.out" }, 11.15);
+      tl.to("#s4-banner", { opacity: 1, duration: 0.4 }, 11.35);
+      tl.fromTo("#s4-avatar", { scale: 0, opacity: 0, rotation: -20 },
+        { scale: 1, opacity: 1, rotation: 0, duration: 0.4, ease: "back.out(2.2)" }, 11.6);
+      tl.to("#s4-info", { opacity: 1, duration: 0.3 }, 11.8);
+      tl.fromTo("#s4-sub-btn", { scale: 0, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.3, ease: "back.out(2.4)" }, 12.0);
+      tl.to("#s4-videos", { opacity: 1, duration: 0.4 }, 12.2);
+      // Callout labels appear with shutter beats; each is followed by a line drawing-in to the target
+      tl.fromTo("#co-logo", { opacity: 0, x: -40 },
+        { opacity: 1, x: 0, duration: 0.25, ease: "back.out(2)" }, 12.0);
+      tl.to("#co-line-logo", { strokeDashoffset: 0, duration: 0.35, ease: "power2.out" }, 12.15);
+      tl.to("#s4 .callout-lines circle:nth-of-type(1)", { opacity: 1, duration: 0.15 }, 12.45);
+
+      tl.fromTo("#co-banner", { opacity: 0, x: 40 },
+        { opacity: 1, x: 0, duration: 0.25, ease: "back.out(2)" }, 12.8);
+      tl.to("#co-line-banner", { strokeDashoffset: 0, duration: 0.35, ease: "power2.out" }, 12.95);
+      tl.to("#s4 .callout-lines circle:nth-of-type(2)", { opacity: 1, duration: 0.15 }, 13.25);
+
+      tl.fromTo("#co-fonts", { opacity: 0, x: 40 },
+        { opacity: 1, x: 0, duration: 0.25, ease: "back.out(2)" }, 13.6);
+      tl.to("#co-line-fonts", { strokeDashoffset: 0, duration: 0.4, ease: "power2.out" }, 13.75);
+      tl.to("#s4 .callout-lines circle:nth-of-type(3)", { opacity: 1, duration: 0.15 }, 14.1);
+      // gentle pulse on the mock
+      tl.to("#s4-mock", { scale: 1.01, duration: 0.6, yoyo: true, repeat: 2, ease: "sine.inOut" }, 13.0);
+      // character lean
+      tl.fromTo("#s4-char", { y: 100, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.4, ease: "back.out(1.6)" }, 11.4);
+      charLean("#s4-char", 12.0, 3.0);
+      sceneOut("#s4", 14.82);
+
+      // =================== S4 → S5 whip ===================
+      whipPan(14.78, 1);
+
+      // =================== SCENE 5 (15–19) ===================
+      sceneIn("#s5", 14.82);
+      bgZoom("#s5", 15.0, 4);
+      tl.fromTo("#s5-pill", { y: -120, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.3, ease: "back.out(2)" }, 15.0);
+      tl.fromTo("#s5-label", { y: -40, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.3 }, 15.15);
+      // 4 rows fade in stacked, then strike one by one
+      ["#s5-r1", "#s5-r2", "#s5-r3", "#s5-r4"].forEach((sel, i) => {
+        tl.fromTo(sel, { y: 30, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.22, ease: "back.out(2)" }, 15.4 + i * 0.12);
+      });
+      // strike-through cascade — stretched to 0.5s per row so viewer can register each rejection
+      ["#s5-r1", "#s5-r2", "#s5-r3", "#s5-r4"].forEach((sel, i) => {
+        tl.to(sel + " .x-strike",
+          { scaleX: 1, duration: 0.22, ease: "power3.in" }, 15.9 + i * 0.5);
+        tl.to(sel,
+          { color: "#666", opacity: 0.5, duration: 0.22 }, 15.9 + i * 0.5);
+        // micro-shake on each strike landing
+        tl.to(sel, { x: 6, duration: 0.04, repeat: 3, yoyo: true }, 15.9 + i * 0.5);
+      });
+      // character headshake during strikes (covers full 2s of strikes)
+      tl.to("#s5-char", { x: "+=-22", duration: 0.06, repeat: 13, yoyo: true }, 15.9);
+      // winner reveal — pushed back to land after the slower cascade
+      tl.fromTo("#s5-winner",
+        { scale: 0, opacity: 0, rotation: -8 },
+        { scale: 1, opacity: 1, rotation: 0, duration: 0.45, ease: "back.out(2.2)" }, 18.1);
+      tl.to("#s5-winner", { scale: 1.06, duration: 0.18, yoyo: true, repeat: 1 }, 18.55);
+      tl.fromTo("#s5-char", { x: -250, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.4, ease: "back.out(1.6)" }, 15.2);
+      sceneOut("#s5", 18.82);
+
+      // =================== S5 → S6 whip ===================
+      whipPan(18.78, -1);
+
+      // =================== SCENE 6 (19–23) ===================
+      sceneIn("#s6", 18.82);
+      bgZoom("#s6", 19.0, 4);
+      tl.fromTo("#s6-pill", { y: -120, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.3, ease: "back.out(2)" }, 19.0);
+      tl.fromTo("#s6-label", { y: -40, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.3 }, 19.15);
+      // 5 thumbs pop in
+      ["#s6-t0", "#s6-t1", "#s6-t2", "#s6-t3", "#s6-t4"].forEach((sel, i) => {
+        tl.to(sel, { scale: 1, opacity: 1, duration: 0.16, ease: "back.out(2)" }, 19.4 + i * 0.1);
+      });
+      // cursor appears
+      tl.to("#s6-cursor", { opacity: 1, duration: 0.1 }, 19.95);
+      // cursor positions (rough centers of each thumb in the 1620px grid)
+      // grid: width 1620, 5 cols, gap 22. col width = (1620 - 88) / 5 = 306.4
+      // center of col i: 50% - 810 + i*328 + 153
+      // We'll use absolute x positions on a 1920 stage. Center of stage = 960.
+      // Grid left edge ≈ 960 - 810 = 150. Col centers: 150 + 153 + i*328 = 303 + i*328
+      const cursorPositions = [
+        { x: 303 - 960, y: 540 - 540 },     // t0
+        { x: 631 - 960, y: 540 - 540 },     // t1
+        { x: 959 - 960, y: 540 - 540 },     // t2 (winner)
+        { x: 1287 - 960, y: 540 - 540 },    // t3
+        { x: 1615 - 960, y: 540 - 540 },    // t4
+      ];
+      // Cursor scan with REST PAUSES at each thumb + shrink-click feedback
+      tl.set("#s6-cursor", { x: cursorPositions[0].x, y: cursorPositions[0].y }, 19.95);
+      // hop to t1, rest, click-pulse
+      tl.to("#s6-cursor",
+        { x: cursorPositions[1].x, y: cursorPositions[1].y, duration: 0.2, ease: "power2.inOut" }, 20.0);
+      tl.to("#s6-cursor", { scale: 0.85, duration: 0.06, yoyo: true, repeat: 1 }, 20.22);
+      // hop to t3, rest, click-pulse
+      tl.to("#s6-cursor",
+        { x: cursorPositions[3].x, y: cursorPositions[3].y, duration: 0.22, ease: "power2.inOut" }, 20.5);
+      tl.to("#s6-cursor", { scale: 0.85, duration: 0.06, yoyo: true, repeat: 1 }, 20.74);
+      // hop to t4, rest, click-pulse
+      tl.to("#s6-cursor",
+        { x: cursorPositions[4].x, y: cursorPositions[4].y, duration: 0.22, ease: "power2.inOut" }, 21.0);
+      tl.to("#s6-cursor", { scale: 0.85, duration: 0.06, yoyo: true, repeat: 1 }, 21.24);
+      // land on winner (t2) — slower, decisive
+      tl.to("#s6-cursor",
+        { x: cursorPositions[2].x, y: cursorPositions[2].y, duration: 0.35, ease: "back.out(1.6)" }, 21.5);
+      // highlight winning thumb
+      tl.to("#s6-t2",
+        { borderColor: "#ffd166", scale: 1.12, boxShadow: "0 0 0 6px #ffd166", duration: 0.3 }, 21.85);
+      // decisive double-click on winner
+      tl.to("#s6-cursor", { scale: 0.75, duration: 0.08, yoyo: true, repeat: 3 }, 21.9);
+      // dim others + blur them so formula chips own the eye
+      ["#s6-t0", "#s6-t1", "#s6-t3", "#s6-t4"].forEach((sel) => {
+        tl.to(sel, { opacity: 0.3, filter: "blur(2px)", duration: 0.3 }, 22.0);
+      });
+      // formula callout — bigger chips, lands after click
+      tl.to("#s6-formula-title", { opacity: 1, duration: 0.3 }, 22.2);
+      tl.to("#s6-formula", { y: 0, opacity: 1, duration: 0.35, ease: "back.out(2)" }, 22.3);
+      tl.fromTo("#s6-char", { x: 250, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.4, ease: "back.out(1.6)" }, 19.4);
+      charLean("#s6-char", 19.8, 3.0);
+      sceneOut("#s6", 22.82);
+
+      // =================== S6 → S7 whip ===================
+      whipPan(22.78, 1);
+
+      // =================== SCENE 7 (23–29) ===================
+      sceneIn("#s7", 22.82);
+      bgZoom("#s7", 23.0, 6);
+      // grain + scanlines slowly ramp in for dread mood
+      tl.to("#grain", { opacity: 0.4, duration: 1.5 }, 23.0);
+      tl.to("#scanlines", { opacity: 0.7, duration: 1.5 }, 23.2);
+      tl.fromTo("#s7-pill", { y: -120, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.3, ease: "back.out(2)" }, 23.0);
+      tl.fromTo("#s7-label", { y: -40, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.45, ease: "back.out(2)" }, 23.3);
+      tl.from("#s7-char", { y: 180, opacity: 0, duration: 0.6, ease: "back.out(1.6)" }, 23.2);
+      // slow zoom on Isaac8 stare
+      tl.to("#s7-char", { scale: 1.12, duration: 5, ease: "power2.in" }, 23.4);
+      // FILL the 23.5-25.0 dead zone — RGB shimmer + scanline pulse + char micro-jitter
+      tl.to("#scanlines", { opacity: 0.95, duration: 0.08, yoyo: true, repeat: 5, ease: "none" }, 23.8);
+      tl.to("#s7-char", { x: 4, duration: 0.04, yoyo: true, repeat: 3 }, 24.0);
+      tl.to("#s7-char", { x: -3, duration: 0.04, yoyo: true, repeat: 3 }, 24.4);
+      tl.to("#scanlines", { opacity: 0.95, duration: 0.06, yoyo: true, repeat: 3, ease: "none" }, 24.6);
+      // STRIKE stamps cascade
+      tl.fromTo("#s7-strike1",
+        { opacity: 0, scale: 1.8, rotation: -12 },
+        { opacity: 1, scale: 1, rotation: -12, duration: 0.18, ease: "back.out(3)" }, 25.0);
+      tl.fromTo("#s7-strike2",
+        { opacity: 0, scale: 1.8, rotation: 7 },
+        { opacity: 1, scale: 1, rotation: 7, duration: 0.18, ease: "back.out(3)" }, 25.8);
+      tl.fromTo("#s7-strike3",
+        { opacity: 0, scale: 1.8, rotation: -5 },
+        { opacity: 1, scale: 1, rotation: -5, duration: 0.18, ease: "back.out(3)" }, 26.6);
+      // micro shakes on each stamp landing
+      shake(25.0, 8, 3);
+      shake(25.8, 8, 3);
+      shake(26.6, 10, 3);
+      // CTA — dims the strikes to 35% so it owns the final beat
+      tl.to("#s7-strike1, #s7-strike2, #s7-strike3", { opacity: 0.35, duration: 0.4 }, 26.95);
+      tl.to("#s7-cta", { y: 0, opacity: 1, duration: 0.35, ease: "back.out(2)" }, 27.0);
+      tl.to("#s7-cta", { scale: 1.05, duration: 0.3, yoyo: true, repeat: 4 }, 27.6);
+      // tense flicker on label
+      // chromatic aberration shifts on "DARK" — subtle unease across the whole hold
+      tl.to("#s7-label .red",
+        { textShadow: "4px 0 0 #ff003c, -4px 0 0 #00e5ff, 0 14px 0 #000, 0 0 80px rgba(255,0,60,.5)",
+          duration: 0.25, yoyo: true, repeat: 11, ease: "none" },
+        24.0);
+      tl.to("#s7-label .red", { opacity: 0.4, duration: 0.06, yoyo: true, repeat: 7 }, 28.0);
+      // subtle bg red-flicker for power-failure vibe
+      tl.to("#s7 .bg", { opacity: 0.7, duration: 0.08, yoyo: true, repeat: 3, ease: "none" }, 25.4);
+      tl.to("#s7 .bg", { opacity: 0.6, duration: 0.06, yoyo: true, repeat: 3, ease: "none" }, 27.2);
+
+      // ====== 29.5s — FINAL SMASH (FX hit #3) ======
+      crackFlash(29.5);
+      shake(29.5, 28, 4);
+      tl.to("#blackout", { opacity: 1, duration: 0.12 }, 29.6);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

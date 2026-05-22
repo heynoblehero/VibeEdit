@@ -1,0 +1,1 @@
+ALTER TABLE `renderJobs` ADD `publicShareSlug` text;

@@ -1,0 +1,22 @@
+{
+	"name": "@vibeedit/desktop-worker",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"bin": {
+		"vibeedit-worker": "./dist/index.js"
+	},
+	"scripts": {
+		"start": "bun run src/index.ts",
+		"build:mac-arm": "bun build --compile --target=bun-darwin-arm64 src/index.ts --outfile dist/vibeedit-worker-darwin-arm64",
+		"build:mac-x64": "bun build --compile --target=bun-darwin-x64 src/index.ts --outfile dist/vibeedit-worker-darwin-x64",
+		"build:linux": "bun build --compile --target=bun-linux-x64 src/index.ts --outfile dist/vibeedit-worker-linux-x64",
+		"build:win": "bun build --compile --target=bun-windows-x64 src/index.ts --outfile dist/vibeedit-worker-windows-x64.exe",
+		"build:all": "bun run build:mac-arm && bun run build:mac-x64 && bun run build:linux && bun run build:win",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@types/node": "^22.7.0",
+		"typescript": "^5.6.0"
+	}
+}

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none" font-family="Inter, system-ui, sans-serif">
+	<defs>
+		<linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+			<stop offset="0%" stop-color="#0a0a14"/>
+			<stop offset="100%" stop-color="#07070b"/>
+		</linearGradient>
+		<radialGradient id="glow" cx="50%" cy="60%" r="50%">
+			<stop offset="0%" stop-color="#d6ff3a" stop-opacity="0.18"/>
+			<stop offset="60%" stop-color="#d6ff3a" stop-opacity="0"/>
+		</radialGradient>
+	</defs>
+	<rect width="1200" height="630" fill="url(#bgGrad)"/>
+	<rect width="1200" height="630" fill="url(#glow)"/>
+	<!-- mark -->
+	<rect x="80" y="80" width="80" height="80" rx="18" fill="#d6ff3a"/>
+	<path d="M104 102 L150 130 L104 158 Z" fill="#07070b"/>
+	<!-- headline -->
+	<text x="80" y="360" font-size="96" font-weight="900" fill="#e8e8ee" letter-spacing="-3">Prompt an AI.</text>
+	<text x="80" y="460" font-size="96" font-weight="900" fill="#d6ff3a" letter-spacing="-3">Get a video.</text>
+	<!-- subline -->
+	<text x="80" y="540" font-size="32" fill="#9999a8">VibeEdit Video · Claude Code for video · faceless YouTubers</text>
+</svg>

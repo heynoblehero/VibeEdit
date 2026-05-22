@@ -1,0 +1,76 @@
+{
+	"templates": [
+		{
+			"slug": "comic-facts-16x9",
+			"name": "Comic-style hook",
+			"niche": "Comic / superhero facts",
+			"ratio": "16:9",
+			"durationSeconds": 15,
+			"description": "Bold red/yellow hook with chromatic-split title, halftone backdrop, glass-crack hit, and corner-stamp number. Use for any comic-book, superhero, or pop-culture facts channel.",
+			"accent": "#ff2b3a"
+		},
+		{
+			"slug": "anime-facts-9x16",
+			"name": "Anime-style Short",
+			"niche": "Anime / manga facts",
+			"ratio": "9:16",
+			"durationSeconds": 30,
+			"description": "Pink + cyan chromatic title with speed-line backdrop. Tilted kicker and tagline, scale-pulse on the title. Built for Shorts / Reels / TikTok.",
+			"accent": "#ff64c8"
+		},
+		{
+			"slug": "scifi-facts-9x16",
+			"name": "Sci-fi declassified",
+			"niche": "Sci-fi / mystery",
+			"ratio": "9:16",
+			"durationSeconds": 30,
+			"description": "Cyan + black 'declassified file' aesthetic with grid + scanlines. Glowing case-file number, monospaced tag. For sci-fi, mystery, and alien-conspiracy niches.",
+			"accent": "#38e1ff"
+		},
+		{
+			"slug": "finance-intro-16x9",
+			"name": "Finance long-form intro",
+			"niche": "Money / investing",
+			"ratio": "16:9",
+			"durationSeconds": 12,
+			"description": "Neon-green animated counters over black, scanline overlay, sharp typographic hit on the headline number.",
+			"accent": "#5be39a"
+		},
+		{
+			"slug": "sleep-story-16x9",
+			"name": "Sleep-story intro",
+			"niche": "Sleep / meditation",
+			"ratio": "16:9",
+			"durationSeconds": 20,
+			"description": "Calm indigo gradient with very slow ken-burns and a soft serif title. No flashes, no fast cuts.",
+			"accent": "#9b8bd9"
+		},
+		{
+			"slug": "history-short-9x16",
+			"name": "History Short",
+			"niche": "History / mystery",
+			"ratio": "9:16",
+			"durationSeconds": 30,
+			"description": "Sepia palette with serif title and a parchment grain. Slow whip-pans between beats. Built for TikTok / Reels / Shorts.",
+			"accent": "#d4a55c"
+		},
+		{
+			"slug": "scary-short-9x16",
+			"name": "Scary story Short",
+			"niche": "Scary / horror",
+			"ratio": "9:16",
+			"durationSeconds": 30,
+			"description": "Deep purple/blue with candle-flicker grain, soft serif title that pulses, slow fades only.",
+			"accent": "#7c4ddf"
+		},
+		{
+			"slug": "tech-intro-9x16",
+			"name": "Tech tutorial intro",
+			"niche": "Tech / coding",
+			"ratio": "9:16",
+			"durationSeconds": 10,
+			"description": "Dark gray + cyan accent with monospaced channel name and a quick code-snippet rotation.",
+			"accent": "#22d3ee"
+		}
+	]
+}

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=1080, height=1920" />
+		<title>History Short</title>
+		<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=block"
+			rel="stylesheet"
+		/>
+		<style>
+			* { box-sizing: border-box; margin: 0; padding: 0; }
+			html, body { width: 1080px; height: 1920px; overflow: hidden; background: #1a120b; }
+			#root {
+				position: relative;
+				width: 1080px;
+				height: 1920px;
+				background: radial-gradient(
+					ellipse at center,
+					#3d2c14 0%,
+					#1f1407 60%,
+					#0a0603 100%
+				);
+				font-family: "Libre Baskerville", serif;
+				color: #f0d9a8;
+			}
+			.grain {
+				position: absolute;
+				inset: 0;
+				background-image:
+					radial-gradient(rgba(212, 165, 92, 0.06) 1px, transparent 1px),
+					radial-gradient(rgba(212, 165, 92, 0.04) 1px, transparent 1px);
+				background-size: 5px 5px, 11px 11px;
+				background-position: 0 0, 3px 7px;
+				pointer-events: none;
+				mix-blend-mode: overlay;
+			}
+			.kicker {
+				position: absolute;
+				top: 240px;
+				left: 50%;
+				transform: translateX(-50%);
+				font-style: italic;
+				font-size: 64px;
+				color: #d4a55c;
+				letter-spacing: 3px;
+			}
+			.title {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%, -50%);
+				font-weight: 700;
+				font-size: 160px;
+				line-height: 1.05;
+				text-align: center;
+				width: 900px;
+			}
+			.foot {
+				position: absolute;
+				bottom: 240px;
+				left: 50%;
+				transform: translateX(-50%);
+				font-size: 44px;
+				color: #d4a55c;
+				font-style: italic;
+				letter-spacing: 2px;
+			}
+		</style>
+	</head>
+	<body>
+		<div
+			id="root"
+			data-composition-id="history-short"
+			data-width="1080"
+			data-height="1920"
+			data-start="0"
+			data-duration="30"
+		>
+			<div class="kicker" id="kicker">A short history of</div>
+			<div class="title" id="title">THE LIBRARY THAT BURNED</div>
+			<div class="foot" id="foot">~ 48 BC ~</div>
+			<div class="grain"></div>
+		</div>
+
+		<script>
+			window.__timelines = window.__timelines || {};
+			const tl = gsap.timeline({ paused: true });
+			window.__timelines["history-short"] = tl;
+
+			tl.from("#kicker", { y: -30, opacity: 0, duration: 1.2, ease: "power2.out" }, 0)
+				.from("#title", { y: 60, opacity: 0, duration: 1.4, ease: "power2.out" }, 0.6)
+				.from("#foot", { opacity: 0, duration: 1.2 }, 1.6)
+				.to("#title", { scale: 1.04, duration: 28, ease: "none" }, 1.6);
+		</script>
+	</body>
+</html>

@@ -1,10 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { Wordmark } from "@/components/Wordmark";
+
+// Next 15's static prerender bails out if a client component reads search
+// params without a Suspense boundary above. Wrap the body so prerender can
+// emit a shell + hydrate the real query-driven UI on the client.
+export default function BillingPageWrapper() {
+	return (
+		<Suspense
+			fallback={
+				<main className="flex min-h-screen items-center justify-center text-[var(--color-fg-muted)]">
+					Loading…
+				</main>
+			}
+		>
+			<BillingPage />
+		</Suspense>
+	);
+}
 
 type Plan = {
 	id: string;
@@ -34,7 +51,7 @@ type Info = {
 	availablePlans: Plan[];
 };
 
-export default function BillingPage() {
+function BillingPage() {
 	const router = useRouter();
 	const params = useSearchParams();
 	const { data: session, isPending } = useSession();

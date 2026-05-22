@@ -41,8 +41,14 @@ RUN bun install
 # Full source after deps so editing a file doesn't bust the deps layer.
 COPY . .
 
-# Build workspace packages first (apps/web imports them).
-RUN bun run build || (echo "workspace build failed" && exit 1)
+# Build only the workspace artifacts apps/web actually needs:
+#  - @hyperframes/core's hyperframe.runtime artifact (the iife the player loads)
+#  - @hyperframes/cli (compiled to dist so spawn('hyperframes') works in queue.ts)
+# We skip the full `bun run build` because @hyperframes/core's tsc step
+# typechecks server code we don't ship (studio-api/routes/files.ts) and
+# upstream currently has a benign type error there.
+RUN bun run --filter @hyperframes/core build:hyperframes-runtime \
+ && bun run --filter @hyperframes/cli build
 
 # Build the Next.js app.
 RUN cd apps/web && bun run build

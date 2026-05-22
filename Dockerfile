@@ -26,12 +26,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN npm install -g bun@1.2.5
 
 # Copy manifests first so dep install is cached across source-only changes.
+# Both apps + all packages need manifests present at install time so the
+# workspace topology matches bun.lock; missing any one rejects the lockfile.
 COPY package.json bun.lock turbo.json* ./
 COPY apps/web/package.json apps/web/package.json
+COPY apps/desktop-worker/package.json apps/desktop-worker/package.json
 COPY packages packages
 
-# `bun install` resolves workspaces from the root.
-RUN bun install --frozen-lockfile
+# `bun install` resolves workspaces from the root. Drop --frozen-lockfile
+# because the lockfile drifts as the upstream Hyperframes monorepo evolves;
+# we re-resolve on each build and accept the minor variance.
+RUN bun install
 
 # Full source after deps so editing a file doesn't bust the deps layer.
 COPY . .

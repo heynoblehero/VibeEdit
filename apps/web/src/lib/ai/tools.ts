@@ -1,1055 +1,2335 @@
 import { z } from "zod";
+import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import {
-	tool,
-	createSdkMcpServer,
-} from "@anthropic-ai/claude-agent-sdk";
-import {
-	listFiles,
-	listAssets,
-	readProjectText,
-	readProjectFile,
-	writeProjectFile,
-	projectDir,
+  listFiles,
+  listAssets,
+  readProjectText,
+  readProjectFile,
+  writeProjectFile,
+  projectDir,
 } from "../storage/fs";
 import { listRegistry, readRegistryBlock } from "./registry";
 import { readBrandKit } from "../brand-kit";
 import { searchStock, type StockKind } from "../stock/registry";
 import { replicateGenerateImage } from "./providers/replicate";
 import { nanoid } from "nanoid";
+import {
+  resolveProjectPath,
+  probeClip,
+  trimClip,
+  concatClips,
+  gradeClip,
+  chromaKey,
+  speedClip,
+  overlayClip,
+  addTransition,
+  mixAudio,
+  extractAudio,
+  burnCaptions,
+  transcribeClip,
+  renderEdl,
+  snapToBoundary,
+  buildCaptionsFromWords,
+  computeSegmentOffsets,
+  autoGradeFilter,
+  extractClipFrames,
+  detectFillerWords,
+  applyNoiseReduction,
+  analyzePacing,
+  type XfadeType,
+  type EditDecisionList,
+  type TranscriptWord,
+  type EdlSegment,
+} from "./ffmpeg-tools";
+import { db } from "@/lib/db";
+import { creatorInsights } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
 
 export type ToolContext = {
-	userId: string;
-	projectId: string;
-	enqueueRender: (opts: { fps?: number; quality?: string }) => Promise<string>;
-	// BYOK keys forwarded from the browser's localStorage per chat request.
-	// Tools check this map before falling back to process.env (dev-only) and
-	// return a friendly error if neither is present.
-	apiKeys?: Partial<
-		Record<
-			"replicate" | "kling" | "fal" | "elevenlabs" | "openai" | "anthropic",
-			string
-		>
-	>;
+  userId: string;
+  projectId: string;
+  enqueueRender: (opts: { fps?: number; quality?: string }) => Promise<string>;
+  // BYOK keys forwarded from the browser's localStorage per chat request.
+  // Tools check this map before falling back to process.env (dev-only) and
+  // return a friendly error if neither is present.
+  apiKeys?: Partial<
+    Record<"replicate" | "kling" | "fal" | "elevenlabs" | "openai" | "anthropic", string>
+  >;
 };
 
 // Tool names are surfaced to the agent as `mcp__hyperframes__<name>`.
 export const MCP_SERVER_NAME = "hyperframes";
 
 export function buildToolServer(ctx: ToolContext) {
-	const planCompositionTool = tool(
-		"plan_composition",
-		"REQUIRED FIRST STEP for any NEW composition (not edits). Emit a structured scene plan. After this returns, STOP your turn — say 'Approve this plan and I'll build it' and wait for the user's next message before any write_file call.",
-		{
-			format: z
-				.enum(["16:9", "9:16", "1:1"])
-				.describe("Output aspect ratio."),
-			totalDurationSeconds: z
-				.number()
-				.int()
-				.min(5)
-				.max(900)
-				.describe(
-					"Total composition length, in seconds (max 900 = 15 min). For long-form (>5min) use fewer scenes but longer holds.",
-				),
-			niche: z
-				.string()
-				.describe("e.g. 'comic facts', 'sleep story', 'finance intro'."),
-			palette: z
-				.string()
-				.describe("Short color/typography palette description."),
-			scenes: z
-				.array(
-					z.object({
-						index: z.number().int().min(1),
-						durationSeconds: z.number(),
-						intent: z
-							.string()
-							.describe("What this scene communicates in 1 line."),
-						beats: z
-							.array(z.string())
-							.describe("2-4 key visual/text beats in this scene."),
-						fx: z
-							.array(z.string())
-							.describe(
-								"FX hits (glass-crack, whip-pan, white-flash, shimmer-sweep, none).",
-							),
-					}),
-				)
-				.min(1)
-				.max(12)
-				.describe("Scenes in render order."),
-		},
-		async (plan) => {
-			const warnings: string[] = [];
-			if (plan.totalDurationSeconds > 600 && plan.scenes.length < 5) {
-				warnings.push(
-					`WARNING: ${plan.totalDurationSeconds}s with only ${plan.scenes.length} scene${plan.scenes.length === 1 ? "" : "s"} → very long holds per scene. Long-form videos this length usually need 6+ scenes (chapter cards, B-roll cuts, beat changes) to keep retention. Consider revising before the user approves.`,
-				);
-			}
-			const avgSeconds = plan.totalDurationSeconds / plan.scenes.length;
-			if (avgSeconds > 90) {
-				warnings.push(
-					`WARNING: average scene length ${avgSeconds.toFixed(0)}s — viewers fall off without a beat change. Break long scenes into chaptered segments.`,
-				);
-			}
-			const lines = [
-				`OK: plan recorded — ${plan.scenes.length} scenes / ${plan.totalDurationSeconds}s / ${plan.format}.`,
-				...warnings,
-				`Now stop and ask the user to approve before writing any HTML.`,
-			];
-			return {
-				content: [{ type: "text", text: lines.join("\n") }],
-			};
-		},
-	);
+  const planCompositionTool = tool(
+    "plan_composition",
+    "REQUIRED FIRST STEP for any NEW composition (not edits). Emit a structured scene plan. After this returns, STOP your turn — say 'Approve this plan and I'll build it' and wait for the user's next message before any write_file call.",
+    {
+      format: z.enum(["16:9", "9:16", "1:1"]).describe("Output aspect ratio."),
+      totalDurationSeconds: z
+        .number()
+        .int()
+        .min(5)
+        .max(900)
+        .describe(
+          "Total composition length, in seconds (max 900 = 15 min). For long-form (>5min) use fewer scenes but longer holds.",
+        ),
+      niche: z.string().describe("e.g. 'comic facts', 'sleep story', 'finance intro'."),
+      palette: z.string().describe("Short color/typography palette description."),
+      scenes: z
+        .array(
+          z.object({
+            index: z.number().int().min(1),
+            durationSeconds: z.number(),
+            intent: z.string().describe("What this scene communicates in 1 line."),
+            beats: z.array(z.string()).describe("2-4 key visual/text beats in this scene."),
+            fx: z
+              .array(z.string())
+              .describe("FX hits (glass-crack, whip-pan, white-flash, shimmer-sweep, none)."),
+          }),
+        )
+        .min(1)
+        .max(12)
+        .describe("Scenes in render order."),
+    },
+    async (plan) => {
+      const warnings: string[] = [];
+      if (plan.totalDurationSeconds > 600 && plan.scenes.length < 5) {
+        warnings.push(
+          `WARNING: ${plan.totalDurationSeconds}s with only ${plan.scenes.length} scene${plan.scenes.length === 1 ? "" : "s"} → very long holds per scene. Long-form videos this length usually need 6+ scenes (chapter cards, B-roll cuts, beat changes) to keep retention. Consider revising before the user approves.`,
+        );
+      }
+      const avgSeconds = plan.totalDurationSeconds / plan.scenes.length;
+      if (avgSeconds > 90) {
+        warnings.push(
+          `WARNING: average scene length ${avgSeconds.toFixed(0)}s — viewers fall off without a beat change. Break long scenes into chaptered segments.`,
+        );
+      }
+      const lines = [
+        `OK: plan recorded — ${plan.scenes.length} scenes / ${plan.totalDurationSeconds}s / ${plan.format}.`,
+        ...warnings,
+        `Now stop and ask the user to approve before writing any HTML.`,
+      ];
+      return {
+        content: [{ type: "text", text: lines.join("\n") }],
+      };
+    },
+  );
 
-	const listFilesTool = tool(
-		"list_files",
-		"List all files in the current project directory. Returns one relative path per line.",
-		{},
-		async () => {
-			const files = listFiles(ctx.userId, ctx.projectId);
-			const text = files.length ? files.join("\n") : "(empty project)";
-			return { content: [{ type: "text", text }] };
-		},
-	);
+  const listFilesTool = tool(
+    "list_files",
+    "List all files in the current project directory. Returns one relative path per line.",
+    {},
+    async () => {
+      const files = listFiles(ctx.userId, ctx.projectId);
+      const text = files.length ? files.join("\n") : "(empty project)";
+      return { content: [{ type: "text", text }] };
+    },
+  );
 
-	const readFileTool = tool(
-		"read_file",
-		"Read a text file in the project. Returns up to 50KB. Path is relative to the project root.",
-		{
-			path: z
-				.string()
-				.describe("Relative path, e.g. 'index.html' or 'compositions/scene1.html'."),
-		},
-		async ({ path }) => {
-			try {
-				const raw = readProjectText(ctx.userId, ctx.projectId, path);
-				const text =
-					raw.length > 50_000
-						? raw.slice(0, 50_000) + "\n<-- truncated -->"
-						: raw;
-				return { content: [{ type: "text", text }] };
-			} catch (error) {
-				return {
-					content: [
-						{ type: "text", text: `ERROR: ${(error as Error).message}` },
-					],
-					isError: true,
-				};
-			}
-		},
-	);
+  const readFileTool = tool(
+    "read_file",
+    "Read a text file in the project. Returns up to 50KB. Path is relative to the project root.",
+    {
+      path: z.string().describe("Relative path, e.g. 'index.html' or 'compositions/scene1.html'."),
+    },
+    async ({ path }) => {
+      try {
+        const raw = readProjectText(ctx.userId, ctx.projectId, path);
+        const text = raw.length > 50_000 ? raw.slice(0, 50_000) + "\n<-- truncated -->" : raw;
+        return { content: [{ type: "text", text }] };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
 
-	const diffFileTool = tool(
-		"diff_file",
-		"Make a SURGICAL edit to an existing file by replacing a unique text block. Prefer this over write_file for small edits — it's faster and uses way fewer tokens. The old_text must appear EXACTLY ONCE in the file. For multi-edit changes, call this multiple times.",
-		{
-			path: z.string().describe("Relative path to the file."),
-			old_text: z
-				.string()
-				.describe("Exact text to find. Must be unique in the file."),
-			new_text: z
-				.string()
-				.describe("Text to replace it with. Can be empty to delete."),
-		},
-		async ({ path, old_text, new_text }) => {
-			try {
-				const current = readProjectText(ctx.userId, ctx.projectId, path);
-				const occurrences = current.split(old_text).length - 1;
-				if (occurrences === 0)
-					return {
-						content: [
-							{
-								type: "text",
-								text: `ERROR: old_text not found in ${path}. Try a more specific snippet.`,
-							},
-						],
-						isError: true,
-					};
-				if (occurrences > 1)
-					return {
-						content: [
-							{
-								type: "text",
-								text: `ERROR: old_text appears ${occurrences} times in ${path}. Need a unique snippet — add surrounding context.`,
-							},
-						],
-						isError: true,
-					};
-				const updated = current.replace(old_text, new_text);
-				writeProjectFile(ctx.userId, ctx.projectId, path, updated);
-				return {
-					content: [
-						{
-							type: "text",
-							text: `OK: ${path} updated (${old_text.length}B → ${new_text.length}B).`,
-						},
-					],
-				};
-			} catch (error) {
-				return {
-					content: [
-						{ type: "text", text: `ERROR: ${(error as Error).message}` },
-					],
-					isError: true,
-				};
-			}
-		},
-	);
+  const diffFileTool = tool(
+    "diff_file",
+    "Make a SURGICAL edit to an existing file by replacing a unique text block. Prefer this over write_file for small edits — it's faster and uses way fewer tokens. The old_text must appear EXACTLY ONCE in the file. For multi-edit changes, call this multiple times.",
+    {
+      path: z.string().describe("Relative path to the file."),
+      old_text: z.string().describe("Exact text to find. Must be unique in the file."),
+      new_text: z.string().describe("Text to replace it with. Can be empty to delete."),
+    },
+    async ({ path, old_text, new_text }) => {
+      try {
+        const current = readProjectText(ctx.userId, ctx.projectId, path);
+        const occurrences = current.split(old_text).length - 1;
+        if (occurrences === 0)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `ERROR: old_text not found in ${path}. Try a more specific snippet.`,
+              },
+            ],
+            isError: true,
+          };
+        if (occurrences > 1)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `ERROR: old_text appears ${occurrences} times in ${path}. Need a unique snippet — add surrounding context.`,
+              },
+            ],
+            isError: true,
+          };
+        const updated = current.replace(old_text, new_text);
+        writeProjectFile(ctx.userId, ctx.projectId, path, updated);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: ${path} updated (${old_text.length}B → ${new_text.length}B).`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
 
-	const findStockTool = tool(
-		"find_stock",
-		"Search the curated stock library for SFX, b-roll video, character illustrations, or MUSIC beds. Returns matching assets with their URLs. URLs are publicly served — reference them directly as `src=\"...\"`. For 'music', search by mood keywords (energetic / calm / ominous / playful / mysterious / dark / warm). Every composition should include exactly ONE music track unless the brief says otherwise.",
-		{
-			query: z
-				.string()
-				.describe(
-					"Keywords. Examples: 'dramatic riser', 'glitch overlay', 'host narrator', or for music: 'calm peaceful sleep' / 'ominous tense' / 'energetic punchy comic'.",
-				),
-			kind: z
-				.enum(["sfx", "broll", "character", "music"])
-				.optional()
-				.describe("Restrict to one kind. Omit to search all."),
-		},
-		async ({ query, kind }) => {
-			const results = searchStock(query, kind as StockKind | undefined);
-			if (results.length === 0) {
-				return {
-					content: [
-						{
-							type: "text",
-							text: `No stock assets matched "${query}". Try broader terms (e.g. 'whoosh', 'particles', 'narrator', 'calm', 'punchy').`,
-						},
-					],
-				};
-			}
-			const lines = results
-				.slice(0, 10)
-				.map((a) => {
-					const moodPart =
-						a.mood && a.mood.length ? `, mood: ${a.mood.join("/")}` : "";
-					const bpmPart = a.bpm ? `, ${a.bpm}bpm` : "";
-					return `[${a.kind}] ${a.slug} — ${a.name} — ${a.url}  (tags: ${a.tags.join(", ")}${a.durationSeconds ? `, ${a.durationSeconds}s` : ""}${moodPart}${bpmPart})`;
-				});
-			return {
-				content: [
-					{
-						type: "text",
-						text: lines.join("\n"),
-					},
-				],
-			};
-		},
-	);
+  const findStockTool = tool(
+    "find_stock",
+    "Search the curated stock library for SFX, b-roll video, character illustrations, or MUSIC beds. Returns matching assets with their URLs. URLs are publicly served — reference them directly as `src=\"...\"`. For 'music', search by mood keywords (energetic / calm / ominous / playful / mysterious / dark / warm). Every composition should include exactly ONE music track unless the brief says otherwise.",
+    {
+      query: z
+        .string()
+        .describe(
+          "Keywords. Examples: 'dramatic riser', 'glitch overlay', 'host narrator', or for music: 'calm peaceful sleep' / 'ominous tense' / 'energetic punchy comic'.",
+        ),
+      kind: z
+        .enum(["sfx", "broll", "character", "music"])
+        .optional()
+        .describe("Restrict to one kind. Omit to search all."),
+    },
+    async ({ query, kind }) => {
+      const results = searchStock(query, kind as StockKind | undefined);
+      if (results.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No stock assets matched "${query}". Try broader terms (e.g. 'whoosh', 'particles', 'narrator', 'calm', 'punchy').`,
+            },
+          ],
+        };
+      }
+      const lines = results.slice(0, 10).map((a) => {
+        const moodPart = a.mood && a.mood.length ? `, mood: ${a.mood.join("/")}` : "";
+        const bpmPart = a.bpm ? `, ${a.bpm}bpm` : "";
+        return `[${a.kind}] ${a.slug} — ${a.name} — ${a.url}  (tags: ${a.tags.join(", ")}${a.durationSeconds ? `, ${a.durationSeconds}s` : ""}${moodPart}${bpmPart})`;
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: lines.join("\n"),
+          },
+        ],
+      };
+    },
+  );
 
-	const getBrandKitTool = tool(
-		"get_brand_kit",
-		"Return the user's saved brand kit (logo, primary color, accent color, font, watermark, channel name, AND host identity: hostName + hostDescription). If hostDescription is set, the composition MUST feature a host matching that description in the same position/style across every scene — character consistency is critical for faceless YT channels. If any field is null, ignore it.",
-		{},
-		async () => {
-			const kit = await readBrandKit(ctx.userId);
-			return {
-				content: [
-					{
-						type: "text",
-						text: JSON.stringify(kit, null, 2),
-					},
-				],
-			};
-		},
-	);
+  const getBrandKitTool = tool(
+    "get_brand_kit",
+    "Return the user's saved brand kit (logo, primary color, accent color, font, watermark, channel name, AND host identity: hostName + hostDescription). If hostDescription is set, the composition MUST feature a host matching that description in the same position/style across every scene — character consistency is critical for faceless YT channels. If any field is null, ignore it.",
+    {},
+    async () => {
+      const kit = await readBrandKit(ctx.userId);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(kit, null, 2),
+          },
+        ],
+      };
+    },
+  );
 
-	const writeFileTool = tool(
-		"write_file",
-		"Create or overwrite a file in the project. Write the COMPLETE file contents — partial writes are not supported.",
-		{
-			path: z.string().describe("Relative path within the project."),
-			content: z.string().describe("Full file contents."),
-		},
-		async ({ path, content }) => {
-			try {
-				writeProjectFile(ctx.userId, ctx.projectId, path, content);
-				return {
-					content: [
-						{
-							type: "text",
-							text: `OK: wrote ${content.length} bytes to ${path}`,
-						},
-					],
-				};
-			} catch (error) {
-				return {
-					content: [
-						{ type: "text", text: `ERROR: ${(error as Error).message}` },
-					],
-					isError: true,
-				};
-			}
-		},
-	);
+  const writeFileTool = tool(
+    "write_file",
+    "Create or overwrite a file in the project. Write the COMPLETE file contents — partial writes are not supported.",
+    {
+      path: z.string().describe("Relative path within the project."),
+      content: z.string().describe("Full file contents."),
+    },
+    async ({ path, content }) => {
+      try {
+        writeProjectFile(ctx.userId, ctx.projectId, path, content);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: wrote ${content.length} bytes to ${path}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
 
-	const lintTool = tool(
-		"lint_composition",
-		"Run the hyperframes linter on the project's index.html. Call this AFTER write_file. If errors are returned, fix them and re-write.",
-		{},
-		async () => {
-			const text = await runLint(ctx.userId, ctx.projectId);
-			return { content: [{ type: "text", text }] };
-		},
-	);
+  const lintTool = tool(
+    "lint_composition",
+    "Run the hyperframes linter on the project's index.html. Call this AFTER write_file. If errors are returned, fix them and re-write.",
+    {},
+    async () => {
+      const text = await runLint(ctx.userId, ctx.projectId);
+      return { content: [{ type: "text", text }] };
+    },
+  );
 
-	const listAssetsTool = tool(
-		"list_assets",
-		"List user-uploaded assets in the project (images, video, audio under assets/).",
-		{},
-		async () => {
-			const assets = listAssets(ctx.userId, ctx.projectId);
-			const text = assets.length ? assets.join("\n") : "(no assets uploaded)";
-			return { content: [{ type: "text", text }] };
-		},
-	);
+  const listAssetsTool = tool(
+    "list_assets",
+    "List user-uploaded assets in the project (images, video, audio under assets/).",
+    {},
+    async () => {
+      const assets = listAssets(ctx.userId, ctx.projectId);
+      const text = assets.length ? assets.join("\n") : "(no assets uploaded)";
+      return { content: [{ type: "text", text }] };
+    },
+  );
 
-	const listRegistryTool = tool(
-		"list_registry_blocks",
-		"List reusable hyperframes blocks/components/examples (transitions, VFX, social mocks, etc). This is your palette.",
-		{},
-		async () => {
-			const entries = listRegistry();
-			const text = entries
-				.map((e) => `[${e.kind}] ${e.name} — ${e.description}`)
-				.join("\n");
-			return { content: [{ type: "text", text }] };
-		},
-	);
+  const listRegistryTool = tool(
+    "list_registry_blocks",
+    "List reusable hyperframes blocks/components/examples (transitions, VFX, social mocks, etc). This is your palette.",
+    {},
+    async () => {
+      const entries = listRegistry();
+      const text = entries.map((e) => `[${e.kind}] ${e.name} — ${e.description}`).join("\n");
+      return { content: [{ type: "text", text }] };
+    },
+  );
 
-	const readRegistryTool = tool(
-		"read_registry_block",
-		"Read the source of a registry block to study or copy its pattern. Use a name from list_registry_blocks.",
-		{ name: z.string() },
-		async ({ name }) => {
-			const content = readRegistryBlock(name);
-			if (!content) {
-				return {
-					content: [{ type: "text", text: `ERROR: block '${name}' not found` }],
-					isError: true,
-				};
-			}
-			return { content: [{ type: "text", text: content }] };
-		},
-	);
+  const readRegistryTool = tool(
+    "read_registry_block",
+    "Read the source of a registry block to study or copy its pattern. Use a name from list_registry_blocks.",
+    { name: z.string() },
+    async ({ name }) => {
+      const content = readRegistryBlock(name);
+      if (!content) {
+        return {
+          content: [{ type: "text", text: `ERROR: block '${name}' not found` }],
+          isError: true,
+        };
+      }
+      return { content: [{ type: "text", text: content }] };
+    },
+  );
 
-	const generateVoiceoverTool = tool(
-		"generate_voiceover",
-		"Synthesize a narration MP3 from text and save it to assets/. Use this for long-form videos that need a presenter voice (sleep stories, history docs, finance breakdowns). Once the audio is in the project the agent should fold it into the composition as `<audio class=\"clip\" data-start=\"0\" data-duration=\"<total>\" data-track-index=\"0\" data-volume=\"1\">` and time the visuals to the cues generated from the same script via generate_captions.",
-		{
-			filename: z
-				.string()
-				.regex(/^[A-Za-z0-9._-]+\.mp3$/)
-				.describe("Output filename, e.g. 'narration.mp3'."),
-			script: z
-				.string()
-				.min(2)
-				.max(8000)
-				.describe("Narration script. ≤8000 chars per request."),
-			voiceId: z
-				.string()
-				.optional()
-				.describe(
-					"ElevenLabs voiceId. Defaults to the user's saved brand voice if set.",
-				),
-		},
-		async ({ filename, script, voiceId }) => {
-			const apiKey =
-				ctx.apiKeys?.elevenlabs || process.env.ELEVENLABS_API_KEY;
-			if (!apiKey) {
-				return {
-					content: [
-						{
-							type: "text",
-							text: `ERROR: No ElevenLabs key configured. Ask the user to paste their ElevenLabs API key at /app/settings/api-keys, then try again.`,
-						},
-					],
-					isError: true,
-				};
-			}
-			try {
-				const buffer = await synthesizeElevenLabs({
-					apiKey,
-					script,
-					voiceId: voiceId || process.env.ELEVENLABS_DEFAULT_VOICE_ID || "",
-				});
-				const target = `assets/${filename}`;
-				writeProjectFile(ctx.userId, ctx.projectId, target, buffer);
-				return {
-					content: [
-						{
-							type: "text",
-							text: `OK: wrote ${target} (${buffer.length}B). Reference as src="${target}" and time captions to the same script via generate_captions.`,
-						},
-					],
-				};
-			} catch (error) {
-				return {
-					content: [
-						{ type: "text", text: `ERROR: ${(error as Error).message}` },
-					],
-					isError: true,
-				};
-			}
-		},
-	);
+  const generateVoiceoverTool = tool(
+    "generate_voiceover",
+    'Synthesize a narration MP3 from text and save it to assets/. Use this for long-form videos that need a presenter voice (sleep stories, history docs, finance breakdowns). Once the audio is in the project the agent should fold it into the composition as `<audio class="clip" data-start="0" data-duration="<total>" data-track-index="0" data-volume="1">` and time the visuals to the cues generated from the same script via generate_captions.',
+    {
+      filename: z
+        .string()
+        .regex(/^[A-Za-z0-9._-]+\.mp3$/)
+        .describe("Output filename, e.g. 'narration.mp3'."),
+      script: z.string().min(2).max(8000).describe("Narration script. ≤8000 chars per request."),
+      voiceId: z
+        .string()
+        .optional()
+        .describe("ElevenLabs voiceId. Defaults to the user's saved brand voice if set."),
+    },
+    async ({ filename, script, voiceId }) => {
+      const apiKey = ctx.apiKeys?.elevenlabs || process.env.ELEVENLABS_API_KEY;
+      if (!apiKey) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `ERROR: No ElevenLabs key configured. Ask the user to paste their ElevenLabs API key at /app/settings/api-keys, then try again.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      try {
+        const buffer = await synthesizeElevenLabs({
+          apiKey,
+          script,
+          voiceId: voiceId || process.env.ELEVENLABS_DEFAULT_VOICE_ID || "",
+        });
+        const target = `assets/${filename}`;
+        writeProjectFile(ctx.userId, ctx.projectId, target, buffer);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: wrote ${target} (${buffer.length}B). Reference as src="${target}" and time captions to the same script via generate_captions.`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
 
-	const generateImageTool = tool(
-		"generate_image",
-		"Generate a placeholder background or accent image and save it to the project's assets/. Uses the provided palette to compose a noisy gradient — not photorealistic, but a usable filler for scene backgrounds when no real reference is available. Returns the asset path you can reference as `src=\"assets/...\"`.",
-		{
-			filename: z
-				.string()
-				.regex(/^[A-Za-z0-9._-]+\.png$/)
-				.describe("Output filename, e.g. 'bg-scene1.png'."),
-			width: z.number().int().min(64).max(3840).default(1920),
-			height: z.number().int().min(64).max(3840).default(1080),
-			palette: z
-				.array(z.string().regex(/^#[0-9a-fA-F]{6}$/))
-				.min(2)
-				.max(5)
-				.describe("Hex colors. First is base, subsequent are accent stops."),
-			direction: z
-				.enum(["radial", "vertical", "diagonal"])
-				.optional()
-				.default("radial"),
-		},
-		async ({ filename, width, height, palette, direction }) => {
-			try {
-				const buffer = await renderPlaceholderImage({
-					width,
-					height,
-					palette,
-					direction: direction || "radial",
-				});
-				const target = `assets/${filename}`;
-				writeProjectFile(ctx.userId, ctx.projectId, target, buffer);
-				return {
-					content: [
-						{
-							type: "text",
-							text: `OK: wrote ${target} (${width}×${height}, ${buffer.length}B). Reference it in your composition as src="${target}".`,
-						},
-					],
-				};
-			} catch (error) {
-				return {
-					content: [
-						{ type: "text", text: `ERROR: ${(error as Error).message}` },
-					],
-					isError: true,
-				};
-			}
-		},
-	);
+  const generateImageTool = tool(
+    "generate_image",
+    'Generate a placeholder background or accent image and save it to the project\'s assets/. Uses the provided palette to compose a noisy gradient — not photorealistic, but a usable filler for scene backgrounds when no real reference is available. Returns the asset path you can reference as `src="assets/..."`.',
+    {
+      filename: z
+        .string()
+        .regex(/^[A-Za-z0-9._-]+\.png$/)
+        .describe("Output filename, e.g. 'bg-scene1.png'."),
+      width: z.number().int().min(64).max(3840).default(1920),
+      height: z.number().int().min(64).max(3840).default(1080),
+      palette: z
+        .array(z.string().regex(/^#[0-9a-fA-F]{6}$/))
+        .min(2)
+        .max(5)
+        .describe("Hex colors. First is base, subsequent are accent stops."),
+      direction: z.enum(["radial", "vertical", "diagonal"]).optional().default("radial"),
+    },
+    async ({ filename, width, height, palette, direction }) => {
+      try {
+        const buffer = await renderPlaceholderImage({
+          width,
+          height,
+          palette,
+          direction: direction || "radial",
+        });
+        const target = `assets/${filename}`;
+        writeProjectFile(ctx.userId, ctx.projectId, target, buffer);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: wrote ${target} (${width}×${height}, ${buffer.length}B). Reference it in your composition as src="${target}".`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
 
-	const generateCaptionsTool = tool(
-		"generate_captions",
-		"Split a script into timed caption cues distributed evenly across the composition duration. Returns an array of { text, start, end } in seconds. Use these cues to add a captions track to the composition (overlay <div>s revealed via GSAP timeline). Captions should be ≤6 words per cue for vertical (9:16) and ≤9 for horizontal (16:9).",
-		{
-			script: z
-				.string()
-				.describe(
-					"Full narration / on-screen script. Sentences are split into shorter cues automatically.",
-				),
-			totalDurationSeconds: z
-				.number()
-				.min(2)
-				.max(900)
-				.describe("Total composition duration in seconds."),
-			maxWordsPerCue: z
-				.number()
-				.int()
-				.min(2)
-				.max(20)
-				.optional()
-				.default(6)
-				.describe("Cap on words per caption cue."),
-		},
-		async ({ script, totalDurationSeconds, maxWordsPerCue }) => {
-			const cap = maxWordsPerCue ?? 6;
-			const cues = splitScriptIntoCues(script, cap, totalDurationSeconds);
-			return {
-				content: [
-					{
-						type: "text",
-						text: [
-							`Generated ${cues.length} caption cue(s) across ${totalDurationSeconds}s:`,
-							...cues.map(
-								(cue, i) =>
-									`  ${i + 1}. [${cue.start.toFixed(2)}s → ${cue.end.toFixed(2)}s]  ${cue.text}`,
-							),
-							"",
-							"JSON for direct use in your composition:",
-							JSON.stringify(cues),
-						].join("\n"),
-					},
-				],
-			};
-		},
-	);
+  const generateCaptionsTool = tool(
+    "generate_captions",
+    "Split a script into timed caption cues distributed evenly across the composition duration. Returns an array of { text, start, end } in seconds. Use these cues to add a captions track to the composition (overlay <div>s revealed via GSAP timeline). Captions should be ≤6 words per cue for vertical (9:16) and ≤9 for horizontal (16:9).",
+    {
+      script: z
+        .string()
+        .describe(
+          "Full narration / on-screen script. Sentences are split into shorter cues automatically.",
+        ),
+      totalDurationSeconds: z
+        .number()
+        .min(2)
+        .max(900)
+        .describe("Total composition duration in seconds."),
+      maxWordsPerCue: z
+        .number()
+        .int()
+        .min(2)
+        .max(20)
+        .optional()
+        .default(6)
+        .describe("Cap on words per caption cue."),
+    },
+    async ({ script, totalDurationSeconds, maxWordsPerCue }) => {
+      const cap = maxWordsPerCue ?? 6;
+      const cues = splitScriptIntoCues(script, cap, totalDurationSeconds);
+      return {
+        content: [
+          {
+            type: "text",
+            text: [
+              `Generated ${cues.length} caption cue(s) across ${totalDurationSeconds}s:`,
+              ...cues.map(
+                (cue, i) =>
+                  `  ${i + 1}. [${cue.start.toFixed(2)}s → ${cue.end.toFixed(2)}s]  ${cue.text}`,
+              ),
+              "",
+              "JSON for direct use in your composition:",
+              JSON.stringify(cues),
+            ].join("\n"),
+          },
+        ],
+      };
+    },
+  );
 
-	const analyzeImageTool = tool(
-		"analyze_image",
-		"Extract a rough color palette (top 5 colors) + average lightness from an image asset in the project. Use this on any reference image the user has dropped in chat to design a matching palette. Path is relative to the project root, usually 'assets/foo.png'.",
-		{
-			path: z
-				.string()
-				.describe("Relative path to an image asset, e.g. 'assets/ref.png'."),
-		},
-		async ({ path }) => {
-			try {
-				const file = readProjectFile(ctx.userId, ctx.projectId, path);
-				if (!file.mime.startsWith("image/")) {
-					return {
-						content: [
-							{
-								type: "text",
-								text: `ERROR: ${path} is not an image (${file.mime}).`,
-							},
-						],
-						isError: true,
-					};
-				}
-				const palette = await extractPalette(file.content);
-				const lines = [
-					`Palette analysis of ${path}:`,
-					`Avg lightness: ${Math.round(palette.avgLightness * 100)}/100 (${
-						palette.avgLightness > 0.6
-							? "bright"
-							: palette.avgLightness < 0.3
-								? "dark"
-								: "mid"
-					})`,
-					"Top colors (sample → hex):",
-					...palette.colors.map(
-						(c, i) =>
-							`  ${i + 1}. ${c.hex}  (rgb ${c.r},${c.g},${c.b}, ~${c.percent}%)`,
-					),
-				];
-				return { content: [{ type: "text", text: lines.join("\n") }] };
-			} catch (error) {
-				return {
-					content: [
-						{ type: "text", text: `ERROR: ${(error as Error).message}` },
-					],
-					isError: true,
-				};
-			}
-		},
-	);
+  const analyzeImageTool = tool(
+    "analyze_image",
+    "Extract a rough color palette (top 5 colors) + average lightness from an image asset in the project. Use this on any reference image the user has dropped in chat to design a matching palette. Path is relative to the project root, usually 'assets/foo.png'.",
+    {
+      path: z.string().describe("Relative path to an image asset, e.g. 'assets/ref.png'."),
+    },
+    async ({ path }) => {
+      try {
+        const file = readProjectFile(ctx.userId, ctx.projectId, path);
+        if (!file.mime.startsWith("image/")) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `ERROR: ${path} is not an image (${file.mime}).`,
+              },
+            ],
+            isError: true,
+          };
+        }
+        const palette = await extractPalette(file.content);
+        const lines = [
+          `Palette analysis of ${path}:`,
+          `Avg lightness: ${Math.round(palette.avgLightness * 100)}/100 (${
+            palette.avgLightness > 0.6 ? "bright" : palette.avgLightness < 0.3 ? "dark" : "mid"
+          })`,
+          "Top colors (sample → hex):",
+          ...palette.colors.map(
+            (c, i) => `  ${i + 1}. ${c.hex}  (rgb ${c.r},${c.g},${c.b}, ~${c.percent}%)`,
+          ),
+        ];
+        return { content: [{ type: "text", text: lines.join("\n") }] };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
 
-	const screenshotTool = tool(
-		"screenshot_at_time",
-		"Render PNG frame(s) of the current composition at given timestamps. Use this after write_file to visually verify what you built before claiming it's done. The returned images are the actual rendered output — look at them and decide if anything needs fixing.",
-		{
-			timestamps: z
-				.array(z.number().min(0).max(300))
-				.min(1)
-				.max(4)
-				.describe(
-					"Up to 4 timestamps in seconds, e.g. [0.5, 2.0, 5.0]. Pick moments that matter (entrance, midpoint, climax, last frame).",
-				),
-		},
-		async ({ timestamps }) => {
-			const result = await runSnapshot(ctx.userId, ctx.projectId, timestamps);
-			return { content: result };
-		},
-	);
+  const screenshotTool = tool(
+    "screenshot_at_time",
+    "Render PNG frame(s) of the current composition at given timestamps. Use this after write_file to visually verify what you built before claiming it's done. The returned images are the actual rendered output — look at them and decide if anything needs fixing.",
+    {
+      timestamps: z
+        .array(z.number().min(0).max(300))
+        .min(1)
+        .max(4)
+        .describe(
+          "Up to 4 timestamps in seconds, e.g. [0.5, 2.0, 5.0]. Pick moments that matter (entrance, midpoint, climax, last frame).",
+        ),
+    },
+    async ({ timestamps }) => {
+      const result = await runSnapshot(ctx.userId, ctx.projectId, timestamps);
+      return { content: result };
+    },
+  );
 
-	const startRenderTool = tool(
-		"start_render",
-		"Queue an MP4 render of the current composition. Only call when the user explicitly asks to render. Progress shows in the UI.",
-		{
-			fps: z.number().int().min(1).max(120).optional().default(30),
-			quality: z
-				.enum(["draft", "standard", "high"])
-				.optional()
-				.default("standard"),
-		},
-		async ({ fps, quality }) => {
-			try {
-				const jobId = await ctx.enqueueRender({ fps, quality });
-				return {
-					content: [
-						{
-							type: "text",
-							text: `OK: render queued, job id = ${jobId}. The user will see progress in the UI.`,
-						},
-					],
-				};
-			} catch (error) {
-				return {
-					content: [
-						{ type: "text", text: `ERROR: ${(error as Error).message}` },
-					],
-					isError: true,
-				};
-			}
-		},
-	);
+  const startRenderTool = tool(
+    "start_render",
+    "Queue an MP4 render of the current composition. Only call when the user explicitly asks to render. Progress shows in the UI.",
+    {
+      fps: z.number().int().min(1).max(120).optional().default(30),
+      quality: z.enum(["draft", "standard", "high"]).optional().default("standard"),
+    },
+    async ({ fps, quality }) => {
+      try {
+        const jobId = await ctx.enqueueRender({ fps, quality });
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: render queued, job id = ${jobId}. The user will see progress in the UI.`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
 
-	const generateImageVariantsTool = tool(
-		"generate_image_variants",
-		"Generate N candidate images for a scene via the user's Replicate API key, save them to assets/variants/<id>/, and emit a picker block so the user can choose one. Use this when the user explicitly asks for options or for photoreal / model-generated stills (vs. the local placeholder generate_image). After this returns, STOP and wait for the user to pick before referencing any path — the final path will be assets/<sceneSlug>.png after the user clicks a variant.",
-		{
-			prompt: z
-				.string()
-				.min(4)
-				.max(2000)
-				.describe(
-					"Image prompt. Include style + subject + key composition cues.",
-				),
-			sceneSlug: z
-				.string()
-				.regex(/^[a-z0-9-]+$/)
-				.describe(
-					"Short slug for the destination asset (e.g. 'hero-bg'). Becomes assets/<sceneSlug>.png once the user picks.",
-				),
-			count: z
-				.number()
-				.int()
-				.min(1)
-				.max(4)
-				.default(4)
-				.describe("How many variants to generate. Default 4."),
-			aspectRatio: z
-				.enum(["1:1", "16:9", "9:16", "4:3", "3:4"])
-				.default("16:9")
-				.describe("Output aspect ratio."),
-		},
-		async ({ prompt, sceneSlug, count, aspectRatio }) => {
-			const apiKey = ctx.apiKeys?.replicate;
-			if (!apiKey) {
-				return {
-					content: [
-						{
-							type: "text",
-							text: `ERROR: No Replicate key configured. Tell the user to paste their Replicate token at /app/settings/api-keys, then try again.`,
-						},
-					],
-					isError: true,
-				};
-			}
-			const batchId = nanoid(8);
-			const dir = `assets/variants/${sceneSlug}-${batchId}`;
-			const generated: Array<{ path: string; index: number }> = [];
-			const errors: string[] = [];
-			// Sequential so we surface failures one at a time rather than firing
-			// `count` requests and getting hammered by Replicate's rate limit.
-			for (let index = 1; index <= (count || 4); index++) {
-				try {
-					const buffer = await replicateGenerateImage({
-						apiKey,
-						prompt,
-						aspectRatio,
-					});
-					const target = `${dir}/${index}.png`;
-					writeProjectFile(ctx.userId, ctx.projectId, target, buffer);
-					generated.push({ path: target, index });
-				} catch (error) {
-					errors.push(`#${index}: ${(error as Error).message}`);
-				}
-			}
-			if (generated.length === 0) {
-				return {
-					content: [
-						{
-							type: "text",
-							text: `ERROR: all variants failed. ${errors.join(" · ")}`,
-						},
-					],
-					isError: true,
-				};
-			}
-			// The chat UI looks for <variants> ... </variants> JSON tags in
-			// tool_result text and renders a picker. The agent should NOT
-			// reference any path until the user picks — make that explicit so
-			// the model doesn't auto-pick #1 and proceed.
-			const marker = JSON.stringify({
-				sceneSlug,
-				dir,
-				targetPath: `assets/${sceneSlug}.png`,
-				paths: generated.map((g) => g.path),
-			});
-			return {
-				content: [
-					{
-						type: "text",
-						text: `OK: generated ${generated.length}/${count} variants in ${dir}. ${
-							errors.length ? `Some failed: ${errors.join(" · ")}. ` : ""
-						}STOP. Wait for the user to pick one before proceeding — the chat will surface a picker.\n\n<variants>${marker}</variants>`,
-					},
-				],
-			};
-		},
-	);
+  const generateImageVariantsTool = tool(
+    "generate_image_variants",
+    "Generate N candidate images for a scene via the user's Replicate API key, save them to assets/variants/<id>/, and emit a picker block so the user can choose one. Use this when the user explicitly asks for options or for photoreal / model-generated stills (vs. the local placeholder generate_image). After this returns, STOP and wait for the user to pick before referencing any path — the final path will be assets/<sceneSlug>.png after the user clicks a variant.",
+    {
+      prompt: z
+        .string()
+        .min(4)
+        .max(2000)
+        .describe("Image prompt. Include style + subject + key composition cues."),
+      sceneSlug: z
+        .string()
+        .regex(/^[a-z0-9-]+$/)
+        .describe(
+          "Short slug for the destination asset (e.g. 'hero-bg'). Becomes assets/<sceneSlug>.png once the user picks.",
+        ),
+      count: z
+        .number()
+        .int()
+        .min(1)
+        .max(4)
+        .default(4)
+        .describe("How many variants to generate. Default 4."),
+      aspectRatio: z
+        .enum(["1:1", "16:9", "9:16", "4:3", "3:4"])
+        .default("16:9")
+        .describe("Output aspect ratio."),
+    },
+    async ({ prompt, sceneSlug, count, aspectRatio }) => {
+      const apiKey = ctx.apiKeys?.replicate;
+      if (!apiKey) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `ERROR: No Replicate key configured. Tell the user to paste their Replicate token at /app/settings/api-keys, then try again.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      const batchId = nanoid(8);
+      const dir = `assets/variants/${sceneSlug}-${batchId}`;
+      const generated: Array<{ path: string; index: number }> = [];
+      const errors: string[] = [];
+      // Sequential so we surface failures one at a time rather than firing
+      // `count` requests and getting hammered by Replicate's rate limit.
+      for (let index = 1; index <= (count || 4); index++) {
+        try {
+          const buffer = await replicateGenerateImage({
+            apiKey,
+            prompt,
+            aspectRatio,
+          });
+          const target = `${dir}/${index}.png`;
+          writeProjectFile(ctx.userId, ctx.projectId, target, buffer);
+          generated.push({ path: target, index });
+        } catch (error) {
+          errors.push(`#${index}: ${(error as Error).message}`);
+        }
+      }
+      if (generated.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `ERROR: all variants failed. ${errors.join(" · ")}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      // The chat UI looks for <variants> ... </variants> JSON tags in
+      // tool_result text and renders a picker. The agent should NOT
+      // reference any path until the user picks — make that explicit so
+      // the model doesn't auto-pick #1 and proceed.
+      const marker = JSON.stringify({
+        sceneSlug,
+        dir,
+        targetPath: `assets/${sceneSlug}.png`,
+        paths: generated.map((g) => g.path),
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: `OK: generated ${generated.length}/${count} variants in ${dir}. ${
+              errors.length ? `Some failed: ${errors.join(" · ")}. ` : ""
+            }STOP. Wait for the user to pick one before proceeding — the chat will surface a picker.\n\n<variants>${marker}</variants>`,
+          },
+        ],
+      };
+    },
+  );
 
-	return createSdkMcpServer({
-		name: MCP_SERVER_NAME,
-		version: "1.0.0",
-		tools: [
-			planCompositionTool,
-			listFilesTool,
-			readFileTool,
-			writeFileTool,
-			diffFileTool,
-			lintTool,
-			screenshotTool,
-			getBrandKitTool,
-			findStockTool,
-			listAssetsTool,
-			listRegistryTool,
-			readRegistryTool,
-			analyzeImageTool,
-			generateCaptionsTool,
-			generateImageTool,
-			generateImageVariantsTool,
-			generateVoiceoverTool,
-			startRenderTool,
-		],
-	});
+  // -------------------------------------------------------------------------
+  // Video clip editing tools (FFmpeg-backed)
+  // -------------------------------------------------------------------------
+
+  const planEditTool = tool(
+    "plan_edit",
+    "REQUIRED FIRST STEP for any footage editing task. Build the complete EDL (Edit Decision List) upfront — segments with grade/speed, overlays, captions — then present a human-readable summary and STOP. On user approval, pass the edl field directly to render_edl. Never call individual FFmpeg tools for something covered by the EDL.",
+    {
+      // Human-readable summary shown to the user
+      summary: z
+        .string()
+        .describe(
+          "Plain-English description of the edit plan. 3–8 bullet points. This is what the user reads and approves.",
+        ),
+      compositionNeeded: z
+        .boolean()
+        .describe(
+          "True if a Hyperframes index.html will be written around the processed footage after render_edl completes.",
+        ),
+      // Pre-built EDL — passed directly to render_edl after approval
+      edl: z.object({
+        version: z.literal(1),
+        segments: z
+          .array(
+            z.object({
+              source: z.string().describe("Relative path to source clip."),
+              start: z.number().describe("Start time in source (seconds)."),
+              end: z.number().describe("End time in source (seconds)."),
+              beat: z.string().optional(),
+              grade: z
+                .union([
+                  z.literal("auto").describe("Auto-analyze per clip (recommended default)."),
+                  z.literal("none").describe("Skip grading."),
+                  z.object({
+                    brightness: z.number().min(-1).max(1).optional(),
+                    contrast: z.number().min(0).max(2).optional(),
+                    saturation: z.number().min(0).max(3).optional(),
+                    gamma: z.number().min(0.1).max(10).optional(),
+                    temperature: z.enum(["warm", "cool", "neutral"]).optional(),
+                  }),
+                ])
+                .optional(),
+              speed: z.number().min(0.25).max(4).optional(),
+            }),
+          )
+          .min(1),
+        overlays: z
+          .array(
+            z.object({
+              file: z.string(),
+              startInOutput: z.number(),
+              duration: z.number(),
+              x: z.union([z.number(), z.literal("center")]).optional(),
+              y: z.union([z.number(), z.literal("center")]).optional(),
+              width: z.number().int().optional(),
+            }),
+          )
+          .optional(),
+        captions: z
+          .array(z.object({ text: z.string(), start: z.number(), end: z.number() }))
+          .optional(),
+        outputPath: z.string().describe("Relative output path e.g. assets/processed/final.mp4"),
+        loudnorm: z
+          .boolean()
+          .optional()
+          .describe("Apply 2-pass -14 LUFS normalization (recommended for social exports)."),
+      }),
+    },
+    async (plan) => {
+      const segCount = plan.edl.segments.length;
+      const totalDuration = plan.edl.segments
+        .reduce((sum, segment) => sum + (segment.end - segment.start) / (segment.speed ?? 1), 0)
+        .toFixed(1);
+      const overlayCount = plan.edl.overlays?.length ?? 0;
+      const captionCount = plan.edl.captions?.length ?? 0;
+
+      const segLines = plan.edl.segments.map((segment, index) => {
+        const dur = ((segment.end - segment.start) / (segment.speed ?? 1)).toFixed(1);
+        let gradeLabel = "";
+        if (segment.grade === "auto") gradeLabel = " · auto-grade";
+        else if (segment.grade === "none") gradeLabel = "";
+        else if (segment.grade) gradeLabel = ` · ${segment.grade.temperature ?? "grade"}`;
+        const speed = segment.speed && segment.speed !== 1 ? ` · ${segment.speed}×` : "";
+        return `  ${index + 1}. ${segment.source} [${segment.start}s–${segment.end}s]${gradeLabel}${speed} → ${dur}s${segment.beat ? ` (${segment.beat})` : ""}`;
+      });
+
+      const lines = [
+        `Edit plan — ${segCount} segment${segCount !== 1 ? "s" : ""}, ~${totalDuration}s output → ${plan.edl.outputPath}`,
+        "",
+        "Segments:",
+        ...segLines,
+      ];
+
+      if (overlayCount > 0) {
+        lines.push(
+          "",
+          `Overlays: ${plan.edl.overlays!.map((overlay) => `${overlay.file} at ${overlay.startInOutput}s`).join(", ")}`,
+        );
+      }
+      if (captionCount > 0) {
+        lines.push(`Captions: ${captionCount} cues (burned last)`);
+      }
+      if (plan.compositionNeeded) {
+        lines.push("", "After render: write Hyperframes composition around the output.");
+      }
+
+      lines.push(
+        "",
+        "User summary:",
+        plan.summary,
+        "",
+        "EDL is ready. STOP — present this plan to the user and wait for approval before calling render_edl.",
+        "On approval: call render_edl with the edl field above exactly as-is.",
+      );
+
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    },
+  );
+
+  const probeClipTool = tool(
+    "probe_clip",
+    "Get metadata for a video or audio asset: duration, resolution, fps, has_audio, file size. Call this before any FFmpeg operation that needs clip duration (trim, transition, concat).",
+    {
+      path: z.string().describe("Relative path to the asset, e.g. 'assets/footage.mp4'."),
+    },
+    async ({ path }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const absPath = resolveProjectPath(dir, path);
+        const info = await probeClip(absPath);
+        return {
+          content: [
+            {
+              type: "text",
+              text: [
+                `path: ${path}`,
+                `duration: ${info.durationSeconds.toFixed(3)}s`,
+                `resolution: ${info.width}×${info.height}`,
+                `fps: ${info.fps}`,
+                `has_audio: ${info.hasAudio}`,
+                `size: ${(info.fileSizeBytes / 1024 / 1024).toFixed(2)}MB`,
+              ].join("\n"),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const trimClipTool = tool(
+    "trim_clip",
+    "Cut a video clip to a time range [start, end]. Output is always re-encoded H.264 with correct timestamps. Saves to assets/processed/<output>.",
+    {
+      input: z.string().describe("Relative path to source clip."),
+      output: z.string().describe("Relative output path, e.g. 'assets/processed/trimmed.mp4'."),
+      startSeconds: z.number().min(0).describe("Start time in seconds."),
+      endSeconds: z
+        .number()
+        .optional()
+        .describe("End time in seconds. Omit to keep to end of clip."),
+    },
+    async ({ input, output, startSeconds, endSeconds }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const result = await trimClip({
+          inputPath: resolveProjectPath(dir, input),
+          outputPath: resolveProjectPath(dir, output),
+          startSeconds,
+          endSeconds,
+        });
+        if (!result.ok)
+          return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: trimmed ${input} [${startSeconds}s–${endSeconds ?? "end"}] → ${output}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const concatClipsTool = tool(
+    "concat_clips",
+    "Join multiple video clips in order into one output file. Clips are re-encoded for seamless concatenation.",
+    {
+      inputs: z.array(z.string()).min(2).describe("Ordered list of relative paths to clips."),
+      output: z.string().describe("Relative output path, e.g. 'assets/processed/joined.mp4'."),
+    },
+    async ({ inputs, output }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const result = await concatClips({
+          inputPaths: inputs.map((p) => resolveProjectPath(dir, p)),
+          outputPath: resolveProjectPath(dir, output),
+        });
+        if (!result.ok)
+          return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
+        return {
+          content: [{ type: "text", text: `OK: concatenated ${inputs.length} clips → ${output}` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const gradeClipTool = tool(
+    "grade_clip",
+    "Apply color grading to a video clip: brightness, contrast, saturation, gamma, and a warm/cool temperature shift. Values outside defaults subtly reshape the look.",
+    {
+      input: z.string().describe("Relative path to source clip."),
+      output: z.string().describe("Relative output path."),
+      brightness: z
+        .number()
+        .min(-1)
+        .max(1)
+        .optional()
+        .describe("Brightness offset. 0 = no change. Range -1 to 1."),
+      contrast: z
+        .number()
+        .min(0)
+        .max(2)
+        .optional()
+        .describe("Contrast multiplier. 1.0 = no change."),
+      saturation: z
+        .number()
+        .min(0)
+        .max(3)
+        .optional()
+        .describe("Saturation multiplier. 1.0 = no change. 0 = grayscale."),
+      gamma: z.number().min(0.1).max(10).optional().describe("Gamma correction. 1.0 = no change."),
+      temperature: z
+        .enum(["warm", "cool", "neutral"])
+        .optional()
+        .describe("Color temperature shift."),
+    },
+    async ({ input, output, brightness, contrast, saturation, gamma, temperature }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const result = await gradeClip({
+          inputPath: resolveProjectPath(dir, input),
+          outputPath: resolveProjectPath(dir, output),
+          brightness,
+          contrast,
+          saturation,
+          gamma,
+          temperature,
+        });
+        if (!result.ok)
+          return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
+        return { content: [{ type: "text", text: `OK: graded ${input} → ${output}` }] };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const chromaKeyTool = tool(
+    "chroma_key",
+    "Remove a solid color background (green screen / blue screen) from a video clip. Output has the background replaced with transparency (encoded as H.264 — use in composition over another background).",
+    {
+      input: z.string().describe("Relative path to source clip with solid color background."),
+      output: z.string().describe("Relative output path."),
+      color: z
+        .string()
+        .optional()
+        .describe(
+          "Background hex color without # (e.g. '00FF00' for green, '0000FF' for blue). Default '00FF00'.",
+        ),
+      similarity: z
+        .number()
+        .min(0.01)
+        .max(1)
+        .optional()
+        .describe(
+          "How broadly to match the color. 0.3 is a good default; increase for uneven lighting.",
+        ),
+      blend: z.number().min(0).max(1).optional().describe("Edge softness. 0.05 default."),
+    },
+    async ({ input, output, color, similarity, blend }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const result = await chromaKey({
+          inputPath: resolveProjectPath(dir, input),
+          outputPath: resolveProjectPath(dir, output),
+          color,
+          similarity,
+          blend,
+        });
+        if (!result.ok)
+          return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
+        return { content: [{ type: "text", text: `OK: chroma-keyed ${input} → ${output}` }] };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const speedClipTool = tool(
+    "speed_clip",
+    "Change playback speed of a video clip. 2.0 = double speed (shorter), 0.5 = half speed (slow-mo, longer). Audio pitch is adjusted accordingly.",
+    {
+      input: z.string().describe("Relative path to source clip."),
+      output: z.string().describe("Relative output path."),
+      factor: z
+        .number()
+        .min(0.25)
+        .max(4)
+        .describe(
+          "Speed multiplier. 1.0 = normal. 0.5 = slow-mo. 2.0 = fast-forward. Range 0.25–4.0.",
+        ),
+    },
+    async ({ input, output, factor }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const result = await speedClip({
+          inputPath: resolveProjectPath(dir, input),
+          outputPath: resolveProjectPath(dir, output),
+          factor,
+        });
+        if (!result.ok)
+          return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
+        return {
+          content: [{ type: "text", text: `OK: speed-adjusted ${input} (${factor}×) → ${output}` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const overlayClipTool = tool(
+    "overlay_clip",
+    "Layer one video clip on top of another (picture-in-picture, watermark, talking-head over footage). The base clip audio is preserved.",
+    {
+      base: z.string().describe("Relative path to the base (background) clip."),
+      overlay: z.string().describe("Relative path to the clip to overlay on top."),
+      output: z.string().describe("Relative output path."),
+      x: z
+        .union([z.number(), z.literal("center")])
+        .optional()
+        .describe("Horizontal offset in pixels, or 'center'. Default 0."),
+      y: z
+        .union([z.number(), z.literal("center")])
+        .optional()
+        .describe("Vertical offset in pixels, or 'center'. Default 0."),
+      width: z
+        .number()
+        .int()
+        .optional()
+        .describe("Scale overlay to this width in pixels (preserves aspect ratio)."),
+      startSeconds: z
+        .number()
+        .optional()
+        .describe(
+          "When the overlay appears in the base clip timeline (seconds). Omit for always visible.",
+        ),
+      durationSeconds: z
+        .number()
+        .optional()
+        .describe("How long the overlay is visible (seconds). Requires startSeconds."),
+    },
+    async ({ base, overlay, output, x, y, width, startSeconds, durationSeconds }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const result = await overlayClip({
+          basePath: resolveProjectPath(dir, base),
+          overlayPath: resolveProjectPath(dir, overlay),
+          outputPath: resolveProjectPath(dir, output),
+          x,
+          y,
+          width,
+          startSeconds,
+          durationSeconds,
+        });
+        if (!result.ok)
+          return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
+        return {
+          content: [{ type: "text", text: `OK: overlaid ${overlay} on ${base} → ${output}` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const addTransitionTool = tool(
+    "add_transition",
+    "Join two clips with a smooth xfade transition between them. REQUIRED: call probe_clip on clip1 first to get its duration, then pass that as clip1DurationSeconds.",
+    {
+      clip1: z.string().describe("Relative path to first clip."),
+      clip2: z.string().describe("Relative path to second clip."),
+      output: z.string().describe("Relative output path."),
+      clip1DurationSeconds: z.number().describe("Duration of clip1 in seconds — from probe_clip."),
+      type: z
+        .enum([
+          "fade",
+          "fadeblack",
+          "fadewhite",
+          "wipeleft",
+          "wiperight",
+          "wipeup",
+          "wipedown",
+          "slideleft",
+          "slideright",
+          "circlecrop",
+          "dissolve",
+        ])
+        .optional()
+        .describe("Transition type. Default 'fade'."),
+      durationSeconds: z
+        .number()
+        .min(0.1)
+        .max(3)
+        .optional()
+        .describe("Transition duration in seconds. Default 0.5."),
+    },
+    async ({ clip1, clip2, output, clip1DurationSeconds, type, durationSeconds }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const result = await addTransition({
+          clip1Path: resolveProjectPath(dir, clip1),
+          clip2Path: resolveProjectPath(dir, clip2),
+          outputPath: resolveProjectPath(dir, output),
+          clip1DurationSeconds,
+          type: type as XfadeType | undefined,
+          durationSeconds,
+        });
+        if (!result.ok)
+          return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: transition (${type ?? "fade"}, ${durationSeconds ?? 0.5}s) ${clip1} → ${clip2} → ${output}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const mixAudioTool = tool(
+    "mix_audio",
+    "Combine multiple audio or video files into one mixed audio output. Each input can have its own volume level and start offset. Useful for adding background music to voiceover, or layering SFX.",
+    {
+      inputs: z
+        .array(
+          z.object({
+            path: z.string().describe("Relative path to audio or video file."),
+            volume: z
+              .number()
+              .min(0)
+              .max(2)
+              .optional()
+              .describe("Volume multiplier. 1.0 = normal. 0.5 = half volume."),
+            startSeconds: z
+              .number()
+              .optional()
+              .describe("Delay this track by N seconds in the output mix."),
+          }),
+        )
+        .min(2)
+        .describe("Tracks to mix. Minimum 2."),
+      output: z
+        .string()
+        .describe("Relative output path for the mixed audio, e.g. 'assets/processed/mix.mp3'."),
+      totalDurationSeconds: z
+        .number()
+        .optional()
+        .describe("Trim output to this duration. Omit to use longest track."),
+    },
+    async ({ inputs, output, totalDurationSeconds }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const result = await mixAudio({
+          inputs: inputs.map((track) => ({
+            path: resolveProjectPath(dir, track.path),
+            volume: track.volume,
+            startSeconds: track.startSeconds,
+          })),
+          outputPath: resolveProjectPath(dir, output),
+          totalDurationSeconds,
+        });
+        if (!result.ok)
+          return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
+        return {
+          content: [{ type: "text", text: `OK: mixed ${inputs.length} tracks → ${output}` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const extractAudioTool = tool(
+    "extract_audio",
+    "Rip the audio track from a video file and save it as an MP3. Useful when you need to transcribe speech, remix audio, or use the audio separately from the video.",
+    {
+      input: z.string().describe("Relative path to source video."),
+      output: z
+        .string()
+        .describe("Relative output path for the audio, e.g. 'assets/processed/audio.mp3'."),
+    },
+    async ({ input, output }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const result = await extractAudio({
+          inputPath: resolveProjectPath(dir, input),
+          outputPath: resolveProjectPath(dir, output),
+        });
+        if (!result.ok)
+          return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
+        return {
+          content: [{ type: "text", text: `OK: extracted audio from ${input} → ${output}` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const burnCaptionsTool = tool(
+    "burn_captions",
+    "Permanently bake caption/subtitle cues into a video clip. The text is rendered directly on the pixels — no separate subtitle track. Pass cues from generate_captions or transcribe_clip.",
+    {
+      input: z.string().describe("Relative path to source video."),
+      output: z.string().describe("Relative output path."),
+      cues: z
+        .array(
+          z.object({
+            text: z.string(),
+            start: z.number().describe("Start time in seconds."),
+            end: z.number().describe("End time in seconds."),
+          }),
+        )
+        .min(1)
+        .describe("Caption cues with timing."),
+      fontSize: z
+        .number()
+        .int()
+        .min(10)
+        .max(80)
+        .optional()
+        .describe("Font size in points. Default 24."),
+      position: z
+        .enum(["bottom", "center", "top"])
+        .optional()
+        .describe("Where captions appear. Default 'bottom'."),
+      fontColor: z
+        .string()
+        .optional()
+        .describe("Font color as hex without # (e.g. 'FFFFFF' for white). Default 'FFFFFF'."),
+    },
+    async ({ input, output, cues, fontSize, position, fontColor }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const result = await burnCaptions({
+          inputPath: resolveProjectPath(dir, input),
+          outputPath: resolveProjectPath(dir, output),
+          cues,
+          fontSize,
+          position,
+          fontColor,
+        });
+        if (!result.ok)
+          return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: burned ${cues.length} caption cues into ${input} → ${output}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const transcribeClipTool = tool(
+    "transcribe_clip",
+    "Transcribe speech in a video or audio file using OpenAI Whisper. Returns the full transcript text AND word-level timestamps you can pass directly to generate_captions or burn_captions. Requires a BYOK OpenAI key.",
+    {
+      path: z.string().describe("Relative path to video or audio asset."),
+      language: z
+        .string()
+        .optional()
+        .describe("ISO 639-1 language code (e.g. 'en', 'es', 'fr'). Omit for auto-detect."),
+    },
+    async ({ path, language }) => {
+      const apiKey = ctx.apiKeys?.openai;
+      if (!apiKey) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "ERROR: No OpenAI key configured. Ask the user to paste their OpenAI API key at /app/settings/api-keys, then try again.",
+            },
+          ],
+          isError: true,
+        };
+      }
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const result = await transcribeClip({
+          filePath: resolveProjectPath(dir, path),
+          apiKey,
+          language,
+          // Cache at assets/processed/transcripts/<stem>.json — Hard Rule 9.
+          cacheDir: resolveProjectPath(dir, "assets/processed/transcripts"),
+        });
+        if (!result.ok)
+          return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
+
+        const wordSummary = result.words?.length
+          ? `\n\nWord timestamps (${result.words.length} words):\n${JSON.stringify(result.words)}`
+          : "";
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Transcript:\n${result.transcript}${wordSummary}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const buildCaptionsFromWordsTool = tool(
+    "build_captions_from_words",
+    "Convert Whisper word-level timestamps into output-timeline caption cues for an EDL. ALWAYS call this after transcribe_clip — never hand-compute caption offsets. Handles segment snipping, speed adjustment, and output-timeline remapping (Hard Rule 5).",
+    {
+      words: z
+        .array(
+          z.object({
+            word: z.string(),
+            start: z.number().describe("Word start in SOURCE clip (seconds from transcribe_clip)."),
+            end: z.number().describe("Word end in SOURCE clip (seconds from transcribe_clip)."),
+          }),
+        )
+        .min(1)
+        .describe("Word timestamps from transcribe_clip."),
+      segments: z
+        .array(
+          z.object({
+            source: z.string(),
+            start: z.number(),
+            end: z.number(),
+            speed: z.number().optional(),
+          }),
+        )
+        .min(1)
+        .describe("The exact same segments that will go into render_edl."),
+      chunkSize: z
+        .number()
+        .int()
+        .min(1)
+        .max(6)
+        .optional()
+        .default(2)
+        .describe(
+          "Words per caption line. 2 = bold-overlay style (default). 4-7 = natural-sentence style.",
+        ),
+    },
+    async ({ words, segments, chunkSize }) => {
+      try {
+        const cues = buildCaptionsFromWords(
+          words as TranscriptWord[],
+          segments as EdlSegment[],
+          chunkSize ?? 2,
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: ${cues.length} caption cues (output-timeline):\n${JSON.stringify(cues)}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const snapToBoundaryTool = tool(
+    "snap_to_boundary",
+    "Snap a raw timestamp to the nearest word boundary from a Whisper transcript. Use this when building EDL segments to avoid mid-phoneme cuts (Hard Rules 6+7). Direction 'before' = snap to end of last word before target (use for segment end). Direction 'after' = snap to start of next word after target (use for segment start).",
+    {
+      targetSeconds: z.number().describe("Raw timestamp to snap (seconds)."),
+      words: z
+        .array(
+          z.object({
+            word: z.string(),
+            start: z.number(),
+            end: z.number(),
+          }),
+        )
+        .min(1),
+      direction: z
+        .enum(["before", "after"])
+        .describe("'before' for segment end, 'after' for segment start."),
+      padSeconds: z
+        .number()
+        .optional()
+        .describe(
+          "Extra silence pad after snapping. Default: 0.08s for 'before', 0.05s for 'after'.",
+        ),
+    },
+    async ({ targetSeconds, words, direction, padSeconds }) => {
+      try {
+        const snapped = snapToBoundary({
+          targetSeconds,
+          words: words as TranscriptWord[],
+          direction,
+          padSeconds,
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Snapped: ${targetSeconds.toFixed(3)}s → ${snapped.toFixed(3)}s (${direction}, pad ${padSeconds ?? (direction === "before" ? 0.08 : 0.05)}s)`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const autoGradeFilterTool = tool(
+    "auto_grade_filter",
+    "Analyze a clip's luma and saturation (signalstats) and return the ffmpeg filter string that would correct it subtly. Informational — render_edl applies this automatically when grade='auto'. Call this if you want to preview or override the auto correction.",
+    {
+      path: z.string().describe("Relative path to the clip to analyze."),
+    },
+    async ({ path }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const filterStr = await autoGradeFilter(resolveProjectPath(dir, path));
+        return {
+          content: [
+            {
+              type: "text",
+              text: filterStr
+                ? `Auto-grade filter for ${path}:\n${filterStr}`
+                : `${path} is already balanced — no correction needed.`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const computeSegmentOffsetsTool = tool(
+    "compute_segment_offsets",
+    "Return the cumulative output-timeline start time for each EDL segment. Useful for manually verifying that overlays or captions will land at the right time.",
+    {
+      segments: z
+        .array(
+          z.object({
+            source: z.string(),
+            start: z.number(),
+            end: z.number(),
+            speed: z.number().optional(),
+          }),
+        )
+        .min(1),
+    },
+    async ({ segments }) => {
+      try {
+        const offsets = computeSegmentOffsets(segments as EdlSegment[]);
+        const lines = segments.map((seg, i) => {
+          const dur = (seg.end - seg.start) / (seg.speed ?? 1);
+          return `  seg ${i + 1}: starts at ${(offsets[i] ?? 0).toFixed(3)}s → ends at ${((offsets[i] ?? 0) + dur).toFixed(3)}s`;
+        });
+        return { content: [{ type: "text", text: lines.join("\n") }] };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const gradeFieldSchema = z
+    .union([
+      z.literal("auto").describe("Auto-analyze per clip — recommended default for footage."),
+      z.literal("none").describe("Skip grading."),
+      z.object({
+        brightness: z.number().min(-1).max(1).optional(),
+        contrast: z.number().min(0).max(2).optional(),
+        saturation: z.number().min(0).max(3).optional(),
+        gamma: z.number().min(0.1).max(10).optional(),
+        temperature: z.enum(["warm", "cool", "neutral"]).optional(),
+      }),
+    ])
+    .optional()
+    .describe("Per-segment color grade. Use 'auto' unless the user specifies a look.");
+
+  const renderEdlTool = tool(
+    "render_edl",
+    "Execute a complete edit: per-segment extract with auto-grade + automatic 30ms audio fades (no pops), lossless concat, overlays with correct PTS shift, captions burned LAST, and optional -14 LUFS loudness normalization. Preferred for any multi-segment edit — one call instead of chaining tools.",
+    {
+      edl: z
+        .object({
+          version: z.literal(1),
+          segments: z
+            .array(
+              z.object({
+                source: z.string().describe("Relative path to source clip."),
+                start: z
+                  .number()
+                  .describe(
+                    "Start time in source (seconds). Snap to word.start - 0.05 after transcription.",
+                  ),
+                end: z
+                  .number()
+                  .describe(
+                    "End time in source (seconds). Snap to word.end + 0.08 after transcription.",
+                  ),
+                beat: z.string().optional().describe("Label e.g. HOOK, PROBLEM, CTA."),
+                grade: gradeFieldSchema,
+                speed: z
+                  .number()
+                  .min(0.25)
+                  .max(4)
+                  .optional()
+                  .describe("Speed multiplier. Default 1.0."),
+              }),
+            )
+            .min(1)
+            .describe("Segments in playback order."),
+          overlays: z
+            .array(
+              z.object({
+                file: z.string().describe("Relative path to overlay clip or animation render."),
+                startInOutput: z
+                  .number()
+                  .describe("When overlay appears in output timeline (seconds)."),
+                duration: z.number().describe("How long overlay is visible (seconds)."),
+                x: z.union([z.number(), z.literal("center")]).optional(),
+                y: z.union([z.number(), z.literal("center")]).optional(),
+                width: z.number().int().optional().describe("Scale overlay to this pixel width."),
+              }),
+            )
+            .optional()
+            .describe("Animation/clip overlays. PTS is shifted automatically."),
+          captions: z
+            .array(
+              z.object({
+                text: z.string(),
+                start: z
+                  .number()
+                  .describe(
+                    "Output-timeline start (NOT source timestamp). Use build_captions_from_words.",
+                  ),
+                end: z
+                  .number()
+                  .describe(
+                    "Output-timeline end (NOT source timestamp). Use build_captions_from_words.",
+                  ),
+              }),
+            )
+            .optional()
+            .describe(
+              "Caption cues in OUTPUT timeline. Applied LAST after all overlays. Build with build_captions_from_words after transcription.",
+            ),
+          outputPath: z
+            .string()
+            .describe("Relative output path, e.g. 'assets/processed/final.mp4'."),
+          loudnorm: z
+            .boolean()
+            .optional()
+            .describe(
+              "2-pass -14 LUFS normalization. Set true for social exports (Reels, Shorts, TikTok).",
+            ),
+        })
+        .describe("Edit Decision List."),
+    },
+    async ({ edl }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const result = await renderEdl({
+          edl: edl as EditDecisionList,
+          projectRootDir: dir,
+        });
+        if (!result.ok) {
+          return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
+        }
+        const segCount = edl.segments.length;
+        const overlayCount = edl.overlays?.length ?? 0;
+        const captionCount = edl.captions?.length ?? 0;
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: rendered EDL → ${edl.outputPath} (${segCount} segment${segCount !== 1 ? "s" : ""}${overlayCount ? `, ${overlayCount} overlay${overlayCount !== 1 ? "s" : ""}` : ""}${captionCount ? `, ${captionCount} captions` : ""})`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // --- Feature 1: analyze_clip (give the agent eyes) ---
+  const analyzeClipTool = tool(
+    "analyze_clip",
+    "Extract evenly-spaced frames from a video clip and return them as images so you can visually inspect the footage before making editing decisions. Call this before plan_edit when the user uploads new footage.",
+    {
+      filePath: z.string().describe("Relative path to the clip, e.g. 'assets/raw.mp4'."),
+      frameCount: z
+        .number()
+        .int()
+        .min(1)
+        .max(8)
+        .optional()
+        .describe("Number of frames to extract (default 4, max 8)."),
+    },
+    async ({ filePath, frameCount }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const abs = resolveProjectPath(dir, filePath);
+        const { frames, error } = await extractClipFrames(abs, frameCount ?? 4);
+        if (error && frames.length === 0) {
+          return { content: [{ type: "text", text: `ERROR: ${error}` }], isError: true };
+        }
+        const content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> = [
+          {
+            type: "text",
+            text: `Extracted ${frames.length} frame${frames.length !== 1 ? "s" : ""} from ${filePath}:`,
+          },
+        ];
+        for (const frame of frames) {
+          content.push({ type: "image", data: frame, mimeType: "image/png" });
+        }
+        return { content };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // --- Feature 2: review_render (self-correction loop) ---
+  const reviewRenderTool = tool(
+    "review_render",
+    "After render_edl completes, call this to extract frames from the output and visually verify the result. Check for layout issues, missing captions, color problems, or abrupt cuts. Fix and re-render if needed.",
+    {
+      outputPath: z
+        .string()
+        .describe(
+          "Relative output path from the render_edl call, e.g. 'assets/processed/final.mp4'.",
+        ),
+      frameCount: z
+        .number()
+        .int()
+        .min(1)
+        .max(8)
+        .optional()
+        .describe("Frames to sample (default 4)."),
+    },
+    async ({ outputPath, frameCount }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const abs = resolveProjectPath(dir, outputPath);
+        const { frames, error } = await extractClipFrames(abs, frameCount ?? 4);
+        if (error && frames.length === 0) {
+          return { content: [{ type: "text", text: `ERROR: ${error}` }], isError: true };
+        }
+        const content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> = [
+          {
+            type: "text",
+            text: `Render review — ${frames.length} frame${frames.length !== 1 ? "s" : ""} from ${outputPath}. Check for: abrupt cuts, incorrect colors, missing/misaligned captions, black frames.`,
+          },
+        ];
+        for (const frame of frames) {
+          content.push({ type: "image", data: frame, mimeType: "image/png" });
+        }
+        return { content };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // --- Feature 3a: detect_filler_words ---
+  const detectFillerWordsTool = tool(
+    "detect_filler_words",
+    "Analyze transcript words to find filler words (um, uh, like, you know, etc.) and hesitation pauses (>300ms silence before a word). Returns timestamped list of words to consider removing when building the EDL.",
+    {
+      words: z
+        .array(
+          z.object({
+            word: z.string(),
+            start: z.number(),
+            end: z.number(),
+          }),
+        )
+        .describe("TranscriptWord array from transcribe_clip."),
+      pauseThresholdSeconds: z
+        .number()
+        .optional()
+        .describe("Min silence gap to flag as hesitation (default 0.3s)."),
+    },
+    async ({ words, pauseThresholdSeconds }) => {
+      const fillers = detectFillerWords(words as TranscriptWord[], { pauseThresholdSeconds });
+      if (fillers.length === 0) {
+        return {
+          content: [{ type: "text", text: "No filler words or hesitation pauses detected." }],
+        };
+      }
+      const lines = fillers.map(
+        (filler) =>
+          `${filler.start.toFixed(2)}s–${filler.end.toFixed(2)}s  "${filler.word}"  (${filler.reason})`,
+      );
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Found ${fillers.length} filler${fillers.length !== 1 ? "s" : ""}:\n${lines.join("\n")}\n\nExclude these words when building EDL segments to tighten the edit.`,
+          },
+        ],
+      };
+    },
+  );
+
+  // --- Feature 3b: apply_noise_reduction ---
+  const applyNoiseReductionTool = tool(
+    "apply_noise_reduction",
+    "Apply background noise reduction (anlmdn filter) to a clip's audio. Use before including in EDL to clean up room noise, hiss, or hum. Strength 0–1 (default 0.5).",
+    {
+      inputPath: z.string().describe("Relative path to source clip."),
+      outputPath: z.string().describe("Relative output path, e.g. 'assets/processed/clean.mp4'."),
+      strength: z
+        .number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe("Noise reduction strength 0–1. Default 0.5."),
+    },
+    async ({ inputPath, outputPath, strength }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const absIn = resolveProjectPath(dir, inputPath);
+        const absOut = resolveProjectPath(dir, outputPath);
+        const result = await applyNoiseReduction({
+          inputPath: absIn,
+          outputPath: absOut,
+          strength,
+        });
+        if (!result.ok) {
+          return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
+        }
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: noise reduction applied (strength=${strength ?? 0.5}) → ${outputPath}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // --- Feature 4: analyze_pacing ---
+  const analyzePacingTool = tool(
+    "analyze_pacing",
+    "Analyze transcript pacing: words per minute, pause locations, and cut-density recommendation. Call after transcribe_clip to decide where natural cuts fall and how fast to pace the edit.",
+    {
+      words: z
+        .array(
+          z.object({
+            word: z.string(),
+            start: z.number(),
+            end: z.number(),
+          }),
+        )
+        .describe("TranscriptWord array from transcribe_clip."),
+      totalDuration: z.number().describe("Total clip duration in seconds (from probe_clip)."),
+    },
+    async ({ words, totalDuration }) => {
+      const report = analyzePacing(words as TranscriptWord[], totalDuration);
+      return {
+        content: [
+          {
+            type: "text",
+            text: [
+              `Pacing: ${report.recommendation}`,
+              `WPM: ${report.wordsPerMinute}  avg word: ${report.avgWordDuration}s  pauses: ${report.pauseCount}  avg pause: ${report.avgPauseDuration}s`,
+              report.longPauses.length > 0
+                ? `Long pauses (≥0.5s): ${report.longPauses.map((p) => `${p.start.toFixed(2)}s–${p.end.toFixed(2)}s (${p.duration.toFixed(2)}s)`).join("  ")}`
+                : "",
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          },
+        ],
+      };
+    },
+  );
+
+  // --- Feature 5a: save_insight ---
+  const saveInsightTool = tool(
+    "save_insight",
+    "Save a learned preference about this creator to persistent memory. Call after the user approves an edit to record their style (e.g. caption_style, color_grade_preference, cut_pacing, preferred_music_mood). This is loaded at the start of future conversations to personalize edits without asking.",
+    {
+      key: z
+        .string()
+        .describe("Stable slug, e.g. 'caption_style', 'color_grade', 'pacing', 'music_mood'."),
+      value: z.string().describe("JSON-serializable value. Can be a string, object, or array."),
+      confidence: z
+        .number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe(
+          "Confidence 0–1 (default 0.7). Bump to 0.9+ when the user explicitly confirms a preference.",
+        ),
+    },
+    async ({ key, value, confidence }) => {
+      try {
+        const existing = db
+          .select()
+          .from(creatorInsights)
+          .where(and(eq(creatorInsights.userId, ctx.userId), eq(creatorInsights.key, key)))
+          .get();
+
+        if (existing) {
+          db.update(creatorInsights)
+            .set({ value, confidence: confidence ?? 0.7, updatedAt: new Date() })
+            .where(eq(creatorInsights.id, existing.id))
+            .run();
+        } else {
+          const { nanoid: nano } = await import("nanoid");
+          db.insert(creatorInsights)
+            .values({
+              id: nano(10),
+              userId: ctx.userId,
+              key,
+              value,
+              confidence: confidence ?? 0.7,
+              updatedAt: new Date(),
+            })
+            .run();
+        }
+        return { content: [{ type: "text", text: `OK: insight saved — ${key} = ${value}` }] };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // --- Feature 5b: load_insights ---
+  const loadInsightsTool = tool(
+    "load_insights",
+    "Load all saved preferences for this creator. Call at the start of each conversation to personalize the edit (captions, grade, pacing, music mood, etc.) without asking the user to repeat themselves.",
+    {},
+    async () => {
+      try {
+        const rows = db
+          .select()
+          .from(creatorInsights)
+          .where(eq(creatorInsights.userId, ctx.userId))
+          .all();
+
+        if (rows.length === 0) {
+          return {
+            content: [
+              { type: "text", text: "No saved preferences yet. This creator is a blank slate." },
+            ],
+          };
+        }
+
+        const lines = rows
+          .sort((a, b) => b.confidence - a.confidence)
+          .map((row) => `${row.key} (confidence ${row.confidence.toFixed(2)}): ${row.value}`);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Creator preferences (${rows.length}):\n${lines.join("\n")}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  return createSdkMcpServer({
+    name: MCP_SERVER_NAME,
+    version: "1.0.0",
+    tools: [
+      planCompositionTool,
+      listFilesTool,
+      readFileTool,
+      writeFileTool,
+      diffFileTool,
+      lintTool,
+      screenshotTool,
+      getBrandKitTool,
+      findStockTool,
+      listAssetsTool,
+      listRegistryTool,
+      readRegistryTool,
+      analyzeImageTool,
+      generateCaptionsTool,
+      generateImageTool,
+      generateImageVariantsTool,
+      generateVoiceoverTool,
+      startRenderTool,
+      planEditTool,
+      buildCaptionsFromWordsTool,
+      snapToBoundaryTool,
+      autoGradeFilterTool,
+      computeSegmentOffsetsTool,
+      renderEdlTool,
+      probeClipTool,
+      trimClipTool,
+      concatClipsTool,
+      gradeClipTool,
+      chromaKeyTool,
+      speedClipTool,
+      overlayClipTool,
+      addTransitionTool,
+      mixAudioTool,
+      extractAudioTool,
+      burnCaptionsTool,
+      transcribeClipTool,
+      analyzeClipTool,
+      reviewRenderTool,
+      detectFillerWordsTool,
+      applyNoiseReductionTool,
+      analyzePacingTool,
+      saveInsightTool,
+      loadInsightsTool,
+    ],
+  });
 }
 
 export const ALLOWED_TOOL_NAMES = [
-	"plan_composition",
-	"list_files",
-	"read_file",
-	"write_file",
-	"diff_file",
-	"lint_composition",
-	"screenshot_at_time",
-	"get_brand_kit",
-	"find_stock",
-	"list_assets",
-	"list_registry_blocks",
-	"read_registry_block",
-	"analyze_image",
-	"generate_captions",
-	"generate_image",
-	"generate_image_variants",
-	"generate_voiceover",
-	"start_render",
+  "plan_composition",
+  "list_files",
+  "read_file",
+  "write_file",
+  "diff_file",
+  "lint_composition",
+  "screenshot_at_time",
+  "get_brand_kit",
+  "find_stock",
+  "list_assets",
+  "list_registry_blocks",
+  "read_registry_block",
+  "analyze_image",
+  "generate_captions",
+  "generate_image",
+  "generate_image_variants",
+  "generate_voiceover",
+  "start_render",
+  "plan_edit",
+  "build_captions_from_words",
+  "snap_to_boundary",
+  "auto_grade_filter",
+  "compute_segment_offsets",
+  "render_edl",
+  "probe_clip",
+  "trim_clip",
+  "concat_clips",
+  "grade_clip",
+  "chroma_key",
+  "speed_clip",
+  "overlay_clip",
+  "add_transition",
+  "mix_audio",
+  "extract_audio",
+  "burn_captions",
+  "transcribe_clip",
+  "analyze_clip",
+  "review_render",
+  "detect_filler_words",
+  "apply_noise_reduction",
+  "analyze_pacing",
+  "save_insight",
+  "load_insights",
 ].map((n) => `mcp__${MCP_SERVER_NAME}__${n}`);
 
 type SnapshotContent =
-	| { type: "text"; text: string }
-	| {
-			type: "image";
-			data: string;
-			mimeType: "image/png" | "image/jpeg";
-	  };
+  | { type: "text"; text: string }
+  | {
+      type: "image";
+      data: string;
+      mimeType: "image/png" | "image/jpeg";
+    };
 
 async function runSnapshot(
-	userId: string,
-	projectId: string,
-	timestamps: number[],
+  userId: string,
+  projectId: string,
+  timestamps: number[],
 ): Promise<SnapshotContent[]> {
-	const { spawn } = await import("node:child_process");
-	const fs = await import("node:fs");
-	const path = await import("node:path");
-	const dir = projectDir(userId, projectId);
-	const snapshotsDir = path.join(dir, "snapshots");
-	try {
-		fs.rmSync(snapshotsDir, { recursive: true, force: true });
-	} catch {
-		/* */
-	}
-	const atArg = timestamps.map((t) => String(t)).join(",");
-	const PATH = process.env.PATH || "";
-	const extraBin = process.cwd() + "/node_modules/.bin";
-	const cliOut = await new Promise<{ code: number; err: string }>((resolveP) => {
-		const child = spawn(
-			"hyperframes",
-			["snapshot", dir, "--at", atArg],
-			{
-				stdio: ["ignore", "pipe", "pipe"],
-				env: { ...process.env, PATH: `${extraBin}:${PATH}` },
-			},
-		);
-		let err = "";
-		child.stderr?.on("data", (chunk: Buffer) => {
-			err += chunk.toString();
-			if (err.length > 4000) err = err.slice(-4000);
-		});
-		child.on("error", () =>
-			resolveP({ code: 1, err: err || "spawn failed" }),
-		);
-		child.on("exit", (code) => resolveP({ code: code ?? 1, err }));
-	});
+  const { spawn } = await import("node:child_process");
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const dir = projectDir(userId, projectId);
+  const snapshotsDir = path.join(dir, "snapshots");
+  try {
+    fs.rmSync(snapshotsDir, { recursive: true, force: true });
+  } catch {
+    /* */
+  }
+  const atArg = timestamps.map((t) => String(t)).join(",");
+  const PATH = process.env.PATH || "";
+  const extraBin = process.cwd() + "/node_modules/.bin";
+  const cliOut = await new Promise<{ code: number; err: string }>((resolveP) => {
+    const child = spawn("hyperframes", ["snapshot", dir, "--at", atArg], {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, PATH: `${extraBin}:${PATH}` },
+    });
+    let err = "";
+    child.stderr?.on("data", (chunk: Buffer) => {
+      err += chunk.toString();
+      if (err.length > 4000) err = err.slice(-4000);
+    });
+    child.on("error", () => resolveP({ code: 1, err: err || "spawn failed" }));
+    child.on("exit", (code) => resolveP({ code: code ?? 1, err }));
+  });
 
-	if (cliOut.code !== 0) {
-		return [
-			{
-				type: "text",
-				text: `ERROR: snapshot CLI exited ${cliOut.code}: ${cliOut.err.slice(-800)}`,
-			},
-		];
-	}
+  if (cliOut.code !== 0) {
+    return [
+      {
+        type: "text",
+        text: `ERROR: snapshot CLI exited ${cliOut.code}: ${cliOut.err.slice(-800)}`,
+      },
+    ];
+  }
 
-	if (!fs.existsSync(snapshotsDir)) {
-		return [
-			{
-				type: "text",
-				text: "ERROR: snapshots dir was not produced.",
-			},
-		];
-	}
-	const files = fs
-		.readdirSync(snapshotsDir)
-		.filter((f) => f.toLowerCase().endsWith(".png"))
-		.sort();
-	if (files.length === 0) {
-		return [{ type: "text", text: "ERROR: no PNGs found in snapshots/." }];
-	}
+  if (!fs.existsSync(snapshotsDir)) {
+    return [
+      {
+        type: "text",
+        text: "ERROR: snapshots dir was not produced.",
+      },
+    ];
+  }
+  const files = fs
+    .readdirSync(snapshotsDir)
+    .filter((f) => f.toLowerCase().endsWith(".png"))
+    .sort();
+  if (files.length === 0) {
+    return [{ type: "text", text: "ERROR: no PNGs found in snapshots/." }];
+  }
 
-	const sharp = (await import("sharp")).default;
-	const content: SnapshotContent[] = [
-		{
-			type: "text",
-			text: `Captured ${files.length} frame(s) at ${timestamps
-				.map((t) => `${t}s`)
-				.join(", ")}. Inspect them and decide what to fix.`,
-		},
-	];
-	for (const file of files) {
-		try {
-			const fullPath = path.join(snapshotsDir, file);
-			const downscaled = await sharp(fullPath)
-				.resize({
-					width: 960,
-					height: 960,
-					fit: "inside",
-					withoutEnlargement: true,
-				})
-				.png({ quality: 80, compressionLevel: 9 })
-				.toBuffer();
-			content.push({
-				type: "image",
-				mimeType: "image/png",
-				data: downscaled.toString("base64"),
-			});
-			content.push({
-				type: "text",
-				text: `↑ ${file.replace(/\.png$/i, "")}`,
-			});
-		} catch (error) {
-			content.push({
-				type: "text",
-				text: `(failed to encode ${file}: ${(error as Error).message})`,
-			});
-		}
-	}
-	return content;
+  const sharp = (await import("sharp")).default;
+  const content: SnapshotContent[] = [
+    {
+      type: "text",
+      text: `Captured ${files.length} frame(s) at ${timestamps
+        .map((t) => `${t}s`)
+        .join(", ")}. Inspect them and decide what to fix.`,
+    },
+  ];
+  for (const file of files) {
+    try {
+      const fullPath = path.join(snapshotsDir, file);
+      const downscaled = await sharp(fullPath)
+        .resize({
+          width: 960,
+          height: 960,
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .png({ quality: 80, compressionLevel: 9 })
+        .toBuffer();
+      content.push({
+        type: "image",
+        mimeType: "image/png",
+        data: downscaled.toString("base64"),
+      });
+      content.push({
+        type: "text",
+        text: `↑ ${file.replace(/\.png$/i, "")}`,
+      });
+    } catch (error) {
+      content.push({
+        type: "text",
+        text: `(failed to encode ${file}: ${(error as Error).message})`,
+      });
+    }
+  }
+  return content;
 }
 
 async function runLint(userId: string, projectId: string): Promise<string> {
-	const { spawn } = await import("node:child_process");
-	const dir = projectDir(userId, projectId);
-	const PATH = process.env.PATH || "";
-	const extraBin = process.cwd() + "/node_modules/.bin";
-	return new Promise<string>((resolveP) => {
-		const child = spawn("hyperframes", ["lint", "--json", dir], {
-			stdio: ["ignore", "pipe", "pipe"],
-			env: { ...process.env, PATH: `${extraBin}:${PATH}` },
-		});
-		let stdout = "";
-		let stderr = "";
-		child.stdout.on("data", (chunk) => (stdout += chunk.toString()));
-		child.stderr.on("data", (chunk) => (stderr += chunk.toString()));
-		child.on("error", (error) => resolveP(`(lint failed: ${error.message})`));
-		child.on("exit", () => {
-			const text = stdout.trim();
-			try {
-				const parsed = JSON.parse(text) as unknown;
-				const issues = Array.isArray(parsed)
-					? parsed
-					: ((parsed as { issues?: unknown[]; findings?: unknown[] })
-							.issues ||
-							(parsed as { findings?: unknown[] }).findings ||
-							[]);
-				if (!issues.length) return resolveP("OK: 0 issues");
-				resolveP(
-					issues
-						.map((issue) => {
-							const i = issue as Record<string, unknown>;
-							return `${i.severity || "warn"} [${i.code || i.rule || "?"}] ${i.message || ""}`;
-						})
-						.join("\n"),
-				);
-			} catch {
-				resolveP(text || stderr.slice(-2000) || "(lint produced no output)");
-			}
-		});
-	});
+  const { spawn } = await import("node:child_process");
+  const dir = projectDir(userId, projectId);
+  const PATH = process.env.PATH || "";
+  const extraBin = process.cwd() + "/node_modules/.bin";
+  return new Promise<string>((resolveP) => {
+    const child = spawn("hyperframes", ["lint", "--json", dir], {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, PATH: `${extraBin}:${PATH}` },
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => (stdout += chunk.toString()));
+    child.stderr.on("data", (chunk) => (stderr += chunk.toString()));
+    child.on("error", (error) => resolveP(`(lint failed: ${error.message})`));
+    child.on("exit", () => {
+      const text = stdout.trim();
+      try {
+        const parsed = JSON.parse(text) as unknown;
+        const issues = Array.isArray(parsed)
+          ? parsed
+          : (parsed as { issues?: unknown[]; findings?: unknown[] }).issues ||
+            (parsed as { findings?: unknown[] }).findings ||
+            [];
+        if (!issues.length) return resolveP("OK: 0 issues");
+        resolveP(
+          issues
+            .map((issue) => {
+              const i = issue as Record<string, unknown>;
+              return `${i.severity || "warn"} [${i.code || i.rule || "?"}] ${i.message || ""}`;
+            })
+            .join("\n"),
+        );
+      } catch {
+        resolveP(text || stderr.slice(-2000) || "(lint produced no output)");
+      }
+    });
+  });
 }
 
 type PaletteColor = {
-	hex: string;
-	r: number;
-	g: number;
-	b: number;
-	percent: number;
+  hex: string;
+  r: number;
+  g: number;
+  b: number;
+  percent: number;
 };
 
 async function extractPalette(
-	buffer: Buffer,
+  buffer: Buffer,
 ): Promise<{ colors: PaletteColor[]; avgLightness: number }> {
-	const sharp = (await import("sharp")).default;
-	// Downscale + decode raw pixels, then quantize colors into a small bucket
-	// space and count occurrences. Cheap, deterministic, no extra deps.
-	const decoded = await sharp(buffer)
-		.resize(64, 64, { fit: "inside" })
-		.removeAlpha()
-		.raw()
-		.toBuffer({ resolveWithObject: true });
-	const pixels = decoded.data;
-	const total = pixels.length / 3;
-	const buckets = new Map<string, { count: number; r: number; g: number; b: number }>();
-	let lightnessSum = 0;
-	for (let i = 0; i < pixels.length; i += 3) {
-		const r = pixels[i];
-		const g = pixels[i + 1];
-		const b = pixels[i + 2];
-		lightnessSum += (Math.max(r, g, b) + Math.min(r, g, b)) / 510;
-		const key = `${r >> 5}-${g >> 5}-${b >> 5}`;
-		const existing = buckets.get(key);
-		if (existing) {
-			existing.count += 1;
-			existing.r += r;
-			existing.g += g;
-			existing.b += b;
-		} else {
-			buckets.set(key, { count: 1, r, g, b });
-		}
-	}
-	const top = [...buckets.values()]
-		.sort((a, b) => b.count - a.count)
-		.slice(0, 5)
-		.map((bucket) => {
-			const r = Math.round(bucket.r / bucket.count);
-			const g = Math.round(bucket.g / bucket.count);
-			const b = Math.round(bucket.b / bucket.count);
-			return {
-				r,
-				g,
-				b,
-				percent: Math.round((bucket.count / total) * 100),
-				hex: `#${toHex(r)}${toHex(g)}${toHex(b)}`,
-			};
-		});
-	return { colors: top, avgLightness: lightnessSum / total };
+  const sharp = (await import("sharp")).default;
+  // Downscale + decode raw pixels, then quantize colors into a small bucket
+  // space and count occurrences. Cheap, deterministic, no extra deps.
+  const decoded = await sharp(buffer)
+    .resize(64, 64, { fit: "inside" })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const pixels = decoded.data;
+  const total = pixels.length / 3;
+  const buckets = new Map<string, { count: number; r: number; g: number; b: number }>();
+  let lightnessSum = 0;
+  for (let i = 0; i < pixels.length; i += 3) {
+    const r = pixels[i];
+    const g = pixels[i + 1];
+    const b = pixels[i + 2];
+    lightnessSum += (Math.max(r, g, b) + Math.min(r, g, b)) / 510;
+    const key = `${r >> 5}-${g >> 5}-${b >> 5}`;
+    const existing = buckets.get(key);
+    if (existing) {
+      existing.count += 1;
+      existing.r += r;
+      existing.g += g;
+      existing.b += b;
+    } else {
+      buckets.set(key, { count: 1, r, g, b });
+    }
+  }
+  const top = [...buckets.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+    .map((bucket) => {
+      const r = Math.round(bucket.r / bucket.count);
+      const g = Math.round(bucket.g / bucket.count);
+      const b = Math.round(bucket.b / bucket.count);
+      return {
+        r,
+        g,
+        b,
+        percent: Math.round((bucket.count / total) * 100),
+        hex: `#${toHex(r)}${toHex(g)}${toHex(b)}`,
+      };
+    });
+  return { colors: top, avgLightness: lightnessSum / total };
 }
 
 function toHex(value: number): string {
-	return value.toString(16).padStart(2, "0");
+  return value.toString(16).padStart(2, "0");
 }
 
 async function synthesizeElevenLabs(opts: {
-	apiKey: string;
-	script: string;
-	voiceId: string;
+  apiKey: string;
+  script: string;
+  voiceId: string;
 }): Promise<Buffer> {
-	if (!opts.voiceId) {
-		throw new Error(
-			"no voiceId — pass one or set ELEVENLABS_DEFAULT_VOICE_ID env var",
-		);
-	}
-	const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(opts.voiceId)}?output_format=mp3_44100_128`;
-	const response = await fetch(url, {
-		method: "POST",
-		headers: {
-			"xi-api-key": opts.apiKey,
-			"content-type": "application/json",
-		},
-		body: JSON.stringify({
-			text: opts.script,
-			model_id: "eleven_multilingual_v2",
-			voice_settings: { stability: 0.5, similarity_boost: 0.7 },
-		}),
-	});
-	if (!response.ok) {
-		throw new Error(
-			`ElevenLabs ${response.status}: ${(await response.text()).slice(0, 400)}`,
-		);
-	}
-	return Buffer.from(await response.arrayBuffer());
+  if (!opts.voiceId) {
+    throw new Error("no voiceId — pass one or set ELEVENLABS_DEFAULT_VOICE_ID env var");
+  }
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(opts.voiceId)}?output_format=mp3_44100_128`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "xi-api-key": opts.apiKey,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      text: opts.script,
+      model_id: "eleven_multilingual_v2",
+      voice_settings: { stability: 0.5, similarity_boost: 0.7 },
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`ElevenLabs ${response.status}: ${(await response.text()).slice(0, 400)}`);
+  }
+  return Buffer.from(await response.arrayBuffer());
 }
 
 async function renderPlaceholderImage(opts: {
-	width: number;
-	height: number;
-	palette: string[];
-	direction: "radial" | "vertical" | "diagonal";
+  width: number;
+  height: number;
+  palette: string[];
+  direction: "radial" | "vertical" | "diagonal";
 }): Promise<Buffer> {
-	const sharp = (await import("sharp")).default;
-	const [base, ...accents] = opts.palette;
-	const stops = accents
-		.map(
-			(color, index) =>
-				`<stop offset="${Math.round(((index + 1) / (accents.length + 1)) * 100)}%" stop-color="${color}"/>`,
-		)
-		.join("");
-	const gradient =
-		opts.direction === "radial"
-			? `<radialGradient id="g" cx="50%" cy="50%" r="65%"><stop offset="0%" stop-color="${base}"/>${stops}<stop offset="100%" stop-color="${accents[accents.length - 1] || base}"/></radialGradient>`
-			: opts.direction === "vertical"
-				? `<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${base}"/>${stops}<stop offset="100%" stop-color="${accents[accents.length - 1] || base}"/></linearGradient>`
-				: `<linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${base}"/>${stops}<stop offset="100%" stop-color="${accents[accents.length - 1] || base}"/></linearGradient>`;
-	const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${opts.width}" height="${opts.height}">
+  const sharp = (await import("sharp")).default;
+  const [base, ...accents] = opts.palette;
+  const stops = accents
+    .map(
+      (color, index) =>
+        `<stop offset="${Math.round(((index + 1) / (accents.length + 1)) * 100)}%" stop-color="${color}"/>`,
+    )
+    .join("");
+  const gradient =
+    opts.direction === "radial"
+      ? `<radialGradient id="g" cx="50%" cy="50%" r="65%"><stop offset="0%" stop-color="${base}"/>${stops}<stop offset="100%" stop-color="${accents[accents.length - 1] || base}"/></radialGradient>`
+      : opts.direction === "vertical"
+        ? `<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${base}"/>${stops}<stop offset="100%" stop-color="${accents[accents.length - 1] || base}"/></linearGradient>`
+        : `<linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${base}"/>${stops}<stop offset="100%" stop-color="${accents[accents.length - 1] || base}"/></linearGradient>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${opts.width}" height="${opts.height}">
 <defs>${gradient}
 <filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.18 0"/></filter>
 </defs>
 <rect width="100%" height="100%" fill="url(#g)"/>
 <rect width="100%" height="100%" filter="url(#noise)"/>
 </svg>`;
-	return sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toBuffer();
+  return sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toBuffer();
 }
 
 type CaptionCue = { text: string; start: number; end: number };
 
 function splitScriptIntoCues(
-	script: string,
-	maxWords: number,
-	totalDurationSeconds: number,
+  script: string,
+  maxWords: number,
+  totalDurationSeconds: number,
 ): CaptionCue[] {
-	// Split into sentences first, then chunk each sentence by maxWords. Time
-	// each cue by share of total word count so longer cues hold longer.
-	const sentences = script
-		.replace(/\s+/g, " ")
-		.split(/(?<=[.!?])\s+/)
-		.map((sentence) => sentence.trim())
-		.filter((sentence) => sentence.length > 0);
-	const cues: { text: string; words: number }[] = [];
-	for (const sentence of sentences) {
-		const words = sentence.split(/\s+/).filter(Boolean);
-		for (let i = 0; i < words.length; i += maxWords) {
-			const chunk = words.slice(i, i + maxWords);
-			cues.push({ text: chunk.join(" "), words: chunk.length });
-		}
-	}
-	if (cues.length === 0) return [];
-	const totalWords = cues.reduce((sum, cue) => sum + cue.words, 0) || 1;
-	const result: CaptionCue[] = [];
-	let cursor = 0;
-	for (const cue of cues) {
-		const share = (cue.words / totalWords) * totalDurationSeconds;
-		const start = cursor;
-		const end = Math.min(totalDurationSeconds, cursor + share);
-		result.push({
-			text: cue.text,
-			start: Number(start.toFixed(3)),
-			end: Number(end.toFixed(3)),
-		});
-		cursor = end;
-	}
-	// Snap last cue to exact duration to avoid floating-point drift.
-	if (result.length) result[result.length - 1].end = totalDurationSeconds;
-	return result;
+  // Split into sentences first, then chunk each sentence by maxWords. Time
+  // each cue by share of total word count so longer cues hold longer.
+  const sentences = script
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 0);
+  const cues: { text: string; words: number }[] = [];
+  for (const sentence of sentences) {
+    const words = sentence.split(/\s+/).filter(Boolean);
+    for (let i = 0; i < words.length; i += maxWords) {
+      const chunk = words.slice(i, i + maxWords);
+      cues.push({ text: chunk.join(" "), words: chunk.length });
+    }
+  }
+  if (cues.length === 0) return [];
+  const totalWords = cues.reduce((sum, cue) => sum + cue.words, 0) || 1;
+  const result: CaptionCue[] = [];
+  let cursor = 0;
+  for (const cue of cues) {
+    const share = (cue.words / totalWords) * totalDurationSeconds;
+    const start = cursor;
+    const end = Math.min(totalDurationSeconds, cursor + share);
+    result.push({
+      text: cue.text,
+      start: Number(start.toFixed(3)),
+      end: Number(end.toFixed(3)),
+    });
+    cursor = end;
+  }
+  // Snap last cue to exact duration to avoid floating-point drift.
+  if (result.length) result[result.length - 1].end = totalDurationSeconds;
+  return result;
 }

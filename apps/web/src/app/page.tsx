@@ -230,7 +230,8 @@ export default function Home() {
               price="$0"
               sub="Forever free"
               features={[
-                "3 watermarked renders / month",
+                "5 watermarked renders / month",
+                "50 AI messages / month",
                 "Cloud render, 720p",
                 "All 8 niche style packs",
                 "Footage editing (trim, grade, captions)",
@@ -243,7 +244,8 @@ export default function Home() {
               sub="per month · most popular"
               highlight
               features={[
-                "50 renders / month",
+                "100 renders / month",
+                "1,000 AI messages / month",
                 "1080p, no watermark",
                 "Full footage editing + auto-grade + loudnorm",
                 "Local render worker (faster)",
@@ -260,6 +262,7 @@ export default function Home() {
               sub="per month"
               features={[
                 "Unlimited renders",
+                "Unlimited AI messages",
                 "4K · priority queue",
                 "Brand kits (logo, colors, host)",
                 "−14 LUFS loudness normalization",

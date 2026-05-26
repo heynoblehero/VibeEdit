@@ -139,33 +139,61 @@ export default function ProjectsPage() {
         <h1 className="mb-6 text-2xl font-bold sm:text-3xl">Your projects</h1>
 
         <section className="mb-8">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") create("empty");
               }}
-              placeholder="New project name…"
-              className="flex-1 min-w-[200px] max-w-sm rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 outline-none focus:border-[var(--color-accent)]"
+              placeholder="Project name (optional)…"
+              className="flex-1 min-w-[200px] max-w-sm rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
             />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <button
               disabled={creating}
               onClick={() => create("empty")}
-              className="rounded-md bg-[var(--color-accent)] px-4 py-2 font-semibold text-black hover:opacity-90 disabled:opacity-50"
+              className="group flex flex-col gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 text-left hover:border-[var(--color-accent)] disabled:opacity-50 transition-colors"
             >
-              {creating ? "Creating…" : "New project"}
+              <div className="text-2xl">✂</div>
+              <div>
+                <div className="font-semibold text-[var(--color-fg)] group-hover:text-[var(--color-accent)] transition-colors">
+                  {creating ? "Creating…" : "Edit footage"}
+                </div>
+                <div className="mt-1 text-xs text-[var(--color-fg-muted)]">
+                  Upload clips and describe the edit — trim, grade, caption, export.
+                </div>
+              </div>
             </button>
+            <button
+              disabled={creating}
+              onClick={() => create("empty")}
+              className="group flex flex-col gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 text-left hover:border-[var(--color-accent)] disabled:opacity-50 transition-colors"
+            >
+              <div className="text-2xl">✦</div>
+              <div>
+                <div className="font-semibold text-[var(--color-fg)] group-hover:text-[var(--color-accent)] transition-colors">
+                  {creating ? "Creating…" : "Create from scratch"}
+                </div>
+                <div className="mt-1 text-xs text-[var(--color-fg-muted)]">
+                  Describe a motion-graphic video and the AI builds every scene.
+                </div>
+              </div>
+            </button>
+          </div>
+          <div className="mt-3 flex items-center gap-3 text-xs text-[var(--color-fg-muted)]">
+            <span>
+              Both workflows use the same project — the agent figures out what to do from your first
+              message.
+            </span>
             <Link
               href="/app/templates"
-              className="rounded-md border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-[var(--color-surface)]"
+              className="ml-auto whitespace-nowrap text-[var(--color-accent)] hover:underline"
             >
-              Templates
+              Browse templates →
             </Link>
           </div>
-          <p className="mt-2 text-xs text-[var(--color-fg-muted)]">
-            Drop footage or describe a video — the agent handles the rest.
-          </p>
         </section>
 
         <section>
@@ -183,7 +211,8 @@ export default function ProjectsPage() {
 
           {filtered.length === 0 && projects.length === 0 && (
             <div className="rounded-lg border border-dashed border-[var(--color-border)] p-8 text-center text-[var(--color-fg-muted)]">
-              No projects yet. Create one above.
+              <div className="mb-1 font-medium text-[var(--color-fg)]">No projects yet.</div>
+              Edit footage or create a composition — start one above.
             </div>
           )}
           {filtered.length === 0 && projects.length > 0 && (

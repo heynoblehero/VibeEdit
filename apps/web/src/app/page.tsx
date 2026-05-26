@@ -3,6 +3,7 @@ import { Wordmark } from "@/components/Wordmark";
 import { MarketingNav } from "@/components/MarketingNav";
 import { WaitlistForm } from "@/components/WaitlistForm";
 import { HeroSandbox } from "@/components/landing/HeroSandbox";
+import { HowItWorksTabs } from "@/components/landing/HowItWorksTabs";
 import { NichePicker } from "@/components/landing/NichePicker";
 
 export default function Home() {
@@ -77,44 +78,12 @@ export default function Home() {
           <div className="mb-3 text-xs uppercase tracking-wider text-[var(--color-accent)]">
             How it works
           </div>
-          <h2 className="text-3xl font-bold sm:text-4xl md:text-5xl">Three steps. One chat.</h2>
+          <h2 className="text-3xl font-bold sm:text-4xl md:text-5xl">Two workflows. One chat.</h2>
+          <p className="mx-auto mt-4 max-w-lg text-[var(--color-fg-muted)]">
+            Edit real footage or build a video from scratch — same agent, same chat window.
+          </p>
         </div>
-
-        <div className="space-y-12 sm:space-y-16">
-          <AgentStep n="01" title="Describe the edit.">
-            <p className="mb-5 max-w-2xl text-base text-[var(--color-fg-muted)] sm:text-lg">
-              Upload your footage, then tell the agent what you want in plain English. No settings.
-              No modes. One message is enough.
-            </p>
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 italic text-[var(--color-fg)] sm:p-5">
-              "Trim my talking head to the best 60s, remove filler words, warm grade, burn 2-word
-              captions."
-            </div>
-          </AgentStep>
-
-          <AgentStep n="02" title="The agent works.">
-            <p className="mb-5 max-w-2xl text-base text-[var(--color-fg-muted)] sm:text-lg">
-              It transcribes your clip, snaps cuts to word boundaries, grades each segment, syncs
-              captions to the output timeline, and normalizes loudness. It shows its work in real
-              time — no black box.
-            </p>
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 font-mono text-sm text-[var(--color-fg)] sm:p-5">
-              ✓ transcribe_clip&nbsp;&nbsp;✓ snap_to_boundary&nbsp;&nbsp;✓ plan_edit
-              <br />✓ auto_grade&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;✓
-              build_captions&nbsp;&nbsp;&nbsp;✓ render_edl&nbsp;&nbsp;✓ Done.
-            </div>
-          </AgentStep>
-
-          <AgentStep n="03" title="Iterate and download.">
-            <p className="mb-5 max-w-2xl text-base text-[var(--color-fg-muted)] sm:text-lg">
-              Chat to refine. "Tighten the cut at 0:42." "Make it cooler grade." When it looks
-              right, hit Render. One encode, lossless concat, no quality loss.
-            </p>
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 font-mono text-sm text-[var(--color-fg)] sm:p-5">
-              EDL → per-segment encode → lossless concat → captions → −14 LUFS → final.mp4
-            </div>
-          </AgentStep>
-        </div>
+        <HowItWorksTabs />
       </section>
 
       {/* ───── WHAT IT CAN DO ────────────────────────────────── */}
@@ -411,28 +380,6 @@ export default function Home() {
           </div>
         </div>
       </footer>
-    </div>
-  );
-}
-
-function AgentStep({
-  n,
-  title,
-  children,
-}: {
-  n: string;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="grid gap-4 sm:gap-6 md:grid-cols-[120px_1fr] md:items-start md:gap-10">
-      <div className="font-mono text-4xl font-bold text-[var(--color-accent)]/70 sm:text-5xl md:text-6xl">
-        {n}
-      </div>
-      <div>
-        <h3 className="mb-3 text-2xl font-bold sm:text-3xl">{title}</h3>
-        {children}
-      </div>
     </div>
   );
 }

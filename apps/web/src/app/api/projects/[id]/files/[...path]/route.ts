@@ -21,7 +21,20 @@ export async function GET(
   if (!row) return new NextResponse("not found", { status: 404 });
   const relPath = path.join("/");
   try {
-    const { content, mime } = readProjectFile(userId, id, relPath);
+    let { content, mime } = readProjectFile(userId, id, relPath);
+    // Inject the Hyperframes runtime into composition HTML so the player uses
+    // the runtime adapter (not the direct-GSAP adapter). Without the runtime,
+    // audio elements with data-start are never played in the preview.
+    if (relPath === "index.html" && mime === "text/html") {
+      const html = content.toString("utf-8");
+      if (!html.includes("hyperframe.runtime") && !html.includes("__player")) {
+        const tag = '<script src="/api/runtime/hyperframes"></script>';
+        const injected = html.includes("<head")
+          ? html.replace(/<head[^>]*>/, (m) => `${m}\n${tag}`)
+          : `${tag}\n${html}`;
+        content = Buffer.from(injected, "utf-8");
+      }
+    }
     const total = content.length;
     const rangeHeader = req.headers.get("range");
     if (rangeHeader) {

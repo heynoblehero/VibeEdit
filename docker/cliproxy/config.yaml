@@ -13,24 +13,3 @@ api-keys:
 debug: false
 usage-statistics-enabled: true
 request-retry: 3
-
-# Model aliases for the new VibeEdit stack (claude-agent-sdk models).
-# fork: true keeps the original fully-qualified name valid too.
-oauth-model-alias:
-  claude:
-    - name: "claude-opus-4-7-20250514"
-      alias: "claude-opus-4-7"
-      fork: true
-    - name: "claude-sonnet-4-6-20250514"
-      alias: "claude-sonnet-4-6"
-      fork: true
-    - name: "claude-haiku-4-5-20251001"
-      alias: "claude-haiku-4-5"
-      fork: true
-    # Legacy aliases kept for compatibility
-    - name: "claude-sonnet-4-5-20250929"
-      alias: "claude-sonnet-4-5"
-      fork: true
-    - name: "claude-opus-4-5-20251101"
-      alias: "claude-opus-4-5"
-      fork: true

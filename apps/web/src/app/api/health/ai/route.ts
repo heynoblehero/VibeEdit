@@ -12,7 +12,9 @@ export async function GET() {
     "",
   );
   const apiKey = process.env.ANTHROPIC_API_KEY || "";
-  const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
+  // Use the stable dated model ID for the raw Messages API call.
+  // ANTHROPIC_MODEL env is the short alias used by the agent SDK, not the API.
+  const model = "claude-sonnet-4-5-20250929";
 
   try {
     const controller = new AbortController();

@@ -69,6 +69,12 @@ ENV DATABASE_PATH=/data/app.db
 ENV STORAGE_ROOT=/data/storage
 RUN mkdir -p /data/storage
 
+# Run as non-root so claude --dangerously-skip-permissions works.
+# (Claude Code refuses bypassPermissions mode when running as root.)
+RUN useradd -m -u 1001 appuser \
+ && chown -R appuser:appuser /app /data
+USER appuser
+
 EXPOSE 3000
 
 # Run migrations on boot so a fresh container always has the latest schema.

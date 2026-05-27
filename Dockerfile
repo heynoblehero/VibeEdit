@@ -25,6 +25,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Bun is the package manager + runtime (bun.lock is the source of truth).
 RUN npm install -g bun@1.2.5
 
+# Claude Code CLI — required by claude-agent-sdk which spawns it as a subprocess.
+RUN npm install -g @anthropic-ai/claude-code
+
 # Copy manifests first so dep install is cached across source-only changes.
 # Both apps + all packages need manifests present at install time so the
 # workspace topology matches bun.lock; missing any one rejects the lockfile.

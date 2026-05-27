@@ -334,7 +334,7 @@ export function buildToolServer(ctx: ToolContext) {
 
   const generateVoiceoverTool = tool(
     "generate_voiceover",
-    'Synthesize a narration MP3 from text and save it to assets/. Use this for long-form videos that need a presenter voice (sleep stories, history docs, finance breakdowns). Once the audio is in the project the agent should fold it into the composition as `<audio class="clip" data-start="0" data-duration="<total>" data-track-index="0" data-volume="1">` and time the visuals to the cues generated from the same script via generate_captions.',
+    'Synthesize a narration MP3 from text and save it to assets/. Also saves a .timestamps.json with exact word-level timing — pass that file to generate_captions for perfectly-timed subtitles (no Whisper needed). Use this for long-form videos that need a presenter voice (sleep stories, history docs, finance breakdowns). Once the audio is in the project fold it into the composition as `<audio class="clip" data-start="0" data-duration="<total>" data-track-index="0" data-volume="1">` and time the visuals to the cues from generate_captions.',
     {
       filename: z
         .string()
@@ -360,18 +360,32 @@ export function buildToolServer(ctx: ToolContext) {
         };
       }
       try {
-        const buffer = await synthesizeElevenLabs({
+        const { audio, words } = await synthesizeElevenLabsWithTimestamps({
           apiKey,
           script,
           voiceId: voiceId || process.env.ELEVENLABS_DEFAULT_VOICE_ID || "",
         });
         const target = `assets/${filename}`;
-        writeProjectFile(ctx.userId, ctx.projectId, target, buffer);
+        writeProjectFile(ctx.userId, ctx.projectId, target, audio);
+        const tsFilename = filename.replace(/\.mp3$/, ".timestamps.json");
+        const tsTarget = `assets/${tsFilename}`;
+        writeProjectFile(
+          ctx.userId,
+          ctx.projectId,
+          tsTarget,
+          Buffer.from(JSON.stringify(words, null, 2), "utf8"),
+        );
+        const totalDuration = words.length > 0 ? words[words.length - 1].end : 0;
         return {
           content: [
             {
               type: "text",
-              text: `OK: wrote ${target} (${buffer.length}B). Reference as src="${target}" and time captions to the same script via generate_captions.`,
+              text: [
+                `OK: wrote ${target} (${audio.length}B, ~${totalDuration.toFixed(1)}s).`,
+                `Also wrote ${tsTarget} with ${words.length} word-level timestamps.`,
+                `For exact caption timing: generate_captions(timestampsFile="${tsTarget}", maxWordsPerCue=6).`,
+                `Reference audio as src="${target}".`,
+              ].join("\n"),
             },
           ],
         };
@@ -430,7 +444,7 @@ export function buildToolServer(ctx: ToolContext) {
 
   const generateCaptionsTool = tool(
     "generate_captions",
-    "Split a script into timed caption cues distributed evenly across the composition duration. Returns an array of { text, start, end } in seconds. Use these cues to add a captions track to the composition (overlay <div>s revealed via GSAP timeline). Captions should be ≤6 words per cue for vertical (9:16) and ≤9 for horizontal (16:9).",
+    "Split a script into timed caption cues. If timestampsFile is provided (written by generate_voiceover), uses exact word-level timing from ElevenLabs — no Whisper needed. Otherwise distributes cues evenly across totalDurationSeconds. Returns an array of { text, start, end } in seconds. Use these cues to add a captions track to the composition (overlay <div>s revealed via GSAP timeline). Captions should be ≤6 words per cue for vertical (9:16) and ≤9 for horizontal (16:9).",
     {
       script: z
         .string()
@@ -441,7 +455,10 @@ export function buildToolServer(ctx: ToolContext) {
         .number()
         .min(2)
         .max(900)
-        .describe("Total composition duration in seconds."),
+        .optional()
+        .describe(
+          "Total composition duration in seconds. Required when timestampsFile is not provided.",
+        ),
       maxWordsPerCue: z
         .number()
         .int()
@@ -450,16 +467,53 @@ export function buildToolServer(ctx: ToolContext) {
         .optional()
         .default(6)
         .describe("Cap on words per caption cue."),
+      timestampsFile: z
+        .string()
+        .optional()
+        .describe(
+          "Path to a .timestamps.json written by generate_voiceover, e.g. 'assets/narration.timestamps.json'. When present, cues use real word timings instead of even distribution.",
+        ),
     },
-    async ({ script, totalDurationSeconds, maxWordsPerCue }) => {
+    async ({ script, totalDurationSeconds, maxWordsPerCue, timestampsFile }) => {
       const cap = maxWordsPerCue ?? 6;
-      const cues = splitScriptIntoCues(script, cap, totalDurationSeconds);
+      let cues: CaptionCue[];
+      if (timestampsFile) {
+        try {
+          const raw = readProjectText(ctx.userId, ctx.projectId, timestampsFile);
+          const words = JSON.parse(raw) as TranscriptWord[];
+          cues = buildCaptionsFromWords(words, cap);
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `ERROR reading timestamps file ${timestampsFile}: ${(error as Error).message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      } else {
+        if (!totalDurationSeconds) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "ERROR: totalDurationSeconds is required when timestampsFile is not provided.",
+              },
+            ],
+            isError: true,
+          };
+        }
+        cues = splitScriptIntoCues(script, cap, totalDurationSeconds);
+      }
+      const totalDur = cues.length > 0 ? cues[cues.length - 1].end : 0;
       return {
         content: [
           {
             type: "text",
             text: [
-              `Generated ${cues.length} caption cue(s) across ${totalDurationSeconds}s:`,
+              `Generated ${cues.length} caption cue(s) across ${totalDur.toFixed(1)}s${timestampsFile ? " (word-level timing from ElevenLabs)" : ""}:`,
               ...cues.map(
                 (cue, i) =>
                   `  ${i + 1}. [${cue.start.toFixed(2)}s → ${cue.end.toFixed(2)}s]  ${cue.text}`,
@@ -2235,15 +2289,15 @@ function toHex(value: number): string {
   return value.toString(16).padStart(2, "0");
 }
 
-async function synthesizeElevenLabs(opts: {
+async function synthesizeElevenLabsWithTimestamps(opts: {
   apiKey: string;
   script: string;
   voiceId: string;
-}): Promise<Buffer> {
+}): Promise<{ audio: Buffer; words: TranscriptWord[] }> {
   if (!opts.voiceId) {
     throw new Error("no voiceId — pass one or set ELEVENLABS_DEFAULT_VOICE_ID env var");
   }
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(opts.voiceId)}?output_format=mp3_44100_128`;
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(opts.voiceId)}/with-timestamps?output_format=mp3_44100_128`;
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -2259,7 +2313,39 @@ async function synthesizeElevenLabs(opts: {
   if (!response.ok) {
     throw new Error(`ElevenLabs ${response.status}: ${(await response.text()).slice(0, 400)}`);
   }
-  return Buffer.from(await response.arrayBuffer());
+  type ElevenLabsTimestampResponse = {
+    audio_base64: string;
+    alignment: {
+      characters: string[];
+      character_start_times_seconds: number[];
+      character_end_times_seconds: number[];
+    };
+  };
+  const data = (await response.json()) as ElevenLabsTimestampResponse;
+  const audio = Buffer.from(data.audio_base64, "base64");
+  // Convert character-level alignment to word-level by grouping on spaces/punctuation.
+  const words: TranscriptWord[] = [];
+  const chars = data.alignment.characters;
+  const starts = data.alignment.character_start_times_seconds;
+  const ends = data.alignment.character_end_times_seconds;
+  let wordChars = "";
+  let wordStart = 0;
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
+    if (/\s/.test(ch)) {
+      if (wordChars.trim()) {
+        words.push({ word: wordChars.trim(), start: wordStart, end: ends[i - 1] ?? ends[i] });
+      }
+      wordChars = "";
+    } else {
+      if (!wordChars) wordStart = starts[i];
+      wordChars += ch;
+    }
+  }
+  if (wordChars.trim()) {
+    words.push({ word: wordChars.trim(), start: wordStart, end: ends[chars.length - 1] });
+  }
+  return { audio, words };
 }
 
 async function renderPlaceholderImage(opts: {

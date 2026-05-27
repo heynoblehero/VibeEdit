@@ -14,9 +14,12 @@ import { logError } from "../observability/logger";
 const MAX_CONCURRENT = Number(process.env.MAX_CONCURRENT_RENDERS || 2);
 const RENDER_MODE = (process.env.RENDER_MODE || "local") as "local" | "docker";
 
-// The CLI binary is installed into node_modules/.bin by bun via the
-// @hyperframes/cli workspace dependency. spawn() resolves it via PATH.
-const CLI_BIN_NAME = "hyperframes";
+// Bun does not auto-create node_modules/.bin symlinks for workspace packages,
+// so "hyperframes" is never on PATH in the container. Use the full path to the
+// compiled CLI entry point and invoke it with node explicitly.
+// process.cwd() = /app/apps/web in production (CMD: cd apps/web && ...)
+// so ../../packages/cli resolves to /app/packages/cli.
+const CLI_BIN_PATH = resolve(process.cwd(), "../../packages/cli/dist/cli.js");
 
 type Job = {
   id: string;
@@ -198,15 +201,10 @@ async function spawnCli(job: Job, outputPath: string) {
     job.quality,
   ];
   if (RENDER_MODE === "docker") args.push("--docker");
-  const PATH = process.env.PATH || "";
-  // In production the Next.js process starts from apps/web (CMD: cd apps/web && ...),
-  // so cwd() = /app/apps/web. Hyperframes is installed at the workspace root's
-  // node_modules, two directories up.
-  const extraBin = resolve(process.cwd(), "../../node_modules/.bin");
   await new Promise<void>((resolveP, rejectP) => {
-    const child = spawn(CLI_BIN_NAME, args, {
+    const child = spawn("node", [CLI_BIN_PATH, ...args], {
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, PATH: `${extraBin}:${PATH}` },
+      env: { ...process.env },
     });
     let stderrBuf = "";
     let timedOut = false;

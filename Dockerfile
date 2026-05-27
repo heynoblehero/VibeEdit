@@ -53,7 +53,9 @@ RUN bun run --filter @hyperframes/core build:hyperframes-runtime
 RUN cd packages/cli \
  && bun run build:fonts \
  && bunx tsup \
- && bun run build:runtime
+ && bun run build:runtime \
+ && chmod +x /app/packages/cli/dist/cli.js \
+ && ln -sf /app/packages/cli/dist/cli.js /app/node_modules/.bin/hyperframes
 
 # Build the Next.js app.
 RUN cd apps/web && bun run build

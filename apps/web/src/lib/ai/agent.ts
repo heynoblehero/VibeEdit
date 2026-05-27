@@ -99,6 +99,10 @@ export async function runAgent(opts: {
   const model = pickModel(opts.ctx.userId, opts.ctx.projectId);
   const insights = loadUserInsights(opts.ctx.userId);
   try {
+    const byokKey = opts.ctx.apiKeys?.anthropic;
+    const agentEnv: Record<string, string | undefined> = { ...process.env };
+    if (byokKey) agentEnv.ANTHROPIC_API_KEY = byokKey;
+
     for await (const message of query({
       prompt: prefix + opts.userMessage,
       options: {
@@ -109,6 +113,7 @@ export async function runAgent(opts: {
         permissionMode: "bypassPermissions",
         maxTurns: MAX_TURNS,
         abortController: opts.abortController,
+        env: agentEnv,
       },
     }) as AsyncIterable<SdkMessage>) {
       handle(message, opts.onEvent);

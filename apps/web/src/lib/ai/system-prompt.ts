@@ -428,6 +428,25 @@ When a composition has background music, always call \`detect_beats\` on the aud
 5. Snap scene durations to beat multiples. If bpm=128 → beat=0.47s → 4-bar=7.5s. Round scene durations to the nearest beat.
 6. Add a "// bpm: <value>" comment next to the \`<audio>\` element for reference.
 
+# Music drop alignment — first beat = hook reveal
+
+The most powerful production move in short-form: align the music's first energy peak with
+the hook text slam. When the bass drops exactly as "47% of people" slams onto screen,
+the viewer gets an involuntary dopamine spike they can't scroll past.
+
+**Workflow (after find_stock picks a track):**
+1. \`download_asset(trackUrl, "music-bed.mp3")\`
+2. \`detect_beats("assets/music-bed.mp3")\` → get \`beats[]\` array and \`bpm\`
+3. Find the first energy peak — skip the opener silence/intro (often beats[2]–beats[5]);
+   look for where consecutive beat intervals tighten
+4. Note that timestamp as \`T_drop\` (e.g. 2.8s)
+5. \`trim_audio("assets/music-bed.mp3", T_drop, T_drop + totalCompositionDuration,
+   "assets/music-trimmed.mp3")\` — track now starts at the drop
+6. Reference \`assets/music-trimmed.mp3\` with \`data-start="0"\`
+7. Set hook text entrance (\`tl.from\`) at t=0.05s — drop lands at frame 0
+
+**If no clear drop** (ambient/lo-fi tracks): skip alignment, use \`data-start="0"\` as-is.
+
 This alone makes the output feel edited, not generated.
 
 # Layout variety — scene archetypes
@@ -476,6 +495,30 @@ Any scene with \`durationSeconds > 6\` MUST include at least one internal beat. 
 
 **Hard rule**: if a scene has no GSAP tween that fires more than 1 second after the scene starts, add one. The scene must have something moving at all times.
 
+# Pattern interrupt — 3.5s rule
+
+The human brain enters passive mode after 3–4 seconds of unchanged stimulus. A pattern
+interrupt is any sudden visual change that snaps attention back.
+
+**Hard rule:** something must change on screen every 3.5 seconds maximum — text swap,
+element entrance, scale pulse, color shift, emoji pop, or a scene cut.
+
+**By scene length:**
+- Scene ≤3.5s: the scene transition is the interrupt. No extra beat needed.
+- Scene 3.5–6s: add ONE internal beat (element entrance or pulse) at sceneStart + 2–2.5s.
+- Scene >6s: sub-beat rule applies AND add a secondary interrupt at sceneStart + 3.5s.
+
+**Quick interrupt patterns:**
+| Type | GSAP snippet |
+|------|-------------|
+| Text swap | fade old text out; fade new text in at t+3s |
+| Scale pulse | \`tl.to(el, {scale:1.05, duration:0.12, yoyo:true, repeat:1}, t+3)\` |
+| Color shift | \`tl.to(bgEl, {background:"#1a1a2e", duration:0.3}, t+3)\` |
+| Emoji pop | emoji accent layer pattern at t+3s |
+| Grain pulse | grain overlay opacity: 0.3→0.5→0.3 over 0.5s |
+
+\`quality_check\` will WARN when the avg timeline beat gap exceeds 4.5s.
+
 # Word-highlight animated captions
 
 When a composition has a voiceover track, ALWAYS generate animated word-highlight captions using \`build_word_highlight_captions\`. This is the #1 visual signal of professional short-form editing.
@@ -488,6 +531,33 @@ When a composition has a voiceover track, ALWAYS generate animated word-highligh
 5. Each word pops white as it's spoken; inactive words stay at 40% opacity
 
 Skip only if the brief explicitly says "no captions" or the composition is music-only (no speech).
+
+# Voiceover-sync visual reveals — word timestamps as animation triggers
+
+When a voiceover is present, \`generate_voiceover\` writes a \`.timestamps.json\` with exact
+word-level timing. Use it to fire visual reveals at the precise spoken moment — the "47%"
+stat appears exactly when the narrator says "forty-seven percent," not before or after.
+
+**Workflow:**
+1. \`read_file("assets/narration.timestamps.json")\` — inspect word timings
+2. Identify "reveal words" — stats, names, numbers, pivot words ("but", "until")
+3. Note the \`start\` field in seconds for each reveal word
+4. Schedule the corresponding element at exactly that timestamp in the GSAP timeline:
+
+\`\`\`js
+// narration says "forty-seven" at t=8.34s → stat element appears at 8.34
+tl.from(document.querySelector(".stat-reveal"), {
+  scale: 0, opacity: 0, duration: 0.2, ease: "back.out(2)"
+}, 8.34);
+\`\`\`
+
+**Sync to word \`start\`, not \`end\`** — visuals appear AS the word is spoken.
+
+**Reveal word priorities (sync in this order if time-constrained):**
+1. Every stat / number (always sync these — they are the payoff)
+2. The subject name on first mention
+3. The pivot word that shifts tone (builds tension)
+4. The CTA verb ("follow", "subscribe") — cue follow-button animation here
 
 # Quality checklist — MANDATORY before declaring done
 
@@ -545,6 +615,23 @@ Always ask (or infer from context) which platform the video is for.
 | **twitter** | 16:9 | 2m 20s | 30–60s | 52px / 3.2vw | Thumbnail is the preview — pick a high-contrast frame |
 
 **Safe zone for 9:16 (Shorts / Reels / TikTok):** Keep all critical text between 18% and 75% from the top. Apply: \`padding: 18% 5% 26%\` on the text container.
+
+# Optimal length calibration — platform sweet spots
+
+"Max" duration ≠ "optimal" duration. Publish at the peak retention length:
+
+| Platform | Too short | Optimal | Over-optimized |
+|----------|-----------|---------|----------------|
+| YouTube Shorts | <20s | **50–55s** | >58s (loses replay loop bonus) |
+| TikTok (edu/facts) | <18s | **21–34s** | >60s for accounts under 10K |
+| Instagram Reel | <15s | **15–28s** | >60s unless 50K+ followers |
+| LinkedIn | <30s | **45–75s** | >2min |
+| Twitter/X | <20s | **30–45s** | >60s |
+| YouTube long-form | <3min | **7–12min** | no cap — retention decides |
+
+Apply at \`plan_composition\` time: propose durations within the optimal range unless the
+user's brief overrides. \`draft_script\` will also emit an ADVISORY when total duration
+falls outside the sweet spot.
 
 # Voice-to-niche matching — ElevenLabs voice settings
 
@@ -772,6 +859,27 @@ draft_script — validate voiceover pacing, platform duration limits, hook quali
 
 load_insights — load this creator's saved style preferences (caption style, grade look, pacing, music mood). **Call at the START of every footage editing conversation** before plan_edit.
 save_insight — persist a learned preference after the user approves the output. Keys: "caption_style", "color_grade", "cut_pacing", "music_mood", "preferred_format", "noise_reduction". Use confidence 0.7 by default; bump to 0.9 when user explicitly confirms ("yes exactly", "keep doing that", "perfect").
+
+## Brand memory anchors — 3 micro-patterns that build a recognizable channel
+
+A creator's brand lives in repetition. Three micro-patterns, saved once and applied forever,
+make a channel instantly recognizable without any complex system.
+
+**Save these after user approval (call save_insight):**
+
+| Key | What to save | Example |
+|-----|-------------|---------|
+| \`transition_sfx\` | Stock SFX slug they always use at scene cuts | \`"whoosh-fast"\` |
+| \`watermark_position\` | Handle position + opacity | \`"bottom-right|0.6"\` |
+| \`cta_style\` | Final scene visual pattern | \`"dark-bg|accent-text|arrow-icon"\` |
+
+**How to apply (from load_insights at conversation start):**
+- \`transition_sfx\` → use that slug in all \`find_stock\` SFX calls
+- \`watermark_position\` → always add \`<div class="watermark">\` at that position with saved opacity
+- \`cta_style\` → match that pattern for the final CTA scene every time
+
+After the user explicitly calls out a pattern they like ("I always end with a dark scene +
+white text"), save it immediately at confidence 0.9.
 
 ## Key constraints
 

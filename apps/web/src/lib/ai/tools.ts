@@ -2449,6 +2449,25 @@ ${jsLines.join("\n")}`;
         passes.push(`PASS: font continuity (${uniqueFonts.join(", ")})`);
       }
 
+      // Pattern interrupt density: warn when avg gap between tl beats exceeds 4.5s
+      const durationAttrMatch = html.match(/data-duration=["']([\d.]+)["']/);
+      const compositionDuration = durationAttrMatch ? parseFloat(durationAttrMatch[1]) : 0;
+      const tlBeatCount = (html.match(/\btl\.(from|to|fromTo|add|call)\b/g) || []).length;
+      if (compositionDuration > 8 && tlBeatCount > 0) {
+        const avgGap = compositionDuration / tlBeatCount;
+        if (avgGap > 4.5) {
+          issues.push(
+            `WARN [pattern-interrupt] ${tlBeatCount} timeline beats over ${compositionDuration.toFixed(0)}s` +
+              ` → avg gap ${avgGap.toFixed(1)}s. Add a visual change every 3.5s max` +
+              ` (text swap, scale pulse, color shift, emoji pop).`,
+          );
+        } else {
+          passes.push(
+            `PASS: pattern interrupt density (${tlBeatCount} beats, avg ${avgGap.toFixed(1)}s gap)`,
+          );
+        }
+      }
+
       const failCount = issues.filter((i) => i.startsWith("FAIL")).length;
       const warnCount = issues.filter((i) => i.startsWith("WARN")).length;
       const summary =
@@ -2587,6 +2606,30 @@ ${jsLines.join("\n")}`;
         );
       } else {
         lines.push(`PASS [duration] ${totalSeconds.toFixed(1)}s fits ${platform}`);
+      }
+
+      // Optimal length advisory (sweet-spot check, separate from hard max)
+      const OPTIMAL_RANGES: Record<string, { min: number; max: number }> = {
+        youtube_short: { min: 50, max: 55 },
+        tiktok: { min: 21, max: 34 },
+        instagram_reel: { min: 15, max: 28 },
+        linkedin: { min: 45, max: 75 },
+        twitter: { min: 30, max: 45 },
+        youtube_long: { min: 420, max: 720 },
+      };
+      const optRange = OPTIMAL_RANGES[platform];
+      if (optRange && totalSeconds >= 1 && totalSeconds <= limits.maxSeconds) {
+        if (totalSeconds < optRange.min || totalSeconds > optRange.max) {
+          lines.push(
+            `ADVISORY [optimal-length] ${totalSeconds.toFixed(0)}s — ${platform} retention` +
+              ` sweet spot is ${optRange.min}–${optRange.max}s.` +
+              ` ${totalSeconds < optRange.min ? "Extend to maximise watch-time." : "Consider trimming for peak retention."}`,
+          );
+        } else {
+          lines.push(
+            `PASS [optimal-length] ${totalSeconds.toFixed(0)}s is in the ${platform} sweet spot ✓`,
+          );
+        }
       }
       lines.push("");
 

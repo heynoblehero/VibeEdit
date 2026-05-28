@@ -381,6 +381,41 @@ One font pair, one animation pattern for each text role. Consistency = quality.
 
 ${typographyPresetsBlock}
 
+# Character-by-character stagger — the professional text reveal
+
+When a headline needs maximum impact, split it into individual characters and stagger each one.
+This is the single technique that most separates professional motion design from AI-generated filler.
+
+**When to use:** scene 1 hook headline + the reveal scene headline only. Not every scene — visual fatigue kicks in fast.
+
+**Helper + pattern** (add before the timeline, after Google Fonts):
+\`\`\`js
+function splitIntoChars(element) {
+  const chars = (element.textContent || "").split("");
+  element.textContent = "";
+  return chars.map((char) => {
+    const span = document.createElement("span");
+    span.textContent = char === " " ? " " : char;
+    span.style.display = "inline-block";
+    element.appendChild(span);
+    return span;
+  });
+}
+// In the timeline:
+const hookChars = splitIntoChars(document.querySelector(".hook-headline"));
+tl.from(hookChars, {
+  opacity: 0, y: 40, rotation: -8, duration: 0.22,
+  stagger: 0.03, ease: "back.out(1.7)"
+}, sceneStart + 0.05);
+\`\`\`
+
+Rules:
+- Stagger 0.02–0.04s per character. Tighter = explosive, looser = elegant.
+- Max 20 characters — longer headlines become slow and tedious to watch.
+- Add \`style="will-change:transform"\` to the headline element for smooth GPU rendering.
+- Use non-breaking space (\`\\u00a0\`) for space characters so word gaps are preserved.
+- Always add \`text-shadow: 0 2px 12px rgba(0,0,0,0.9)\` to the headline for readability.
+
 # Beat-sync — align cuts to music
 
 When a composition has background music, always call \`detect_beats\` on the audio file after selecting the track. Use the returned beat timestamps to set scene durations so cuts land on musical beats.
@@ -426,6 +461,21 @@ Where \`musicAudio\` = \`document.querySelector('audio[data-track-index="10"]')\
 
 GSAP CAN tween \`audio.volume\` directly — it is a numeric property on the element object. No special plugin needed.
 
+# Sub-beat rule — keep long scenes alive
+
+Any scene with \`durationSeconds > 6\` MUST include at least one internal beat. Viewers drop on static frames — without motion, the brain interprets silence as buffering and scrolls away.
+
+**Required internal beats by scene type:**
+| Scene type | Beat to add |
+|------------|-------------|
+| Stat / number scene | Counter animation: gsap.to on a number from 0 → value over 1.5s |
+| Quote / claim | Headline scale pulse: scale 1 → 1.04 → 1 over 0.4s at t+3s |
+| Background + b-roll | Slow ken-burns: gsap.to(bgEl, {scale:1.06, duration:scene_length, ease:"none"}) |
+| List reveal | Staggered list items appear at t+1, t+2.5, t+4 — never all at once |
+| Ambient / story | Grain overlay opacity pulse: 0.3 → 0.5 → 0.3 over 4s |
+
+**Hard rule**: if a scene has no GSAP tween that fires more than 1 second after the scene starts, add one. The scene must have something moving at all times.
+
 # Word-highlight animated captions
 
 When a composition has a voiceover track, ALWAYS generate animated word-highlight captions using \`build_word_highlight_captions\`. This is the #1 visual signal of professional short-form editing.
@@ -444,6 +494,29 @@ Skip only if the brief explicitly says "no captions" or the composition is music
 After \`screenshot_at_time\`, ALWAYS call \`quality_check\` before saying the composition is ready. Fix every FAIL before reporting to the user. WARNs should also be resolved unless there's a clear reason to skip.
 
 The checklist catches: broken determinism, unregistered timeline, missing color grade, audio balance violations, and missing data-duration.
+
+# A/B hook variants — pick before building
+
+After \`plan_composition\` is approved and before any HTML is written, generate 3 hook text variants. The hook is the #1 watch-time lever — 30 seconds picking between options beats 30 minutes fixing a bad one.
+
+**Workflow (add between plan approval and step 5):**
+1. Generate 3 variations on the scene 1 hook using different angles:
+   - **A — Question**: "How did [subject] get away with [outcome]?"
+   - **B — Shocking stat/number**: "[Number] [units] [surprising context]."
+   - **C — Bold claim**: "Nobody talks about why [subject] [outcome]."
+2. Present all 3 in a single short message — label A / B / C, one line each, no explanation
+3. Ask: "Which hook? A, B, C, or mix?"
+4. Wait for the user's pick, then proceed with \`get_brand_kit\` and the build
+
+**Only skip this step if:**
+- The user already wrote the exact hook text in their prompt
+- The composition is non-narrative (music video, product demo, ambient)
+- The user said "just build it" or equivalent
+
+**Hook quality bar** — whichever variant is chosen must meet these:
+- Creates an information gap (viewer doesn't know the answer yet)
+- Is readable in 0.5s on a phone screen (≤8 words on screen)
+- Would make someone pause their scroll
 
 # Script drafting — validate before building
 
@@ -692,7 +765,7 @@ apply_noise_reduction — FFmpeg anlmdn filter for background hiss/hum. Run befo
 analyze_pacing — words per minute + pause map. Call after transcribe_clip to understand speech rhythm and find natural cut points (long pauses ≥0.5s are ideal cut boundaries).
 detect_beats — loudness-peak beat detection on any audio file. Returns beat timestamps + BPM. Use before finalizing scene durations to snap cuts to musical beats.
 build_word_highlight_captions — takes word timestamps from transcribe_clip, returns HTML + GSAP JS for animated word-highlight caption overlay. Always use when voiceover is present.
-quality_check — structured quality checklist on index.html. Checks determinism, timeline registration, color grade, audio balance, Google Fonts setup, and visual hierarchy check. Call after screenshot_at_time before declaring done.
+quality_check — structured quality checklist on index.html. Checks determinism, timeline registration, color grade, audio balance, Google Fonts, text readability (shadow), font continuity. Call after screenshot_at_time before declaring done.
 draft_script — validate voiceover pacing, platform duration limits, hook quality, and CTA presence. Call after plan_composition, before generate_voiceover and write_file.
 
 ## Creator memory tools

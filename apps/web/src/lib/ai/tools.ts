@@ -2418,6 +2418,37 @@ ${jsLines.join("\n")}`;
         passes.push(`PASS: font size variety OK (${uniqueSizes.size} distinct sizes)`);
       }
 
+      // Text readability: headlines need text-shadow or backdrop-filter
+      const hasTextShadow = /text-shadow\s*:/i.test(html);
+      const hasBackdropFilter = /backdrop-filter\s*:/i.test(html);
+      const hasLargeText = /font-size\s*:\s*(\d{2,}px|[4-9]\d*vw|1\d+vw)/i.test(html);
+      if (hasLargeText && !hasTextShadow && !hasBackdropFilter) {
+        issues.push(
+          "WARN [readability] No text-shadow or backdrop-filter on large text — unreadable on " +
+            "busy backgrounds. Add text-shadow: 0 2px 12px rgba(0,0,0,0.9) to headlines.",
+        );
+      } else if (hasLargeText) {
+        passes.push("PASS: text readability (shadow or backdrop present)");
+      }
+
+      // Font continuity: catch accidental font mixing from registry block copy-paste
+      const fontMatches = [
+        ...html.matchAll(/font-family\s*:\s*['"]?([A-Za-z][^;,'"]{1,40})/gi),
+      ].map((m) => m[1].split(",")[0].trim().replace(/['"]/g, "").trim());
+      const genericFonts = new Set(["inherit", "sans-serif", "serif", "monospace", "cursive"]);
+      const uniqueFonts = [...new Set(fontMatches)].filter(
+        (f) => f.length > 0 && !genericFonts.has(f),
+      );
+      if (uniqueFonts.length > 3) {
+        issues.push(
+          `WARN [continuity] ${uniqueFonts.length} distinct font families ` +
+            `(${uniqueFonts.slice(0, 4).join(", ")}…) — ` +
+            "pair should be ≤2 fonts. Registry block copy-paste may have introduced extras.",
+        );
+      } else if (uniqueFonts.length > 0) {
+        passes.push(`PASS: font continuity (${uniqueFonts.join(", ")})`);
+      }
+
       const failCount = issues.filter((i) => i.startsWith("FAIL")).length;
       const warnCount = issues.filter((i) => i.startsWith("WARN")).length;
       const summary =

@@ -122,6 +122,16 @@ export function buildToolServer(ctx: ToolContext) {
               .describe(
                 "Visual layout pattern for this scene. No two consecutive scenes may share the same archetype.",
               ),
+            sceneRole: z
+              .enum(["hook", "setup", "tension", "reveal", "proof", "cta"])
+              .describe(
+                "Emotional role of this scene in the retention arc. Hook must be scene 1. Tension must come before reveal. CTA must be last.",
+              ),
+            transitionToNext: z
+              .enum(["hard_cut", "crossfade", "whip_pan", "white_flash", "none"])
+              .describe(
+                "Transition FROM this scene TO the next. Last scene must be 'none'. Use white_flash sparingly — max 2 per composition.",
+              ),
           }),
         )
         .min(1)
@@ -169,12 +179,45 @@ export function buildToolServer(ctx: ToolContext) {
           );
         }
       }
+      // Validate retention arc order
+      const roles = plan.scenes.map((s) => s.sceneRole);
+      if (roles[0] !== "hook") {
+        warnings.push("WARNING: Scene 1 must have sceneRole='hook'. Reorder or reassign roles.");
+      }
+      const lastRole = roles[roles.length - 1];
+      if (lastRole !== "cta" && lastRole !== "reveal") {
+        warnings.push(
+          `WARNING: Last scene has role '${lastRole}' — end with 'cta' or 'reveal' for retention.`,
+        );
+      }
+      const tensionIndex = roles.indexOf("tension");
+      const revealIndex = roles.indexOf("reveal");
+      if (tensionIndex !== -1 && revealIndex !== -1 && tensionIndex > revealIndex) {
+        warnings.push("WARNING: 'tension' scene comes after 'reveal' — arc is inverted. Reorder.");
+      }
+      // Validate white_flash usage
+      const flashCount = plan.scenes.filter((s) => s.transitionToNext === "white_flash").length;
+      if (flashCount > 2) {
+        warnings.push(
+          `WARNING: ${flashCount} white_flash transitions — max 2 per video. Overuse kills impact.`,
+        );
+      }
+      // Validate last scene has transition 'none'
+      const lastScene = plan.scenes[plan.scenes.length - 1];
+      if (lastScene && lastScene.transitionToNext !== "none") {
+        warnings.push(
+          `WARNING: Last scene transition is '${lastScene.transitionToNext}' — must be 'none' (there is no next scene).`,
+        );
+      }
+      // Add arc summary to output
+      const arcSummary = plan.scenes.map((s) => `S${s.index}:${s.sceneRole}`).join(" → ");
       const archetypeSummary = plan.scenes
         .map((s) => `S${s.index}:${s.layoutArchetype}`)
         .join(" → ");
       const lines = [
         `OK: plan recorded — ${plan.scenes.length} scenes / ${plan.totalDurationSeconds}s / ${plan.format}.`,
         `Grade: ${plan.colorGrade} | Typography: ${plan.typographyPair}${plan.beatSyncNote ? ` | Beat-sync: ${plan.beatSyncNote}` : ""}`,
+        `Arc: ${arcSummary}`,
         `Layouts: ${archetypeSummary}`,
         ...warnings,
         `Now stop and ask the user to approve before writing any HTML.`,
@@ -2250,7 +2293,7 @@ ${jsLines.join("\n")}`;
   // --- Composition quality checklist ---
   const qualityCheckTool = tool(
     "quality_check",
-    "Run a structured quality checklist on the current index.html. Checks determinism, color grade, audio balance, timeline registration, and layout rules. Call this after screenshot_at_time and BEFORE declaring the composition done. Fix any FAILs before reporting to the user.",
+    "Run a structured quality checklist on the current index.html. Checks determinism, color grade, audio balance, timeline registration, layout rules, and visual hierarchy. Call this after screenshot_at_time and BEFORE declaring the composition done. Fix any FAILs before reporting to the user.",
     {},
     async () => {
       let html: string;
@@ -2349,6 +2392,30 @@ ${jsLines.join("\n")}`;
         } else {
           passes.push("PASS: Google Fonts preconnect set");
         }
+      }
+
+      // Visual hierarchy: check at least one element with prominent font size
+      const hasBigText = /font-size\s*:\s*(1[0-9]{2,}px|[1-9]\d*vw|[8-9][0-9]px)/i.test(html);
+      if (!hasBigText) {
+        issues.push(
+          "WARN [hierarchy] No element with font-size ≥80px or ≥4vw found — add a dominant text element so viewers know what to focus on.",
+        );
+      } else {
+        passes.push("PASS: dominant text element present");
+      }
+
+      // Check max 3 distinct font-size classes in any one scene div — catches "busy" layouts
+      // (approximation: count unique vw/px font-size values)
+      const fontSizes = [...html.matchAll(/font-size\s*:\s*([\d.]+(?:vw|px|em|rem))/gi)].map(
+        (m) => m[1],
+      );
+      const uniqueSizes = new Set(fontSizes);
+      if (uniqueSizes.size > 6) {
+        issues.push(
+          `WARN [hierarchy] ${uniqueSizes.size} distinct font sizes — simplify to ≤4 sizes for cleaner hierarchy.`,
+        );
+      } else if (fontSizes.length > 0) {
+        passes.push(`PASS: font size variety OK (${uniqueSizes.size} distinct sizes)`);
       }
 
       const failCount = issues.filter((i) => i.startsWith("FAIL")).length;

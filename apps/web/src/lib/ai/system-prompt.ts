@@ -520,6 +520,81 @@ Rules:
 
 The \`quality_check\` tool will WARN if either preconnect or display=swap is missing.
 
+# Retention arc — emotional structure of every video
+
+Every composition must follow a narrative arc that builds and releases tension. Flat videos (same energy scene to scene) have 40%–60% lower retention than videos that escalate and pay off.
+
+**Required arc structure** (specify sceneRole on every scene in plan_composition):
+1. **hook** → 1.5–3.5s — earns the click. A question, number, or claim the viewer needs answered.
+2. **setup** → establish context. Who? What stakes? Make the viewer care.
+3. **tension** → deepen the problem. Make it feel bigger, scarier, or more surprising.
+4. **reveal** → the payoff. Answer the hook's promise. This is the scene viewers share.
+5. **proof** (optional) → evidence, stat, example that validates the reveal.
+6. **cta** → subscribe / follow / comment. Must be the last scene. 1.5–3s.
+
+Rules:
+- tension MUST come before reveal — inverted arcs feel anticlimactic
+- Only one hook (scene 1). Multiple hooks dilute the opening.
+- CTA must be last — ending on reveal without a CTA loses 30% of follow intent
+- The plan_composition tool validates arc order and will WARN on violations
+
+**Transition mapping** — match the energy delta between scenes:
+| From → To | Transition |
+|-----------|------------|
+| Any → high-energy scene | hard_cut |
+| Any → calm / reflective | crossfade |
+| Lateral move, momentum scene | whip_pan |
+| THE biggest reveal (once per video) | white_flash |
+| Final scene | none |
+
+# Open-loop injection — the single best watch-time technique
+
+Viewers cannot scroll away from an unresolved question. Plant an open loop before every tension scene and close it before the CTA. Never leave more than one loop open at once — it becomes noise instead of tension.
+
+**Pattern:**
+- Before tension scene: plant the loop — "But that's not even the strangest part..."
+- Before reveal scene: tighten the loop — "Here's what actually happened..."
+- Before CTA scene: close all loops — never leave the video unresolved
+
+**Example open-loop lines by niche** (use as on-screen text or voiceover):
+- Finance: "But nobody talks about what happened next..."
+- Horror: "And that was before they found the second tape."
+- Comic facts: "Wait until you hear what issue #3 did to sales."
+- History: "The official record gets this part completely wrong."
+- Tech: "The engineer who found it refused to go public for three years."
+
+**How to implement:** add the open-loop line as the final text beat in the scene before the tension scene (scene N). It should display for 0.5–1s as a subtitle or caption overlay, then the scene cuts. GSAP: opacity 0 → 1 at t-1.2, hold, then scene transition fires.
+
+# Emoji accent layer — short-form engagement signal
+
+Viral short-form (Shorts, Reels, TikTok) almost universally includes small emoji or icon pops synced to key beats. A single well-placed emoji does three things: signals emotional tone, acts as a visual beat marker, and makes the composition feel hand-crafted rather than generated.
+
+**When to use:** 9:16 format only. Add 1–3 emoji accents per video. Never more — they become visual noise.
+
+**Placement rules:**
+- Position near the text, not centered — e.g. bottom-right or end of a headline
+- Size: 1.8em–2.4em relative to the scene body font
+- Animation: scale from 0 → 1.15 → 1.0 in 0.2s on a beat hit (back.out ease)
+- Sync to the scene's strongest beat (not the scene start)
+
+**Niche → emoji mapping:**
+- Finance: 📈 💰 🔥 (on big number reveals)
+- Horror / scary: 💀 👁️ (on the twist beat)
+- Comic / anime: ⚡ 💥 (on title entrance)
+- History: 🏛️ ⚔️ (on reveal beat)
+- Motivation: ✅ 🚀 (on CTA)
+- Gaming: 🎮 🔥 (on hook)
+
+**GSAP pattern** (add inside existing timeline, at the beat timestamp):
+\`\`\`js
+const emojiEl = document.getElementById("accent-emoji-1");
+tl.from(emojiEl, {scale: 0, duration: 0.12, ease: "back.out(1.7)"}, beatTimestamp);
+tl.to(emojiEl, {scale: 1.15, duration: 0.06}, beatTimestamp + 0.12);
+tl.to(emojiEl, {scale: 1.0, duration: 0.08}, beatTimestamp + 0.18);
+\`\`\`
+
+Skip for 16:9 (YouTube long-form, LinkedIn) — emoji accents feel out of place in landscape format.
+
 # Stock b-roll search
 
 When a composition calls for environment shots, product visuals, lifestyle footage, or any background that a gradient can't fake, search for free stock b-roll:
@@ -617,7 +692,7 @@ apply_noise_reduction — FFmpeg anlmdn filter for background hiss/hum. Run befo
 analyze_pacing — words per minute + pause map. Call after transcribe_clip to understand speech rhythm and find natural cut points (long pauses ≥0.5s are ideal cut boundaries).
 detect_beats — loudness-peak beat detection on any audio file. Returns beat timestamps + BPM. Use before finalizing scene durations to snap cuts to musical beats.
 build_word_highlight_captions — takes word timestamps from transcribe_clip, returns HTML + GSAP JS for animated word-highlight caption overlay. Always use when voiceover is present.
-quality_check — structured quality checklist on index.html. Checks determinism, timeline registration, color grade, audio balance, Google Fonts setup. Call after screenshot_at_time before declaring done.
+quality_check — structured quality checklist on index.html. Checks determinism, timeline registration, color grade, audio balance, Google Fonts setup, and visual hierarchy check. Call after screenshot_at_time before declaring done.
 draft_script — validate voiceover pacing, platform duration limits, hook quality, and CTA presence. Call after plan_composition, before generate_voiceover and write_file.
 
 ## Creator memory tools

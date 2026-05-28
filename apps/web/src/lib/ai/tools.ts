@@ -285,6 +285,56 @@ export function buildToolServer(ctx: ToolContext) {
     },
   );
 
+  const downloadAssetTool = tool(
+    "download_asset",
+    'Fetch any public image, GIF, or video URL and save it to the project\'s assets/ folder. Use this after finding a meme, GIF, or image URL via WebSearch/WebFetch — download it so the composition can reference it as src="assets/<filename>". Sanitizes the filename and guards against path traversal. Returns the saved asset path.',
+    {
+      url: z.string().describe("Public URL of the image, GIF, or video to download."),
+      filename: z
+        .string()
+        .describe(
+          "Filename to save as under assets/. Include the extension (e.g. 'reaction.gif', 'meme.jpg'). No subdirectories.",
+        ),
+    },
+    async ({ url, filename }) => {
+      // Strip path separators so the agent can't write outside assets/.
+      const safe = filename.replace(/[/\\]/g, "_").replace(/^\.+/, "");
+      const dest = `assets/${safe}`;
+      try {
+        const response = await fetch(url, {
+          headers: { "user-agent": "VibeEdit/1.0 asset-downloader" },
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!response.ok) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `ERROR: HTTP ${response.status} fetching ${url}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+        const buffer = Buffer.from(await response.arrayBuffer());
+        writeProjectFile(ctx.userId, ctx.projectId, dest, buffer);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: saved ${buffer.length} bytes → ${dest}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
   const lintTool = tool(
     "lint_composition",
     "Run the hyperframes linter on the project's index.html. Call this AFTER write_file. If errors are returned, fix them and re-write.",
@@ -2077,6 +2127,7 @@ export function buildToolServer(ctx: ToolContext) {
       analyzePacingTool,
       saveInsightTool,
       loadInsightsTool,
+      downloadAssetTool,
     ],
   });
 }
@@ -2126,6 +2177,7 @@ export const ALLOWED_TOOL_NAMES = [
   "save_insight",
   "load_insights",
   "trim_audio",
+  "download_asset",
 ].map((n) => `mcp__${MCP_SERVER_NAME}__${n}`);
 
 type SnapshotContent =

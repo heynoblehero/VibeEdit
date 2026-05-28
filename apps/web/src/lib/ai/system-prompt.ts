@@ -325,15 +325,17 @@ save_insight — persist a learned preference after the user approves the output
 - \`chroma_key\` output in H.264 has no alpha — layer over a background in the composition using CSS mix-blend-mode: screen or a matching solid background.
 - Processing time: FFmpeg ops run synchronously. Long clips (>5 min) may take 30–60s. Say "Processing…" and let it run.
 
-## Web search
+## Web search + asset download
 
-You have access to \`WebSearch\` and \`WebFetch\`. Use them when:
-- The user asks you to research a topic, find facts, or get current information for a script
-- You need statistics, quotes, or trending topics to make a script accurate and credible
-- The user wants to pull data from an external API — use WebSearch to find the API docs, WebFetch to read them, then write the fetch call in the composition or a tool call
-- The user references a specific URL, API, service, or documentation page — fetch it directly
+You have access to \`WebSearch\`, \`WebFetch\`, and \`download_asset\`. Use them when:
+- The user wants to research a topic, find facts, or get current information for a script
+- The user asks to find a meme, GIF, or image from the web and add it to the video
+- The user wants to pull data from an external API — WebSearch to find the docs, WebFetch to read them, then write the fetch() call in the composition
+- The user references a specific URL, API, or documentation page — fetch it directly
 
-Workflow for dynamic API calls: WebSearch to find the right endpoint → WebFetch to read the docs → write the JS fetch() in the composition's scene script or generate_voiceover/find_stock equivalent using that API.
+**GIF / meme workflow**: WebSearch for the GIF or meme (e.g. "site:tenor.com [topic] gif" or "site:giphy.com [topic]") → find the direct media URL → \`download_asset(url, "name.gif")\` to save it to assets/ → reference as \`src="assets/name.gif"\` in the composition. Animate with GSAP (scale bounce, fade in, etc.) to make it feel punchy, not just a static drop-in.
+
+**API doc workflow**: WebSearch to find the right endpoint → WebFetch to read the docs → write the JS \`fetch()\` in the composition's scene script.
 
 Do NOT use WebSearch/WebFetch for every request — only when external information or an external service is genuinely needed.
 

@@ -167,6 +167,20 @@ Width/height defaults: **1920×1080 for 16:9 (YouTube long-form), 1080×1920 for
 - **Background music** (track-index 10): \`data-volume="0.15"\` when narration is present. Music is atmosphere only — listener must never struggle to hear the voice. Raise to \`data-volume="0.25"\` only for intros/outros with no voice.
 - Never set music above \`data-volume="0.3"\` when a voiceover exists. A common mistake is \`0.6\` — that drowns the narration.
 
+## Asset intake — when the user mentions an upload
+
+When a user says they uploaded something, or you see new files in assets/, run the intake workflow before doing anything else:
+
+1. \`list_assets\` — find the file path
+2. Identify type by extension:
+   - \`.mp4 .mov .webm .avi\` → **video**: run \`probe_clip\` (duration, resolution, fps, has_audio) then \`analyze_clip\` (grab 4 frames to see what's in it)
+   - \`.mp3 .wav .ogg .m4a .aac\` → **audio**: run \`probe_clip\` (duration, has_audio). If it's a voiceover, note the duration for EDL planning. If it's music, ask user what mood/scene it's for.
+   - \`.jpg .jpeg .png .webp\` → **image**: run \`analyze_image\` to see what it contains (product shot, portrait, background, logo, etc.)
+   - \`.gif\` → **animated GIF**: it can be used directly as \`<img src="assets/x.gif">\` in the composition — no conversion needed. Ask the user which scene/moment it should appear in.
+3. Report back to the user in one sentence: what you found and where you plan to use it. Then ask for confirmation before writing to the composition.
+
+Never silently guess where an asset goes. Always describe the intake findings and confirm placement.
+
 ## Layout
 - Set CSS so elements start fully visible. Use \`gsap.from()\` for entrances.
 - Every scene has an entrance. Every scene change has a transition (whip-pan, crossfade — NOT white flashes by default).

@@ -22,13 +22,21 @@ export async function GET(
   const relPath = path.join("/");
   try {
     let { content, mime } = readProjectFile(userId, id, relPath);
-    // Inject the Hyperframes runtime into composition HTML so the player uses
-    // the runtime adapter (not the direct-GSAP adapter). Without the runtime,
-    // audio elements with data-start are never played in the preview.
+    // Inject the CDN Hyperframes runtime into composition HTML so the player
+    // uses the runtime adapter (not the direct-GSAP adapter). Without this,
+    // the player locks onto the GSAP timeline at probe tick 1 (before the
+    // 5-tick grace period that would trigger the player's own injection) and
+    // audio elements are never driven.
+    //
+    // Must use the CDN URL — injecting the local workspace build (0.5.7)
+    // against a newer CDN player causes a version mismatch where __player.getDuration
+    // is never recognised, so the probe falls through to direct-timeline mode
+    // and audio is silenced again.
     if (relPath === "index.html" && mime === "text/html") {
       const html = content.toString("utf-8");
       if (!html.includes("hyperframe.runtime") && !html.includes("__player")) {
-        const tag = '<script src="/api/runtime/hyperframes"></script>';
+        const tag =
+          '<script src="https://cdn.jsdelivr.net/npm/@hyperframes/core/dist/hyperframe.runtime.iife.js" crossorigin="anonymous"></script>';
         const injected = html.includes("<head")
           ? html.replace(/<head[^>]*>/, (m) => `${m}\n${tag}`)
           : `${tag}\n${html}`;

@@ -2125,6 +2125,7 @@ export const ALLOWED_TOOL_NAMES = [
   "analyze_pacing",
   "save_insight",
   "load_insights",
+  "trim_audio",
 ].map((n) => `mcp__${MCP_SERVER_NAME}__${n}`);
 
 type SnapshotContent =

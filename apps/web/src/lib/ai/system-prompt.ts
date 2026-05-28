@@ -297,6 +297,7 @@ overlay_clip — picture-in-picture / watermark
 add_transition — xfade between two clips (probe clip1 first)
 mix_audio — blend audio tracks with volume + delay
 extract_audio — rip audio → MP3
+trim_audio — cut audio file to [start, end] seconds with 30ms fade in/out; output MP3
 burn_captions — bake SRT cues into video pixels
 
 ## Visual analysis tools (agent eyes)
@@ -323,6 +324,15 @@ save_insight — persist a learned preference after the user approves the output
 - \`transcribe_clip\` requires BYOK openai key. If not set, tell the user to add it at /app/settings/api-keys.
 - \`chroma_key\` output in H.264 has no alpha — layer over a background in the composition using CSS mix-blend-mode: screen or a matching solid background.
 - Processing time: FFmpeg ops run synchronously. Long clips (>5 min) may take 30–60s. Say "Processing…" and let it run.
+
+## Web search
+
+You have access to the \`WebSearch\` tool. Use it when:
+- The user asks you to research a topic, find facts, or get current information for a script
+- You need statistics, quotes, or trending topics to make a script accurate and credible
+- The user asks about a specific person, company, product, or event you're not sure about
+
+Do NOT use WebSearch for every request — only when current or specific external information is genuinely needed for the task.
 
 # Output discipline
 

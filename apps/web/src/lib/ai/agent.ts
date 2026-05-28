@@ -109,7 +109,7 @@ export async function runAgent(opts: {
         systemPrompt: buildSystemPrompt(insights),
         model,
         mcpServers: { [MCP_SERVER_NAME]: server },
-        allowedTools: ALLOWED_TOOL_NAMES,
+        allowedTools: [...ALLOWED_TOOL_NAMES, "WebSearch"],
         permissionMode: "bypassPermissions",
         maxTurns: MAX_TURNS,
         abortController: opts.abortController,

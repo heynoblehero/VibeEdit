@@ -2306,8 +2306,13 @@ async function synthesizeElevenLabsWithTimestamps(opts: {
     },
     body: JSON.stringify({
       text: opts.script,
-      model_id: "eleven_multilingual_v2",
-      voice_settings: { stability: 0.5, similarity_boost: 0.7 },
+      model_id: "eleven_turbo_v2_5",
+      voice_settings: {
+        stability: 0.35,
+        similarity_boost: 0.8,
+        style: 0.45,
+        use_speaker_boost: true,
+      },
     }),
   });
   if (!response.ok) {

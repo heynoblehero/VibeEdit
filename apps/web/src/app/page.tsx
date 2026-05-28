@@ -340,7 +340,7 @@ export default function Home() {
             <FooterCol
               title="Product"
               links={[
-                { href: "/#pricing", label: "Pricing" },
+                { href: "/pricing", label: "Pricing" },
                 { href: "/showcase", label: "Showcase" },
                 { href: "/changelog", label: "Changelog" },
                 { href: "/early", label: "Waitlist" },

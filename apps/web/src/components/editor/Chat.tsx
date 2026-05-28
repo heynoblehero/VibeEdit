@@ -663,15 +663,25 @@ function LiveLine({ entry, projectId }: { entry: LiveEntry; projectId?: string }
   const isDone = !!entry.result;
   return (
     <div className="font-mono text-[var(--color-fg-muted)]">
-      <span className={isDone ? "text-[var(--color-success)]" : ""}>{isDone ? "✓" : "→"}</span>{" "}
+      {isDone ? (
+        <span className="text-[var(--color-success)]">✓</span>
+      ) : (
+        <span
+          className="inline-block h-2.5 w-2.5 animate-spin rounded-full border border-[var(--color-border)] border-t-[var(--color-accent)]"
+          aria-label="running"
+        />
+      )}{" "}
       <span className="text-[var(--color-fg)]">{entry.name}</span>
       {entry.inputSummary && (
         <span className="text-[var(--color-fg-muted)]">({entry.inputSummary})</span>
       )}
       {entry.result && !entry.variants && (
-        <div className="mt-0.5 ml-3 truncate text-[10px] text-[var(--color-fg-muted)]">
-          {entry.result}
-        </div>
+        <>
+          <div className="mt-0.5 ml-3 truncate text-[10px] text-[var(--color-fg-muted)]">
+            {entry.result}
+          </div>
+          <ApiKeyErrorCard result={entry.result} />
+        </>
       )}
       {entry.images && entry.images.length > 0 && <ScreenshotStrip images={entry.images} />}
       {entry.variants && projectId && <VariantPicker info={entry.variants} projectId={projectId} />}
@@ -823,10 +833,15 @@ function BuildGroupView({
         className="flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left hover:bg-[var(--color-bg)]"
       >
         <span>
-          <span className={allDone ? "text-[var(--color-success)]" : "text-[var(--color-accent)]"}>
-            {allDone ? "✓" : "→"}
-          </span>{" "}
-          <span className="text-[var(--color-fg)]">Built it</span>
+          {allDone ? (
+            <span className="text-[var(--color-success)]">✓</span>
+          ) : (
+            <span
+              className="inline-block h-2.5 w-2.5 animate-spin rounded-full border border-[var(--color-border)] border-t-[var(--color-accent)]"
+              aria-label="running"
+            />
+          )}{" "}
+          <span className="text-[var(--color-fg)]">{allDone ? "Built it" : "Building…"}</span>
           <span className="text-[var(--color-fg-muted)]">
             {" "}
             · {entries.length} step{entries.length === 1 ? "" : "s"}
@@ -859,6 +874,24 @@ function ScreenshotStrip({ images }: { images: Array<{ data: string; mimeType: s
         />
       ))}
     </div>
+  );
+}
+
+const API_KEY_ERROR_RE = /no ([\w][\w\s\-/]*?) api key/i;
+
+function ApiKeyErrorCard({ result }: { result: string }) {
+  const match = result.match(API_KEY_ERROR_RE);
+  if (!match) return null;
+  const service = match[1].trim();
+  return (
+    <a
+      href="/app/settings/api-keys"
+      className="mt-1.5 ml-3 flex items-center gap-2 rounded border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/5 px-2.5 py-1.5 text-xs font-sans no-underline hover:bg-[var(--color-accent)]/10"
+    >
+      <span className="text-[var(--color-accent)]">⚠</span>
+      <span className="text-[var(--color-fg)]">No {service} API key set</span>
+      <span className="ml-auto shrink-0 text-[var(--color-accent)]">Add in Settings →</span>
+    </a>
   );
 }
 

@@ -274,8 +274,14 @@ export default function ProjectsPage() {
                 </div>
                 <p className="font-medium text-[var(--color-fg)]">No projects yet</p>
                 <p className="mt-1 text-sm text-[var(--color-fg-muted)]">
-                  Create one above to get started.
+                  Start a blank project above, or jump-start from a template.
                 </p>
+                <Link
+                  href="/app/templates"
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/5 px-4 py-2 text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10"
+                >
+                  Browse templates →
+                </Link>
               </div>
             )}
 

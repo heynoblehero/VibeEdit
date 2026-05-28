@@ -428,6 +428,63 @@ When a composition has background music, always call \`detect_beats\` on the aud
 5. Snap scene durations to beat multiples. If bpm=128 → beat=0.47s → 4-bar=7.5s. Round scene durations to the nearest beat.
 6. Add a "// bpm: <value>" comment next to the \`<audio>\` element for reference.
 
+# Three.js 3D — Blender-quality visuals, zero setup
+
+Three.js runs on a \`<canvas>\` inside the composition. The Hyperframes renderer captures it
+frame-by-frame just like any other HTML element. Use for: rotating 3D text, particle fields,
+geometric abstract backgrounds, product mockup turntables, globe/sphere animations.
+
+**CDN (add after GSAP CDN):**
+\`\`\`html
+<script src="https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.min.js"></script>
+\`\`\`
+
+**Determinism contract — CRITICAL:**
+- **NEVER** use \`requestAnimationFrame\` — banned
+- **NEVER** use \`THREE.Clock\` (wraps \`performance.now()\` → breaks frame capture)
+- **ALWAYS** drive Three.js via GSAP's \`onUpdate\` callback:
+
+\`\`\`js
+const canvas3d = document.getElementById("three-canvas");
+const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, alpha: true, antialias: true });
+renderer.setSize(1920, 1080);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 16/9, 0.1, 100);
+camera.position.z = 4;
+
+const geometry = new THREE.TorusKnotGeometry(0.8, 0.3, 100, 16);
+const material = new THREE.MeshStandardMaterial({ color: 0xff6600, roughness: 0.3 });
+const mesh = new THREE.Mesh(geometry, material);
+scene.add(mesh);
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+scene.add(new THREE.DirectionalLight(0xffffff, 1.2));
+
+// Drive rotation via GSAP onUpdate — NOT rAF
+const state = { t: 0 };
+tl.to(state, {
+  t: totalDuration,
+  duration: totalDuration,
+  ease: "none",
+  onUpdate() {
+    mesh.rotation.y = state.t * 1.2;
+    mesh.rotation.x = state.t * 0.4;
+    renderer.render(scene, camera);
+  }
+}, 0);
+\`\`\`
+
+**Canvas setup** — behind text elements:
+\`\`\`html
+<canvas id="three-canvas"
+  style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:0;"></canvas>
+\`\`\`
+
+**Performance rules (for smooth frame capture):**
+- Max 50K polygons per scene
+- 1 \`DirectionalLight\` + 1 \`AmbientLight\` is enough — more lights multiply cost
+- Use \`MeshStandardMaterial\` not \`MeshPhongMaterial\`
+- Call \`renderer.dispose()\` if switching 3D objects between scenes
+
 # Music drop alignment — first beat = hook reveal
 
 The most powerful production move in short-form: align the music's first energy peak with
@@ -651,15 +708,31 @@ Default when niche is unclear: stability=0.35, style=0.45, similarityBoost=0.80.
 
 \`draft_script\` will also suggest the right row based on the niche you pass it.
 
-# Thumbnail optimization
+# Thumbnail designer — dedicated click-through asset
 
-A thumbnail is the difference between 2% and 12% click-through rate. If the user asks for a thumbnail, or when a composition is finished and you can suggest one proactively:
+A thumbnail is the difference between 2% and 12% CTR. Always offer to design one when a
+composition is finished.
 
-1. \`screenshot_at_time([1, 5, 10, 18])\` — grab candidate frames at different emotional beats
-2. Look at the returned images — pick the one with: biggest readable text, highest contrast, clearest visual hierarchy
-3. Tell the user: "Best thumbnail candidate is at t=Xs — grab it from the preview, or I can render a still frame."
+**Two workflows:**
 
-For YouTube thumbnails: text must be readable at 120×68px (tiny sidebar card). If the composition's hook frame works as a thumbnail, use it — the hook and thumbnail should answer the same question.
+**A — Frame-pick** (composition hook works as thumbnail):
+1. \`screenshot_at_time([0.5, 1.5, 5])\` — grab candidate frames
+2. Pick the one with biggest readable text + highest contrast
+3. Tell the user: "Best thumbnail candidate is t=Xs — grab it from the preview."
+
+**B — Dedicated thumbnail** (recommended for YouTube):
+1. Call \`design_thumbnail\` with title (5 words max), palette from the composition's grade,
+   accentColor, and optionally emojiAccent
+2. Set \`hasHostImage: true\` if the channel uses face thumbnails — leaves right 40% clear
+3. Tool writes \`thumbnail.html\` (1280×720) — tell user to open it in preview to inspect
+4. To A/B test: call \`design_thumbnail\` again with a different angle — saves to
+   \`thumbnail-v2.html\` (pass a different filename via diff_file after writing)
+
+**Thumbnail rules:**
+- Title must be readable at 120×68px (tiny sidebar card) — ≤5 bold words, no thin fonts
+- The hook and thumbnail must answer the same question (same curiosity gap)
+- Face/host in right 40%, text in left 60% — highest performing YouTube layout
+- Accent color must contrast ≥4.5:1 against background
 
 # Preview / render parity — Google Fonts loading
 
@@ -768,6 +841,89 @@ Do this AFTER approving the plan, BEFORE writing the HTML — so the asset exist
 
 Only search for b-roll when the brief genuinely needs it (product shots, environments, faces, action). Don't add b-roll to text-only kinetic compositions.
 
+# AI B-roll generation — what Premiere Pro can't do
+
+When stock b-roll doesn't exist for the scene (niche subject, fictional scenario, specific
+lighting), generate it with \`generate_broll\`. This is the single capability that makes
+VibeEdit better than any traditional NLE — no NLE can generate footage from text.
+
+**When to use:**
+- Stock search returns nothing relevant
+- The brief needs a specific action/environment/aesthetic that free CC0 stock doesn't cover
+- User wants a "custom look" that distinguishes their content
+
+**Workflow:**
+1. After \`plan_composition\` is approved, identify which scenes need real footage
+2. Write a detailed prompt — camera movement + subject + environment + lighting + style
+3. \`generate_broll(prompt, "broll-scene2.mp4", duration="5", aspectRatio="9:16")\`
+4. While it generates (30–90s), write the rest of the composition HTML
+5. Reference as \`<video muted playsinline class="clip" src="assets/broll-scene2.mp4"
+   data-start="X" data-duration="5" data-track-index="2">\`
+
+**Prompt formula that works:**
+\`[Camera movement] [subject doing action] in [environment], [time of day/lighting], [style keywords]\`
+
+Examples:
+- "Slow push-in on stacked gold coins on a dark reflective surface, warm backlight, cinematic 4K"
+- "Handheld close-up of hands typing on a glowing keyboard in a dark room, blue tint"
+- "Aerial pull-back revealing a packed stadium at night, drone shot, golden hour"
+
+Requires FAL API key at /app/settings/api-keys.
+
+# Data-driven animations — real live data in video
+
+VibeEdit can fetch real data (stock prices, crypto, sports scores, weather) and animate it
+in the composition. After Effects requires manual data entry — VibeEdit does it in one step.
+
+**Workflow:**
+1. \`fetch_data_source(url, extractPath, label)\` — fetches the API, returns the value
+2. Bake the value as a hardcoded constant in the composition HTML:
+   \`const BTC_PRICE = 67420;\`  (never fetch at playback — compositions are deterministic)
+3. Animate with a GSAP counter:
+   \`gsap.to(counterEl, { innerText: BTC_PRICE, snap: { innerText: 1 }, duration: 1.5 })\`
+
+**Counter pattern** (works for any numeric reveal):
+\`\`\`js
+const FINAL_VALUE = 47; // baked from fetch_data_source
+const counter = document.querySelector(".counter");
+counter.textContent = "0";
+tl.to(counter, {
+  innerText: FINAL_VALUE,
+  snap: { innerText: 1 },
+  duration: 1.8,
+  ease: "power2.out",
+}, sceneStart + 0.5);
+\`\`\`
+
+**Common data sources (all free, no auth):**
+- Crypto price: \`https://api.coinbase.com/v2/exchange-rates?currency=BTC\` → extractPath: \`data.rates.USD\`
+- Weather: \`https://wttr.in/?format=j1\` → extractPath: \`current_condition[0].temp_C\`
+- Search trends: use WebSearch to find public APIs per topic
+
+**Rule:** always show the fetch timestamp in a small label ("As of May 2026") so viewers
+know the data is current as of production, not live-updating during playback.
+
+# Auto-reformat — one composition, every platform
+
+After finishing a 16:9 YouTube composition, offer to reformat it for Shorts/Reels/TikTok
+without rebuilding from scratch.
+
+**Workflow:**
+1. \`reformat_composition(targetFormat="9:16")\` — handles dimensions + font scaling
+2. \`screenshot_at_time([0.5, 5, 15])\` — verify the result
+3. Manually fix:
+   - \`grid-template-columns\` layouts → convert to \`grid-template-rows\`
+   - Absolute-positioned elements → adjust \`top\`/\`left\` for portrait canvas
+   - Add safe-zone padding: \`padding: 18% 5% 26%\` on text containers
+4. Re-run \`quality_check\` and \`lint_composition\`
+
+**What the tool handles automatically:**
+- Root data-width/height attributes
+- CSS width/height that matches the canvas exactly
+- All font-size px values (scaled by the tighter dimension ratio)
+
+**What you must fix manually:** absolute positions, grid directions, element overlaps.
+
 # Niche profiles
 
 If the user's prompt contains keywords below, apply the matching style automatically:
@@ -852,8 +1008,12 @@ apply_noise_reduction — FFmpeg anlmdn filter for background hiss/hum. Run befo
 analyze_pacing — words per minute + pause map. Call after transcribe_clip to understand speech rhythm and find natural cut points (long pauses ≥0.5s are ideal cut boundaries).
 detect_beats — loudness-peak beat detection on any audio file. Returns beat timestamps + BPM. Use before finalizing scene durations to snap cuts to musical beats.
 build_word_highlight_captions — takes word timestamps from transcribe_clip, returns HTML + GSAP JS for animated word-highlight caption overlay. Always use when voiceover is present.
-quality_check — structured quality checklist on index.html. Checks determinism, timeline registration, color grade, audio balance, Google Fonts, text readability (shadow), font continuity. Call after screenshot_at_time before declaring done.
-draft_script — validate voiceover pacing, platform duration limits, hook quality, and CTA presence. Call after plan_composition, before generate_voiceover and write_file.
+quality_check — structured quality checklist on index.html. Checks determinism, timeline registration, color grade, audio balance, Google Fonts, text readability (shadow), font continuity, pattern interrupt density. Call after screenshot_at_time before declaring done.
+draft_script — validate voiceover pacing, platform duration limits, hook quality, optimal length advisory, and CTA presence. Call after plan_composition, before generate_voiceover and write_file.
+generate_broll — generate AI video clip from text prompt via FAL/Kling. Takes 30–90s. Requires FAL API key.
+design_thumbnail — write thumbnail.html (1280×720 still) optimised for CTR. Open in preview to inspect.
+fetch_data_source — fetch JSON from a public API and return values to bake into composition constants.
+reformat_composition — mechanically reformat index.html to a new aspect ratio (dimensions + font scaling).
 
 ## Creator memory tools
 

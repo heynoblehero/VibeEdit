@@ -2834,6 +2834,472 @@ ${jsLines.join("\n")}`;
     },
   );
 
+  // -------------------------------------------------------------------------
+  // AI B-roll generation (FAL / Kling)
+  // -------------------------------------------------------------------------
+
+  const generateBrollTool = tool(
+    "generate_broll",
+    "Generate a short AI video clip from a text prompt using FAL AI (Kling 1.6). Takes 30–90s to complete. Use when the user has no real footage — environment shots, product visuals, action scenes, abstract backgrounds. Returns the saved asset path. Requires a FAL API key at /app/settings/api-keys.",
+    {
+      prompt: z
+        .string()
+        .min(4)
+        .max(1000)
+        .describe(
+          "Detailed video prompt — include subject, action, camera movement, lighting, style. Example: 'Aerial drone shot over a busy city at night, neon reflections on wet streets, slow pull-back, cinematic 4K'.",
+        ),
+      filename: z
+        .string()
+        .regex(/^[A-Za-z0-9._-]+\.mp4$/)
+        .describe("Output filename, e.g. 'broll-city.mp4'."),
+      duration: z.enum(["5", "10"]).default("5").describe("Clip length — '5' or '10' seconds."),
+      aspectRatio: z
+        .enum(["16:9", "9:16", "1:1"])
+        .default("16:9")
+        .describe("Output aspect ratio — match the composition format."),
+    },
+    async ({ prompt, filename, duration, aspectRatio }) => {
+      const apiKey = ctx.apiKeys?.fal;
+      if (!apiKey) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `ERROR: No FAL API key configured. Ask the user to add their FAL key at /app/settings/api-keys, then try again.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      const safe = filename.replace(/[/\\]/g, "_").replace(/^\.+/, "");
+      const dest = `assets/${safe}`;
+      const modelPath = "fal-ai/kling-video/v1.6/standard/text-to-video";
+      try {
+        const submitRes = await fetch(`https://queue.fal.run/${modelPath}`, {
+          method: "POST",
+          headers: {
+            Authorization: `Key ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ prompt, duration, aspect_ratio: aspectRatio }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!submitRes.ok) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `ERROR: FAL submit failed: HTTP ${submitRes.status} — ${await submitRes.text()}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+        const { request_id } = (await submitRes.json()) as { request_id: string };
+        const statusUrl = `https://queue.fal.run/${modelPath}/requests/${request_id}`;
+        let videoUrl: string | null = null;
+        for (let attempt = 0; attempt < 24; attempt++) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 5_000));
+          const statusRes = await fetch(statusUrl, {
+            headers: { Authorization: `Key ${apiKey}` },
+            signal: AbortSignal.timeout(15_000),
+          });
+          if (!statusRes.ok) continue;
+          const status = (await statusRes.json()) as {
+            status: string;
+            output?: { video?: { url: string } };
+          };
+          if (status.status === "COMPLETED" && status.output?.video?.url) {
+            videoUrl = status.output.video.url;
+            break;
+          }
+          if (status.status === "FAILED") {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `ERROR: FAL generation failed. Try a more specific or different prompt.`,
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
+        if (!videoUrl) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `ERROR: FAL generation timed out after 120s. Try again or use duration="5".`,
+              },
+            ],
+            isError: true,
+          };
+        }
+        const dlRes = await fetch(videoUrl, { signal: AbortSignal.timeout(60_000) });
+        if (!dlRes.ok) {
+          return {
+            content: [{ type: "text", text: `ERROR: Video download failed: HTTP ${dlRes.status}` }],
+            isError: true,
+          };
+        }
+        const buffer = Buffer.from(await dlRes.arrayBuffer());
+        writeProjectFile(ctx.userId, ctx.projectId, dest, buffer);
+        return {
+          content: [
+            {
+              type: "text",
+              text: [
+                `OK: saved ${buffer.length}B → ${dest} (${duration}s, ${aspectRatio}).`,
+                `Reference in composition: <video muted playsinline class="clip" src="${dest}" data-start="X" data-duration="${duration}" data-track-index="2">`,
+              ].join("\n"),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Thumbnail designer
+  // -------------------------------------------------------------------------
+
+  const designThumbnailTool = tool(
+    "design_thumbnail",
+    "Write thumbnail.html — a standalone 1280×720 still frame optimised for click-through rate. Separate from index.html (this is a static image, not a playback composition). After writing, tell the user to open thumbnail.html in the project preview. Set hasHostImage=true to leave the right 40% clear for a face/host overlay added externally.",
+    {
+      title: z
+        .string()
+        .max(40)
+        .describe("Main headline — 5 words max, all-caps, punchy. Top CTR driver."),
+      subtitle: z
+        .string()
+        .optional()
+        .describe("Secondary line, e.g. '(True Story)' or a supporting stat."),
+      palette: z
+        .array(z.string().regex(/^#[0-9a-fA-F]{6}$/))
+        .min(2)
+        .max(4)
+        .describe("Background gradient colors — match the composition's color grade."),
+      accentColor: z
+        .string()
+        .regex(/^#[0-9a-fA-F]{6}$/)
+        .describe("Title text color — must pop against the gradient."),
+      hasHostImage: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("Reserve right 40% clear for a face/host overlay."),
+      emojiAccent: z
+        .string()
+        .optional()
+        .describe("1–2 emoji near the title for visual punch, e.g. '🔥' or '💀'."),
+    },
+    async ({ title, subtitle, palette, accentColor, hasHostImage, emojiAccent }) => {
+      const bgGradient =
+        palette.length >= 2 ? `linear-gradient(135deg, ${palette.join(", ")})` : palette[0];
+      const titleWidth = hasHostImage ? "56%" : "90%";
+      const titleFontSize = title.length > 18 ? "96px" : title.length > 12 ? "120px" : "152px";
+
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@700;900&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { width: 1280px; height: 720px; overflow: hidden; }
+#root {
+	width: 1280px;
+	height: 720px;
+	background: ${bgGradient};
+	position: relative;
+	display: flex;
+	align-items: center;
+	padding-left: 72px;
+}
+.content {
+	width: ${titleWidth};
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+.emoji { font-size: 72px; line-height: 1; filter: drop-shadow(0 4px 16px rgba(0,0,0,0.6)); }
+.title {
+	font-family: 'Anton', sans-serif;
+	font-size: ${titleFontSize};
+	line-height: 0.9;
+	color: ${accentColor};
+	text-transform: uppercase;
+	letter-spacing: -1px;
+	text-shadow: 0 4px 24px rgba(0,0,0,0.8), 0 0 60px ${accentColor}55;
+}
+.subtitle {
+	font-family: 'Inter', sans-serif;
+	font-size: 54px;
+	font-weight: 900;
+	color: #ffffff;
+	text-shadow: 0 2px 12px rgba(0,0,0,0.9);
+}
+</style>
+</head>
+<body>
+<div id="root"
+     data-composition-id="thumbnail"
+     data-width="1280"
+     data-height="720"
+     data-start="0"
+     data-duration="1">
+	<div class="content">
+		${emojiAccent ? `<div class="emoji">${emojiAccent}</div>` : ""}
+		<div class="title">${title}</div>
+		${subtitle ? `<div class="subtitle">${subtitle}</div>` : ""}
+	</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script>
+window.__timelines = window.__timelines || {};
+const tl = gsap.timeline({ paused: true });
+window.__timelines["thumbnail"] = tl;
+tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
+</script>
+</body>
+</html>`;
+
+      try {
+        writeProjectFile(ctx.userId, ctx.projectId, "thumbnail.html", html);
+        return {
+          content: [
+            {
+              type: "text",
+              text: [
+                `OK: wrote thumbnail.html (1280×720, Anton/${accentColor}).`,
+                `Title: "${title}"${subtitle ? ` | Sub: "${subtitle}"` : ""}`,
+                hasHostImage
+                  ? `Right 40% clear for host overlay — paste face image externally (Canva, Photoshop).`
+                  : `Full-width layout.`,
+                `Open thumbnail.html in the project preview to inspect.`,
+                `To A/B test: call design_thumbnail again with a different title/palette.`,
+              ].join("\n"),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Live data fetcher (bake-at-build-time)
+  // -------------------------------------------------------------------------
+
+  const fetchDataSourceTool = tool(
+    "fetch_data_source",
+    "Fetch structured JSON from a public API and return it for baking into a composition. Use for live data: crypto/stock prices, sports scores, weather, leaderboards. Compositions are deterministic — data is fetched NOW at build time and hardcoded as constants. No runtime fetching in the composition.",
+    {
+      url: z.string().describe("Public HTTPS JSON API endpoint. No auth required."),
+      extractPath: z
+        .string()
+        .optional()
+        .describe(
+          "Dot-notation path into the JSON, e.g. 'data.price' or 'results[0].score'. Omit to return the full response.",
+        ),
+      label: z.string().optional().describe("Human label, e.g. 'BTC/USD price', 'Lakers score'."),
+    },
+    async ({ url, extractPath, label }) => {
+      if (!url.startsWith("https://")) {
+        return {
+          content: [{ type: "text", text: "ERROR: Only HTTPS URLs are supported." }],
+          isError: true,
+        };
+      }
+      try {
+        const res = await fetch(url, {
+          headers: { "User-Agent": "VibeEdit/1.0 data-fetcher", Accept: "application/json" },
+          signal: AbortSignal.timeout(15_000),
+        });
+        if (!res.ok) {
+          return {
+            content: [{ type: "text", text: `ERROR: HTTP ${res.status} from ${url}` }],
+            isError: true,
+          };
+        }
+        const raw = (await res.json()) as unknown;
+        let data: unknown = raw;
+        if (extractPath) {
+          const parts = extractPath.replace(/\[(\d+)\]/g, ".$1").split(".");
+          for (const part of parts) {
+            if (data == null || typeof data !== "object") {
+              data = null;
+              break;
+            }
+            data = (data as Record<string, unknown>)[part];
+          }
+        }
+        const preview = JSON.stringify(data, null, 2).slice(0, 2000);
+        return {
+          content: [
+            {
+              type: "text",
+              text: [
+                `${label ? `[${label}] ` : ""}Fetched from ${url}:`,
+                extractPath ? `(path: ${extractPath})` : "(full response, truncated at 2000 chars)",
+                "",
+                preview,
+                "",
+                "Bake as hardcoded constants in the composition — e.g.:",
+                `const VALUE = ${JSON.stringify(data)};`,
+                "Then animate with gsap counter: gsap.to(el, { innerText: VALUE, snap: { innerText: 1 }, duration: 1.5 })",
+              ].join("\n"),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Aspect ratio reformatter
+  // -------------------------------------------------------------------------
+
+  const reformatCompositionTool = tool(
+    "reformat_composition",
+    "Mechanically reformat index.html from its current aspect ratio to a new one. Handles: root dimension attributes, proportional px font scaling, canvas-matching px width/height in CSS. Reports what it changed and warns about layouts needing manual review. Always call screenshot_at_time after to visually verify.",
+    {
+      targetFormat: z.enum(["16:9", "9:16", "1:1"]).describe("Target aspect ratio."),
+      targetWidth: z
+        .number()
+        .int()
+        .optional()
+        .describe("Override width px. Defaults: 16:9→1920, 9:16→1080, 1:1→1080."),
+      targetHeight: z
+        .number()
+        .int()
+        .optional()
+        .describe("Override height px. Defaults: 16:9→1080, 9:16→1920, 1:1→1080."),
+    },
+    async ({ targetFormat, targetWidth, targetHeight }) => {
+      let html: string;
+      try {
+        html = readProjectText(ctx.userId, ctx.projectId, "index.html");
+      } catch {
+        return {
+          content: [{ type: "text", text: "ERROR: no index.html found." }],
+          isError: true,
+        };
+      }
+
+      const DEFAULTS: Record<string, { w: number; h: number }> = {
+        "16:9": { w: 1920, h: 1080 },
+        "9:16": { w: 1080, h: 1920 },
+        "1:1": { w: 1080, h: 1080 },
+      };
+      const tgt = DEFAULTS[targetFormat];
+      const newW = targetWidth ?? tgt.w;
+      const newH = targetHeight ?? tgt.h;
+
+      const wMatch = html.match(/data-width=["'](\d+)["']/);
+      const hMatch = html.match(/data-height=["'](\d+)["']/);
+      const curW = wMatch ? parseInt(wMatch[1]) : 1920;
+      const curH = hMatch ? parseInt(hMatch[1]) : 1080;
+
+      if (curW === newW && curH === newH) {
+        return {
+          content: [{ type: "text", text: `Already ${newW}×${newH} — no changes needed.` }],
+        };
+      }
+
+      const fontScale = Math.min(newW / curW, newH / curH);
+      const changes: string[] = [];
+      const warnings: string[] = [];
+
+      let updated = html
+        .replace(/data-width=["']\d+["']/, `data-width="${newW}"`)
+        .replace(/data-height=["']\d+["']/, `data-height="${newH}"`);
+      changes.push(`Root: ${curW}×${curH} → ${newW}×${newH}`);
+
+      updated = updated.replace(
+        /\b(width|min-width)\s*:\s*(\d+)px/g,
+        (match: string, prop: string, val: string) => {
+          if (parseInt(val) === curW) {
+            changes.push(`${prop}: ${val}px → ${newW}px`);
+            return `${prop}: ${newW}px`;
+          }
+          return match;
+        },
+      );
+      updated = updated.replace(
+        /\b(height|min-height)\s*:\s*(\d+)px/g,
+        (match: string, prop: string, val: string) => {
+          if (parseInt(val) === curH) {
+            changes.push(`${prop}: ${val}px → ${newH}px`);
+            return `${prop}: ${newH}px`;
+          }
+          return match;
+        },
+      );
+
+      updated = updated.replace(/font-size\s*:\s*(\d+)px/g, (match: string, val: string) => {
+        const scaled = Math.round(parseInt(val) * fontScale);
+        if (scaled !== parseInt(val)) changes.push(`font-size: ${val}px → ${scaled}px`);
+        return `font-size: ${scaled}px`;
+      });
+
+      if (html.includes("grid-template-columns") && targetFormat === "9:16") {
+        warnings.push(
+          "WARN: grid-template-columns found — split_screen layouts may need manual conversion to grid-template-rows for 9:16.",
+        );
+      }
+      if ((html.match(/position\s*:\s*absolute/g) || []).length > 2) {
+        warnings.push(
+          "WARN: multiple absolute-positioned elements — review left/top values after reformat.",
+        );
+      }
+      if (targetFormat === "9:16" && !updated.includes("padding: 18%")) {
+        warnings.push(
+          "ADVISORY: Add safe-zone padding: padding: 18% 5% 26% on text containers (Shorts/Reels/TikTok UI overlaps edges).",
+        );
+      }
+
+      writeProjectFile(ctx.userId, ctx.projectId, "index.html", updated);
+
+      const curLabel = curW > curH ? "16:9" : curW === curH ? "1:1" : "9:16";
+      return {
+        content: [
+          {
+            type: "text",
+            text: [
+              `Reformatted ${curW}×${curH} (${curLabel}) → ${newW}×${newH} (${targetFormat}).`,
+              "",
+              `${changes.length} mechanical change(s):`,
+              ...changes.map((c) => `  • ${c}`),
+              ...(warnings.length ? ["", ...warnings] : []),
+              "",
+              "Call screenshot_at_time to verify — manually fix any layout issues.",
+            ].join("\n"),
+          },
+        ],
+      };
+    },
+  );
+
   return createSdkMcpServer({
     name: MCP_SERVER_NAME,
     version: "1.0.0",
@@ -2887,6 +3353,10 @@ ${jsLines.join("\n")}`;
       saveInsightTool,
       loadInsightsTool,
       downloadAssetTool,
+      generateBrollTool,
+      designThumbnailTool,
+      fetchDataSourceTool,
+      reformatCompositionTool,
     ],
   });
 }
@@ -2941,6 +3411,10 @@ export const ALLOWED_TOOL_NAMES = [
   "load_insights",
   "trim_audio",
   "download_asset",
+  "generate_broll",
+  "design_thumbnail",
+  "fetch_data_source",
+  "reformat_composition",
 ].map((n) => `mcp__${MCP_SERVER_NAME}__${n}`);
 
 type SnapshotContent =

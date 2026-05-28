@@ -656,6 +656,38 @@ export async function mixAudio(opts: {
 }
 
 // ---------------------------------------------------------------------------
+// trim_audio
+// ---------------------------------------------------------------------------
+
+export async function trimAudio(opts: {
+  inputPath: string;
+  outputPath: string;
+  startSeconds: number;
+  endSeconds?: number;
+}): Promise<{ ok: boolean; error?: string }> {
+  ensureParentDir(opts.outputPath);
+  const info = await probeClip(opts.inputPath);
+  const segDuration = (opts.endSeconds ?? info.durationSeconds) - opts.startSeconds;
+  const fadeOutStart = Math.max(0, segDuration - 0.03).toFixed(3);
+  return ffmpegRun([
+    "-ss",
+    String(opts.startSeconds),
+    "-t",
+    String(segDuration),
+    "-i",
+    opts.inputPath,
+    "-vn",
+    "-af",
+    `afade=t=in:st=0:d=0.03,afade=t=out:st=${fadeOutStart}:d=0.03`,
+    "-c:a",
+    "libmp3lame",
+    "-q:a",
+    "2",
+    opts.outputPath,
+  ]);
+}
+
+// ---------------------------------------------------------------------------
 // extract_audio
 // ---------------------------------------------------------------------------
 

@@ -17,6 +17,7 @@ import {
   resolveProjectPath,
   probeClip,
   trimClip,
+  trimAudio,
   concatClips,
   gradeClip,
   chromaKey,
@@ -481,7 +482,7 @@ export function buildToolServer(ctx: ToolContext) {
         try {
           const raw = readProjectText(ctx.userId, ctx.projectId, timestampsFile);
           const words = JSON.parse(raw) as TranscriptWord[];
-          cues = buildCaptionsFromWords(words, cap);
+          cues = buildCaptionsFromWords(words, [], cap);
         } catch (error) {
           return {
             content: [
@@ -890,6 +891,48 @@ export function buildToolServer(ctx: ToolContext) {
             {
               type: "text",
               text: `OK: trimmed ${input} [${startSeconds}s–${endSeconds ?? "end"}] → ${output}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const trimAudioTool = tool(
+    "trim_audio",
+    "Cut an audio file (MP3/WAV/AAC) to a time range [start, end] and save as MP3. Use this to remove silence, crop a narration, or extract a section of a music track. Adds 30ms fades at cut boundaries to prevent pops.",
+    {
+      input: z.string().describe("Relative path to source audio file."),
+      output: z
+        .string()
+        .describe("Relative output path, e.g. 'assets/processed/narration-trimmed.mp3'."),
+      startSeconds: z.number().min(0).describe("Start time in seconds."),
+      endSeconds: z
+        .number()
+        .optional()
+        .describe("End time in seconds. Omit to keep to end of file."),
+    },
+    async ({ input, output, startSeconds, endSeconds }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const result = await trimAudio({
+          inputPath: resolveProjectPath(dir, input),
+          outputPath: resolveProjectPath(dir, output),
+          startSeconds,
+          endSeconds,
+        });
+        if (!result.ok)
+          return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: trimmed audio ${input} [${startSeconds}s–${endSeconds ?? "end"}] → ${output}`,
             },
           ],
         };
@@ -2016,6 +2059,7 @@ export function buildToolServer(ctx: ToolContext) {
       renderEdlTool,
       probeClipTool,
       trimClipTool,
+      trimAudioTool,
       concatClipsTool,
       gradeClipTool,
       chromaKeyTool,

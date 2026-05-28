@@ -12,7 +12,7 @@ let cached: Buffer | null = null;
 export async function GET() {
   try {
     if (!cached) cached = readFileSync(RUNTIME_PATH);
-    return new NextResponse(cached, {
+    return new NextResponse(new Uint8Array(cached), {
       headers: {
         "content-type": "application/javascript; charset=utf-8",
         "cache-control": "public, max-age=3600",

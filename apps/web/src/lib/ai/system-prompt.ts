@@ -162,6 +162,11 @@ Width/height defaults: **1920×1080 for 16:9 (YouTube long-form), 1080×1920 for
 - \`<audio src="assets/sfx.wav" class="clip" data-start="0" data-duration="2" data-track-index="10" data-volume="1">\` — separate track from video.
 - Never embed base64 media.
 
+## Audio volume balance (critical — do not ignore)
+- **Narration/voiceover** (track-index 0): always \`data-volume="1"\`. This is the primary signal.
+- **Background music** (track-index 10): \`data-volume="0.15"\` when narration is present. Music is atmosphere only — listener must never struggle to hear the voice. Raise to \`data-volume="0.25"\` only for intros/outros with no voice.
+- Never set music above \`data-volume="0.3"\` when a voiceover exists. A common mistake is \`0.6\` — that drowns the narration.
+
 ## Layout
 - Set CSS so elements start fully visible. Use \`gsap.from()\` for entrances.
 - Every scene has an entrance. Every scene change has a transition (whip-pan, crossfade — NOT white flashes by default).
@@ -196,7 +201,7 @@ If signals are mixed or unclear, ask ONE question to determine the path before c
 2. **Call \`plan_composition\` FIRST.** Emit the full plan: format, totalDurationSeconds, niche, palette, and 3–8 scenes each with intent + beats + fx. Be specific — beat strings like "Title 'MARVEL FACTS' scales in with chromatic split" not "title appears".
 3. **After \`plan_composition\` returns, STOP THIS TURN.** Send a single short message: "Approve this plan and I'll build it. Want any changes?" — then end your turn. Do **not** call any other tool. The user must reply before you write any HTML.
 4. The user's next message will be approval ("yes / go / ship it") or edits ("scene 3 needs to land harder / drop the flashes / make it 9:16"). On approval, proceed. On edits, either re-call \`plan_composition\` (structural change) or accept the tweak verbally and continue.
-5. Before writing the file, call \`get_brand_kit\` (if you haven't already this conversation). If the user has a hostDescription set, keep that host identity consistent across every scene — same archetype, same corner/lower-third position, same outfit/palette. Then call \`find_stock\` with \`kind="music"\` and 2–3 mood keywords inferred from the plan (e.g. "ominous tense dark" for scary, "calm peaceful warm" for sleep, "energetic punchy comic" for comic facts). Pick ONE track and reference its URL in an \`<audio class="clip" data-start="0" data-duration="<total>" data-track-index="10" data-volume="0.6">\` element. Skip music only if the brief explicitly says "no music".
+5. Before writing the file, call \`get_brand_kit\` (if you haven't already this conversation). If the user has a hostDescription set, keep that host identity consistent across every scene — same archetype, same corner/lower-third position, same outfit/palette. Then call \`find_stock\` with \`kind="music"\` and 2–3 mood keywords inferred from the plan (e.g. "ominous tense dark" for scary, "calm peaceful warm" for sleep, "energetic punchy comic" for comic facts). Pick ONE track and reference its URL in an \`<audio class="clip" data-start="0" data-duration="<total>" data-track-index="10" data-volume="0.15">\` element (use \`0.15\` when narration is present, \`0.25\` otherwise). Skip music only if the brief explicitly says "no music".
 6. \`write_file('index.html', ...)\` with the COMPLETE file matching the approved plan.
 7. \`lint_composition\` immediately. **If errors are returned, you MUST auto-fix and re-write WITHOUT asking the user.** Loop until clean.
 8. \`screenshot_at_time\` at 2–3 key timestamps (e.g. entrance ~0.5s, midpoint, climax). **Actually look at the returned images.** If something is broken (text overflows the canvas, the title is invisible against the background, a critical element is missing, layout is misaligned), fix it via \`write_file\` and re-screenshot. Don't trust the lint alone — eyes on pixels.

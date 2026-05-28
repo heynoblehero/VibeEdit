@@ -37,6 +37,7 @@ import {
   detectFillerWords,
   applyNoiseReduction,
   analyzePacing,
+  detectBeats,
   type XfadeType,
   type EditDecisionList,
   type TranscriptWord,
@@ -64,7 +65,7 @@ export const MCP_SERVER_NAME = "hyperframes";
 export function buildToolServer(ctx: ToolContext) {
   const planCompositionTool = tool(
     "plan_composition",
-    "REQUIRED FIRST STEP for any NEW composition (not edits). Emit a structured scene plan. After this returns, STOP your turn — say 'Approve this plan and I'll build it' and wait for the user's next message before any write_file call.",
+    "REQUIRED FIRST STEP for any NEW composition (not edits). Emit a structured scene plan including color grade, typography pair, and beat-sync intent. After this returns, STOP your turn — say 'Approve this plan and I'll build it' and wait for the user's next message before any write_file call.",
     {
       format: z.enum(["16:9", "9:16", "1:1"]).describe("Output aspect ratio."),
       totalDurationSeconds: z
@@ -77,6 +78,27 @@ export function buildToolServer(ctx: ToolContext) {
         ),
       niche: z.string().describe("e.g. 'comic facts', 'sleep story', 'finance intro'."),
       palette: z.string().describe("Short color/typography palette description."),
+      colorGrade: z
+        .enum([
+          "warm_golden",
+          "cool_cinematic",
+          "neon_pop",
+          "vintage_film",
+          "moody_dark",
+          "clean_bright",
+        ])
+        .describe(
+          "Color grade preset applied consistently to every scene background. Pick based on mood.",
+        ),
+      typographyPair: z
+        .enum(["energy", "cinematic", "editorial", "mono_tech", "warm_humanist"])
+        .describe("Font pair + animation system used throughout the composition."),
+      beatSyncNote: z
+        .string()
+        .optional()
+        .describe(
+          "Brief note on beat-sync intent, e.g. '120 BPM, cuts every 4 bars (~8s)'. Leave empty if no music.",
+        ),
       scenes: z
         .array(
           z.object({
@@ -106,8 +128,27 @@ export function buildToolServer(ctx: ToolContext) {
           `WARNING: average scene length ${avgSeconds.toFixed(0)}s — viewers fall off without a beat change. Break long scenes into chaptered segments.`,
         );
       }
+      // Validate scene 1 hook rules
+      const scene1 = plan.scenes.find((s) => s.index === 1);
+      if (scene1) {
+        if (scene1.durationSeconds > 3.5) {
+          warnings.push(
+            `WARNING: Scene 1 is ${scene1.durationSeconds}s — exceeds the 3.5s hook limit. Shorten it. The hook must be a punch.`,
+          );
+        }
+        const hookSignals = ["hook", "question", "claim", "stat", "number", "title", "headline"];
+        const hasHook = scene1.beats.some((beat) =>
+          hookSignals.some((signal) => beat.toLowerCase().includes(signal)),
+        );
+        if (!hasHook) {
+          warnings.push(
+            `WARNING: Scene 1 beats don't mention a hook, claim, or stat. Add a large-text hook element — it's the #1 retention driver.`,
+          );
+        }
+      }
       const lines = [
         `OK: plan recorded — ${plan.scenes.length} scenes / ${plan.totalDurationSeconds}s / ${plan.format}.`,
+        `Grade: ${plan.colorGrade} | Typography: ${plan.typographyPair}${plan.beatSyncNote ? ` | Beat-sync: ${plan.beatSyncNote}` : ""}`,
         ...warnings,
         `Now stop and ask the user to approve before writing any HTML.`,
       ];
@@ -1983,6 +2024,54 @@ export function buildToolServer(ctx: ToolContext) {
     },
   );
 
+  const detectBeatsTool = tool(
+    "detect_beats",
+    "Detect approximate beat positions in a music/audio file by analyzing momentary loudness peaks. Returns an array of beat timestamps and estimated BPM. Use this before finalizing scene durations so cuts land on musical beats rather than arbitrary time points.",
+    {
+      path: z.string().describe("Relative path to the audio file, e.g. 'assets/music.mp3'."),
+      minIntervalSeconds: z
+        .number()
+        .min(0.1)
+        .max(2)
+        .optional()
+        .describe(
+          "Minimum gap between detected beats in seconds (default 0.35). Lower = more beats detected.",
+        ),
+    },
+    async ({ path, minIntervalSeconds }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const result = await detectBeats({
+          filePath: resolveProjectPath(dir, path),
+          minIntervalSeconds,
+        });
+        const bpmLine = result.bpm !== null ? `BPM: ~${result.bpm}` : "BPM: unknown";
+        const beatInterval =
+          result.bpm !== null ? ` (beat every ~${(60 / result.bpm).toFixed(2)}s)` : "";
+        return {
+          content: [
+            {
+              type: "text",
+              text: [
+                `${bpmLine}${beatInterval}`,
+                `Beats detected: ${result.beats.length}`,
+                `Timestamps (s): ${result.beats.join(", ")}`,
+                ``,
+                `Tip: align scene boundaries to every 4th or 8th beat for 30s videos. ` +
+                  `4-bar groups = ${result.bpm ? (4 * (60 / result.bpm)).toFixed(1) : "?"}s each.`,
+              ].join("\n"),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
   // --- Feature 5a: save_insight ---
   const saveInsightTool = tool(
     "save_insight",
@@ -2125,6 +2214,7 @@ export function buildToolServer(ctx: ToolContext) {
       detectFillerWordsTool,
       applyNoiseReductionTool,
       analyzePacingTool,
+      detectBeatsTool,
       saveInsightTool,
       loadInsightsTool,
       downloadAssetTool,
@@ -2174,6 +2264,7 @@ export const ALLOWED_TOOL_NAMES = [
   "detect_filler_words",
   "apply_noise_reduction",
   "analyze_pacing",
+  "detect_beats",
   "save_insight",
   "load_insights",
   "trim_audio",

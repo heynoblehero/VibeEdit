@@ -1526,6 +1526,81 @@ export async function applyNoiseReduction(opts: {
 // analyzePacing — speech rate and pause analysis for cut-density guidance
 // ---------------------------------------------------------------------------
 
+export interface BeatDetectionResult {
+  beats: number[];
+  bpm: number | null;
+}
+
+// Detect approximate beat positions in an audio file using per-frame momentary
+// loudness (ebur128). Peaks in the loudness curve correlate with transient hits
+// (kick drums, snare, heavy chord changes) — good enough for aligning scene
+// cuts without a dedicated beat-tracking library.
+export async function detectBeats(opts: {
+  filePath: string;
+  minIntervalSeconds?: number;
+  maxBeats?: number;
+}): Promise<BeatDetectionResult> {
+  const { filePath, minIntervalSeconds = 0.35, maxBeats = 80 } = opts;
+
+  const result = await ffmpegRunCapture(
+    ["-i", filePath, "-filter:a", "ebur128=framelog=verbose", "-f", "null", "-"],
+    120_000,
+  );
+
+  const frames: { t: number; m: number }[] = [];
+  for (const line of result.stderr.split("\n")) {
+    const match = line.match(/t:\s*([\d.]+).*?M:\s*(-?[\d.]+)/);
+    if (match) {
+      const t = parseFloat(match[1]);
+      const m = parseFloat(match[2]);
+      if (!isNaN(t) && !isNaN(m) && isFinite(m)) {
+        frames.push({ t, m });
+      }
+    }
+  }
+
+  if (frames.length < 5) return { beats: [], bpm: null };
+
+  const mVals = frames.map((frame) => frame.m);
+  const finite = mVals.filter((v) => isFinite(v));
+  if (finite.length === 0) return { beats: [], bpm: null };
+  const maxM = Math.max(...finite);
+  const minM = Math.min(...finite);
+  // Only consider frames in the top 40% of the loudness range.
+  const threshold = minM + (maxM - minM) * 0.6;
+  const window = 3; // ±3 frames at ~0.1s per frame = ±0.3s context
+
+  const beats: number[] = [];
+  for (let i = window; i < frames.length - window; i++) {
+    const { t, m } = frames[i];
+    if (!isFinite(m) || m < threshold) continue;
+    let isPeak = true;
+    for (let j = i - window; j <= i + window; j++) {
+      if (j !== i && isFinite(mVals[j]) && mVals[j] > m) {
+        isPeak = false;
+        break;
+      }
+    }
+    if (isPeak) {
+      if (beats.length === 0 || t - beats[beats.length - 1] >= minIntervalSeconds) {
+        beats.push(Math.round(t * 100) / 100);
+      }
+    }
+  }
+
+  let bpm: number | null = null;
+  if (beats.length >= 4) {
+    const intervals: number[] = [];
+    for (let i = 1; i < Math.min(beats.length, 16); i++) {
+      intervals.push(beats[i] - beats[i - 1]);
+    }
+    const avg = intervals.reduce((a, b) => a + b) / intervals.length;
+    bpm = Math.round(60 / avg);
+  }
+
+  return { beats: beats.slice(0, maxBeats), bpm };
+}
+
 export interface PacingReport {
   wordsPerMinute: number;
   avgWordDuration: number;

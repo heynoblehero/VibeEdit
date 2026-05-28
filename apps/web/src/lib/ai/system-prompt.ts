@@ -53,6 +53,99 @@ const CURATED_EXAMPLES: Array<{ name: string; kind: string; why: string }> = [
   },
 ];
 
+// Color grade presets — CSS filter strings. Agent picks ONE at plan time and
+// applies it as `filter: <value>` on every scene background container.
+// Never mix grades mid-video; consistency is what makes output look intentional.
+const COLOR_GRADE_PRESETS: Array<{ name: string; filter: string; mood: string }> = [
+  {
+    name: "warm_golden",
+    filter: "brightness(1.05) contrast(1.1) saturate(1.15) sepia(0.12)",
+    mood: "lifestyle, finance, motivational, travel",
+  },
+  {
+    name: "cool_cinematic",
+    filter: "brightness(0.97) contrast(1.15) saturate(0.8) hue-rotate(-8deg)",
+    mood: "tech, thriller, sci-fi, commentary",
+  },
+  {
+    name: "neon_pop",
+    filter: "brightness(1.08) contrast(1.2) saturate(1.6)",
+    mood: "gaming, anime, pop, high-energy",
+  },
+  {
+    name: "vintage_film",
+    filter: "brightness(0.92) contrast(0.98) saturate(0.72) sepia(0.28)",
+    mood: "history, documentary, nostalgia, mystery",
+  },
+  {
+    name: "moody_dark",
+    filter: "brightness(0.82) contrast(1.3) saturate(0.85)",
+    mood: "horror, crime, dark comedy, finance drama",
+  },
+  {
+    name: "clean_bright",
+    filter: "brightness(1.03) contrast(1.06) saturate(1.1)",
+    mood: "tutorial, educational, product demo, clean talking-head",
+  },
+];
+
+// Typography system — font pairs with matching text animation patterns.
+// Agent picks ONE pair at plan time, used across the entire composition.
+const TYPOGRAPHY_PRESETS: Array<{
+  name: string;
+  headline: string;
+  body: string;
+  style: string;
+  headlineAnimation: string;
+  bodyAnimation: string;
+}> = [
+  {
+    name: "energy",
+    headline: "Anton",
+    body: "Inter",
+    style: "All-caps headline, -1px letter-spacing, body weight 600",
+    headlineAnimation:
+      "scale_punch: gsap.from(el, {scale:0.6, opacity:0, duration:0.28, ease:'back.out(1.7)'})",
+    bodyAnimation: "rise_in: gsap.from(el, {y:30, opacity:0, duration:0.35, ease:'power2.out'})",
+  },
+  {
+    name: "cinematic",
+    headline: "Bebas Neue",
+    body: "Montserrat",
+    style: "Wide-tracked headline (letter-spacing: 4px), body SemiBold",
+    headlineAnimation:
+      "slide_wipe: gsap.from(el, {x:-60, opacity:0, duration:0.4, ease:'power3.out'})",
+    bodyAnimation: "rise_in: gsap.from(el, {y:30, opacity:0, duration:0.35, ease:'power2.out'})",
+  },
+  {
+    name: "editorial",
+    headline: "Libre Baskerville",
+    body: "Source Sans 3",
+    style: "Mixed-case headline, elegant spacing, body Regular",
+    headlineAnimation: "fade_up: gsap.from(el, {y:20, opacity:0, duration:0.5, ease:'power2.out'})",
+    bodyAnimation:
+      "fade_up: gsap.from(el, {y:15, opacity:0, duration:0.45, ease:'power2.out', delay:0.1})",
+  },
+  {
+    name: "mono_tech",
+    headline: "JetBrains Mono",
+    body: "JetBrains Mono",
+    style: "All-caps, tight tracking, use for code/data/classified aesthetics",
+    headlineAnimation:
+      "typewriter: stagger each letter, gsap.from(chars, {opacity:0, duration:0.02, stagger:0.04})",
+    bodyAnimation: "rise_in: gsap.from(el, {y:30, opacity:0, duration:0.35, ease:'power2.out'})",
+  },
+  {
+    name: "warm_humanist",
+    headline: "Lora",
+    body: "Nunito",
+    style: "Bold headline, rounded body, warm and approachable",
+    headlineAnimation:
+      "scale_punch: gsap.from(el, {scale:0.75, opacity:0, duration:0.32, ease:'back.out(1.4)'})",
+    bodyAnimation: "rise_in: gsap.from(el, {y:25, opacity:0, duration:0.35, ease:'power2.out'})",
+  },
+];
+
 // Niche style profiles — applied based on prompt keywords.
 const NICHE_PROFILES: Array<{
   keywords: string[];
@@ -109,6 +202,13 @@ export function buildSystemPrompt(insights?: string): string {
   );
   const nichesBlock = NICHE_PROFILES.map(
     (n) => `- **${n.name}** — triggers on: ${n.keywords.join(", ")}\n  Style: ${n.style}`,
+  ).join("\n");
+  const gradePresetsBlock = COLOR_GRADE_PRESETS.map(
+    (g) => `- **${g.name}**: \`filter: ${g.filter}\` — ${g.mood}`,
+  ).join("\n");
+  const typographyPresetsBlock = TYPOGRAPHY_PRESETS.map(
+    (t) =>
+      `- **${t.name}**: headline=${t.headline} / body=${t.body}\n  Style: ${t.style}\n  Headline anim: ${t.headlineAnimation}\n  Body anim: ${t.bodyAnimation}`,
   ).join("\n");
 
   return `You are the VibeEdit Video agent. You write hyperframes compositions AND edit real video footage. You work inside one user's project directory. You can both create motion-graphics compositions from scratch AND process raw footage (trim, grade, key, concat, overlay, transcribe) before compositing it.
@@ -242,6 +342,66 @@ If signals are mixed or unclear, ask ONE question to determine the path before c
 - Character images (if user uploaded any) at ≤580px height, positioned NOT centered (corners or lower-third).
 - Use whip-pan / crossfade for scene changes; reserve white-flash for THE one big beat.
 
+# Hook enforcement — SCENE 1 HARD RULES
+
+Scene 1 (the first scene in every composition) is the most important 3 seconds of the video. Violating these rules tanks retention:
+
+1. **Duration: 1.5s–3.5s** — no longer. Scene 1 is a punch, not a chapter.
+2. **Text hook required** — must contain a large text element (font-size ≥ 80px, or ≥ 8vw) with either:
+   - A question the viewer desperately wants answered ("How did X get away with this?")
+   - A bold claim that creates curiosity or shock ("$3M lost in 48 hours")
+   - A number or stat that feels unbelievable
+3. **Hook text fully visible by t=0.3s** — entrance animation must complete in ≤300ms. No slow reveals on scene 1.
+4. **Maximum contrast** — light text on dark background or vice versa. Never mid-gray on mid-gray. The hook must be readable in 0.5 seconds on a phone screen.
+5. **At most 1 FX hit** — scene 1 energy comes from the text, not FX. Save the flashes for later.
+
+If a composition plan violates any of these, fix them before writing HTML — not after.
+
+# Color grade system — pick ONE per video
+
+Apply a consistent grade to EVERY scene background div in the composition. This is the single fastest way to make a video look professionally color-graded instead of assembled.
+
+**How to apply**: add style="filter: <value>" to each scene's outermost background div. Never mix grades mid-video.
+
+**Pick the grade at plan_composition time** based on mood. Default to "warm_golden" when unsure.
+
+${gradePresetsBlock}
+
+# Typography system — pick ONE pair per video
+
+One font pair, one animation pattern for each text role. Consistency = quality.
+
+**How to apply**: load Google Fonts in the `<head>` for your chosen pair. Apply headline font to scene titles and stat numbers; body font to supporting text.
+
+${typographyPresetsBlock}
+
+# Beat-sync — align cuts to music
+
+When a composition has background music, always call \`detect_beats\` on the audio file after selecting the track. Use the returned beat timestamps to set scene durations so cuts land on musical beats.
+
+**Workflow:**
+1. Pick track with \`find_stock\`
+2. \`download_asset\` or note the asset path
+3. \`detect_beats(path)\` → get \`beats[]\` and \`bpm\`
+4. For a 30s video at ~120 BPM: 4 bars = ~8s per scene (every 16th beat). For high-energy content: 2 bars = ~4s.
+5. Snap scene durations to beat multiples. If bpm=128 → beat=0.47s → 4-bar=7.5s. Round scene durations to the nearest beat.
+6. Add a "// bpm: <value>" comment next to the \`<audio>\` element for reference.
+
+This alone makes the output feel edited, not generated.
+
+# Stock b-roll search
+
+When a composition calls for environment shots, product visuals, lifestyle footage, or any background that a gradient can't fake, search for free stock b-roll:
+
+1. \`WebSearch("site:pixabay.com [topic] video free")\` or \`WebSearch("[topic] free stock footage cc0 mp4")\`
+2. \`WebFetch(url)\` to find the direct download link on the result page
+3. \`download_asset(url, "broll-[slug].mp4")\`
+4. Use as \`<video muted playsinline class="clip" src="assets/broll-[slug].mp4" data-start="X" data-duration="Y" data-track-index="2">\`
+
+Do this AFTER approving the plan, BEFORE writing the HTML — so the asset exists when the composition references it.
+
+Only search for b-roll when the brief genuinely needs it (product shots, environments, faces, action). Don't add b-roll to text-only kinetic compositions.
+
 # Niche profiles
 
 If the user's prompt contains keywords below, apply the matching style automatically:
@@ -324,6 +484,7 @@ review_render — extract frames from a completed render output. **Always call a
 detect_filler_words — scan transcript for "um", "uh", "like", "you know" + long-pause hesitations. Call after transcribe_clip. Exclude flagged timestamps from EDL segments to auto-tighten the edit.
 apply_noise_reduction — FFmpeg anlmdn filter for background hiss/hum. Run before EDL assembly on clips recorded in noisy environments.
 analyze_pacing — words per minute + pause map. Call after transcribe_clip to understand speech rhythm and find natural cut points (long pauses ≥0.5s are ideal cut boundaries).
+detect_beats — loudness-peak beat detection on any audio file. Returns beat timestamps + BPM. Use before finalizing scene durations to snap cuts to musical beats.
 
 ## Creator memory tools
 

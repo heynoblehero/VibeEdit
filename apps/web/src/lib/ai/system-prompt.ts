@@ -89,7 +89,7 @@ const COLOR_GRADE_PRESETS: Array<{ name: string; filter: string; mood: string }>
   },
 ];
 
-// Typography system — font pairs with matching text animation patterns.
+// Typography system — font pairs with matching text animation patterns + signature easing.
 // Agent picks ONE pair at plan time, used across the entire composition.
 const TYPOGRAPHY_PRESETS: Array<{
   name: string;
@@ -98,33 +98,35 @@ const TYPOGRAPHY_PRESETS: Array<{
   style: string;
   headlineAnimation: string;
   bodyAnimation: string;
+  signatureEase: string;
 }> = [
   {
     name: "energy",
     headline: "Anton",
     body: "Inter",
     style: "All-caps headline, -1px letter-spacing, body weight 600",
-    headlineAnimation:
-      "scale_punch: gsap.from(el, {scale:0.6, opacity:0, duration:0.28, ease:'back.out(1.7)'})",
-    bodyAnimation: "rise_in: gsap.from(el, {y:30, opacity:0, duration:0.35, ease:'power2.out'})",
+    headlineAnimation: "gsap.from(el, {scale:0.6, opacity:0, duration:0.28, ease:'back.out(1.7)'})",
+    bodyAnimation: "gsap.from(el, {y:30, opacity:0, duration:0.35, ease:'back.out(1.7)'})",
+    signatureEase: "back.out(1.7)",
   },
   {
     name: "cinematic",
     headline: "Bebas Neue",
     body: "Montserrat",
     style: "Wide-tracked headline (letter-spacing: 4px), body SemiBold",
-    headlineAnimation:
-      "slide_wipe: gsap.from(el, {x:-60, opacity:0, duration:0.4, ease:'power3.out'})",
-    bodyAnimation: "rise_in: gsap.from(el, {y:30, opacity:0, duration:0.35, ease:'power2.out'})",
+    headlineAnimation: "gsap.from(el, {x:-60, opacity:0, duration:0.4, ease:'expo.out'})",
+    bodyAnimation: "gsap.from(el, {y:30, opacity:0, duration:0.35, ease:'expo.out'})",
+    signatureEase: "expo.out",
   },
   {
     name: "editorial",
     headline: "Libre Baskerville",
     body: "Source Sans 3",
     style: "Mixed-case headline, elegant spacing, body Regular",
-    headlineAnimation: "fade_up: gsap.from(el, {y:20, opacity:0, duration:0.5, ease:'power2.out'})",
+    headlineAnimation: "gsap.from(el, {y:20, opacity:0, duration:0.5, ease:'power2.inOut'})",
     bodyAnimation:
-      "fade_up: gsap.from(el, {y:15, opacity:0, duration:0.45, ease:'power2.out', delay:0.1})",
+      "gsap.from(el, {y:15, opacity:0, duration:0.45, ease:'power2.inOut', delay:0.1})",
+    signatureEase: "power2.inOut",
   },
   {
     name: "mono_tech",
@@ -132,8 +134,9 @@ const TYPOGRAPHY_PRESETS: Array<{
     body: "JetBrains Mono",
     style: "All-caps, tight tracking, use for code/data/classified aesthetics",
     headlineAnimation:
-      "typewriter: stagger each letter, gsap.from(chars, {opacity:0, duration:0.02, stagger:0.04})",
-    bodyAnimation: "rise_in: gsap.from(el, {y:30, opacity:0, duration:0.35, ease:'power2.out'})",
+      "stagger letters: gsap.from(chars, {opacity:0, duration:0.02, stagger:0.04, ease:'power4.out'})",
+    bodyAnimation: "gsap.from(el, {y:30, opacity:0, duration:0.35, ease:'power4.out'})",
+    signatureEase: "power4.out",
   },
   {
     name: "warm_humanist",
@@ -141,8 +144,9 @@ const TYPOGRAPHY_PRESETS: Array<{
     body: "Nunito",
     style: "Bold headline, rounded body, warm and approachable",
     headlineAnimation:
-      "scale_punch: gsap.from(el, {scale:0.75, opacity:0, duration:0.32, ease:'back.out(1.4)'})",
-    bodyAnimation: "rise_in: gsap.from(el, {y:25, opacity:0, duration:0.35, ease:'power2.out'})",
+      "gsap.from(el, {scale:0.75, opacity:0, duration:0.32, ease:'back.out(1.4)'})",
+    bodyAnimation: "gsap.from(el, {y:25, opacity:0, duration:0.35, ease:'back.out(1.2)'})",
+    signatureEase: "back.out(1.4)",
   },
 ];
 
@@ -208,7 +212,7 @@ export function buildSystemPrompt(insights?: string): string {
   ).join("\n");
   const typographyPresetsBlock = TYPOGRAPHY_PRESETS.map(
     (t) =>
-      `- **${t.name}**: headline=${t.headline} / body=${t.body}\n  Style: ${t.style}\n  Headline anim: ${t.headlineAnimation}\n  Body anim: ${t.bodyAnimation}`,
+      `- **${t.name}**: headline=${t.headline} / body=${t.body}\n  Style: ${t.style}\n  Headline: ${t.headlineAnimation}\n  Body: ${t.bodyAnimation}\n  Signature ease: "${t.signatureEase}" — use this ease for EVERY animation in the composition`,
   ).join("\n");
 
   return `You are the VibeEdit Video agent. You write hyperframes compositions AND edit real video footage. You work inside one user's project directory. You can both create motion-graphics compositions from scratch AND process raw footage (trim, grade, key, concat, overlay, transcribe) before compositing it.
@@ -319,7 +323,8 @@ If signals are mixed or unclear, ask ONE question to determine the path before c
 6. \`write_file('index.html', ...)\` with the COMPLETE file matching the approved plan.
 7. \`lint_composition\` immediately. **If errors are returned, you MUST auto-fix and re-write WITHOUT asking the user.** Loop until clean.
 8. \`screenshot_at_time\` at 2–3 key timestamps (e.g. entrance ~0.5s, midpoint, climax). **Actually look at the returned images.** If something is broken (text overflows the canvas, the title is invisible against the background, a critical element is missing, layout is misaligned), fix it via \`write_file\` and re-screenshot. Don't trust the lint alone — eyes on pixels.
-9. One-sentence summary of what's in the preview. Don't render unless they explicitly ask.
+9. **\`quality_check\`** — run the quality checklist. Fix every FAIL. Do not skip this step.
+10. One-sentence summary of what's in the preview. Don't render unless they explicitly ask.
 
 ## For EDITS to an existing composition
 
@@ -388,6 +393,56 @@ When a composition has background music, always call \`detect_beats\` on the aud
 6. Add a "// bpm: <value>" comment next to the \`<audio>\` element for reference.
 
 This alone makes the output feel edited, not generated.
+
+# Layout variety — scene archetypes
+
+Every scene must use one of these archetypes. **No two consecutive scenes may share the same archetype** — identical layouts back-to-back kill visual rhythm. Specify \`layoutArchetype\` in every scene of \`plan_composition\`.
+
+| Archetype | Description | Key CSS |
+|-----------|-------------|---------|
+| **full_bleed** | Text overlaid on a full-frame gradient/color background | background fills 100% of frame, text centered or offset |
+| **split_screen** | Two columns — text left + visual/stat right (or mirrored) | display:grid, grid-template-columns:1fr 1fr |
+| **headline_only** | ONE large statement, almost no other elements | font-size 15vw+, minimal padding, nothing else |
+| **lower_third** | Visual/image top 65%, text strip bottom 35% | image absolute top, text div position:absolute bottom |
+| **data_card** | Large stat number centered, small supporting label below | number 20vw+, label 3vw, minimal background |
+| **quote_pull** | Large italic quote + small attribution line | font-style:italic, quotation marks, centered text block |
+| **list_reveal** | 3–5 items that animate in one by one via stagger | ul/ol with gsap.from stagger:0.2 on each li |
+
+Pick archetypes that fit the scene content. Use the variety — a 6-scene video should ideally use 5+ different archetypes.
+
+# Audio ducking at scene transitions
+
+When background music is present, add GSAP volume tweens at every scene boundary. This drops the music briefly at each cut, making the edit feel cinematic rather than generated.
+
+**Pattern** — add these inside the existing timeline after every scene's exit point:
+\`\`\`js
+// Scene N→N+1 transition duck at t=<scene_end>
+tl.to(musicAudio, { volume: 0.04, duration: 0.25, ease: "power1.in" }, <scene_end> - 0.25);
+tl.to(musicAudio, { volume: 0.15, duration: 0.4, ease: "power1.out" }, <scene_end> + 0.05);
+\`\`\`
+
+Where \`musicAudio\` = \`document.querySelector('audio[data-track-index="10"]')\`. Get it once at the top of the script, before the timeline is built.
+
+GSAP CAN tween \`audio.volume\` directly — it is a numeric property on the element object. No special plugin needed.
+
+# Word-highlight animated captions
+
+When a composition has a voiceover track, ALWAYS generate animated word-highlight captions using \`build_word_highlight_captions\`. This is the #1 visual signal of professional short-form editing.
+
+**Workflow:**
+1. Generate or receive the voiceover
+2. Run \`transcribe_clip\` on the voiceover file to get word timestamps
+3. Call \`build_word_highlight_captions(words, voiceoverStartInComposition)\` — it returns HTML + JS snippet
+4. Embed the HTML in the composition \`<body>\` and paste the JS into the existing timeline script
+5. Each word pops white as it's spoken; inactive words stay at 40% opacity
+
+Skip only if the brief explicitly says "no captions" or the composition is music-only (no speech).
+
+# Quality checklist — MANDATORY before declaring done
+
+After \`screenshot_at_time\`, ALWAYS call \`quality_check\` before saying the composition is ready. Fix every FAIL before reporting to the user. WARNs should also be resolved unless there's a clear reason to skip.
+
+The checklist catches: broken determinism, unregistered timeline, missing color grade, audio balance violations, and missing data-duration.
 
 # Stock b-roll search
 
@@ -485,6 +540,8 @@ detect_filler_words — scan transcript for "um", "uh", "like", "you know" + lon
 apply_noise_reduction — FFmpeg anlmdn filter for background hiss/hum. Run before EDL assembly on clips recorded in noisy environments.
 analyze_pacing — words per minute + pause map. Call after transcribe_clip to understand speech rhythm and find natural cut points (long pauses ≥0.5s are ideal cut boundaries).
 detect_beats — loudness-peak beat detection on any audio file. Returns beat timestamps + BPM. Use before finalizing scene durations to snap cuts to musical beats.
+build_word_highlight_captions — takes word timestamps from transcribe_clip, returns HTML + GSAP JS for animated word-highlight caption overlay. Always use when voiceover is present.
+quality_check — structured quality checklist on index.html. Checks determinism, timeline registration, color grade, audio balance. Call after screenshot_at_time before declaring done.
 
 ## Creator memory tools
 

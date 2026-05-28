@@ -109,6 +109,19 @@ export function buildToolServer(ctx: ToolContext) {
             fx: z
               .array(z.string())
               .describe("FX hits (glass-crack, whip-pan, white-flash, shimmer-sweep, none)."),
+            layoutArchetype: z
+              .enum([
+                "full_bleed",
+                "split_screen",
+                "headline_only",
+                "lower_third",
+                "data_card",
+                "quote_pull",
+                "list_reveal",
+              ])
+              .describe(
+                "Visual layout pattern for this scene. No two consecutive scenes may share the same archetype.",
+              ),
           }),
         )
         .min(1)
@@ -146,9 +159,23 @@ export function buildToolServer(ctx: ToolContext) {
           );
         }
       }
+      // Validate no consecutive scenes share a layout archetype
+      for (let i = 1; i < plan.scenes.length; i++) {
+        const prev = plan.scenes[i - 1].layoutArchetype;
+        const curr = plan.scenes[i].layoutArchetype;
+        if (prev === curr) {
+          warnings.push(
+            `WARNING: Scene ${plan.scenes[i - 1].index} and ${plan.scenes[i].index} both use "${curr}" layout. Consecutive identical archetypes kill visual rhythm — vary them.`,
+          );
+        }
+      }
+      const archetypeSummary = plan.scenes
+        .map((s) => `S${s.index}:${s.layoutArchetype}`)
+        .join(" → ");
       const lines = [
         `OK: plan recorded — ${plan.scenes.length} scenes / ${plan.totalDurationSeconds}s / ${plan.format}.`,
         `Grade: ${plan.colorGrade} | Typography: ${plan.typographyPair}${plan.beatSyncNote ? ` | Beat-sync: ${plan.beatSyncNote}` : ""}`,
+        `Layouts: ${archetypeSummary}`,
         ...warnings,
         `Now stop and ask the user to approve before writing any HTML.`,
       ];
@@ -2072,6 +2099,229 @@ export function buildToolServer(ctx: ToolContext) {
     },
   );
 
+  // --- Word-highlight animated captions ---
+  const buildWordHighlightCaptionsTool = tool(
+    "build_word_highlight_captions",
+    "Generate an animated word-highlight caption overlay for a composition. Takes word timestamps from transcribe_clip and returns HTML markup + GSAP JS snippet. Each word pops white as it is spoken — the top visual signal of professional short-form editing. Returns two blocks: HTML to embed in <body>, and JS to add inside the existing timeline script.",
+    {
+      words: z
+        .array(z.object({ word: z.string(), start: z.number(), end: z.number() }))
+        .describe("Word timestamps from transcribe_clip."),
+      voiceoverStartInComposition: z
+        .number()
+        .min(0)
+        .optional()
+        .describe("Seconds offset where the voiceover begins in the composition (default 0)."),
+      fontFamily: z
+        .string()
+        .optional()
+        .describe("Font family string, e.g. 'Anton' or 'Inter'. Matches your typography pair."),
+      fontSize: z
+        .string()
+        .optional()
+        .describe("CSS font-size, e.g. '52px' or '5vw'. Default '5vw'."),
+      wordsPerLine: z
+        .number()
+        .int()
+        .min(1)
+        .max(8)
+        .optional()
+        .describe("Words shown per caption line. Default 4."),
+      position: z
+        .enum(["bottom", "middle", "top"])
+        .optional()
+        .describe("Vertical position. Default 'bottom'."),
+      activeColor: z
+        .string()
+        .optional()
+        .describe("Color of the currently spoken word. Default '#ffffff'."),
+      inactiveColor: z
+        .string()
+        .optional()
+        .describe("Color of non-active words. Default 'rgba(255,255,255,0.4)'."),
+    },
+    async ({
+      words,
+      voiceoverStartInComposition = 0,
+      fontFamily = "Inter",
+      fontSize = "5vw",
+      wordsPerLine = 4,
+      position = "bottom",
+      activeColor = "#ffffff",
+      inactiveColor = "rgba(255,255,255,0.4)",
+    }) => {
+      if (!words.length) {
+        return {
+          content: [{ type: "text", text: "ERROR: no words provided" }],
+          isError: true,
+        };
+      }
+
+      const positionStyle =
+        position === "bottom"
+          ? "bottom: 10%; top: auto;"
+          : position === "top"
+            ? "top: 8%; bottom: auto;"
+            : "top: 50%; transform: translateX(-50%) translateY(-50%);";
+
+      // Split words into lines
+      const lines: Array<{ words: typeof words; lineStart: number; lineEnd: number }> = [];
+      for (let i = 0; i < words.length; i += wordsPerLine) {
+        const chunk = words.slice(i, i + wordsPerLine);
+        lines.push({
+          words: chunk,
+          lineStart: chunk[0].start + voiceoverStartInComposition,
+          lineEnd: chunk[chunk.length - 1].end + voiceoverStartInComposition,
+        });
+      }
+
+      // Build HTML
+      const lineHtml = lines
+        .map((line, lineIndex) => {
+          const wordSpans = line.words
+            .map(
+              (w) =>
+                `<span class="cap-w" data-s="${(w.start + voiceoverStartInComposition).toFixed(3)}" data-e="${(w.end + voiceoverStartInComposition).toFixed(3)}" style="color:${inactiveColor};display:inline-block;margin:0 0.18em;">${w.word}</span>`,
+            )
+            .join("");
+          return `  <div class="cap-line" id="cap-line-${lineIndex}" style="opacity:0;position:absolute;left:0;right:0;${position === "middle" ? "" : ""}text-align:center;">${wordSpans}</div>`;
+        })
+        .join("\n");
+
+      const html = `<!-- Word-highlight caption overlay -->
+<div id="cap-overlay" style="position:absolute;${positionStyle}left:50%;transform:translateX(-50%);width:88%;font-family:'${fontFamily}',sans-serif;font-size:${fontSize};font-weight:700;line-height:1.25;text-shadow:0 2px 8px rgba(0,0,0,0.8);">
+${lineHtml}
+</div>`;
+
+      // Build JS snippet (to insert inside existing timeline script, after other tl.to() calls)
+      const jsLines = lines.map((line, lineIndex) => {
+        const wordTweens = line.words
+          .map((w) => {
+            const ws = (w.start + voiceoverStartInComposition).toFixed(3);
+            const we = (w.end + voiceoverStartInComposition).toFixed(3);
+            return `tl.to(document.querySelector('[data-s="${ws}"]'),{color:"${activeColor}",scale:1.06,duration:0.06,ease:"power1.out"},${ws});tl.to(document.querySelector('[data-s="${ws}"]'),{color:"${inactiveColor}",scale:1,duration:0.1},${we});`;
+          })
+          .join("\n");
+        return `// Caption line ${lineIndex + 1}
+tl.to(document.getElementById("cap-line-${lineIndex}"),{opacity:1,duration:0.12,ease:"power2.out"},${line.lineStart.toFixed(3)});
+${wordTweens}
+tl.to(document.getElementById("cap-line-${lineIndex}"),{opacity:0,duration:0.08},${(line.lineEnd + 0.08).toFixed(3)});`;
+      });
+
+      const js = `// --- word-highlight captions (${words.length} words, ${lines.length} lines) ---
+${jsLines.join("\n")}`;
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `OK: generated ${lines.length} caption lines for ${words.length} words.\n\n=== HTML (embed in <body> before closing </div> of composition) ===\n${html}\n\n=== JS (paste inside existing gsap.timeline script, before the closing semicolon of tl definition) ===\n${js}`,
+          },
+        ],
+      };
+    },
+  );
+
+  // --- Composition quality checklist ---
+  const qualityCheckTool = tool(
+    "quality_check",
+    "Run a structured quality checklist on the current index.html. Checks determinism, color grade, audio balance, timeline registration, and layout rules. Call this after screenshot_at_time and BEFORE declaring the composition done. Fix any FAILs before reporting to the user.",
+    {},
+    async () => {
+      let html: string;
+      try {
+        html = readProjectText(ctx.userId, ctx.projectId, "index.html");
+      } catch {
+        return {
+          content: [{ type: "text", text: "ERROR: no index.html found" }],
+          isError: true,
+        };
+      }
+
+      const issues: string[] = [];
+      const passes: string[] = [];
+
+      // Determinism
+      if (/\bMath\.random\b/.test(html))
+        issues.push("FAIL [determinism] Math.random() found — replace with seeded formula");
+      else passes.push("PASS: no Math.random");
+
+      if (/\bDate\.now\(\)\b|\bnew Date\(\)/.test(html))
+        issues.push(
+          "FAIL [determinism] Date.now()/new Date() found — breaks frame-exact rendering",
+        );
+      else passes.push("PASS: no Date usage");
+
+      if (/\bsetInterval\b|\bsetTimeout\b/.test(html))
+        issues.push(
+          "FAIL [determinism] setTimeout/setInterval found — use GSAP timeline positioning instead",
+        );
+      else passes.push("PASS: no setTimeout/setInterval");
+
+      // Timeline registration
+      if (!html.includes("window.__timelines"))
+        issues.push("FAIL [timeline] window.__timelines not registered");
+      else passes.push("PASS: timeline registered");
+
+      if (html.includes("window.__timelines") && !html.includes("paused: true"))
+        issues.push(
+          "FAIL [timeline] missing paused: true — timeline will auto-play and break player",
+        );
+      else if (html.includes("paused: true")) passes.push("PASS: timeline paused");
+
+      // Color grade
+      const hasFilter = /filter\s*:\s*(brightness|contrast|saturate|sepia|hue-rotate)/i.test(html);
+      if (!hasFilter)
+        issues.push(
+          "WARN [grade] no CSS filter found on scene backgrounds — apply a color grade preset",
+        );
+      else passes.push("PASS: color grade filter applied");
+
+      // Audio volume balance
+      const trackIndexVol = [
+        ...html.matchAll(/data-track-index=["'](\d+)["'][^>]*data-volume=["']([^"']+)["']/g),
+        ...html.matchAll(/data-volume=["']([^"']+)["'][^>]*data-track-index=["'](\d+)["']/g),
+      ].map((match) => ({
+        track: parseInt(match[1] || match[2]),
+        vol: parseFloat(match[2] || match[1]),
+      }));
+      const hasVoiceover = trackIndexVol.some((t) => t.track === 0);
+      const musicTracks = trackIndexVol.filter((t) => t.track === 10);
+      for (const m of musicTracks) {
+        if (hasVoiceover && m.vol > 0.3) {
+          issues.push(
+            `FAIL [audio] music volume ${m.vol} too loud (max 0.3 with voiceover; target 0.15)`,
+          );
+        }
+      }
+      if (musicTracks.length > 0 && !issues.some((i) => i.includes("music volume")))
+        passes.push(`PASS: music volume OK (${musicTracks.map((m) => m.vol).join(", ")})`);
+
+      // data-duration on root
+      if (!html.includes("data-duration="))
+        issues.push(
+          "WARN [root] no data-duration on root element — player cannot determine length",
+        );
+      else passes.push("PASS: data-duration set");
+
+      const failCount = issues.filter((i) => i.startsWith("FAIL")).length;
+      const warnCount = issues.filter((i) => i.startsWith("WARN")).length;
+      const summary =
+        failCount === 0 && warnCount === 0
+          ? "✓ All quality checks passed — composition is clean."
+          : `${failCount} FAIL(s), ${warnCount} WARN(s) — fix before declaring done.`;
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: [summary, "", ...issues, "", `Passed: ${passes.length}`, ...passes].join("\n"),
+          },
+        ],
+      };
+    },
+  );
+
   // --- Feature 5a: save_insight ---
   const saveInsightTool = tool(
     "save_insight",
@@ -2215,6 +2465,8 @@ export function buildToolServer(ctx: ToolContext) {
       applyNoiseReductionTool,
       analyzePacingTool,
       detectBeatsTool,
+      buildWordHighlightCaptionsTool,
+      qualityCheckTool,
       saveInsightTool,
       loadInsightsTool,
       downloadAssetTool,
@@ -2265,6 +2517,8 @@ export const ALLOWED_TOOL_NAMES = [
   "apply_noise_reduction",
   "analyze_pacing",
   "detect_beats",
+  "build_word_highlight_captions",
+  "quality_check",
   "save_insight",
   "load_insights",
   "trim_audio",

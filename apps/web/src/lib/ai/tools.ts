@@ -464,8 +464,30 @@ export function buildToolServer(ctx: ToolContext) {
         .string()
         .optional()
         .describe("ElevenLabs voiceId. Defaults to the user's saved brand voice if set."),
+      stability: z
+        .number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe(
+          "Voice stability 0–1. High (0.8+) = consistent/calm. Low (0.3–0.5) = expressive/dynamic. Default 0.35.",
+        ),
+      style: z
+        .number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe(
+          "Speaking style intensity 0–1. 0 = neutral. 0.4–0.6 = expressive. 0.8+ = very dramatic. Default 0.45.",
+        ),
+      similarityBoost: z
+        .number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe("Voice similarity to base model. Default 0.8."),
     },
-    async ({ filename, script, voiceId }) => {
+    async ({ filename, script, voiceId, stability, style, similarityBoost }) => {
       const apiKey = ctx.apiKeys?.elevenlabs || process.env.ELEVENLABS_API_KEY;
       if (!apiKey) {
         return {
@@ -483,6 +505,9 @@ export function buildToolServer(ctx: ToolContext) {
           apiKey,
           script,
           voiceId: voiceId || process.env.ELEVENLABS_DEFAULT_VOICE_ID || "",
+          stability,
+          style,
+          similarityBoost,
         });
         const target = `assets/${filename}`;
         writeProjectFile(ctx.userId, ctx.projectId, target, audio);
@@ -2304,6 +2329,28 @@ ${jsLines.join("\n")}`;
         );
       else passes.push("PASS: data-duration set");
 
+      // Google Fonts loading quality (preview/render parity)
+      const hasGoogleFonts = html.includes("fonts.googleapis.com");
+      if (hasGoogleFonts) {
+        const hasDisplaySwap = html.includes("display=swap");
+        const hasPreconnect =
+          html.includes('rel="preconnect"') && html.includes("fonts.googleapis.com");
+        if (!hasDisplaySwap) {
+          issues.push(
+            "WARN [fonts] Google Fonts missing display=swap — text may flash invisible during render. Add &display=swap to the URL.",
+          );
+        } else {
+          passes.push("PASS: Google Fonts uses display=swap");
+        }
+        if (!hasPreconnect) {
+          issues.push(
+            "WARN [fonts] Missing <link rel='preconnect'> for Google Fonts — add preconnect tags before the font URL for render parity.",
+          );
+        } else {
+          passes.push("PASS: Google Fonts preconnect set");
+        }
+      }
+
       const failCount = issues.filter((i) => i.startsWith("FAIL")).length;
       const warnCount = issues.filter((i) => i.startsWith("WARN")).length;
       const summary =
@@ -2318,6 +2365,234 @@ ${jsLines.join("\n")}`;
             text: [summary, "", ...issues, "", `Passed: ${passes.length}`, ...passes].join("\n"),
           },
         ],
+      };
+    },
+  );
+
+  // --- draft_script: validate pacing + platform limits before building ---
+  const draftScriptTool = tool(
+    "draft_script",
+    "Validate a composition script for pacing (150 WPM), platform duration limits, hook quality, and CTA presence. Call this after plan_composition is approved and BEFORE generate_voiceover + write_file. Returns per-section PASS/WARN/FAIL with adjusted word counts and recommended voice settings.",
+    {
+      platform: z
+        .enum(["youtube_short", "tiktok", "instagram_reel", "youtube_long", "linkedin", "twitter"])
+        .describe("Target platform. Determines aspect ratio, max duration, and safe zone rules."),
+      niche: z
+        .string()
+        .describe(
+          "Content niche, e.g. 'sleep story', 'finance', 'comic facts'. Used to suggest voice settings.",
+        ),
+      hook: z.object({
+        text: z.string().describe("On-screen hook text (what the viewer reads in scene 1)."),
+        voiceoverText: z
+          .string()
+          .optional()
+          .describe("Hook voiceover line, if different from on-screen text."),
+        durationSeconds: z.number().describe("Scene 1 duration in seconds. Must be 1.5–3.5."),
+      }),
+      acts: z
+        .array(
+          z.object({
+            name: z.string().describe("Act label, e.g. 'Problem', 'Story', 'Reveal', 'Value'."),
+            voiceoverText: z.string().describe("Full voiceover script for this act."),
+            durationSeconds: z.number().describe("Planned duration for this act in seconds."),
+            intent: z.string().optional().describe("What this act accomplishes."),
+          }),
+        )
+        .min(1)
+        .max(8),
+      cta: z
+        .object({
+          text: z.string().describe("CTA line, e.g. 'Follow for more'."),
+          durationSeconds: z.number().describe("Duration of CTA scene in seconds."),
+        })
+        .optional()
+        .describe("Call to action (final scene). Highly recommended for short-form."),
+    },
+    async ({ platform, niche, hook, acts, cta }) => {
+      const PLATFORM_LIMITS: Record<
+        string,
+        { maxSeconds: number; minSeconds?: number; aspectRatio: string; shortForm: boolean }
+      > = {
+        youtube_short: { maxSeconds: 60, aspectRatio: "9:16", shortForm: true },
+        tiktok: { maxSeconds: 180, aspectRatio: "9:16", shortForm: true },
+        instagram_reel: { maxSeconds: 90, aspectRatio: "9:16", shortForm: true },
+        youtube_long: {
+          maxSeconds: 54000,
+          minSeconds: 120,
+          aspectRatio: "16:9",
+          shortForm: false,
+        },
+        linkedin: { maxSeconds: 600, aspectRatio: "16:9", shortForm: false },
+        twitter: { maxSeconds: 140, aspectRatio: "16:9", shortForm: true },
+      };
+      const VOICE_SETTINGS: Array<{ keywords: string[]; settings: string; reason: string }> = [
+        {
+          keywords: ["sleep", "asmr", "meditation", "calm"],
+          settings: "stability=0.82, style=0.12, similarityBoost=0.75",
+          reason: "ultra-steady, zero drama — variance wakes the viewer",
+        },
+        {
+          keywords: ["horror", "scary", "creepy", "dark", "thriller"],
+          settings: "stability=0.60, style=0.55, similarityBoost=0.80",
+          reason: "controlled tension — expressiveness without chaos",
+        },
+        {
+          keywords: ["finance", "money", "invest", "wealth", "business"],
+          settings: "stability=0.55, style=0.60, similarityBoost=0.82",
+          reason: "confident authority with urgency",
+        },
+        {
+          keywords: ["comic", "anime", "gaming", "game", "superhero"],
+          settings: "stability=0.25, style=0.72, similarityBoost=0.85",
+          reason: "maximum expressiveness — punchy, varied delivery",
+        },
+        {
+          keywords: ["history", "documentary", "ancient", "civilization"],
+          settings: "stability=0.72, style=0.42, similarityBoost=0.80",
+          reason: "authoritative warmth — measured, trustworthy",
+        },
+        {
+          keywords: ["tutorial", "tech", "code", "dev", "engineering", "how to"],
+          settings: "stability=0.65, style=0.35, similarityBoost=0.80",
+          reason: "clear, even, professional — zero listener fatigue",
+        },
+        {
+          keywords: ["motivation", "lifestyle", "mindset", "self"],
+          settings: "stability=0.45, style=0.65, similarityBoost=0.82",
+          reason: "warm energy — personal and forward-leaning",
+        },
+      ];
+
+      const limits = PLATFORM_LIMITS[platform];
+      const WPM = 150;
+      const lines: string[] = [];
+
+      const totalSeconds =
+        hook.durationSeconds +
+        acts.reduce((sum, act) => sum + act.durationSeconds, 0) +
+        (cta?.durationSeconds ?? 0);
+
+      lines.push(
+        `Platform: ${platform} | Aspect: ${limits.aspectRatio} | Max: ${limits.maxSeconds}s`,
+      );
+      lines.push(`Total planned: ${totalSeconds.toFixed(1)}s`);
+      lines.push("");
+
+      if (totalSeconds > limits.maxSeconds) {
+        lines.push(
+          `FAIL [duration] ${totalSeconds.toFixed(1)}s exceeds ${platform} limit of ${limits.maxSeconds}s — cut ${(totalSeconds - limits.maxSeconds).toFixed(1)}s`,
+        );
+      } else if (limits.minSeconds && totalSeconds < limits.minSeconds) {
+        lines.push(
+          `WARN [duration] ${totalSeconds.toFixed(1)}s is below ${platform} minimum of ${limits.minSeconds}s`,
+        );
+      } else {
+        lines.push(`PASS [duration] ${totalSeconds.toFixed(1)}s fits ${platform}`);
+      }
+      lines.push("");
+
+      // Hook checks
+      lines.push(`=== HOOK (${hook.durationSeconds}s) ===`);
+      if (hook.durationSeconds > 3.5) {
+        lines.push(`FAIL [hook-duration] ${hook.durationSeconds}s exceeds 3.5s limit`);
+      } else if (hook.durationSeconds < 1.5) {
+        lines.push(`WARN [hook-duration] ${hook.durationSeconds}s is very short — aim for 2–3.5s`);
+      } else {
+        lines.push(`PASS [hook-duration] ${hook.durationSeconds}s ✓`);
+      }
+      const onScreenWords = hook.text.split(/\s+/).filter(Boolean);
+      if (onScreenWords.length > 20) {
+        lines.push(
+          `WARN [hook-text] ${onScreenWords.length} words on screen — keep ≤20 for immediate readability`,
+        );
+      } else {
+        lines.push(`PASS [hook-text] ${onScreenWords.length} words on screen ✓`);
+      }
+      if (hook.voiceoverText) {
+        const voiceWords = hook.voiceoverText.split(/\s+/).filter(Boolean);
+        const actualWpm = (voiceWords.length / hook.durationSeconds) * 60;
+        const maxWords = Math.floor((hook.durationSeconds / 60) * WPM);
+        if (actualWpm > 200) {
+          lines.push(
+            `FAIL [hook-pacing] ${voiceWords.length} words in ${hook.durationSeconds}s = ${actualWpm.toFixed(0)} WPM. Cut to ≤${maxWords} words.`,
+          );
+        } else {
+          lines.push(
+            `PASS [hook-pacing] ${voiceWords.length} words at ~${actualWpm.toFixed(0)} WPM ✓`,
+          );
+        }
+      }
+      lines.push("");
+
+      // Act checks
+      for (const act of acts) {
+        const words = act.voiceoverText.split(/\s+/).filter(Boolean);
+        const expectedSeconds = (words.length / WPM) * 60;
+        const actualWpm = (words.length / act.durationSeconds) * 60;
+        const maxWords = Math.floor((act.durationSeconds / 60) * WPM);
+
+        lines.push(`=== ${act.name} (${act.durationSeconds}s) ===`);
+        lines.push(`${words.length} words → expected ${expectedSeconds.toFixed(1)}s at ${WPM} WPM`);
+
+        if (actualWpm > 200) {
+          lines.push(
+            `FAIL [pacing] ${actualWpm.toFixed(0)} WPM is too fast. Cut ${words.length - maxWords} words or extend to ${expectedSeconds.toFixed(1)}s.`,
+          );
+        } else if (actualWpm > 175) {
+          lines.push(
+            `WARN [pacing] ${actualWpm.toFixed(0)} WPM — slightly rushed. Target ≤${WPM} WPM.`,
+          );
+        } else if (words.length > 0 && actualWpm < 80) {
+          lines.push(
+            `WARN [pacing] ${actualWpm.toFixed(0)} WPM — very slow. Trim scene duration or add narration.`,
+          );
+        } else {
+          lines.push(`PASS [pacing] ${actualWpm.toFixed(0)} WPM in ${act.durationSeconds}s ✓`);
+        }
+        lines.push("");
+      }
+
+      // CTA check
+      if (!cta) {
+        lines.push(
+          `WARN [cta] No CTA defined — short-form videos without a CTA lose ~30% of potential follows. Add a 1.5–2s CTA scene.`,
+        );
+      } else {
+        lines.push(`=== CTA (${cta.durationSeconds}s) ===`);
+        if (cta.durationSeconds < 1 || cta.durationSeconds > 4) {
+          lines.push(`WARN [cta] ${cta.durationSeconds}s — aim for 1.5–3s for a CTA scene.`);
+        } else {
+          lines.push(`PASS [cta] "${cta.text}" at ${cta.durationSeconds}s ✓`);
+        }
+        lines.push("");
+      }
+
+      // Voice settings recommendation
+      const nicheLC = niche.toLowerCase();
+      const match = VOICE_SETTINGS.find((v) => v.keywords.some((kw) => nicheLC.includes(kw)));
+      if (match) {
+        lines.push(`Recommended voice for "${niche}": ${match.settings} — ${match.reason}`);
+        lines.push(
+          `Use: generate_voiceover(..., ${match.settings
+            .replace(/stability=/, "stability: ")
+            .replace(/style=/, "style: ")
+            .replace(/similarityBoost=/, "similarityBoost: ")
+            .replace(/, /g, ", ")})`,
+        );
+      } else {
+        lines.push(`Voice settings (default): stability=0.35, style=0.45, similarityBoost=0.80`);
+      }
+
+      const failCount = lines.filter((l) => l.startsWith("FAIL")).length;
+      const warnCount = lines.filter((l) => l.startsWith("WARN")).length;
+      const summary =
+        failCount === 0 && warnCount === 0
+          ? "✓ Script passes all checks — proceed to generate_voiceover."
+          : `${failCount} FAIL(s), ${warnCount} WARN(s) — fix FAILs before writing HTML.`;
+
+      return {
+        content: [{ type: "text", text: [summary, "", ...lines].join("\n") }],
       };
     },
   );
@@ -2467,6 +2742,7 @@ ${jsLines.join("\n")}`;
       detectBeatsTool,
       buildWordHighlightCaptionsTool,
       qualityCheckTool,
+      draftScriptTool,
       saveInsightTool,
       loadInsightsTool,
       downloadAssetTool,
@@ -2519,6 +2795,7 @@ export const ALLOWED_TOOL_NAMES = [
   "detect_beats",
   "build_word_highlight_captions",
   "quality_check",
+  "draft_script",
   "save_insight",
   "load_insights",
   "trim_audio",
@@ -2735,6 +3012,10 @@ async function synthesizeElevenLabsWithTimestamps(opts: {
   apiKey: string;
   script: string;
   voiceId: string;
+  stability?: number;
+  similarityBoost?: number;
+  style?: number;
+  useSpeakerBoost?: boolean;
 }): Promise<{ audio: Buffer; words: TranscriptWord[] }> {
   if (!opts.voiceId) {
     throw new Error("no voiceId — pass one or set ELEVENLABS_DEFAULT_VOICE_ID env var");
@@ -2750,10 +3031,10 @@ async function synthesizeElevenLabsWithTimestamps(opts: {
       text: opts.script,
       model_id: "eleven_turbo_v2_5",
       voice_settings: {
-        stability: 0.35,
-        similarity_boost: 0.8,
-        style: 0.45,
-        use_speaker_boost: true,
+        stability: opts.stability ?? 0.35,
+        similarity_boost: opts.similarityBoost ?? 0.8,
+        style: opts.style ?? 0.45,
+        use_speaker_boost: opts.useSpeakerBoost ?? true,
       },
     }),
   });

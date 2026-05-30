@@ -25,6 +25,7 @@ export default function EditorPage({ params }: PageProps) {
   const [showTour, setShowTour] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
   const [showSaveSnippet, setShowSaveSnippet] = useState(false);
+  const [savedPulse, setSavedPulse] = useState(false);
   const [toast, setToast] = useState<{
     kind: "ok" | "error";
     text: string;
@@ -35,6 +36,22 @@ export default function EditorPage({ params }: PageProps) {
     const handle = setTimeout(() => setToast(null), 3000);
     return () => clearTimeout(handle);
   }, [toast]);
+
+  useEffect(() => {
+    let handle: ReturnType<typeof setTimeout>;
+    function onStatus(event: Event) {
+      const detail = (event as CustomEvent<{ working: boolean }>).detail;
+      if (!detail?.working) {
+        setSavedPulse(true);
+        handle = setTimeout(() => setSavedPulse(false), 2000);
+      }
+    }
+    window.addEventListener("vibeedit:agent-status", onStatus);
+    return () => {
+      window.removeEventListener("vibeedit:agent-status", onStatus);
+      clearTimeout(handle);
+    };
+  }, []);
 
   useEffect(() => {
     if (!session) return;
@@ -122,6 +139,12 @@ export default function EditorPage({ params }: PageProps) {
           >
             ★ Save snippet
           </button>
+          {savedPulse && (
+            <span className="hidden items-center gap-1 text-[10px] text-[var(--color-success)] sm:flex">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
+              Saved
+            </span>
+          )}
           <RenderPanel projectId={id} />
           <UserMenu />
         </div>

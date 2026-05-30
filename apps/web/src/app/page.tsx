@@ -5,6 +5,7 @@ import { WaitlistForm } from "@/components/WaitlistForm";
 import { HeroSandbox } from "@/components/landing/HeroSandbox";
 import { HowItWorksTabs } from "@/components/landing/HowItWorksTabs";
 import { NichePicker } from "@/components/landing/NichePicker";
+import { StatsBar } from "@/components/landing/StatsBar";
 
 export default function Home() {
   return (
@@ -54,6 +55,8 @@ export default function Home() {
           <HeroSandbox />
         </div>
       </section>
+
+      <StatsBar />
 
       {/* ───── ONE BIG IDEA ──────────────────────────────────── */}
       <section className="border-y border-[var(--color-border)] bg-[var(--color-surface)]/40">

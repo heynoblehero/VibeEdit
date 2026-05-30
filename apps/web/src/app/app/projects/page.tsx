@@ -26,6 +26,7 @@ export default function ProjectsPage() {
   const [renameValue, setRenameValue] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [projectsLoading, setProjectsLoading] = useState(true);
 
   useEffect(() => {
     if (!session) return;
@@ -45,6 +46,7 @@ export default function ProjectsPage() {
     if (!result.ok) return;
     const json = (await result.json()) as { projects: Project[] };
     setProjects(json.projects);
+    setProjectsLoading(false);
   }
 
   useEffect(() => {
@@ -289,29 +291,49 @@ export default function ProjectsPage() {
               <p className="text-sm text-[var(--color-fg-muted)]">No matches for "{search}".</p>
             )}
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((p) => (
-                <ProjectCard
-                  key={p.id}
-                  project={p}
-                  renamingId={renamingId}
-                  renameValue={renameValue}
-                  onSetRename={(id) => {
-                    setRenamingId(id);
-                    setRenameValue(p.name);
-                  }}
-                  onRenameChange={setRenameValue}
-                  onRenameCommit={() => rename(p.id)}
-                  onRenameCancel={() => setRenamingId(null)}
-                  onDuplicate={() => duplicate(p.id)}
-                  onDelete={() => remove(p.id, p.name)}
-                />
-              ))}
-            </div>
+            {projectsLoading ? (
+              <ProjectsSkeleton />
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {filtered.map((p) => (
+                  <ProjectCard
+                    key={p.id}
+                    project={p}
+                    renamingId={renamingId}
+                    renameValue={renameValue}
+                    onSetRename={(id) => {
+                      setRenamingId(id);
+                      setRenameValue(p.name);
+                    }}
+                    onRenameChange={setRenameValue}
+                    onRenameCommit={() => rename(p.id)}
+                    onRenameCancel={() => setRenamingId(null)}
+                    onDuplicate={() => duplicate(p.id)}
+                    onDelete={() => remove(p.id, p.name)}
+                  />
+                ))}
+              </div>
+            )}
           </section>
         </main>
       </div>
     </>
+  );
+}
+
+function ProjectsSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div
+          key={index}
+          className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2"
+        >
+          <div className="h-5 w-2/3 animate-pulse rounded bg-[var(--color-bg-2)]" />
+          <div className="h-3 w-1/3 animate-pulse rounded bg-[var(--color-bg-2)]" />
+        </div>
+      ))}
+    </div>
   );
 }
 

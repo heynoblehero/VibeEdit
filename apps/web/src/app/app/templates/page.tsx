@@ -20,6 +20,7 @@ export default function TemplatesPage() {
   const router = useRouter();
   const { data: session, isPending } = useSession();
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
   const [creating, setCreating] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "16:9" | "9:16">("all");
 
@@ -30,7 +31,8 @@ export default function TemplatesPage() {
   useEffect(() => {
     fetch("/api/templates")
       .then((r) => r.json())
-      .then((j) => setTemplates(j.templates || []));
+      .then((j) => setTemplates(j.templates || []))
+      .finally(() => setTemplatesLoading(false));
   }, []);
 
   async function startFrom(slug: string) {
@@ -95,17 +97,41 @@ export default function TemplatesPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {visible.map((t) => (
-          <TemplateCard
-            key={t.slug}
-            template={t}
-            creating={creating === t.slug}
-            onStart={() => startFrom(t.slug)}
-          />
-        ))}
-      </div>
+      {templatesLoading ? (
+        <TemplatesSkeleton />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {visible.map((t) => (
+            <TemplateCard
+              key={t.slug}
+              template={t}
+              creating={creating === t.slug}
+              onStart={() => startFrom(t.slug)}
+            />
+          ))}
+        </div>
+      )}
     </main>
+  );
+}
+
+function TemplatesSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div
+          key={index}
+          className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]"
+        >
+          <div className="h-44 animate-pulse bg-[var(--color-bg-2)]" />
+          <div className="p-4 space-y-2">
+            <div className="h-4 w-1/2 animate-pulse rounded bg-[var(--color-bg-2)]" />
+            <div className="h-3 w-3/4 animate-pulse rounded bg-[var(--color-bg-2)]" />
+            <div className="h-8 w-full animate-pulse rounded-md bg-[var(--color-bg-2)]" />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 

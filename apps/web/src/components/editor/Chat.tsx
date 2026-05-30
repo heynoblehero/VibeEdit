@@ -581,6 +581,57 @@ export function Chat({ projectId }: { projectId: string }) {
   );
 }
 
+const GUIDE_KEY = "vibeedit:guide-seen";
+
+const GUIDE_STEPS = [
+  { icon: "✏️", title: "Describe it", sub: "Type what you want in plain English" },
+  { icon: "⚙️", title: "Watch it build", sub: "Agent writes every scene automatically" },
+  { icon: "▶️", title: "Render & export", sub: "Hit Render MP4 when you're happy" },
+];
+
+function FirstVisitGuide() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!localStorage.getItem(GUIDE_KEY)) setVisible(true);
+  }, []);
+
+  if (!visible) return null;
+
+  function dismiss() {
+    localStorage.setItem(GUIDE_KEY, "1");
+    setVisible(false);
+  }
+
+  return (
+    <div className="rounded-xl border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5 p-3">
+      <div className="mb-2.5 flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-accent)]">
+          How it works
+        </span>
+        <button
+          onClick={dismiss}
+          className="text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+          title="Dismiss"
+          aria-label="Dismiss guide"
+          onKeyDown={(event) => event.key === "Enter" && dismiss()}
+        >
+          ✕
+        </button>
+      </div>
+      <div className="grid grid-cols-3 gap-2 text-center">
+        {GUIDE_STEPS.map((step) => (
+          <div key={step.title}>
+            <div className="mb-1 text-lg">{step.icon}</div>
+            <div className="text-[11px] font-semibold text-[var(--color-fg)]">{step.title}</div>
+            <div className="text-[10px] text-[var(--color-fg-muted)]">{step.sub}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SamplePromptCards({
   prefs,
   onPick,
@@ -591,6 +642,7 @@ function SamplePromptCards({
   const ordered = orderForPrefs(SAMPLE_PROMPTS, prefs);
   return (
     <div className="space-y-3">
+      <FirstVisitGuide />
       <div className="text-xs uppercase tracking-wider text-[var(--color-fg-muted)]">
         {prefs?.niche ? `Starts for ${humanNiche(prefs.niche)}` : "Start with a prompt"}
       </div>

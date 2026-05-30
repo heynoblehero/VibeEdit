@@ -26,6 +26,7 @@ export default function RendersPage() {
   const router = useRouter();
   const { data: session, isPending } = useSession();
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [rendersLoading, setRendersLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<"all" | "running" | "done" | "failed">("all");
   const [search, setSearch] = useState("");
 
@@ -38,6 +39,7 @@ export default function RendersPage() {
     if (!r.ok) return;
     const j = (await r.json()) as { jobs: Job[] };
     setJobs(j.jobs);
+    setRendersLoading(false);
   }
 
   useEffect(() => {
@@ -133,38 +135,64 @@ export default function RendersPage() {
         </div>
       )}
 
-      {jobs.length === 0 && (
+      {rendersLoading && <RendersSkeleton />}
+
+      {!rendersLoading && jobs.length === 0 && (
         <div className="rounded-lg border border-dashed border-[var(--color-border)] p-8 text-center text-[var(--color-fg-muted)]">
           No renders yet. Open a project and hit Render MP4.
         </div>
       )}
 
-      <ul className="space-y-2">
-        {jobs
-          .filter((job) => {
-            if (statusFilter === "all") return true;
-            if (statusFilter === "running")
-              return job.status === "running" || job.status === "queued";
-            return job.status === statusFilter;
-          })
-          .filter((job) => {
-            if (!search.trim()) return true;
-            const term = search.trim().toLowerCase();
-            return (job.projectName || "").toLowerCase().includes(term);
-          })
-          .map((job) => (
-            <RenderJobRow
-              key={job.id}
-              job={job}
-              onShareChange={(slug) =>
-                setJobs((prev) =>
-                  prev.map((row) => (row.id === job.id ? { ...row, publicShareSlug: slug } : row)),
-                )
-              }
-            />
-          ))}
-      </ul>
+      {!rendersLoading && (
+        <ul className="space-y-2">
+          {jobs
+            .filter((job) => {
+              if (statusFilter === "all") return true;
+              if (statusFilter === "running")
+                return job.status === "running" || job.status === "queued";
+              return job.status === statusFilter;
+            })
+            .filter((job) => {
+              if (!search.trim()) return true;
+              const term = search.trim().toLowerCase();
+              return (job.projectName || "").toLowerCase().includes(term);
+            })
+            .map((job) => (
+              <RenderJobRow
+                key={job.id}
+                job={job}
+                onShareChange={(slug) =>
+                  setJobs((prev) =>
+                    prev.map((row) =>
+                      row.id === job.id ? { ...row, publicShareSlug: slug } : row,
+                    ),
+                  )
+                }
+              />
+            ))}
+        </ul>
+      )}
     </main>
+  );
+}
+
+function RendersSkeleton() {
+  return (
+    <ul className="space-y-2">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <li
+          key={index}
+          className="flex items-center gap-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3"
+        >
+          <div className="h-2.5 w-2.5 rounded-full animate-pulse bg-[var(--color-bg-2)]" />
+          <div className="flex-1 space-y-1.5">
+            <div className="h-3 w-2/5 animate-pulse rounded bg-[var(--color-bg-2)]" />
+            <div className="h-2.5 w-1/4 animate-pulse rounded bg-[var(--color-bg-2)]" />
+          </div>
+          <div className="h-7 w-20 animate-pulse rounded-md bg-[var(--color-bg-2)]" />
+        </li>
+      ))}
+    </ul>
   );
 }
 

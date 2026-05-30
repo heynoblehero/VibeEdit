@@ -2468,6 +2468,78 @@ ${jsLines.join("\n")}`;
         }
       }
 
+      // Exit animations — every scene except the last needs an opacity:0 exit tween
+      const exitTweenCount = (html.match(/\.to\s*\([^,)]+,\s*\{[^}]*opacity\s*:\s*0/g) || [])
+        .length;
+      const sceneDivCount = (html.match(/class=["'][^"']*\bscene\b[^"']*["']/g) || []).length;
+      if (sceneDivCount > 1 && exitTweenCount < sceneDivCount - 1) {
+        issues.push(
+          `WARN [exits] ${exitTweenCount} exit tweens for ${sceneDivCount} scenes — ` +
+            `every scene except the last needs elements animated out before the transition. ` +
+            `Pattern: tl.to(els, { opacity:0, y:-12, duration:0.25, ease:"expo.in" }, sceneEnd-0.28). ` +
+            `Cuts without exits look like a slideshow.`,
+        );
+      } else if (sceneDivCount > 1) {
+        passes.push(`PASS: exit tweens (${exitTweenCount} exits, ${sceneDivCount} scenes)`);
+      }
+
+      // Grain overlay — cinematic texture is mandatory
+      const hasGrain = /grain|noise|feTurbulence|film.?grain/i.test(html);
+      if (!hasGrain) {
+        issues.push(
+          `WARN [grain] No grain/noise overlay found — add the grain-overlay registry block or an ` +
+            `inline SVG feTurbulence div (opacity:0.045, mix-blend-mode:overlay). ` +
+            `It's the single fastest way to make a composition look cinematic rather than digital.`,
+        );
+      } else {
+        passes.push("PASS: grain overlay present");
+      }
+
+      // Background depth — flat solid colors look amateur
+      const hasGradientBg = /radial-gradient|linear-gradient|conic-gradient/i.test(html);
+      if (!hasGradientBg) {
+        issues.push(
+          `WARN [background] No gradient backgrounds found — solid colors look flat on video. ` +
+            `Use radial-gradient(ellipse at 20% 80%, <accent>40 0%, <base> 60%) on every scene background.`,
+        );
+      } else {
+        passes.push("PASS: gradient backgrounds present");
+      }
+
+      // Scene pacing — avg scene duration > 5.5s tanks retention
+      if (compositionDuration > 0 && sceneDivCount > 1) {
+        const avgSceneDur = compositionDuration / sceneDivCount;
+        if (avgSceneDur > 5.5) {
+          const targetScenes = Math.ceil(compositionDuration / 4.5);
+          issues.push(
+            `WARN [pacing] Avg scene duration ${avgSceneDur.toFixed(1)}s ` +
+              `(${sceneDivCount} scenes / ${compositionDuration.toFixed(0)}s total) — ` +
+              `target ≤5s/scene. Add ${targetScenes - sceneDivCount} more scene breaks ` +
+              `(shorter intents, not more text per scene).`,
+          );
+        } else {
+          passes.push(
+            `PASS: scene pacing OK (avg ${(compositionDuration / sceneDivCount).toFixed(1)}s/scene)`,
+          );
+        }
+      }
+
+      // Safe-zone check for 9:16 compositions
+      const isVertical = html.includes('data-width="1080"') && html.includes('data-height="1920"');
+      if (isVertical) {
+        const hasSafeZone =
+          /padding[^:]*:\s*\d+%[^;]*\d+%/i.test(html) ||
+          /padding-bottom\s*:\s*(1[5-9]|[2-9]\d)%/i.test(html);
+        if (!hasSafeZone) {
+          issues.push(
+            `WARN [safe-zone] 9:16 composition — text containers need padding-top ≥8% and ` +
+              `padding-bottom ≥15% to clear platform crop zones (TikTok/Reels cut the bottom 15%).`,
+          );
+        } else {
+          passes.push("PASS: safe-zone padding present");
+        }
+      }
+
       const failCount = issues.filter((i) => i.startsWith("FAIL")).length;
       const warnCount = issues.filter((i) => i.startsWith("WARN")).length;
       const summary =

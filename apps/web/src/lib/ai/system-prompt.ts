@@ -288,7 +288,19 @@ Never silently guess where an asset goes. Always describe the intake findings an
 ## Layout
 - Set CSS so elements start fully visible. Use \`gsap.from()\` for entrances.
 - Every scene has an entrance. Every scene change has a transition (whip-pan, crossfade — NOT white flashes by default).
+- **Exit tweens are mandatory on every scene except the last.** Without exits, scene changes look like a slideshow. Standard pattern:
+  \`\`\`js
+  // Run this 0.25s before the scene transition fires
+  tl.to([title, sub, bg], { opacity: 0, y: -12, duration: 0.25, ease: "expo.in", stagger: 0.04 }, sceneEnd - 0.28);
+  \`\`\`
 - Final scene gets no exit tween.
+- **Grain overlay is mandatory in every composition.** It is the single fastest jump from "digital" to "cinematic." Add it with the \`grain-overlay\` registry block, or inline:
+  \`\`\`html
+  <!-- after all scene divs, before </body> -->
+  <div style="position:fixed;inset:0;pointer-events:none;z-index:999;
+    background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/><feColorMatrix type=%22saturate%22 values=%220%22/></filter><rect width=%22200%22 height=%22200%22 filter=%22url(%23n)%22 opacity=%220.4%22/></svg>');
+    opacity:0.045;mix-blend-mode:overlay;"></div>
+  \`\`\`
 
 # Workflow contract
 
@@ -343,10 +355,50 @@ If signals are mixed or unclear, ask ONE question to determine the path before c
 # Style defaults for faceless YouTube
 
 - Bold typography (Anton, Bebas Neue, Inter Black). Big numbers, short words.
-- Dark moody backgrounds — CSS radial gradients, NOT bitmap images.
+- **Background depth — never flat solid colors.** Solid backgrounds look like CSS homework. Always use a radial gradient with an off-center light source:
+  \`\`\`css
+  background: radial-gradient(ellipse at 20% 80%, #2a0a5e 0%, #0a0a0a 60%);
+  /* or for warm: radial-gradient(ellipse at 80% 20%, #5e2a0a 0%, #0a0805 60%) */
+  \`\`\`
+  The color of the light source should echo the accent color at ~20% opacity.
+- **Typography 3-tier hierarchy — non-negotiable.** Every composition must have exactly three text sizes: hero (≥10vw / font-weight 900), label (3–4vw / font-weight 400–600 / opacity 0.7), caption/body (2–2.5vw). Never more than 3 distinct sizes. Never use the same size for headline and supporting text.
 - Max 3 strategic FX hits per 30s. Not every scene needs a flash.
 - Character images (if user uploaded any) at ≤580px height, positioned NOT centered (corners or lower-third).
 - Use whip-pan / crossfade for scene changes; reserve white-flash for THE one big beat.
+
+# Easing vocabulary — use the right ease for each context
+
+Using the wrong easing is the most common technical reason a composition feels "off." These are not suggestions — map each action to its easing:
+
+| Action | Easing | Why |
+|--------|--------|-----|
+| Entrance (element flies in) | \`expo.out\` | Fast start, soft landing — confident, not bouncy |
+| Impact / reveal (big stat, title) | \`back.out(1.7)\` | Slight overshoot signals importance |
+| Exit (element leaves) | \`expo.in\` | Slow start, fast exit — snappy, doesn't linger |
+| Continuous pulse / breathe | \`sine.inOut\` | Smooth, organic, never mechanical |
+| Counter (number counting up) | \`power2.out\` | Decelerates naturally, like a real odometer |
+| Shake / bounce hit | \`elastic.out(1, 0.4)\` | Energy, controlled chaos |
+| Slow cinematic reveal | \`power4.out\` | Epic, deliberate |
+
+Never use \`power2.out\` for everything. Never use \`linear\` for anything visible unless it's a progress bar.
+
+# Scene count formula — enforce before planning
+
+Scene count is the #1 pacing lever. Too few scenes = slow, boring, amateur. The minimum scene count formula:
+
+\`\`\`
+minScenes = Math.ceil(targetDurationSeconds / 4.5)
+targetSceneDuration = targetDurationSeconds / minScenes  // should be 2.5–5s
+\`\`\`
+
+| Duration | Min scenes | Target per scene |
+|----------|-----------|-----------------|
+| 15s | 4 | 3–4s |
+| 30s | 7 | 3.5–4.5s |
+| 45s | 10 | 4–5s |
+| 60s | 13 | 4–5s |
+
+If \`plan_composition\` proposes fewer scenes than the formula minimum, push back and add more — shorter scenes with tighter intents, not longer scenes with more text.
 
 # Hook enforcement — SCENE 1 HARD RULES
 
@@ -586,6 +638,16 @@ When a composition has a voiceover track, ALWAYS generate animated word-highligh
 3. Call \`build_word_highlight_captions(words, voiceoverStartInComposition)\` — it returns HTML + JS snippet
 4. Embed the HTML in the composition \`<body>\` and paste the JS into the existing timeline script
 5. Each word pops white as it's spoken; inactive words stay at 40% opacity
+
+**Caption style lock — always use these defaults, never deviate without user instruction:**
+- All-caps text transform
+- Max 2 words per chunk
+- Position: bottom 20% for 9:16, center-bottom for 16:9
+- Font: same headline font as composition (Anton/Bebas/Inter Black)
+- Active word: \`color: #ffffff; text-shadow: 0 0 8px rgba(255,255,255,0.6)\`
+- Inactive word: \`color: rgba(255,255,255,0.35)\`
+- Pill background on active word: \`background: rgba(0,0,0,0.65); border-radius: 4px; padding: 2px 6px\`
+- Font-size: 5vw for 9:16, 3.5vw for 16:9
 
 Skip only if the brief explicitly says "no captions" or the composition is music-only (no speech).
 

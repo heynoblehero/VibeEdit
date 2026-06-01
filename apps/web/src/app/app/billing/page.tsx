@@ -34,7 +34,6 @@ type Info = {
   subscription: {
     plan: string;
     status: string;
-    stripeCustomerId: string | null;
     polarCustomerId: string | null;
     currentPeriodEnd: string | null;
     trialEndsAt: string | null;
@@ -233,7 +232,7 @@ function BillingPage() {
                 )}
               </div>
 
-              {(info.subscription.polarCustomerId || info.subscription.stripeCustomerId) && (
+              {info.subscription.polarCustomerId && (
                 <button
                   onClick={openPortal}
                   disabled={busy === "portal"}

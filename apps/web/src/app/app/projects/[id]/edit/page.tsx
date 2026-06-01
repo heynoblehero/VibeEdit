@@ -7,85 +7,94 @@ import { useSession } from "@/lib/auth-client";
 import { Chat } from "@/components/editor/Chat";
 import { Preview } from "@/components/editor/Preview";
 import { FilesDrawer } from "@/components/editor/FilesDrawer";
+import { HistoryPanel } from "@/components/editor/HistoryPanel";
+import { CodePane } from "@/components/editor/CodePane";
 import { RenderPanel } from "@/components/editor/RenderPanel";
 import { Wordmark } from "@/components/Wordmark";
 import { UserMenu } from "@/components/UserMenu";
 import { EditorTour } from "@/components/EditorTour";
 
 type PageProps = { params: Promise<{ id: string }> };
-
 type MobileTab = "chat" | "preview" | "files";
 
 export default function EditorPage({ params }: PageProps) {
   const router = useRouter();
   const { id } = use(params);
   const { data: session, isPending } = useSession();
+  const [projectName, setProjectName] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
   const [showTour, setShowTour] = useState(false);
+  const [rightTab, setRightTab] = useState<"files" | "history" | "code">("files");
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
   const [showSaveSnippet, setShowSaveSnippet] = useState(false);
   const [savedPulse, setSavedPulse] = useState(false);
-  const [toast, setToast] = useState<{
-    kind: "ok" | "error";
-    text: string;
-  } | null>(null);
+  const [toast, setToast] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
   useEffect(() => {
     if (!toast) return;
-    const handle = setTimeout(() => setToast(null), 3000);
-    return () => clearTimeout(handle);
+    const h = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(h);
   }, [toast]);
 
+  // Fetch project name for breadcrumb
   useEffect(() => {
-    let handle: ReturnType<typeof setTimeout>;
-    function onStatus(event: Event) {
-      const detail = (event as CustomEvent<{ working: boolean }>).detail;
+    if (!session) return;
+    fetch(`/api/projects/${id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.name) setProjectName(data.name);
+      })
+      .catch(() => {});
+  }, [id, session]);
+
+  // Show "Saved" pulse when agent stops working
+  useEffect(() => {
+    let h: ReturnType<typeof setTimeout>;
+    function onStatus(e: Event) {
+      const detail = (e as CustomEvent<{ working: boolean }>).detail;
       if (!detail?.working) {
         setSavedPulse(true);
-        handle = setTimeout(() => setSavedPulse(false), 2000);
+        h = setTimeout(() => setSavedPulse(false), 2000);
       }
     }
     window.addEventListener("vibeedit:agent-status", onStatus);
     return () => {
       window.removeEventListener("vibeedit:agent-status", onStatus);
-      clearTimeout(handle);
+      clearTimeout(h);
     };
   }, []);
 
+  // Tour
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
     fetch("/api/onboarding")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (cancelled) return;
-        if (data && data.onboardingCompleted && !data.tourCompleted) setShowTour(true);
+        if (!cancelled && data?.onboardingCompleted && !data.tourCompleted) setShowTour(true);
       })
-      .catch(() => {
-        /* onboarding fetch is best-effort — silently skip the tour */
-      });
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [session]);
 
+  // Auth redirect
   useEffect(() => {
     if (!isPending && !session) router.replace("/app/login");
   }, [isPending, session, router]);
 
+  // File-change SSE → reload preview
   useEffect(() => {
     if (!session) return;
     const source = new EventSource(`/api/projects/${id}/events`);
-    // Multi-file-write turns (e.g. write_file + lint + screenshot) fire
-    // several "change" events in quick succession. Coalesce them so the
-    // preview remounts once per turn instead of N times.
     let pending: ReturnType<typeof setTimeout> | null = null;
     const onChange = () => {
       if (pending) clearTimeout(pending);
       pending = setTimeout(() => {
         pending = null;
-        setReloadKey((k) => k + 1);
+        setReloadKey((k: number) => k + 1);
       }, 250);
     };
     source.addEventListener("change", onChange);
@@ -95,19 +104,19 @@ export default function EditorPage({ params }: PageProps) {
     };
   }, [id, session]);
 
+  // Keyboard shortcuts
   useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      const meta = event.metaKey || event.ctrlKey;
-      if (!meta) return;
-      if (event.key === "r" || event.key === "R") {
-        event.preventDefault();
+    function onKey(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key === "r" || e.key === "R") {
+        e.preventDefault();
         window.dispatchEvent(new CustomEvent("vibeedit:render"));
-      } else if (event.key === "p" || event.key === "P") {
-        event.preventDefault();
+      } else if (e.key === "p" || e.key === "P") {
+        e.preventDefault();
         window.dispatchEvent(new CustomEvent("vibeedit:toggle-play"));
-      } else if (event.key === "/") {
-        event.preventDefault();
-        setShowHelp((v) => !v);
+      } else if (e.key === "/") {
+        e.preventDefault();
+        setShowHelp((v: boolean) => !v);
       }
     }
     window.addEventListener("keydown", onKey);
@@ -116,129 +125,262 @@ export default function EditorPage({ params }: PageProps) {
 
   if (isPending || !session) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-[var(--color-fg-muted)]">
-        Loading...
+      <main className="flex min-h-screen items-center justify-center bg-[var(--color-bg)]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-accent)]" />
+          <span className="text-sm text-[var(--color-fg-muted)]">Loading editor…</span>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="grid h-screen grid-rows-[auto_1fr] gap-0 pb-12 md:grid-cols-[380px_1fr_360px] md:pb-0">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2 md:col-span-3">
-        <div className="flex items-center gap-3">
-          <Link href="/app/projects">
+    <main className="grid h-screen grid-rows-[auto_1fr] gap-0 overflow-hidden pb-12 md:grid-cols-[380px_1fr_360px] md:pb-0">
+      {/* ── Header ─────────────────────────────────────────────── */}
+      <header className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 md:col-span-3 md:px-4">
+        {/* Left: logo + breadcrumb */}
+        <div className="flex min-w-0 items-center gap-2">
+          <Link href="/app/projects" className="shrink-0 transition-opacity hover:opacity-80">
             <Wordmark size="sm" />
           </Link>
-          <span className="hidden text-xs text-[var(--color-fg-muted)] sm:inline">/ editor</span>
+          {/* Separator + project name */}
+          <div className="flex min-w-0 items-center gap-1.5 text-xs text-[var(--color-fg-subtle)]">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path
+                d="M4 2l4 4-4 4"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span
+              className="hidden max-w-[180px] truncate font-medium text-[var(--color-fg-muted)] sm:block"
+              title={projectName ?? ""}
+            >
+              {projectName ?? "Loading…"}
+            </span>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
+
+        {/* Right: actions */}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {/* Save snippet */}
           <button
             onClick={() => setShowSaveSnippet(true)}
-            className="hidden rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--color-fg)] hover:border-[var(--color-accent)] sm:inline-flex"
-            title="Save this project's composition as a personal snippet"
+            title="Save as snippet"
+            className="hidden items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-medium text-[var(--color-fg-muted)] transition-colors hover:border-[var(--color-border-2)] hover:text-[var(--color-fg)] sm:inline-flex"
           >
-            ★ Save snippet
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+            <span>Save snippet</span>
           </button>
+
           {savedPulse && (
-            <span className="hidden items-center gap-1 text-[10px] text-[var(--color-success)] sm:flex">
+            <span className="hidden items-center gap-1 text-[10px] font-medium text-[var(--color-success)] sm:flex">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
               Saved
             </span>
           )}
+
           <RenderPanel projectId={id} />
           <UserMenu />
         </div>
       </header>
 
+      {/* ── Chat panel ─────────────────────────────────────────── */}
       <aside
-        className={`${mobileTab === "chat" ? "flex" : "hidden"} h-full min-h-0 flex-col overflow-hidden border-r border-[var(--color-border)] md:flex`}
+        className={`${mobileTab === "chat" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-bg)] md:flex`}
       >
         <Chat projectId={id} />
       </aside>
+
+      {/* ── Preview panel ──────────────────────────────────────── */}
       <section
-        className={`${mobileTab === "preview" ? "flex" : "hidden"} h-full min-h-0 flex-col overflow-hidden md:flex`}
+        className={`${mobileTab === "preview" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden bg-black md:flex`}
       >
         <div className="min-h-0 flex-1 overflow-hidden">
           <Preview projectId={id} reloadKey={reloadKey} />
         </div>
       </section>
+
+      {/* ── Right panel: Files + History tabs ──────────────────── */}
       <aside
-        className={`${mobileTab === "files" ? "block" : "hidden"} h-full min-h-0 overflow-y-auto border-l border-[var(--color-border)] md:block`}
+        className={`${mobileTab === "files" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden border-l border-[var(--color-border)] bg-[var(--color-bg)] md:flex`}
       >
-        <FilesDrawer projectId={id} reloadKey={reloadKey} />
+        {/* Tab bar */}
+        <div className="flex shrink-0 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+          <button
+            onClick={() => setRightTab("files")}
+            className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
+              rightTab === "files"
+                ? "border-b-2 border-[var(--color-accent)] text-[var(--color-fg)]"
+                : "border-b-2 border-transparent text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+            }`}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+            Files
+          </button>
+          <button
+            onClick={() => setRightTab("history")}
+            className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
+              rightTab === "history"
+                ? "border-b-2 border-[var(--color-accent)] text-[var(--color-fg)]"
+                : "border-b-2 border-transparent text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+            }`}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+              <path d="M12 7v5l4 2" />
+            </svg>
+            History
+          </button>
+          <button
+            onClick={() => setRightTab("code")}
+            className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
+              rightTab === "code"
+                ? "border-b-2 border-[var(--color-accent)] text-[var(--color-fg)]"
+                : "border-b-2 border-transparent text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+            }`}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
+            </svg>
+            Code
+          </button>
+        </div>
+
+        {/* Panel content */}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {rightTab === "files" ? (
+            <FilesDrawer projectId={id} reloadKey={reloadKey} />
+          ) : rightTab === "history" ? (
+            <HistoryPanel
+              projectId={id}
+              reloadKey={reloadKey}
+              onRestored={() => setReloadKey((k) => k + 1)}
+            />
+          ) : (
+            <CodePane projectId={id} reloadKey={reloadKey} />
+          )}
+        </div>
       </aside>
 
+      {/* ── Mobile tab bar ─────────────────────────────────────── */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-30 flex border-t border-[var(--color-border)] bg-[var(--color-bg)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 flex border-t border-[var(--color-border)] bg-[var(--color-bg)]/95 backdrop-blur-sm md:hidden"
         aria-label="Editor tabs"
       >
-        {(
-          [
-            {
-              id: "chat",
-              label: "Chat",
-              icon: (
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-              ),
-            },
-            {
-              id: "preview",
-              label: "Preview",
-              icon: (
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <polygon points="5,3 19,12 5,21" />
-                </svg>
-              ),
-            },
-            {
-              id: "files",
-              label: "Files",
-              icon: (
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                </svg>
-              ),
-            },
-          ] as { id: MobileTab; label: string; icon: React.ReactNode }[]
-        ).map(({ id, label, icon }) => (
+        {[
+          {
+            id: "chat" as MobileTab,
+            label: "Chat",
+            icon: (
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            ),
+          },
+          {
+            id: "preview" as MobileTab,
+            label: "Preview",
+            icon: (
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <polygon points="5,3 19,12 5,21" />
+              </svg>
+            ),
+          },
+          {
+            id: "files" as MobileTab,
+            label: "Files",
+            icon: (
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+            ),
+          },
+        ].map(({ id: tabId, label, icon }) => (
           <button
-            key={id}
-            onClick={() => setMobileTab(id)}
-            className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[11px] font-medium transition-colors ${
-              mobileTab === id
-                ? "border-t-2 border-[var(--color-accent)] bg-[var(--color-surface)] text-[var(--color-accent)]"
+            key={tabId}
+            onClick={() => setMobileTab(tabId)}
+            className={`flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
+              mobileTab === tabId
+                ? "border-t-2 border-[var(--color-accent)] text-[var(--color-accent)]"
                 : "border-t-2 border-transparent text-[var(--color-fg-muted)]"
             }`}
           >
@@ -248,6 +390,7 @@ export default function EditorPage({ params }: PageProps) {
         ))}
       </nav>
 
+      {/* ── Modals ─────────────────────────────────────────────── */}
       {showHelp && <ShortcutsModal onClose={() => setShowHelp(false)} />}
       {showTour && <EditorTour onDone={() => setShowTour(false)} />}
       {showSaveSnippet && (
@@ -260,12 +403,14 @@ export default function EditorPage({ params }: PageProps) {
           }}
         />
       )}
+
+      {/* Toast */}
       {toast && (
         <div
-          className={`fixed bottom-20 right-4 z-50 rounded-lg border px-4 py-2 text-sm shadow-lg md:bottom-4 ${
+          className={`fixed bottom-20 right-4 z-50 animate-slide-up rounded-xl border px-4 py-2.5 text-sm font-medium shadow-2xl md:bottom-5 ${
             toast.kind === "ok"
-              ? "border-[var(--color-success)] bg-[var(--color-surface)] text-[var(--color-fg)]"
-              : "border-[var(--color-danger)] bg-[var(--color-surface)] text-[var(--color-danger)]"
+              ? "border-[var(--color-success)]/40 bg-[var(--color-surface)] text-[var(--color-success)]"
+              : "border-[var(--color-danger)]/40 bg-[var(--color-surface)] text-[var(--color-danger)]"
           }`}
           role="status"
         >
@@ -276,106 +421,7 @@ export default function EditorPage({ params }: PageProps) {
   );
 }
 
-function SaveSnippetModal({
-  projectId,
-  onClose,
-  onResult,
-}: {
-  projectId: string;
-  onClose: () => void;
-  onResult: (result: { kind: "ok" | "error"; text: string }) => void;
-}) {
-  const [label, setLabel] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    function onEsc(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onEsc);
-    return () => window.removeEventListener("keydown", onEsc);
-  }, [onClose]);
-
-  async function save() {
-    if (!label.trim() || busy) return;
-    setBusy(true);
-    try {
-      const response = await fetch("/api/snippets", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ projectId, label: label.trim() }),
-      });
-      if (response.ok) {
-        onResult({
-          kind: "ok",
-          text: `Saved to /app/snippets — "${label.trim()}"`,
-        });
-      } else {
-        const data = (await response.json().catch(() => ({ error: response.statusText }))) as {
-          error?: string;
-        };
-        onResult({
-          kind: "error",
-          text: `Couldn't save: ${data.error || "unknown error"}`,
-        });
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-    >
-      <div
-        onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-sm rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6"
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold">Save as snippet</h3>
-          <button
-            onClick={onClose}
-            className="text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
-          >
-            ✕
-          </button>
-        </div>
-        <p className="mb-3 text-xs text-[var(--color-fg-muted)]">
-          Saves this project's current index.html into your personal snippet library at
-          /app/snippets — fork it into new projects anytime.
-        </p>
-        <input
-          autoFocus
-          value={label}
-          onChange={(event) => setLabel(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") save();
-          }}
-          placeholder="Label (e.g. 'Comic intro v2')"
-          className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
-        />
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={save}
-            disabled={busy || !label.trim()}
-            className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-sm font-semibold text-black disabled:opacity-50"
-          >
-            {busy ? "Saving…" : "Save"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
+/* ── ShortcutsModal ───────────────────────────────────────────────────────── */
 function ShortcutsModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     function onEsc(e: KeyboardEvent) {
@@ -384,45 +430,160 @@ function ShortcutsModal({ onClose }: { onClose: () => void }) {
     window.addEventListener("keydown", onEsc);
     return () => window.removeEventListener("keydown", onEsc);
   }, [onClose]);
-  const shortcuts: Array<[string, string]> = [
-    ["Enter", "Send message"],
-    ["Shift+Enter", "New line"],
-    ["⌘ + R", "Render MP4"],
-    ["⌘ + P", "Play / Pause preview"],
-    ["⌘ + K", "Search projects + chats"],
-    ["⌘ + /", "Show / hide this help"],
-    ["Shift+click preview", "Edit scene at that frame"],
+
+  const shortcuts = [
+    { keys: "⌘ R", label: "Render MP4" },
+    { keys: "⌘ P", label: "Play / Pause preview" },
+    { keys: "⌘ K", label: "Search projects & chats" },
+    { keys: "⌘ /", label: "Keyboard shortcuts" },
+    { keys: "Enter", label: "Send message" },
+    { keys: "⇧ Enter", label: "New line in message" },
+    { keys: "⇧ Click", label: "Edit scene at frame" },
   ];
+
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6"
+        className="animate-scale-in w-full max-w-sm overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl"
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold">Keyboard shortcuts</h3>
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
+          <h2 className="font-semibold text-[var(--color-fg)]">Keyboard shortcuts</h2>
           <button
             onClick={onClose}
-            className="text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)]"
           >
-            ✕
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M1 1l10 10M11 1L1 11" />
+            </svg>
           </button>
         </div>
-        <dl className="space-y-2 text-sm">
-          {shortcuts.map(([key, desc]) => (
-            <div key={key} className="flex items-center justify-between">
-              <dt className="text-[var(--color-fg-muted)]">{desc}</dt>
-              <dd>
-                <kbd className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-0.5 font-mono text-xs">
-                  {key}
-                </kbd>
-              </dd>
-            </div>
+        <ul className="py-2">
+          {shortcuts.map(({ keys, label }) => (
+            <li key={keys} className="flex items-center justify-between px-5 py-2.5">
+              <span className="text-sm text-[var(--color-fg-muted)]">{label}</span>
+              <kbd className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg-2)] px-2 py-0.5 font-mono text-xs text-[var(--color-fg)]">
+                {keys}
+              </kbd>
+            </li>
           ))}
-        </dl>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+/* ── SaveSnippetModal ─────────────────────────────────────────────────────── */
+function SaveSnippetModal({
+  projectId,
+  onClose,
+  onResult,
+}: {
+  projectId: string;
+  onClose: () => void;
+  onResult: (r: { kind: "ok" | "error"; text: string }) => void;
+}) {
+  const [label, setLabel] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onEsc);
+    return () => window.removeEventListener("keydown", onEsc);
+  }, [onClose]);
+
+  async function save() {
+    setBusy(true);
+    const r = await fetch("/api/snippets", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ projectId, label: label.trim() }),
+    });
+    setBusy(false);
+    if (r.ok) onResult({ kind: "ok", text: "Snippet saved to /app/snippets" });
+    else onResult({ kind: "error", text: "Could not save snippet" });
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="animate-scale-in w-full max-w-sm overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl"
+      >
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
+          <h2 className="font-semibold text-[var(--color-fg)]">Save as snippet</h2>
+          <button
+            onClick={onClose}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)]"
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M1 1l10 10M11 1L1 11" />
+            </svg>
+          </button>
+        </div>
+        <div className="p-5">
+          <label className="mb-1.5 block text-xs font-medium text-[var(--color-fg-muted)]">
+            Label (optional)
+          </label>
+          <input
+            autoFocus
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") save();
+            }}
+            placeholder="e.g. Finance hook 30s"
+            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] px-3.5 py-2.5 text-sm outline-none placeholder:text-[var(--color-fg-subtle)] focus:border-[var(--color-accent)]"
+          />
+          <p className="mt-2 text-xs text-[var(--color-fg-subtle)]">
+            Saves the current index.html. Find it at{" "}
+            <Link href="/app/snippets" className="text-[var(--color-accent)] hover:underline">
+              /app/snippets
+            </Link>
+            .
+          </p>
+          <div className="mt-5 flex gap-2">
+            <button
+              onClick={onClose}
+              className="flex-1 rounded-xl border border-[var(--color-border)] py-2.5 text-sm font-medium text-[var(--color-fg-muted)] transition-colors hover:border-[var(--color-border-2)] hover:text-[var(--color-fg)]"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={save}
+              disabled={busy}
+              className="flex-1 rounded-xl bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {busy ? "Saving…" : "Save snippet"}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

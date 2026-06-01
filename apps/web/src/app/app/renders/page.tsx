@@ -20,6 +20,7 @@ type Job = {
   finishedAt: string | null;
   startedAt?: string | null;
   publicShareSlug?: string | null;
+  showcased?: boolean;
 };
 
 export default function RendersPage() {
@@ -168,6 +169,15 @@ export default function RendersPage() {
                     ),
                   )
                 }
+                onShowcaseChange={(showcased, slug) =>
+                  setJobs((prev) =>
+                    prev.map((row) =>
+                      row.id === job.id
+                        ? { ...row, showcased, publicShareSlug: slug ?? row.publicShareSlug }
+                        : row,
+                    ),
+                  )
+                }
               />
             ))}
         </ul>
@@ -196,12 +206,68 @@ function RendersSkeleton() {
   );
 }
 
+function ShowcaseToggle({
+  job,
+  onToggle,
+}: {
+  job: Job;
+  onToggle: (showcased: boolean, slug?: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  async function toggle() {
+    if (busy) return;
+    setBusy(true);
+    if (job.showcased) {
+      await fetch(`/api/render/${job.id}/showcase`, { method: "DELETE" });
+      onToggle(false);
+    } else {
+      const response = await fetch(`/api/render/${job.id}/showcase`, { method: "POST" });
+      if (response.ok) {
+        const data = (await response.json()) as { slug: string };
+        onToggle(true, data.slug);
+      }
+    }
+    setBusy(false);
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={busy}
+      title={job.showcased ? "Remove from public showcase" : "Feature in public showcase"}
+      className={`flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs transition-colors disabled:opacity-50 ${
+        job.showcased
+          ? "border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
+          : "border-[var(--color-border)] text-[var(--color-fg-muted)] hover:border-[var(--color-accent)]/40 hover:text-[var(--color-accent)]"
+      }`}
+    >
+      <svg
+        width="10"
+        height="10"
+        viewBox="0 0 24 24"
+        fill={job.showcased ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+      </svg>
+      {busy ? "…" : job.showcased ? "Featured" : "Feature"}
+    </button>
+  );
+}
+
 function RenderJobRow({
   job,
   onShareChange,
+  onShowcaseChange,
 }: {
   job: Job;
   onShareChange: (slug: string | null) => void;
+  onShowcaseChange: (showcased: boolean, slug?: string) => void;
 }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   return (
@@ -239,6 +305,7 @@ function RenderJobRow({
           )}
           {job.status === "done" && (
             <>
+              <ShowcaseToggle job={job} onToggle={onShowcaseChange} />
               <ShareToggle job={job} onChange={onShareChange} />
               <a
                 href={`/api/render/${job.id}/download`}

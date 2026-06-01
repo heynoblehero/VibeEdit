@@ -57,6 +57,9 @@ export type ToolContext = {
   apiKeys?: Partial<
     Record<"replicate" | "kling" | "fal" | "elevenlabs" | "openai" | "anthropic", string>
   >;
+  // Project-level platform context passed from the DB row.
+  platform?: string;
+  aspectRatio?: string;
 };
 
 // Tool names are surfaced to the agent as `mcp__hyperframes__<name>`.
@@ -354,7 +357,7 @@ export function buildToolServer(ctx: ToolContext) {
 
   const getBrandKitTool = tool(
     "get_brand_kit",
-    "Return the user's saved brand kit (logo, primary color, accent color, font, watermark, channel name, AND host identity: hostName + hostDescription). If hostDescription is set, the composition MUST feature a host matching that description in the same position/style across every scene — character consistency is critical for faceless YT channels. If any field is null, ignore it.",
+    "Return the user's saved brand kit (logo, primary color, accent color, font, watermark, channel name, host identity, toneVoice, targetAudience). If hostDescription is set, the composition MUST feature that host consistently. If toneVoice is set, apply it to all on-screen copy and voiceover scripts. If targetAudience is set, calibrate language complexity, references, and pacing for that audience. Ignore null fields.",
     {},
     async () => {
       const kit = await readBrandKit(ctx.userId);

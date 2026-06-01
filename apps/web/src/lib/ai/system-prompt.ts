@@ -200,7 +200,36 @@ const NICHE_PROFILES: Array<{
   },
 ];
 
-export function buildSystemPrompt(insights?: string): string {
+export type BrandKitContext = {
+  channelName?: string | null;
+  primaryColor?: string | null;
+  accentColor?: string | null;
+  fontFamily?: string | null;
+  hostName?: string | null;
+  hostDescription?: string | null;
+  toneVoice?: string | null;
+  targetAudience?: string | null;
+  logoPath?: string | null;
+  watermarkPath?: string | null;
+};
+
+export type SystemPromptContext = {
+  insights?: string;
+  brandKit?: BrandKitContext;
+  // Project-level platform context — pre-fills format guidance.
+  platform?: string;
+  aspectRatio?: string;
+  // User onboarding preferences — injected so agent doesn't need to ask basics.
+  userNiche?: string;
+  formatPreference?: string;
+  postFrequency?: string;
+};
+
+export function buildSystemPrompt(insightsOrCtx?: string | SystemPromptContext): string {
+  const ctx: SystemPromptContext =
+    typeof insightsOrCtx === "string" ? { insights: insightsOrCtx } : (insightsOrCtx ?? {});
+  const { insights, brandKit, platform, aspectRatio, userNiche, formatPreference, postFrequency } =
+    ctx;
   const examplesBlock = CURATED_EXAMPLES.map((e) => `- \`${e.name}\` (${e.kind}) — ${e.why}`).join(
     "\n",
   );
@@ -347,6 +376,14 @@ If signals are mixed or unclear, ask ONE question to determine the path before c
 4. \`screenshot_at_time\` at the timestamp(s) the user is editing (e.g. if they say "scene 3 is boring", screenshot scene 3's start + end). Confirm with your own eyes the change landed.
 5. One-sentence summary.
 6. **No \`plan_composition\` needed for edits** — the plan was already approved when the comp was created.
+
+## After any approved composition or render
+
+When the user signals approval ("looks great", "ship it", "render it", "perfect") after a composition or render:
+- Call \`save_insight\` for every concrete style choice you made: color grade name, typography pair, pacing (cuts/min), caption style, music mood, aspect ratio preference.
+- Use confidence 0.7 for inferred preferences; bump to 0.9 when the user explicitly confirms ("yes exactly that", "keep doing that").
+- Keys: "color_grade", "typography_pair", "caption_style", "music_mood", "pacing", "preferred_format", "niche_style".
+- This builds the creator's memory so future videos feel immediately on-brand without re-explaining preferences.
 
 ## Rendering
 
@@ -1133,9 +1170,68 @@ Do NOT use WebSearch/WebFetch for every request — only when external informati
 - Comments explain WHY not WHAT. Skip comments unless something is non-obvious.
 - No \`import React\`. This is plain HTML/JS.
 - Use full identifier names — \`event\` not \`e\`, \`element\` not \`el\`.
-${
-  insights
-    ? `\n# Creator memory — apply without being asked\n\nThis creator has saved preferences. Apply them automatically unless the user overrides:\n\n${insights}\n`
-    : ""
-}`;
+${(() => {
+  if (!brandKit) return "";
+  const lines: string[] = [];
+  if (brandKit.channelName) lines.push(`Channel name: **${brandKit.channelName}**`);
+  if (brandKit.primaryColor)
+    lines.push(
+      `Primary color: \`${brandKit.primaryColor}\` — use as main palette anchor for backgrounds and key text.`,
+    );
+  if (brandKit.accentColor)
+    lines.push(
+      `Accent color: \`${brandKit.accentColor}\` — use for highlights, CTA elements, and emphasis.`,
+    );
+  if (brandKit.fontFamily)
+    lines.push(
+      `Font family: **${brandKit.fontFamily}** — use this as the headline font for every composition. Load from Google Fonts if needed.`,
+    );
+  if (brandKit.toneVoice)
+    lines.push(
+      `Tone & voice: ${brandKit.toneVoice} — calibrate every script, caption, and voiceover to this energy.`,
+    );
+  if (brandKit.targetAudience)
+    lines.push(
+      `Target audience: ${brandKit.targetAudience} — write for this person. Vocabulary, complexity, and references should match.`,
+    );
+  if (brandKit.hostName || brandKit.hostDescription) {
+    lines.push(
+      `On-screen host: **${brandKit.hostName ?? "unnamed host"}** — ${brandKit.hostDescription ?? "keep consistent across scenes"}.`,
+    );
+    lines.push(
+      `  Apply host: position in lower-left or lower-right corner (never centered), same archetype/palette/outfit every scene.`,
+    );
+  }
+  if (brandKit.logoPath)
+    lines.push(
+      `Logo available at: \`${brandKit.logoPath}\` — add as a small overlay (max 120px) in the top-right corner of every composition.`,
+    );
+  if (brandKit.watermarkPath)
+    lines.push(
+      `Watermark available at: \`${brandKit.watermarkPath}\` — overlay at 50% opacity, bottom-right corner.`,
+    );
+  if (lines.length === 0) return "";
+  return `\n# Brand kit — apply to every composition, do not ask\n\n${lines.join("\n")}\n`;
+})()}${
+    platform || aspectRatio || userNiche || formatPreference || postFrequency
+      ? `\n# Project context — pre-loaded, do not ask again\n\n${[
+          platform && aspectRatio
+            ? `Target platform: **${platform}** (${aspectRatio}). Default all compositions to ${aspectRatio} dimensions and platform-appropriate pacing.`
+            : "",
+          userNiche
+            ? `Creator niche: **${userNiche}** — match style, language, and pacing to this niche by default.`
+            : "",
+          formatPreference ? `Preferred format: ${formatPreference}.` : "",
+          postFrequency
+            ? `Post frequency: ${postFrequency} — calibrate video length for sustainable production pace.`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n")}\n`
+      : ""
+  }${
+    insights
+      ? `\n# Creator memory — apply without being asked\n\nThis creator has saved preferences. Apply them automatically unless the user overrides:\n\n${insights}\n`
+      : ""
+  }`;
 }

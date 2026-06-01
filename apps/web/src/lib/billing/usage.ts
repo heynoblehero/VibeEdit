@@ -5,7 +5,7 @@ import { subscriptions, usageEvents, workerTokens, user } from "../db/schema";
 import { planFor, PLANS, type Plan } from "./plans";
 import { isAdminEmail } from "../admin";
 
-export type UsageKind = "render" | "chat_turn" | "cloud_render_seconds";
+export type UsageKind = "render" | "chat_turn" | "cloud_render_seconds" | "render_minutes";
 
 // Free-tier cap on render time consumed by our cloud (i.e. by users who have
 // not installed the local worker). Once exhausted, we hard-block and tell
@@ -147,6 +147,20 @@ export function getCloudRenderSecondsUsed(userId: string): number {
     .where(and(eq(usageEvents.userId, userId), eq(usageEvents.kind, "cloud_render_seconds")))
     .get();
   return result?.total || 0;
+}
+
+// Monthly render-minute gate — checked before enqueuing a job.
+// Complements the render-count gate: a single long render won't blow through
+// the monthly allowance invisibly.
+export function canRenderMinutes(userId: string): {
+  ok: boolean;
+  used: number;
+  limit: number;
+} {
+  const plan = getUserPlan(userId);
+  const used = getUsage(userId, "render_minutes");
+  if (plan.renderMinuteLimit === -1) return { ok: true, used, limit: -1 };
+  return { ok: used < plan.renderMinuteLimit, used, limit: plan.renderMinuteLimit };
 }
 
 // Checks whether the user can claim cloud render capacity right now.

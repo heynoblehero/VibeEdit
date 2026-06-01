@@ -1,10 +1,19 @@
 import { mkdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { nanoid } from "nanoid";
-import { eq } from "drizzle-orm";
+import { eq, and, lte } from "drizzle-orm";
 import { db } from "../db";
-import { renderJobs, user, projects } from "../db/schema";
-import { projectDir, renderOutputPath } from "../storage/fs";
+import {
+  renderJobs,
+  user,
+  projects,
+  projectSnapshots,
+  scheduledPublishes,
+  publishConnections,
+} from "../db/schema";
+import { uploadVideo } from "../publish";
+import { projectDir, renderOutputPath, projectThumbPath } from "../storage/fs";
 import { EventEmitter } from "node:events";
 import { sendEmail } from "../email/send";
 import { renderDoneEmail, renderFailedEmail } from "../email/templates";
@@ -27,6 +36,7 @@ type Job = {
   projectId: string;
   fps: number;
   quality: "draft" | "standard" | "high";
+  priority: number;
 };
 
 const pending: Job[] = [];
@@ -51,12 +61,15 @@ export async function enqueue(opts: {
   quality?: "draft" | "standard" | "high" | string;
 }): Promise<string> {
   const id = nanoid(12);
+  const plan = getUserPlan(opts.userId);
+  const priority = plan.id === "studio" ? 2 : plan.id === "creator" ? 1 : 0;
   const job: Job = {
     id,
     userId: opts.userId,
     projectId: opts.projectId,
     fps: opts.fps || 30,
     quality: (opts.quality as Job["quality"]) || "standard",
+    priority,
   };
   const now = new Date();
   db.insert(renderJobs)
@@ -68,10 +81,13 @@ export async function enqueue(opts: {
       progress: 0,
       fps: job.fps,
       quality: job.quality,
+      priority,
       createdAt: now,
     })
     .run();
   pending.push(job);
+  // Re-sort after push: higher priority first, then FIFO within same priority.
+  pending.sort((a, b) => b.priority - a.priority || 0);
   tick();
   return id;
 }
@@ -111,23 +127,38 @@ async function runJob(job: Job) {
       });
     }
     const finishedAt = new Date();
+    const durationSeconds = Math.max(
+      1,
+      Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000),
+    );
     db.update(renderJobs)
       .set({
         status: "done",
         progress: 1,
         outputPath,
         finishedAt,
+        durationSeconds,
       })
       .where(eq(renderJobs.id, job.id))
       .run();
-    // This queue runs on our cloud. Charge it against the free cap.
-    const cloudSeconds = Math.max(
-      1,
-      Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000),
+
+    // Capture a version snapshot of the composition HTML so users can roll back.
+    captureSnapshot(job, durationSeconds).catch((error) =>
+      console.error("[render] snapshot failed", error),
     );
-    recordUsage(job.userId, "cloud_render_seconds", cloudSeconds, {
+
+    // Extract a thumbnail from the rendered video for the project card.
+    captureThumbnail(job, outputPath).catch((error) =>
+      console.error("[render] thumbnail failed", error),
+    );
+
+    // Track both cloud render seconds (capacity gate) and render minutes (billing meter).
+    recordUsage(job.userId, "cloud_render_seconds", durationSeconds, {
       jobId: job.id,
       source: "queue",
+    });
+    recordUsage(job.userId, "render_minutes", Math.ceil(durationSeconds / 60), {
+      jobId: job.id,
     });
     emitJob(job.id, { status: "done", progress: 1, outputPath });
     notifyOutcome(job, "done").catch((error) =>
@@ -149,6 +180,64 @@ async function runJob(job: Job) {
       console.error("[render] email notify failed", notifyError),
     );
   }
+}
+
+async function captureSnapshot(job: Job, durationSeconds: number): Promise<void> {
+  const indexPath = join(projectDir(job.userId, job.projectId), "index.html");
+  let html: string;
+  try {
+    html = readFileSync(indexPath, "utf8");
+  } catch {
+    return; // no index.html yet — nothing to snapshot
+  }
+  db.insert(projectSnapshots)
+    .values({
+      id: nanoid(12),
+      projectId: job.projectId,
+      userId: job.userId,
+      renderJobId: job.id,
+      html,
+      label: `Render ${new Date().toISOString().slice(0, 16)} (${durationSeconds}s)`,
+      createdAt: new Date(),
+    })
+    .run();
+}
+
+async function captureThumbnail(job: Job, mp4Path: string): Promise<void> {
+  const { spawn } = await import("node:child_process");
+  const thumbPath = projectThumbPath(job.userId, job.projectId);
+  mkdirSync(resolve(thumbPath, ".."), { recursive: true });
+
+  // Fast input seek to 1s. If the video is shorter, FFmpeg grabs the last
+  // available frame. Scale to 640px wide; height determined by aspect ratio.
+  await new Promise<void>((res, rej) => {
+    const child = spawn(
+      "ffmpeg",
+      [
+        "-y",
+        "-ss",
+        "00:00:01",
+        "-i",
+        mp4Path,
+        "-vframes",
+        "1",
+        "-vf",
+        "scale=640:-1",
+        "-q:v",
+        "4",
+        thumbPath,
+      ],
+      { stdio: ["ignore", "ignore", "pipe"] },
+    );
+    let stderr = "";
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", rej);
+    child.on("exit", (code) =>
+      code === 0 ? res() : rej(new Error(`thumb ffmpeg exited ${code}: ${stderr.slice(-400)}`)),
+    );
+  });
 }
 
 async function notifyOutcome(
@@ -295,3 +384,91 @@ async function applyWatermark(mp4Path: string): Promise<void> {
   });
   fs.renameSync(tmpPath, mp4Path);
 }
+
+// ── Scheduled publish processor ───────────────────────────────────────────────
+// Runs every 60 seconds in the background. Finds pending schedules whose
+// scheduledAt has passed, finds their render output, and uploads to the platform.
+
+async function processScheduledPublishes(): Promise<void> {
+  const now = new Date();
+  const due = db
+    .select()
+    .from(scheduledPublishes)
+    .where(and(eq(scheduledPublishes.status, "pending"), lte(scheduledPublishes.scheduledAt, now)))
+    .all();
+
+  for (const schedule of due) {
+    let videoPath: string | null = null;
+
+    if (schedule.renderJobId) {
+      const job = db
+        .select({ outputPath: renderJobs.outputPath, status: renderJobs.status })
+        .from(renderJobs)
+        .where(eq(renderJobs.id, schedule.renderJobId))
+        .get();
+      if (!job || job.status !== "done" || !job.outputPath) {
+        // Render not ready yet — skip this tick, try again next minute.
+        continue;
+      }
+      videoPath = job.outputPath;
+    }
+
+    if (!videoPath) {
+      db.update(scheduledPublishes)
+        .set({ status: "failed", error: "no render job linked", publishedAt: now })
+        .where(eq(scheduledPublishes.id, schedule.id))
+        .run();
+      continue;
+    }
+
+    // Look up the platform connection.
+    const connection = db
+      .select()
+      .from(publishConnections)
+      .where(
+        and(
+          eq(publishConnections.userId, schedule.userId),
+          eq(publishConnections.platform, schedule.platform),
+        ),
+      )
+      .get();
+
+    if (!connection) {
+      db.update(scheduledPublishes)
+        .set({ status: "failed", error: "no platform connection found", publishedAt: now })
+        .where(eq(scheduledPublishes.id, schedule.id))
+        .run();
+      continue;
+    }
+
+    try {
+      const { decryptToken } = await import("../publish");
+      const accessToken = decryptToken(connection.accessTokenEnc);
+      await uploadVideo({
+        accessToken,
+        platform: schedule.platform,
+        videoPath,
+        title: schedule.title || "My Video",
+        description: schedule.description ?? undefined,
+      });
+      db.update(scheduledPublishes)
+        .set({ status: "published", publishedAt: now })
+        .where(eq(scheduledPublishes.id, schedule.id))
+        .run();
+    } catch (error) {
+      const message = (error as Error).message || String(error);
+      logError("schedule.publish", error, { scheduleId: schedule.id });
+      db.update(scheduledPublishes)
+        .set({ status: "failed", error: message, publishedAt: now })
+        .where(eq(scheduledPublishes.id, schedule.id))
+        .run();
+    }
+  }
+}
+
+// Start the background poller once (singleton — queue.ts is a module, loaded once).
+setInterval(() => {
+  processScheduledPublishes().catch((error) =>
+    console.error("[schedule] publish processor error", error),
+  );
+}, 60 * 1000);

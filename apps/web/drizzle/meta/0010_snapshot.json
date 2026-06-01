@@ -105,12 +105,8 @@
           "name": "account_userId_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -164,12 +160,8 @@
           "name": "affiliateClicks_userId_user_id_fk",
           "tableFrom": "affiliateClicks",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -258,12 +250,8 @@
           "name": "brandKits_userId_user_id_fk",
           "tableFrom": "brandKits",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -324,12 +312,8 @@
           "name": "bugReports_userId_user_id_fk",
           "tableFrom": "bugReports",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -387,9 +371,7 @@
       "indexes": {
         "errorLog_created_idx": {
           "name": "errorLog_created_idx",
-          "columns": [
-            "createdAt"
-          ],
+          "columns": ["createdAt"],
           "isUnique": false
         }
       },
@@ -440,10 +422,7 @@
       "indexes": {
         "messages_project_created_idx": {
           "name": "messages_project_created_idx",
-          "columns": [
-            "projectId",
-            "createdAt"
-          ],
+          "columns": ["projectId", "createdAt"],
           "isUnique": false
         }
       },
@@ -452,12 +431,8 @@
           "name": "messages_projectId_projects_id_fk",
           "tableFrom": "messages",
           "tableTo": "projects",
-          "columnsFrom": [
-            "projectId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["projectId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -542,12 +517,8 @@
           "name": "projects_userId_user_id_fk",
           "tableFrom": "projects",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -658,27 +629,17 @@
       "indexes": {
         "renderJobs_user_status_created_idx": {
           "name": "renderJobs_user_status_created_idx",
-          "columns": [
-            "userId",
-            "status",
-            "createdAt"
-          ],
+          "columns": ["userId", "status", "createdAt"],
           "isUnique": false
         },
         "renderJobs_share_slug_idx": {
           "name": "renderJobs_share_slug_idx",
-          "columns": [
-            "publicShareSlug"
-          ],
+          "columns": ["publicShareSlug"],
           "isUnique": false
         },
         "renderJobs_user_project_status_idx": {
           "name": "renderJobs_user_project_status_idx",
-          "columns": [
-            "userId",
-            "projectId",
-            "status"
-          ],
+          "columns": ["userId", "projectId", "status"],
           "isUnique": false
         }
       },
@@ -687,12 +648,8 @@
           "name": "renderJobs_projectId_projects_id_fk",
           "tableFrom": "renderJobs",
           "tableTo": "projects",
-          "columnsFrom": [
-            "projectId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["projectId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -700,12 +657,8 @@
           "name": "renderJobs_userId_user_id_fk",
           "tableFrom": "renderJobs",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -777,9 +730,7 @@
       "indexes": {
         "session_token_unique": {
           "name": "session_token_unique",
-          "columns": [
-            "token"
-          ],
+          "columns": ["token"],
           "isUnique": true
         }
       },
@@ -788,12 +739,8 @@
           "name": "session_userId_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -854,12 +801,8 @@
           "name": "snippets_userId_user_id_fk",
           "tableFrom": "snippets",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -955,9 +898,7 @@
       "indexes": {
         "subscriptions_userId_unique": {
           "name": "subscriptions_userId_unique",
-          "columns": [
-            "userId"
-          ],
+          "columns": ["userId"],
           "isUnique": true
         }
       },
@@ -966,12 +907,8 @@
           "name": "subscriptions_userId_user_id_fk",
           "tableFrom": "subscriptions",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1030,11 +967,7 @@
       "indexes": {
         "usageEvents_user_kind_created_idx": {
           "name": "usageEvents_user_kind_created_idx",
-          "columns": [
-            "userId",
-            "kind",
-            "createdAt"
-          ],
+          "columns": ["userId", "kind", "createdAt"],
           "isUnique": false
         }
       },
@@ -1043,12 +976,8 @@
           "name": "usageEvents_userId_user_id_fk",
           "tableFrom": "usageEvents",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1114,9 +1043,7 @@
       "indexes": {
         "user_email_unique": {
           "name": "user_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         }
       },
@@ -1186,12 +1113,8 @@
           "name": "userPreferences_userId_user_id_fk",
           "tableFrom": "userPreferences",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1287,9 +1210,7 @@
       "indexes": {
         "waitlistSignups_email_unique": {
           "name": "waitlistSignups_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         }
       },
@@ -1351,12 +1272,8 @@
           "name": "workerTokens_userId_user_id_fk",
           "tableFrom": "workerTokens",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }

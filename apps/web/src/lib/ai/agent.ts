@@ -1,9 +1,9 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { ALLOWED_TOOL_NAMES, MCP_SERVER_NAME, buildToolServer, type ToolContext } from "./tools";
-import { buildSystemPrompt } from "./system-prompt";
+import { buildSystemPrompt, type BrandKitContext } from "./system-prompt";
 import { listFiles } from "../storage/fs";
 import { db } from "@/lib/db";
-import { creatorInsights } from "@/lib/db/schema";
+import { creatorInsights, userPreferences, brandKits } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 // First-draft compositions need the strongest planner; incremental edits
@@ -74,6 +74,56 @@ function loadUserInsights(userId: string): string | undefined {
   }
 }
 
+function loadBrandKit(userId: string): BrandKitContext | undefined {
+  try {
+    const row = db.select().from(brandKits).where(eq(brandKits.userId, userId)).get();
+    if (!row) return undefined;
+    const hasAny =
+      row.channelName ||
+      row.primaryColor ||
+      row.accentColor ||
+      row.fontFamily ||
+      row.hostName ||
+      row.hostDescription ||
+      row.toneVoice ||
+      row.targetAudience ||
+      row.logoPath ||
+      row.watermarkPath;
+    if (!hasAny) return undefined;
+    return {
+      channelName: row.channelName,
+      primaryColor: row.primaryColor,
+      accentColor: row.accentColor,
+      fontFamily: row.fontFamily,
+      hostName: row.hostName,
+      hostDescription: row.hostDescription,
+      toneVoice: row.toneVoice,
+      targetAudience: row.targetAudience,
+      logoPath: row.logoPath,
+      watermarkPath: row.watermarkPath,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function loadUserPrefs(userId: string): {
+  niche?: string;
+  formatPreference?: string;
+  postFrequency?: string;
+} {
+  try {
+    const row = db.select().from(userPreferences).where(eq(userPreferences.userId, userId)).get();
+    return {
+      niche: row?.niche ?? undefined,
+      formatPreference: row?.formatPreference ?? undefined,
+      postFrequency: row?.postFrequency ?? undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
 // Hard cap on tool-use turns per chat request. Without this, a confused
 // model can keep calling tools forever (especially screenshot_at_time +
 // lint_composition loops on broken HTML). 30 covers a realistic worst-case
@@ -98,6 +148,8 @@ export async function runAgent(opts: {
     : "";
   const model = pickModel(opts.ctx.userId, opts.ctx.projectId);
   const insights = loadUserInsights(opts.ctx.userId);
+  const prefs = loadUserPrefs(opts.ctx.userId);
+  const brandKit = loadBrandKit(opts.ctx.userId);
   try {
     const byokKey = opts.ctx.apiKeys?.anthropic;
     const agentEnv: Record<string, string | undefined> = { ...process.env };
@@ -106,7 +158,15 @@ export async function runAgent(opts: {
     for await (const message of query({
       prompt: prefix + opts.userMessage,
       options: {
-        systemPrompt: buildSystemPrompt(insights),
+        systemPrompt: buildSystemPrompt({
+          insights,
+          brandKit,
+          platform: opts.ctx.platform,
+          aspectRatio: opts.ctx.aspectRatio,
+          userNiche: prefs.niche,
+          formatPreference: prefs.formatPreference,
+          postFrequency: prefs.postFrequency,
+        }),
         model,
         mcpServers: { [MCP_SERVER_NAME]: server },
         allowedTools: [...ALLOWED_TOOL_NAMES, "WebSearch", "WebFetch"],

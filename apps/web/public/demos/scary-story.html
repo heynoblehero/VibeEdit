@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,700;1,400&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1080px;height:1920px;overflow:hidden;background:#000}
+#root{width:1080px;height:1920px;position:relative;overflow:hidden}
+.bg{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 20%,#1a0025 0%,#050008 50%,#000 100%);filter:brightness(0.82) contrast(1.3) saturate(0.85)}
+.scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:100px 70px}
+.ep{font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:700;color:rgba(180,0,220,0.6);letter-spacing:6px;text-transform:uppercase;opacity:0;margin-bottom:60px}
+.headline{font-family:'Cormorant Garamond',serif;font-size:130px;font-weight:700;color:#e8deff;text-align:center;line-height:0.95;text-shadow:0 0 60px rgba(160,0,255,0.35),0 4px 30px rgba(0,0,0,1);opacity:0;will-change:transform}
+.date{font-family:'JetBrains Mono',monospace;font-size:38px;color:rgba(200,160,255,0.4);text-align:center;margin-top:50px;letter-spacing:4px;opacity:0}
+.sub{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:58px;color:rgba(200,170,255,0.55);text-align:center;margin-top:30px;line-height:1.4;opacity:0}
+.vhs{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,255,255,0.15);z-index:20;opacity:0}
+.flicker{position:fixed;inset:0;background:#1a0025;pointer-events:none;z-index:19;opacity:0}
+.grain{position:fixed;inset:0;pointer-events:none;z-index:11;background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/><feColorMatrix type=%22saturate%22 values=%220%22/></filter><rect width=%22200%22 height=%22200%22 filter=%22url(%23n)%22 opacity=%220.4%22/></svg>');opacity:0.06;mix-blend-mode:overlay}
+.skull{position:absolute;font-size:90px;opacity:0;bottom:180px;left:50%;transform:translateX(-50%)}
+</style>
+</head>
+<body>
+<div id="root">
+  <div class="bg" id="bg"></div>
+  <div class="scene">
+    <div class="ep" id="ep">episode 04</div>
+    <div class="headline" id="h1">The Basement<br>Tape</div>
+    <div class="date" id="dt">recorded: unknown</div>
+    <div class="sub" id="sub">"they found it sealed<br>behind the wall"</div>
+  </div>
+  <div class="skull" id="skull">💀</div>
+  <div class="vhs" id="vhs"></div>
+  <div class="flicker" id="flicker"></div>
+  <div class="grain"></div>
+</div>
+<script>
+const tl = gsap.timeline({onComplete: () => { setTimeout(() => tl.restart(), 700) }});
+
+tl
+  .to('#vhs', { opacity:1, y:200, duration:3, ease:'none' }, 0)
+  .to('#flicker', { opacity:0.4, duration:0.04 }, 0.1)
+  .to('#flicker', { opacity:0, duration:0.1 }, 0.14)
+  .to('#ep', { opacity:1, duration:1.5, ease:'power2.out' }, 0.4)
+  .to('#h1', { opacity:1, duration:2, ease:'power2.out' }, 0.9)
+  .to('#dt', { opacity:1, duration:1, ease:'power2.out' }, 2.2)
+  .to('#sub', { opacity:1, duration:1.5, ease:'power2.out' }, 3.0)
+  .to('#flicker', { opacity:0.35, duration:0.06 }, 3.8)
+  .to('#flicker', { opacity:0, duration:0.15 }, 3.86)
+  .to('#skull', { opacity:1, scale:1, duration:0.01 }, 4.2)
+  .from('#skull', { scale:0, duration:0.4, ease:'back.out(2)' }, 4.2)
+  .to('#bg', { filter:'brightness(0.6) contrast(1.4) saturate(0.85)', duration:0.3 }, 5.5)
+  .to(['#h1','#ep','#sub','#dt','#skull'], { opacity:0, duration:0.4, stagger:0.06, ease:'power2.in' }, 6.8);
+</script>
+</body>
+</html>

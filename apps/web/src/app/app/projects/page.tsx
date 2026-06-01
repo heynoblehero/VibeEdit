@@ -6,14 +6,73 @@ import { useRouter } from "next/navigation";
 import { signOut, useSession } from "@/lib/auth-client";
 import { UsageMeter } from "@/components/UsageMeter";
 import { Onboarding } from "@/components/Onboarding";
+import { Wordmark } from "@/components/Wordmark";
 
 type Project = {
   id: string;
   name: string;
   updatedAt: string;
+  platform?: string;
+  aspectRatio?: string;
   renderCount?: number;
   lastRenderAt?: string | null;
 };
+
+/* Deterministic gradient from project id */
+const GRADIENTS = [
+  "from-violet-900/80 via-purple-900/60 to-indigo-950",
+  "from-emerald-900/80 via-teal-900/60 to-cyan-950",
+  "from-orange-900/80 via-amber-900/60 to-yellow-950",
+  "from-rose-900/80 via-pink-900/60 to-fuchsia-950",
+  "from-sky-900/80 via-blue-900/60 to-indigo-950",
+  "from-lime-900/80 via-green-900/60 to-emerald-950",
+  "from-red-900/80 via-rose-900/60 to-pink-950",
+  "from-cyan-900/80 via-teal-900/60 to-emerald-950",
+];
+
+function projectGradient(id: string): string {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
+  return GRADIENTS[Math.abs(h) % GRADIENTS.length];
+}
+
+const PLATFORM_META: Record<
+  string,
+  { label: string; ratio: string; shortLabel: string; color: string }
+> = {
+  youtube: {
+    label: "YouTube",
+    shortLabel: "YT",
+    ratio: "16:9",
+    color: "bg-red-500/20 text-red-400 border-red-500/20",
+  },
+  tiktok: {
+    label: "TikTok",
+    shortLabel: "TT",
+    ratio: "9:16",
+    color: "bg-pink-500/20 text-pink-400 border-pink-500/20",
+  },
+  instagram: {
+    label: "Instagram",
+    shortLabel: "IG",
+    ratio: "1:1",
+    color: "bg-purple-500/20 text-purple-400 border-purple-500/20",
+  },
+  linkedin: {
+    label: "LinkedIn",
+    shortLabel: "LI",
+    ratio: "16:9",
+    color: "bg-blue-500/20 text-blue-400 border-blue-500/20",
+  },
+};
+
+const NAV_LINKS = [
+  { href: "/app/projects", label: "Projects" },
+  { href: "/app/renders", label: "Renders" },
+  { href: "/app/templates", label: "Templates" },
+  { href: "/app/marketplace", label: "Marketplace" },
+  { href: "/app/billing", label: "Billing" },
+];
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -27,6 +86,9 @@ export default function ProjectsPage() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [projectsLoading, setProjectsLoading] = useState(true);
+  const [platform, setPlatform] = useState<"youtube" | "tiktok" | "instagram" | "linkedin">(
+    "youtube",
+  );
 
   useEffect(() => {
     if (!session) return;
@@ -53,12 +115,18 @@ export default function ProjectsPage() {
     if (session) refresh();
   }, [session]);
 
-  async function create(seed: "isaac" | "empty") {
+  async function create(seed: "empty") {
     setCreating(true);
+    const meta = PLATFORM_META[platform];
     const result = await fetch("/api/projects", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: name.trim() || "Untitled Project", seed }),
+      body: JSON.stringify({
+        name: name.trim() || "Untitled Project",
+        seed,
+        platform,
+        aspectRatio: meta.ratio,
+      }),
     });
     setCreating(false);
     if (!result.ok) return;
@@ -98,6 +166,17 @@ export default function ProjectsPage() {
     return projects.filter((p) => p.name.toLowerCase().includes(q));
   }, [projects, search]);
 
+  // Close account menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onPointer(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-account-menu]")) setMenuOpen(false);
+    }
+    window.addEventListener("mousedown", onPointer);
+    return () => window.removeEventListener("mousedown", onPointer);
+  }, [menuOpen]);
+
   if (isPending || !session) {
     return (
       <main className="flex min-h-screen items-center justify-center">
@@ -106,94 +185,89 @@ export default function ProjectsPage() {
     );
   }
 
+  const userInitial = (session.user.name?.[0] ?? session.user.email[0]).toUpperCase();
+
   return (
     <>
       {showOnboarding && <Onboarding onDone={() => setShowOnboarding(false)} />}
 
-      <div className="flex min-h-screen flex-col">
-        {/* Top nav */}
-        <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-bg)]/90 backdrop-blur">
+      <div className="flex min-h-screen flex-col bg-[var(--color-bg)]">
+        {/* ── Header ─────────────────────────────────────────────── */}
+        <header className="sticky top-0 z-20 border-b border-[var(--color-border)] bg-[var(--color-bg)]/90 backdrop-blur-xl">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-            <Link
-              href="/app/projects"
-              className="text-base font-black tracking-tight text-[var(--color-fg)]"
-            >
-              VibeEdit
+            {/* Logo */}
+            <Link href="/app/projects">
+              <Wordmark size="sm" />
             </Link>
 
-            <nav className="hidden items-center gap-1 text-sm sm:flex">
-              <Link
-                href="/app/projects"
-                className="rounded-md px-3 py-1.5 text-[var(--color-accent)] font-medium"
-              >
-                Projects
-              </Link>
-              <Link
-                href="/app/renders"
-                className="rounded-md px-3 py-1.5 text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
-              >
-                Renders
-              </Link>
-              <Link
-                href="/app/templates"
-                className="rounded-md px-3 py-1.5 text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
-              >
-                Templates
-              </Link>
-              <Link
-                href="/app/billing"
-                className="rounded-md px-3 py-1.5 text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
-              >
-                Billing
-              </Link>
+            {/* Desktop nav */}
+            <nav className="hidden items-center gap-0.5 text-sm sm:flex">
+              {NAV_LINKS.map((link) => {
+                const isActive = link.href === "/app/projects";
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`rounded-lg px-3 py-1.5 font-medium transition-colors ${
+                      isActive
+                        ? "bg-[var(--color-surface)] text-[var(--color-fg)]"
+                        : "text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
             </nav>
 
+            {/* Right side */}
             <div className="flex items-center gap-2">
-              <UsageMeter compact />
-              <div className="relative">
+              <div className="hidden sm:block">
+                <UsageMeter compact />
+              </div>
+              <div className="relative" data-account-menu="">
                 <button
                   onClick={() => setMenuOpen((v) => !v)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] text-xs font-bold uppercase text-[var(--color-accent)] hover:border-[var(--color-accent)] transition-colors"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] text-xs font-bold text-[var(--color-accent)] transition-colors hover:border-[var(--color-accent)]/50"
                   aria-label="Account menu"
                 >
-                  {session.user.name?.[0] ?? session.user.email[0]}
+                  {userInitial}
                 </button>
                 {menuOpen && (
-                  <div
-                    className="absolute right-0 top-10 z-20 min-w-[180px] rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-1 shadow-2xl"
-                    onBlur={() => setMenuOpen(false)}
-                  >
-                    <div className="border-b border-[var(--color-border)] px-3 py-2">
-                      <div className="text-xs font-medium text-[var(--color-fg)]">
+                  <div className="animate-slide-up absolute right-0 top-10 z-30 min-w-[200px] overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl">
+                    <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-2)] px-4 py-3">
+                      <div className="text-sm font-semibold text-[var(--color-fg)] truncate">
                         {session.user.name}
                       </div>
-                      <div className="text-xs text-[var(--color-fg-muted)] truncate">
+                      <div className="text-xs text-[var(--color-fg-muted)] truncate mt-0.5">
                         {session.user.email}
                       </div>
                     </div>
-                    <Link
-                      href="/app/settings/account"
-                      onClick={() => setMenuOpen(false)}
-                      className="block px-3 py-2 text-sm text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)]"
-                    >
-                      Settings
-                    </Link>
-                    <Link
-                      href="/app/billing"
-                      onClick={() => setMenuOpen(false)}
-                      className="block px-3 py-2 text-sm text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)]"
-                    >
-                      Billing
-                    </Link>
-                    <button
-                      onClick={async () => {
-                        await signOut();
-                        router.push("/");
-                      }}
-                      className="w-full px-3 py-2 text-left text-sm text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)]"
-                    >
-                      Sign out
-                    </button>
+                    {[
+                      { href: "/app/settings/account", label: "Settings" },
+                      { href: "/app/billing", label: "Billing" },
+                      { href: "/app/snippets", label: "Snippets" },
+                    ].map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMenuOpen(false)}
+                        className="block px-4 py-2.5 text-sm text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)]"
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                    <div className="border-t border-[var(--color-border)]">
+                      <button
+                        onClick={async () => {
+                          await signOut();
+                          router.push("/");
+                        }}
+                        className="w-full px-4 py-2.5 text-left text-sm text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-bg-2)] hover:text-[var(--color-danger)]"
+                      >
+                        Sign out
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -202,23 +276,67 @@ export default function ProjectsPage() {
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
-          {/* New project row */}
+          {/* ── New project ─────────────────────────────────────── */}
           <section className="mb-10">
+            {/* Row 1: name + platform picker */}
             <div className="mb-4 flex flex-wrap items-center gap-3">
               <input
                 value={name}
-                onChange={(event) => setName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") create("empty");
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") create("empty");
                 }}
                 placeholder="Name your project (optional)…"
-                className="max-w-xs flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-2)] px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--color-accent)]"
+                className="max-w-xs flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2 text-sm outline-none transition-colors placeholder:text-[var(--color-fg-subtle)] focus:border-[var(--color-accent)]"
               />
+              {/* Platform picker */}
+              <div className="flex items-center gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-1">
+                {(["youtube", "tiktok", "instagram", "linkedin"] as const).map((p) => {
+                  const meta = PLATFORM_META[p];
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => setPlatform(p)}
+                      title={`${meta.label} (${meta.ratio})`}
+                      className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all ${
+                        platform === p
+                          ? "bg-[var(--color-accent)] text-black shadow-sm"
+                          : "text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+                      }`}
+                    >
+                      <span className="hidden sm:inline">{meta.label}</span>
+                      <span className="sm:hidden">{meta.shortLabel}</span>
+                      <span
+                        className={`font-mono text-[9px] opacity-70 ${platform === p ? "opacity-60" : ""}`}
+                      >
+                        {meta.ratio}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* Row 2: project type cards */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <NewProjectCard
-                icon="✂"
+                icon={
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <circle cx="6" cy="6" r="3" />
+                    <circle cx="6" cy="18" r="3" />
+                    <path d="M20 4L8.12 15.88M14.47 14.48L20 20M8.12 8.12L12 12" />
+                  </svg>
+                }
                 title="Edit footage"
                 description="Upload clips and describe the edit — trim, grade, caption, export as MP4."
                 accent={false}
@@ -226,7 +344,21 @@ export default function ProjectsPage() {
                 onClick={() => create("empty")}
               />
               <NewProjectCard
-                icon="✦"
+                icon={
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
+                  </svg>
+                }
                 title="Create from scratch"
                 description="Describe a scene and the AI builds every frame — motion graphics, voiceover, music."
                 accent
@@ -234,71 +366,87 @@ export default function ProjectsPage() {
                 onClick={() => create("empty")}
               />
             </div>
-
             <div className="mt-3 flex items-center justify-between">
-              <p className="text-xs text-[var(--color-fg-muted)]">
+              <p className="text-xs text-[var(--color-fg-subtle)]">
                 Both use the same project — the agent figures it out from your first message.
               </p>
               <Link
                 href="/app/templates"
-                className="text-xs text-[var(--color-accent)] hover:underline whitespace-nowrap"
+                className="text-xs text-[var(--color-accent)] transition-opacity hover:opacity-80 whitespace-nowrap"
               >
                 Browse templates →
               </Link>
             </div>
           </section>
 
-          {/* Project list */}
+          {/* ── Project list ────────────────────────────────────── */}
           <section>
             <div className="mb-5 flex items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold text-[var(--color-fg)]">
-                Your projects
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-[var(--color-fg)]">Your projects</h2>
                 {projects.length > 0 && (
-                  <span className="ml-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-0.5 text-xs font-normal text-[var(--color-fg-muted)]">
+                  <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-0.5 text-xs text-[var(--color-fg-muted)]">
                     {projects.length}
                   </span>
                 )}
-              </h2>
+              </div>
               {projects.length > 4 && (
                 <input
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search…"
-                  className="w-48 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-2)] px-3 py-1.5 text-sm outline-none focus:border-[var(--color-accent)]"
+                  className="w-44 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm outline-none focus:border-[var(--color-accent)]"
                 />
               )}
             </div>
 
-            {filtered.length === 0 && projects.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-[var(--color-border)] py-16 text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] text-xl">
-                  ✦
+            {/* Empty states */}
+            {filtered.length === 0 && projects.length === 0 && !projectsLoading && (
+              <div className="rounded-2xl border border-dashed border-[var(--color-border-2)] py-20 text-center">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-[var(--color-fg-muted)]"
+                    aria-hidden="true"
+                  >
+                    <rect x="2" y="3" width="20" height="18" rx="2" />
+                    <path d="M7 3v18M17 3v18M2 8h5M2 13h5M2 18h5M17 8h5M17 13h5M17 18h5" />
+                  </svg>
                 </div>
-                <p className="font-medium text-[var(--color-fg)]">No projects yet</p>
+                <p className="font-semibold text-[var(--color-fg)]">No projects yet</p>
                 <p className="mt-1 text-sm text-[var(--color-fg-muted)]">
-                  Start a blank project above, or jump-start from a template.
+                  Start a blank project above, or jump-start with a template.
                 </p>
                 <Link
                   href="/app/templates"
-                  className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/5 px-4 py-2 text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10"
+                  className="mt-5 inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/8 px-4 py-2 text-sm font-semibold text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/12"
                 >
                   Browse templates →
                 </Link>
               </div>
             )}
-
             {filtered.length === 0 && projects.length > 0 && (
-              <p className="text-sm text-[var(--color-fg-muted)]">No matches for "{search}".</p>
+              <p className="py-8 text-center text-sm text-[var(--color-fg-muted)]">
+                No matches for "{search}".
+              </p>
             )}
 
             {projectsLoading ? (
               <ProjectsSkeleton />
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {filtered.map((p) => (
+                {filtered.map((p, i) => (
                   <ProjectCard
                     key={p.id}
                     project={p}
+                    index={i}
                     renamingId={renamingId}
                     renameValue={renameValue}
                     onSetRename={(id) => {
@@ -321,22 +469,27 @@ export default function ProjectsPage() {
   );
 }
 
+/* ── ProjectsSkeleton ─────────────────────────────────────────────────────── */
 function ProjectsSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {Array.from({ length: 6 }).map((_, index) => (
+      {Array.from({ length: 6 }).map((_, i) => (
         <div
-          key={index}
-          className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2"
+          key={i}
+          className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]"
         >
-          <div className="h-5 w-2/3 animate-pulse rounded bg-[var(--color-bg-2)]" />
-          <div className="h-3 w-1/3 animate-pulse rounded bg-[var(--color-bg-2)]" />
+          <div className="h-32 animate-shimmer bg-[var(--color-bg-2)]" />
+          <div className="space-y-2 p-4">
+            <div className="h-4 w-2/3 animate-pulse rounded-md bg-[var(--color-bg-2)]" />
+            <div className="h-3 w-1/3 animate-pulse rounded-md bg-[var(--color-bg-2)]" />
+          </div>
         </div>
       ))}
     </div>
   );
 }
 
+/* ── NewProjectCard ───────────────────────────────────────────────────────── */
 function NewProjectCard({
   icon,
   title,
@@ -345,7 +498,7 @@ function NewProjectCard({
   disabled,
   onClick,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   title: string;
   description: string;
   accent: boolean;
@@ -356,17 +509,17 @@ function NewProjectCard({
     <button
       disabled={disabled}
       onClick={onClick}
-      className={`group flex items-start gap-4 rounded-2xl border p-5 text-left transition-all disabled:opacity-50 ${
+      className={`group flex items-start gap-4 rounded-2xl border p-5 text-left transition-all duration-200 disabled:opacity-60 sm:p-6 ${
         accent
-          ? "border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5 hover:border-[var(--color-accent)]/60 hover:bg-[var(--color-accent)]/8"
-          : "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-fg-muted)]"
+          ? "border-[var(--color-accent)]/25 bg-[var(--color-accent)]/5 hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-accent)]/10"
+          : "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-border-2)] hover:bg-[var(--color-surface-2)]"
       }`}
     >
       <div
-        className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xl ${
+        className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105 ${
           accent
             ? "bg-[var(--color-accent)]/15 text-[var(--color-accent)]"
-            : "bg-[var(--color-bg-2)] text-[var(--color-fg-muted)]"
+            : "bg-[var(--color-bg-2)] text-[var(--color-fg-muted)] group-hover:text-[var(--color-accent)]"
         }`}
       >
         {icon}
@@ -387,8 +540,10 @@ function NewProjectCard({
   );
 }
 
+/* ── ProjectCard ──────────────────────────────────────────────────────────── */
 function ProjectCard({
   project,
+  index,
   renamingId,
   renameValue,
   onSetRename,
@@ -399,72 +554,165 @@ function ProjectCard({
   onDelete,
 }: {
   project: Project;
+  index: number;
   renamingId: string | null;
   renameValue: string;
   onSetRename: (id: string) => void;
-  onRenameChange: (value: string) => void;
+  onRenameChange: (v: string) => void;
   onRenameCommit: () => void;
   onRenameCancel: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
   const isRenaming = renamingId === project.id;
+  const gradient = projectGradient(project.id);
+  const platMeta = project.platform ? PLATFORM_META[project.platform] : null;
+  const initial = project.name[0]?.toUpperCase() ?? "P";
+  // Track whether the thumbnail image has failed to load (404 = no render yet).
+  const [thumbFailed, setThumbFailed] = useState(false);
 
   return (
-    <div className="group relative flex flex-col rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-fg-muted)]">
-      {/* Thumbnail placeholder */}
+    <div
+      className="group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] transition-all duration-200 hover:border-[var(--color-border-2)] hover:shadow-xl hover:shadow-black/20"
+      style={{ animationDelay: `${index * 40}ms` }}
+    >
+      {/* Thumbnail — real frame if rendered, gradient fallback otherwise */}
       <Link
         href={`/app/projects/${project.id}/edit`}
-        className="block h-32 w-full overflow-hidden rounded-t-2xl bg-[var(--color-bg-2)]"
+        className={`relative flex h-32 w-full items-center justify-center overflow-hidden bg-gradient-to-br ${gradient}`}
         tabIndex={isRenaming ? -1 : 0}
       >
-        <div className="flex h-full w-full items-center justify-center">
-          <span className="text-3xl opacity-20">✦</span>
+        {/* Gradient + noise — always rendered as background */}
+        <div
+          className="absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E\")",
+          }}
+        />
+
+        {/* Real thumbnail — overlays the gradient when it loads successfully */}
+        {!thumbFailed && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`/api/projects/${project.id}/thumb`}
+            alt=""
+            aria-hidden="true"
+            onError={() => setThumbFailed(true)}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
+
+        {/* Fallback: initial letter, shown only when no real thumbnail */}
+        {thumbFailed && (
+          <span className="relative z-10 select-none text-5xl font-black tracking-tight text-white/25">
+            {initial}
+          </span>
+        )}
+
+        {/* Platform badge */}
+        {platMeta && (
+          <div className="absolute bottom-2 right-2 z-10">
+            <span
+              className={`rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${platMeta.color}`}
+            >
+              {platMeta.ratio}
+            </span>
+          </div>
+        )}
+
+        {/* Hover overlay */}
+        <div className="absolute inset-0 bg-black/0 transition-all duration-200 group-hover:bg-black/20" />
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="rounded-xl border border-white/20 bg-white/10 px-4 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">
+            Open →
+          </span>
         </div>
       </Link>
 
-      <div className="flex flex-1 flex-col gap-2 p-4">
+      {/* Card body */}
+      <div className="flex flex-1 flex-col gap-2.5 p-4">
         {isRenaming ? (
           <input
             autoFocus
             value={renameValue}
-            onChange={(event) => onRenameChange(event.target.value)}
+            onChange={(e) => onRenameChange(e.target.value)}
             onBlur={onRenameCommit}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") onRenameCommit();
-              if (event.key === "Escape") onRenameCancel();
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onRenameCommit();
+              if (e.key === "Escape") onRenameCancel();
             }}
-            className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-sm outline-none focus:border-[var(--color-accent)]"
+            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-sm outline-none focus:border-[var(--color-accent)]"
           />
         ) : (
           <Link
             href={`/app/projects/${project.id}/edit`}
-            className="line-clamp-1 text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)]"
+            className="line-clamp-1 text-sm font-semibold text-[var(--color-fg)] transition-colors hover:text-[var(--color-accent)]"
           >
             {project.name}
           </Link>
         )}
 
         <div className="flex items-center justify-between">
-          <div className="text-xs text-[var(--color-fg-muted)]">
-            {relativeTime(project.updatedAt)}
+          <div className="flex items-center gap-2 text-xs text-[var(--color-fg-muted)]">
+            <span>{relativeTime(project.updatedAt)}</span>
             {(project.renderCount ?? 0) > 0 && (
-              <span className="ml-2 rounded-full border border-[var(--color-border)] px-1.5 py-0.5">
+              <span className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg-2)] px-1.5 py-0.5">
                 {project.renderCount} render{project.renderCount === 1 ? "" : "s"}
               </span>
             )}
           </div>
 
-          {/* Actions */}
+          {/* Action buttons — visible on hover */}
           <div className="flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
             <ActionBtn title="Rename" onClick={() => onSetRename(project.id)}>
-              ✎
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
             </ActionBtn>
             <ActionBtn title="Duplicate" onClick={onDuplicate}>
-              ⧉
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
             </ActionBtn>
             <ActionBtn title="Delete" onClick={onDelete} danger>
-              ✕
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+              </svg>
             </ActionBtn>
           </div>
         </div>
@@ -473,6 +721,7 @@ function ProjectCard({
   );
 }
 
+/* ── ActionBtn ────────────────────────────────────────────────────────────── */
 function ActionBtn({
   title,
   onClick,
@@ -488,10 +737,10 @@ function ActionBtn({
     <button
       title={title}
       onClick={onClick}
-      className={`flex h-6 w-6 items-center justify-center rounded text-xs transition-colors ${
+      className={`flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
         danger
-          ? "text-[var(--color-fg-muted)] hover:bg-red-500/10 hover:text-red-400"
-          : "text-[var(--color-fg-muted)] hover:bg-[var(--color-bg)] hover:text-[var(--color-fg)]"
+          ? "text-[var(--color-fg-subtle)] hover:bg-red-500/10 hover:text-red-400"
+          : "text-[var(--color-fg-subtle)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)]"
       }`}
     >
       {children}
@@ -499,12 +748,13 @@ function ActionBtn({
   );
 }
 
+/* ── Helpers ──────────────────────────────────────────────────────────────── */
 function relativeTime(iso: string): string {
-  const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
 }

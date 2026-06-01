@@ -60,6 +60,12 @@ export const projects = sqliteTable("projects", {
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  // Optional workspace this project belongs to.
+  workspaceId: text("workspaceId"),
+  // Platform and aspect ratio tell the agent which format to target from the
+  // first message. Stored here so every session for this project is consistent.
+  platform: text("platform").notNull().default("youtube"),
+  aspectRatio: text("aspectRatio").notNull().default("16:9"),
   createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
 });
@@ -98,6 +104,15 @@ export const renderJobs = sqliteTable(
     error: text("error"),
     fps: integer("fps").notNull().default(30),
     quality: text("quality").notNull().default("standard"),
+    // Higher = processed sooner. 0=free, 1=creator, 2=studio.
+    // Paid jobs are sorted before free jobs in the pending queue.
+    priority: integer("priority").notNull().default(0),
+    // Wall-clock seconds from startedAt to finishedAt. Populated on completion.
+    // Used for render-minutes billing metering.
+    durationSeconds: integer("durationSeconds"),
+    // User opted this render into the public /showcase gallery.
+    // Requires publicShareSlug to be set (showcase toggle auto-creates it).
+    showcased: integer("showcased", { mode: "boolean" }).notNull().default(false),
     createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
     startedAt: integer("startedAt", { mode: "timestamp" }),
     finishedAt: integer("finishedAt", { mode: "timestamp" }),
@@ -147,6 +162,9 @@ export const brandKits = sqliteTable("brandKits", {
   // presenter (illustration / archetype) consistent across scenes & projects.
   hostName: text("hostName"),
   hostDescription: text("hostDescription"),
+  // Voice and audience context injected into every composition system prompt.
+  toneVoice: text("toneVoice"),
+  targetAudience: text("targetAudience"),
   updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
 });
 
@@ -185,6 +203,12 @@ export const snippets = sqliteTable("snippets", {
   sourceProjectId: text("sourceProjectId"),
   label: text("label").notNull(),
   html: text("html").notNull(),
+  // Marketplace fields — null = private, true = public gallery listing.
+  isPublic: integer("isPublic", { mode: "boolean" }).notNull().default(false),
+  description: text("description"),
+  likesCount: integer("likesCount").notNull().default(0),
+  platform: text("platform"),
+  aspectRatio: text("aspectRatio"),
   createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
 });
 
@@ -287,6 +311,140 @@ export const creatorInsights = sqliteTable(
   }),
 );
 
+// Composition snapshots captured at each render — enables version history and
+// one-click rollback. html is the full index.html at time of capture.
+export const projectSnapshots = sqliteTable(
+  "projectSnapshots",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("projectId")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // The render job that triggered this snapshot, if any.
+    renderJobId: text("renderJobId"),
+    // Full index.html at time of snapshot.
+    html: text("html").notNull(),
+    // Optional human label (e.g. "before color grade change").
+    label: text("label"),
+    createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    projectCreatedIdx: index("projectSnapshots_project_created_idx").on(
+      table.projectId,
+      table.createdAt,
+    ),
+  }),
+);
+
+// OAuth connections for platform publishing (YouTube, TikTok, Instagram).
+export const publishConnections = sqliteTable(
+  "publishConnections",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // "youtube" | "tiktok" | "instagram"
+    platform: text("platform").notNull(),
+    // Platform's user/channel identifier (for display).
+    platformAccountId: text("platformAccountId"),
+    platformAccountName: text("platformAccountName"),
+    // Encrypted OAuth tokens — never logged. Encryption key = PUBLISH_TOKEN_SECRET env var.
+    accessTokenEnc: text("accessTokenEnc").notNull(),
+    refreshTokenEnc: text("refreshTokenEnc"),
+    expiresAt: integer("expiresAt", { mode: "timestamp" }),
+    scope: text("scope"),
+    createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    // One connection per user per platform.
+    userPlatformIdx: index("publishConnections_user_platform_idx").on(table.userId, table.platform),
+  }),
+);
+
+// Workspaces — shared project buckets with role-based access.
+export const workspaces = sqliteTable("workspaces", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  ownerId: text("ownerId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
+});
+
+export const workspaceMembers = sqliteTable(
+  "workspaceMembers",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspaceId")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: text("userId").references(() => user.id, { onDelete: "cascade" }),
+    role: text("role").notNull().default("editor"), // "owner" | "editor" | "viewer"
+    inviteEmail: text("inviteEmail").notNull(),
+    // Null once the invite is accepted.
+    inviteToken: text("inviteToken"),
+    joinedAt: integer("joinedAt", { mode: "timestamp" }),
+    createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    workspaceIdx: index("workspaceMembers_workspace_idx").on(table.workspaceId),
+    inviteTokenIdx: index("workspaceMembers_invite_token_idx").on(table.inviteToken),
+    userIdx: index("workspaceMembers_user_idx").on(table.userId),
+  }),
+);
+
+// Scheduled social publishes — queued by the user, processed by background worker.
+export const scheduledPublishes = sqliteTable(
+  "scheduledPublishes",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    projectId: text("projectId")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    // The render job whose output.mp4 will be uploaded. Null until the render completes.
+    renderJobId: text("renderJobId"),
+    platform: text("platform").notNull(), // "youtube" | "tiktok" | "instagram"
+    title: text("title"),
+    description: text("description"),
+    scheduledAt: integer("scheduledAt", { mode: "timestamp" }).notNull(),
+    // "pending" | "published" | "failed" | "cancelled"
+    status: text("status").notNull().default("pending"),
+    publishedAt: integer("publishedAt", { mode: "timestamp" }),
+    error: text("error"),
+    createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    userStatusIdx: index("scheduledPublishes_user_status_idx").on(table.userId, table.status),
+    dueIdx: index("scheduledPublishes_due_idx").on(table.status, table.scheduledAt),
+  }),
+);
+
+// Snippet likes — one row per (userId, snippetId) pair.
+export const snippetLikes = sqliteTable(
+  "snippetLikes",
+  {
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    snippetId: text("snippetId")
+      .notNull()
+      .references(() => snippets.id, { onDelete: "cascade" }),
+    createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    pk: index("snippetLikes_pk_idx").on(table.userId, table.snippetId),
+  }),
+);
+
 export type Project = typeof projects.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type RenderJob = typeof renderJobs.$inferSelect;
@@ -300,3 +458,8 @@ export type AffiliateClick = typeof affiliateClicks.$inferSelect;
 export type Snippet = typeof snippets.$inferSelect;
 export type BugReport = typeof bugReports.$inferSelect;
 export type CreatorInsight = typeof creatorInsights.$inferSelect;
+export type ProjectSnapshot = typeof projectSnapshots.$inferSelect;
+export type PublishConnection = typeof publishConnections.$inferSelect;
+export type Workspace = typeof workspaces.$inferSelect;
+export type WorkspaceMember = typeof workspaceMembers.$inferSelect;
+export type ScheduledPublish = typeof scheduledPublishes.$inferSelect;

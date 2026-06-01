@@ -7,13 +7,15 @@ export type Plan = {
   priceLabel: string;
   renderLimit: number; // renders/month included; -1 = unlimited
   chatTurnLimit: number; // chat turns/month included; -1 = unlimited
+  // Render minutes/month. Tracks wall-clock render time, not just count.
+  // Closer to actual infrastructure cost than render count alone.
+  renderMinuteLimit: number; // -1 = unlimited
   resolution: "720p" | "1080p" | "4k";
   watermark: boolean;
   // Env var name holding the provider's product/price id. Renamed from
   // stripePriceEnv now that we use Polar.sh — checkout reads
   // process.env[plan.providerPriceEnv] to get the Polar product UUID.
   providerPriceEnv: string | null;
-  stripePriceEnv: string | null; // kept for any unmigrated callers; will remove
 };
 
 // Real monthly caps so a single user can't burn the Anthropic bill, with
@@ -28,10 +30,10 @@ export const PLANS: Record<PlanId, Plan> = {
     priceLabel: "$0",
     renderLimit: 5, // 5 MP4s / month — enough to evaluate
     chatTurnLimit: 50, // 50 chat turns / month
+    renderMinuteLimit: 30, // 30 render-minutes / month (≈ 5 × 6-min videos)
     resolution: "720p",
     watermark: true,
     providerPriceEnv: null,
-    stripePriceEnv: null,
   },
   creator: {
     id: "creator",
@@ -40,10 +42,10 @@ export const PLANS: Record<PlanId, Plan> = {
     priceLabel: "$19",
     renderLimit: 100,
     chatTurnLimit: 1000,
+    renderMinuteLimit: 600, // 10 hours / month
     resolution: "1080p",
     watermark: false,
     providerPriceEnv: "POLAR_PRODUCT_CREATOR",
-    stripePriceEnv: "STRIPE_PRICE_CREATOR",
   },
   studio: {
     id: "studio",
@@ -52,10 +54,10 @@ export const PLANS: Record<PlanId, Plan> = {
     priceLabel: "$49",
     renderLimit: -1,
     chatTurnLimit: -1,
+    renderMinuteLimit: -1,
     resolution: "4k",
     watermark: false,
     providerPriceEnv: "POLAR_PRODUCT_STUDIO",
-    stripePriceEnv: "STRIPE_PRICE_STUDIO",
   },
 };
 

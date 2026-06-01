@@ -1,69 +1,240 @@
 @import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap");
 
 @theme {
-	--color-bg: #07070b;
-	--color-bg-2: #0d0d14;
-	--color-surface: #15151f;
-	--color-border: #23232f;
-	--color-fg: #e8e8ee;
-	--color-fg-muted: #9999a8;
-	--color-accent: #d6ff3a;
-	--color-accent-2: #ff5a5a;
-	--color-success: #5be39a;
-	--color-danger: #ef4444;
+  /* Core palette */
+  --color-bg: #070709;
+  --color-bg-2: #0c0c11;
+  --color-surface: #12121a;
+  --color-surface-2: #1a1a25;
+  --color-border: #1e1e2c;
+  --color-border-2: #2a2a3a;
+
+  /* Foreground */
+  --color-fg: #eeeef2;
+  --color-fg-muted: #8888a0;
+  --color-fg-subtle: #55556a;
+
+  /* Brand */
+  --color-accent: #d4ff3a;
+  --color-accent-dim: #d4ff3a22;
+  --color-accent-2: #ff5f5f;
+  --color-success: #4ade80;
+  --color-danger: #f87171;
+  --color-info: #60a5fa;
+
+  /* Glow radii for elements */
+  --glow-accent: 0 0 40px #d4ff3a18;
+  --glow-accent-sm: 0 0 16px #d4ff3a14;
 }
 
 html,
 body {
-	background: var(--color-bg);
-	color: var(--color-fg);
-	font-family:
-		"Inter",
-		ui-sans-serif,
-		system-ui,
-		-apple-system,
-		"Segoe UI",
-		Roboto,
-		sans-serif;
-	margin: 0;
-	padding: 0;
-	min-height: 100vh;
-	font-feature-settings: "cv11", "ss03";
-	-webkit-font-smoothing: antialiased;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family:
+    "Inter",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  font-feature-settings: "cv11", "ss03", "cv01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
-	box-sizing: border-box;
+  box-sizing: border-box;
 }
 
 ::selection {
-	background: var(--color-accent);
-	color: #000;
+  background: var(--color-accent);
+  color: #000;
 }
 
-/* Custom scrollbar */
+/* ── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-	width: 10px;
-	height: 10px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-	background: var(--color-bg);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-	background: var(--color-border);
-	border-radius: 5px;
+  background: var(--color-border-2);
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-	background: var(--color-fg-muted);
+  background: var(--color-fg-subtle);
 }
 
+/* ── Animations ─────────────────────────────────────────────────────────── */
 @keyframes fadeIn {
-	from {
-		opacity: 0;
-		transform: translateY(4px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInFast {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% center;
+  }
+  to {
+    background-position: 200% center;
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orb-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(20px, -15px) scale(1.05);
+  }
+  66% {
+    transform: translate(-10px, 10px) scale(0.97);
+  }
+}
+
+/* ── Utility classes ────────────────────────────────────────────────────── */
+
+/* Subtle noise/grain texture overlay */
+.noise-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Glass morphism surface */
+.glass {
+  background: rgba(18, 18, 26, 0.72);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-fg) 30%, var(--color-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Accent glow on focus/active */
+.accent-glow:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--color-bg),
+    0 0 0 4px var(--color-accent);
+}
+
+/* Animate in utilities */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease both;
+}
+.animate-slide-up {
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-scale-in {
+  animation: scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s linear infinite;
+}
+
+/* Stagger delays */
+.delay-75 {
+  animation-delay: 75ms;
+}
+.delay-150 {
+  animation-delay: 150ms;
+}
+.delay-225 {
+  animation-delay: 225ms;
+}
+.delay-300 {
+  animation-delay: 300ms;
 }

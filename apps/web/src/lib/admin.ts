@@ -8,17 +8,16 @@
  */
 
 function adminList(): Set<string> {
-	const raw =
-		process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || "";
-	const set = new Set<string>();
-	for (const value of raw.split(/[,\s]+/)) {
-		const trimmed = value.trim().toLowerCase();
-		if (trimmed) set.add(trimmed);
-	}
-	return set;
+  const raw = process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || "";
+  const set = new Set<string>();
+  for (const value of raw.split(/[,\s]+/)) {
+    const trimmed = value.trim().toLowerCase();
+    if (trimmed) set.add(trimmed);
+  }
+  return set;
 }
 
 export function isAdminEmail(email: string | null | undefined): boolean {
-	if (!email) return false;
-	return adminList().has(email.toLowerCase());
+  if (!email) return false;
+  return adminList().has(email.toLowerCase());
 }

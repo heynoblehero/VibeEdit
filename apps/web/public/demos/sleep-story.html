@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#01020d}
+#root{width:1920px;height:1080px;position:relative;overflow:hidden}
+.bg{position:absolute;inset:0;background:radial-gradient(ellipse at 60% 40%,#0d1040 0%,#060318 50%,#01020d 100%)}
+.orb1{position:absolute;width:700px;height:700px;border-radius:50%;background:radial-gradient(circle,rgba(120,80,220,0.18) 0%,transparent 70%);top:-100px;right:200px;will-change:transform}
+.orb2{position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(40,80,180,0.14) 0%,transparent 70%);bottom:50px;left:300px;will-change:transform}
+.stars{position:absolute;inset:0}
+.star{position:absolute;border-radius:50%;background:#fff}
+.scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:100px}
+.title-small{font-family:'Cormorant Garamond',serif;font-size:40px;font-weight:300;color:rgba(180,160,255,0.6);letter-spacing:12px;text-transform:uppercase;opacity:0;margin-bottom:24px}
+.headline{font-family:'Cormorant Garamond',serif;font-size:130px;font-weight:300;color:#e8e0ff;line-height:1.05;text-shadow:0 0 60px rgba(120,80,220,0.3);opacity:0}
+.tagline{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:52px;font-weight:300;color:rgba(200,180,255,0.5);margin-top:32px;opacity:0;letter-spacing:2px}
+.grain{position:fixed;inset:0;pointer-events:none;z-index:11;background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/><feColorMatrix type=%22saturate%22 values=%220%22/></filter><rect width=%22200%22 height=%22200%22 filter=%22url(%23n)%22 opacity=%220.4%22/></svg>');opacity:0.03;mix-blend-mode:overlay}
+</style>
+</head>
+<body>
+<div id="root">
+  <div class="bg"></div>
+  <div class="orb1" id="orb1"></div>
+  <div class="orb2" id="orb2"></div>
+  <div class="stars" id="stars"></div>
+  <div class="scene">
+    <div class="title-small" id="ts">a sleep story</div>
+    <div class="headline" id="h1">Ancient Stars</div>
+    <div class="tagline" id="tag">"close your eyes and drift into the cosmos"</div>
+  </div>
+  <div class="grain"></div>
+</div>
+<script>
+// Deterministic stars using sin formula
+const starsEl = document.getElementById('stars');
+for (let i = 0; i < 80; i++) {
+  const s = document.createElement('div');
+  s.className = 'star';
+  const x = (Math.sin(i * 12.9898) * 43758.5453 % 1 + 1) % 1;
+  const y = (Math.sin(i * 78.233) * 43758.5453 % 1 + 1) % 1;
+  const size = 1 + ((Math.sin(i * 4.1) * 43758.5453 % 1 + 1) % 1) * 3;
+  s.style.cssText = `left:${x*100}%;top:${y*100}%;width:${size}px;height:${size}px;opacity:${0.3+((Math.sin(i*9.3)*43758.5453%1+1)%1)*0.5}`;
+  starsEl.appendChild(s);
+}
+
+const tl = gsap.timeline({onComplete: () => { setTimeout(() => tl.restart(), 800) }});
+
+tl
+  .to('#orb1', { x:30, y:-20, duration:9, ease:'sine.inOut', yoyo:true, repeat:1 }, 0)
+  .to('#orb2', { x:-25, y:15, duration:7, ease:'sine.inOut', yoyo:true, repeat:1 }, 0)
+  .to('#ts', { opacity:1, duration:2, ease:'power2.out' }, 0.5)
+  .to('#h1', { opacity:1, duration:2.5, ease:'power2.out' }, 1.2)
+  .to('#tag', { opacity:1, duration:2, ease:'power2.out' }, 2.8)
+  .to('#tag', { opacity:0, duration:1.5, ease:'power2.in' }, 7.5)
+  .to('#h1', { opacity:0, duration:1.5, ease:'power2.in' }, 7.8)
+  .to('#ts', { opacity:0, duration:1, ease:'power2.in' }, 8.2);
+</script>
+</body>
+</html>

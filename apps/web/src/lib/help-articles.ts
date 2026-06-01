@@ -1,17 +1,16 @@
 export type HelpArticle = {
-	slug: string;
-	title: string;
-	summary: string;
-	body: string;
+  slug: string;
+  title: string;
+  summary: string;
+  body: string;
 };
 
 export const HELP_ARTICLES: HelpArticle[] = [
-	{
-		slug: "how-prompts-work",
-		title: "How prompts work",
-		summary:
-			"The agent reads your prompt like a creative brief — niche, format, palette, beats.",
-		body: `## The agent thinks in compositions, not paragraphs.
+  {
+    slug: "how-prompts-work",
+    title: "How prompts work",
+    summary: "The agent reads your prompt like a creative brief — niche, format, palette, beats.",
+    body: `## The agent thinks in compositions, not paragraphs.
 
 When you type "make a 30s anime facts hook with pink and cyan", the agent:
 
@@ -36,12 +35,12 @@ When you type "make a 30s anime facts hook with pink and cyan", the agent:
 - Real-person impersonation by name.
 - Sexual content or material that violates platform rules.
 `,
-	},
-	{
-		slug: "install-render-worker",
-		title: "Install the render worker",
-		summary: "How to run renders on your own machine for speed + no queue waits.",
-		body: `## Why install a worker?
+  },
+  {
+    slug: "install-render-worker",
+    title: "Install the render worker",
+    summary: "How to run renders on your own machine for speed + no queue waits.",
+    body: `## Why install a worker?
 
 Free-tier renders run in our cloud, which is slow during peak hours and limited to 30s of total render time per month. Installing the local render worker means:
 
@@ -72,12 +71,12 @@ Once running, you'll see "Worker online" in the editor header. Renders will rout
 
 > **Note:** The worker binary is coming. The server-side protocol is in place; the installable binary is the final week-2 deliverable.
 `,
-	},
-	{
-		slug: "renders-are-slow",
-		title: "Why renders are slow",
-		summary: "Render time depends on duration, framerate, FX complexity, and queue.",
-		body: `### Typical render times
+  },
+  {
+    slug: "renders-are-slow",
+    title: "Why renders are slow",
+    summary: "Render time depends on duration, framerate, FX complexity, and queue.",
+    body: `### Typical render times
 
 | Composition | Cloud (free tier) | Local worker |
 |---|---|---|
@@ -98,12 +97,12 @@ Once running, you'll see "Worker online" in the editor header. Renders will rout
 - Install the local worker (above).
 - Avoid heavy 3D / WebGL effects (vfx-shatter, ridged-burn) in long compositions.
 `,
-	},
-	{
-		slug: "billing",
-		title: "Billing FAQ",
-		summary: "How plans work, what happens when you hit limits, how to cancel.",
-		body: `### Plans
+  },
+  {
+    slug: "billing",
+    title: "Billing FAQ",
+    summary: "How plans work, what happens when you hit limits, how to cancel.",
+    body: `### Plans
 
 - **Free** — 3 watermarked renders / month, cloud-only.
 - **Creator** ($19/mo) — 50 renders / month, 1080p, no watermark, local worker, all formats.
@@ -127,12 +126,12 @@ Go to [/app/billing](/app/billing) → "Manage subscription" to open the Stripe 
 
 See the [refund policy](/legal/refunds).
 `,
-	},
-	{
-		slug: "feature-requests",
-		title: "Request a feature",
-		summary: "Tell us what's missing. We read every request.",
-		body: `### How to submit
+  },
+  {
+    slug: "feature-requests",
+    title: "Request a feature",
+    summary: "Tell us what's missing. We read every request.",
+    body: `### How to submit
 
 Email **feedback@vibeedit.video** with:
 
@@ -153,13 +152,13 @@ Email **feedback@vibeedit.video** with:
 - Marketplace for templates — too much moderation overhead for an MVP.
 - API for third-party automation — once we have stable users; not before.
 `,
-	},
-	{
-		slug: "prompt-cookbook",
-		title: "Prompt cookbook for faceless YouTubers",
-		summary:
-			"Copy-paste prompts for the niches we see most: comic, history, finance, sleep, scary, tech.",
-		body: `These prompts are battle-tested against the agent. Tweak the bolded parts.
+  },
+  {
+    slug: "prompt-cookbook",
+    title: "Prompt cookbook for faceless YouTubers",
+    summary:
+      "Copy-paste prompts for the niches we see most: comic, history, finance, sleep, scary, tech.",
+    body: `These prompts are battle-tested against the agent. Tweak the bolded parts.
 
 ### Comic / superhero facts (Shorts)
 
@@ -204,13 +203,12 @@ Long-form briefs work best when you specify chapter count and let the agent spac
 - **Give the title text.** The agent will design around it.
 - **For long-form, ask for chapters.** "5 chapter title cards" lets the agent structure pacing properly.
 `,
-	},
-	{
-		slug: "worker-troubleshooting",
-		title: "Worker troubleshooting",
-		summary:
-			"The render worker won't start, won't connect, or jobs fail — fixes here.",
-		body: `### Symptom: worker won't start (Mac)
+  },
+  {
+    slug: "worker-troubleshooting",
+    title: "Worker troubleshooting",
+    summary: "The render worker won't start, won't connect, or jobs fail — fixes here.",
+    body: `### Symptom: worker won't start (Mac)
 
 \`\`\`
 "vibeedit-worker" can't be opened because Apple cannot check it for malicious software.
@@ -268,13 +266,13 @@ The \`--once\` flag claims one job, runs it, and exits with a verbose log.
 
 Email **support@vibeedit.video** with the worker log and your worker ID (printed on startup).
 `,
-	},
-	{
-		slug: "export-your-data",
-		title: "Export your data",
-		summary:
-			"Download everything you've made — projects, chat history, render metadata — in one zip.",
-		body: `### Where
+  },
+  {
+    slug: "export-your-data",
+    title: "Export your data",
+    summary:
+      "Download everything you've made — projects, chat history, render metadata — in one zip.",
+    body: `### Where
 
 Go to **/app/settings/account** → "Export my data". Click the button. We queue a job and email you a download link within ~5 minutes. The link is valid for 48 hours.
 
@@ -295,13 +293,12 @@ Go to **/app/settings/account** → "Export my data". Click the button. We queue
 
 The export is on-demand only right now. If you need scheduled exports, email **support@vibeedit.video** — we'll help.
 `,
-	},
-	{
-		slug: "delete-my-account",
-		title: "Delete my account",
-		summary:
-			"How to permanently delete your account and what gets removed.",
-		body: `### Where
+  },
+  {
+    slug: "delete-my-account",
+    title: "Delete my account",
+    summary: "How to permanently delete your account and what gets removed.",
+    body: `### Where
 
 **/app/settings/account** → "Delete account" at the bottom. You'll be asked to type your email to confirm. There is no undo.
 
@@ -329,13 +326,12 @@ Cancel your Stripe subscription **before** deleting. We can't refund a charge to
 
 If you'd rather just take a break, you can sign out and leave the account dormant — we won't auto-delete you.
 `,
-	},
-	{
-		slug: "refund-policy",
-		title: "Refund policy",
-		summary:
-			"14-day money-back on the first paid charge. After that, case-by-case.",
-		body: `### The 14-day window
+  },
+  {
+    slug: "refund-policy",
+    title: "Refund policy",
+    summary: "14-day money-back on the first paid charge. After that, case-by-case.",
+    body: `### The 14-day window
 
 Your first paid charge (after the $1 trial converts) is refundable in full for **14 days**, no questions asked. Email **support@vibeedit.video** with your order id from the Stripe receipt.
 
@@ -362,13 +358,12 @@ We don't offer annual billing yet. When we do, refunds will be **pro-rated** for
 2. Include the Stripe **order id** (starts with \`ch_\` or \`pi_\`) and a one-line reason.
 3. We reply within 2 business days. Approved refunds hit your card in 5–10 days depending on your bank.
 `,
-	},
-	{
-		slug: "common-render-failures",
-		title: "Common render failures",
-		summary:
-			"The five render errors we see most, and the one-line fix for each.",
-		body: `### 1. Composition references a missing asset
+  },
+  {
+    slug: "common-render-failures",
+    title: "Common render failures",
+    summary: "The five render errors we see most, and the one-line fix for each.",
+    body: `### 1. Composition references a missing asset
 
 **Signal**: render fails fast with \`asset not found: /uploads/xxx.png\`.
 
@@ -402,12 +397,12 @@ We don't offer annual billing yet. When we do, refunds will be **pro-rated** for
 
 Email **support@vibeedit.video** with the job id from /app/renders.
 `,
-	},
-	{
-		slug: "runbook",
-		title: "Founder runbook",
-		summary: "Internal: every breakable thing + the fix. Pin this on launch day.",
-		body: `### Anthropic API outage
+  },
+  {
+    slug: "runbook",
+    title: "Founder runbook",
+    summary: "Internal: every breakable thing + the fix. Pin this on launch day.",
+    body: `### Anthropic API outage
 
 **Signal**: chat returns errors like "rate_limit_error" or 5xx from anthropic.com.
 
@@ -444,9 +439,9 @@ Email **support@vibeedit.video** with the job id from /app/renders.
 - 14:00–16:00 — bug triage + Loom replies
 - 16:00–20:00 — second wave + onboarding interviews
 `,
-	},
+  },
 ];
 
 export function getHelpArticle(slug: string): HelpArticle | null {
-	return HELP_ARTICLES.find((a) => a.slug === slug) || null;
+  return HELP_ARTICLES.find((a) => a.slug === slug) || null;
 }

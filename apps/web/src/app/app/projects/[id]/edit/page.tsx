@@ -26,6 +26,7 @@ export default function EditorPage({ params }: PageProps) {
   const [showHelp, setShowHelp] = useState(false);
   const [showTour, setShowTour] = useState(false);
   const [rightTab, setRightTab] = useState<"files" | "history" | "code">("files");
+  const [devMode, setDevMode] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
   const [showSaveSnippet, setShowSaveSnippet] = useState(false);
   const [savedPulse, setSavedPulse] = useState(false);
@@ -123,6 +124,18 @@ export default function EditorPage({ params }: PageProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Load/save dev mode from localStorage so the preference survives refreshes.
+  useEffect(() => {
+    setDevMode(localStorage.getItem("vibeedit:devmode") === "1");
+  }, []);
+
+  function toggleDevMode() {
+    const next = !devMode;
+    setDevMode(next);
+    localStorage.setItem("vibeedit:devmode", next ? "1" : "0");
+    if (!next && rightTab === "code") setRightTab("files");
+  }
+
   if (isPending || !session) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[var(--color-bg)]">
@@ -165,6 +178,33 @@ export default function EditorPage({ params }: PageProps) {
 
         {/* Right: actions */}
         <div className="flex shrink-0 items-center gap-1.5">
+          {/* Dev mode toggle */}
+          <button
+            onClick={toggleDevMode}
+            title={devMode ? "Disable developer mode" : "Enable developer mode (shows code editor)"}
+            className={`hidden items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors sm:inline-flex ${
+              devMode
+                ? "border-[var(--color-accent)]/40 bg-[var(--color-accent)]/8 text-[var(--color-accent)]"
+                : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-fg-subtle)] hover:text-[var(--color-fg-muted)]"
+            }`}
+          >
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
+            </svg>
+            Dev
+          </button>
+
           {/* Save snippet */}
           <button
             onClick={() => setShowSaveSnippet(true)}
@@ -269,30 +309,32 @@ export default function EditorPage({ params }: PageProps) {
             </svg>
             History
           </button>
-          <button
-            onClick={() => setRightTab("code")}
-            className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
-              rightTab === "code"
-                ? "border-b-2 border-[var(--color-accent)] text-[var(--color-fg)]"
-                : "border-b-2 border-transparent text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
-            }`}
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+          {devMode && (
+            <button
+              onClick={() => setRightTab("code")}
+              className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
+                rightTab === "code"
+                  ? "border-b-2 border-[var(--color-accent)] text-[var(--color-fg)]"
+                  : "border-b-2 border-transparent text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+              }`}
             >
-              <polyline points="16 18 22 12 16 6" />
-              <polyline points="8 6 2 12 8 18" />
-            </svg>
-            Code
-          </button>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>
+              Code
+            </button>
+          )}
         </div>
 
         {/* Panel content */}

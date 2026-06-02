@@ -4,7 +4,16 @@ import { db } from "@/lib/db";
 import { projects, renderJobs } from "@/lib/db/schema";
 import { requireServerSession } from "@/lib/server-session";
 import { enqueue } from "@/lib/render/queue";
-import { canRender, canRenderMinutes, canUseCloudRender, recordUsage } from "@/lib/billing/usage";
+import {
+  canRender,
+  canRenderMinutes,
+  canUseCloudRender,
+  capQualityForPlan,
+  getRenderCredits,
+  spendRenderCredit,
+  recordUsage,
+  getUserPlan,
+} from "@/lib/billing/usage";
 
 export async function POST(req: Request) {
   const session = await requireServerSession().catch((r) => r);
@@ -39,10 +48,16 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error: "render_limit_reached",
-        message: `Render limit reached for your plan (${gate.used}/${gate.limit}). Upgrade at /app/billing.`,
+        message: `Render limit reached for your plan (${gate.used}/${gate.limit}). Buy render credits or upgrade at /app/billing.`,
+        credits: getRenderCredits(userId),
       },
       { status: 402 },
     );
+  }
+  // If user is over their plan limit but has credits, spend one now.
+  const plan = getUserPlan(userId);
+  if (plan.renderLimit !== -1 && gate.used >= plan.renderLimit && gate.hasCredits) {
+    spendRenderCredit(userId);
   }
   const minuteGate = canRenderMinutes(userId);
   if (!minuteGate.ok) {
@@ -68,11 +83,14 @@ export async function POST(req: Request) {
       { status: 402 },
     );
   }
+  // Cap quality to what the user's plan supports. Free → draft (480p), creator → standard (1080p), studio → high (4k).
+  const requestedQuality = (body.quality || "standard") as "draft" | "standard" | "high";
+  const effectiveQuality = capQualityForPlan(userId, requestedQuality);
   const id = await enqueue({
     userId,
     projectId: body.projectId,
     fps: body.fps,
-    quality: body.quality,
+    quality: effectiveQuality,
   });
   recordUsage(userId, "render", 1, { jobId: id });
   return NextResponse.json({ id });

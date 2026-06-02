@@ -10,7 +10,7 @@ export type Plan = {
   // Render minutes/month. Tracks wall-clock render time, not just count.
   // Closer to actual infrastructure cost than render count alone.
   renderMinuteLimit: number; // -1 = unlimited
-  resolution: "720p" | "1080p" | "4k";
+  resolution: "480p" | "720p" | "1080p" | "4k";
   watermark: boolean;
   // Env var name holding the provider's product/price id. Renamed from
   // stripePriceEnv now that we use Polar.sh — checkout reads
@@ -28,10 +28,12 @@ export const PLANS: Record<PlanId, Plan> = {
     name: "Free",
     priceMonthly: 0,
     priceLabel: "$0",
-    renderLimit: 5, // 5 MP4s / month — enough to evaluate
-    chatTurnLimit: 50, // 50 chat turns / month
-    renderMinuteLimit: 30, // 30 render-minutes / month (≈ 5 × 6-min videos)
-    resolution: "720p",
+    // 10 renders/month at 480p — enough to make a real first video before the paywall.
+    // Chat is unlimited so users can iterate freely; the paywall is at HD export quality.
+    renderLimit: 10,
+    chatTurnLimit: -1,
+    renderMinuteLimit: 30, // 30 render-minutes / month (≈ 10 × 3-min drafts)
+    resolution: "480p",
     watermark: true,
     providerPriceEnv: null,
   },

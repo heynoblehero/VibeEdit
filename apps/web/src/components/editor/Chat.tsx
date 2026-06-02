@@ -372,7 +372,9 @@ export function Chat({ projectId }: { projectId: string }) {
   loadHistoryRef.current = loadHistory;
 
   async function dropFiles(fileList: FileList | File[]) {
-    const files = Array.from(fileList).filter((file) => file.type.startsWith("image/"));
+    const files = Array.from(fileList).filter(
+      (file) => file.type.startsWith("image/") || file.type.startsWith("video/"),
+    );
     if (!files.length) return;
     setUploading(true);
     try {
@@ -398,13 +400,28 @@ export function Chat({ projectId }: { projectId: string }) {
     const userMessageRaw = (text ?? input).trim();
     const hasAttachments = attachedAssets.length > 0;
     if ((!userMessageRaw && !hasAttachments) || busy) return;
-    const attachmentNote = hasAttachments
-      ? `Reference image${attachedAssets.length > 1 ? "s" : ""} attached at: ${attachedAssets
-          .map((path) => `\`${path}\``)
-          .join(
-            ", ",
-          )}. Use ${attachedAssets.length > 1 ? "them" : "it"} as visual reference (palette / composition / vibe).`
-      : "";
+    const imageAssets = attachedAssets.filter((p) => /\.(jpe?g|png|gif|webp|svg)$/i.test(p));
+    const videoAssets = attachedAssets.filter((p) => /\.(mp4|mov|webm|avi|mkv)$/i.test(p));
+    const otherAssets = attachedAssets.filter(
+      (p) => !imageAssets.includes(p) && !videoAssets.includes(p),
+    );
+    const parts: string[] = [];
+    if (imageAssets.length) {
+      parts.push(
+        `Reference image${imageAssets.length > 1 ? "s" : ""} attached at: ${imageAssets.map((p) => `\`${p}\``).join(", ")}. Use ${imageAssets.length > 1 ? "them" : "it"} as visual reference (palette / composition / vibe).`,
+      );
+    }
+    if (videoAssets.length) {
+      parts.push(
+        `Video file${videoAssets.length > 1 ? "s" : ""} uploaded at: ${videoAssets.map((p) => `\`${p}\``).join(", ")}. Run probe_clip + analyze_clip on ${videoAssets.length > 1 ? "each" : "it"} before editing.`,
+      );
+    }
+    if (otherAssets.length) {
+      parts.push(
+        `File${otherAssets.length > 1 ? "s" : ""} uploaded at: ${otherAssets.map((p) => `\`${p}\``).join(", ")}.`,
+      );
+    }
+    const attachmentNote = hasAttachments ? parts.join(" ") : "";
     const userMessage = hasAttachments
       ? `${userMessageRaw}${userMessageRaw ? "\n\n" : ""}${attachmentNote}`
       : userMessageRaw;
@@ -558,7 +575,7 @@ export function Chat({ projectId }: { projectId: string }) {
     >
       {dragging && (
         <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center rounded border-2 border-dashed border-[var(--color-accent)] bg-[var(--color-bg)]/85 text-sm font-semibold text-[var(--color-accent)]">
-          Drop image to attach as reference
+          Drop image or video to attach
         </div>
       )}
       <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2.5">
@@ -765,7 +782,7 @@ export function Chat({ projectId }: { projectId: string }) {
           </button>
         )}
         <p className="mt-2 text-center text-[9px] text-[var(--color-fg-subtle)]">
-          ↵ send · ⇧↵ newline · drag image to attach · / for commands
+          ↵ send · ⇧↵ newline · drag image/video to attach · / for commands
         </p>
       </div>
     </div>

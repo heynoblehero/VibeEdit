@@ -239,6 +239,8 @@ export const subscriptions = sqliteTable("subscriptions", {
   trialEndsAt: integer("trialEndsAt", { mode: "timestamp" }),
   currentPeriodEnd: integer("currentPeriodEnd", { mode: "timestamp" }),
   cancelAtPeriodEnd: integer("cancelAtPeriodEnd", { mode: "boolean" }).notNull().default(false),
+  // Pay-per-render credits — each credit unlocks one 1080p render outside the plan limit.
+  renderCredits: integer("renderCredits").notNull().default(0),
   createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
 });
@@ -463,3 +465,57 @@ export type PublishConnection = typeof publishConnections.$inferSelect;
 export type Workspace = typeof workspaces.$inferSelect;
 export type WorkspaceMember = typeof workspaceMembers.$inferSelect;
 export type ScheduledPublish = typeof scheduledPublishes.$inferSelect;
+
+// Timestamped review comments left by workspace collaborators on rendered videos.
+// Stored per render job so any team member can annotate "at 0:14 change the CTA".
+export const renderReviews = sqliteTable(
+  "renderReviews",
+  {
+    id: text("id").primaryKey(),
+    renderJobId: text("renderJobId")
+      .notNull()
+      .references(() => renderJobs.id, { onDelete: "cascade" }),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // Position in the video where the comment applies.
+    timestampSeconds: real("timestampSeconds").notNull(),
+    text: text("text").notNull(),
+    resolved: integer("resolved", { mode: "boolean" }).notNull().default(false),
+    createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    renderJobIdx: index("renderReviews_render_job_idx").on(table.renderJobId),
+  }),
+);
+
+// Analytics pulled periodically from YouTube/TikTok after publishing.
+// Used by the agent's creator-insights feedback loop.
+export const videoAnalytics = sqliteTable(
+  "videoAnalytics",
+  {
+    id: text("id").primaryKey(),
+    renderJobId: text("renderJobId")
+      .notNull()
+      .references(() => renderJobs.id, { onDelete: "cascade" }),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    platform: text("platform").notNull(), // "youtube" | "tiktok"
+    views: integer("views").notNull().default(0),
+    likes: integer("likes").notNull().default(0),
+    comments: integer("comments").notNull().default(0),
+    watchTimeSeconds: integer("watchTimeSeconds").notNull().default(0),
+    // Click-through rate 0–1
+    ctr: real("ctr"),
+    avgViewDurationSeconds: real("avgViewDurationSeconds"),
+    fetchedAt: integer("fetchedAt", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    userPlatformIdx: index("videoAnalytics_user_platform_idx").on(table.userId, table.platform),
+    renderJobIdx: index("videoAnalytics_render_job_idx").on(table.renderJobId),
+  }),
+);
+
+export type RenderReview = typeof renderReviews.$inferSelect;
+export type VideoAnalytics = typeof videoAnalytics.$inferSelect;

@@ -1,8 +1,15 @@
 import "dotenv/config";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
 import { createHash } from "node:crypto";
-import { db } from "./index";
+import { mkdirSync } from "node:fs";
+import Database from "better-sqlite3";
+
+const DB_PATH = process.env.DATABASE_PATH || resolve(process.cwd(), "storage", "app.db");
+mkdirSync(dirname(DB_PATH), { recursive: true });
+const db = new Database(DB_PATH);
+db.pragma("journal_mode = WAL");
+db.pragma("foreign_keys = ON");
 
 // Custom idempotent migrator — Drizzle's built-in runner halts on any SQL
 // error, which breaks redeploys when ALTER TABLE columns already exist.

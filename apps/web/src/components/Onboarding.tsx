@@ -3,28 +3,26 @@
 import { useState } from "react";
 
 type Niche =
-  | "comic"
-  | "anime"
-  | "scifi"
-  | "history"
-  | "finance"
-  | "sleep"
-  | "scary"
-  | "tech"
+  | "youtube"
+  | "shorts"
+  | "wedding"
+  | "corporate"
+  | "education"
+  | "documentary"
+  | "content"
   | "other";
 type FormatPref = "16:9" | "9:16" | "both";
 type Frequency = "daily" | "weekly" | "occasional" | "experimenting";
 type ToneVoice = "energetic" | "calm" | "authoritative" | "friendly";
 
 const NICHE_OPTIONS: Array<{ id: Niche; label: string; emoji: string }> = [
-  { id: "comic", label: "Comic / superhero", emoji: "💥" },
-  { id: "anime", label: "Anime / manga", emoji: "🌸" },
-  { id: "scifi", label: "Sci-fi / mystery", emoji: "🛸" },
-  { id: "history", label: "History", emoji: "📜" },
-  { id: "finance", label: "Finance / money", emoji: "💸" },
-  { id: "sleep", label: "Sleep stories", emoji: "🌙" },
-  { id: "scary", label: "Scary stories", emoji: "👁" },
-  { id: "tech", label: "Tech / coding", emoji: "⌨️" },
+  { id: "youtube", label: "YouTube", emoji: "▶" },
+  { id: "shorts", label: "Shorts / Reels / TikTok", emoji: "📱" },
+  { id: "wedding", label: "Weddings & Events", emoji: "🎥" },
+  { id: "corporate", label: "Corporate & Brand", emoji: "🏢" },
+  { id: "education", label: "Tutorial & Education", emoji: "📚" },
+  { id: "documentary", label: "Documentary & Film", emoji: "🎬" },
+  { id: "content", label: "Content Creator", emoji: "✨" },
   { id: "other", label: "Something else", emoji: "✦" },
 ];
 
@@ -150,15 +148,13 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
             <div className="mb-2 text-xs uppercase tracking-wider text-[var(--color-fg-muted)]">
               Step 1 of 2 — Quick setup
             </div>
-            <h2 className="mb-1 text-2xl font-bold">
-              So we can make better starting prompts for you.
-            </h2>
+            <h2 className="mb-1 text-2xl font-bold">Tell us what you edit.</h2>
             <p className="mb-8 text-sm text-[var(--color-fg-muted)]">
-              30 seconds. Skip if you'd rather not.
+              30 seconds. Helps the agent match your workflow from the first message.
             </p>
 
             <section className="mb-6">
-              <h3 className="mb-3 text-sm font-semibold">What do you make?</h3>
+              <h3 className="mb-3 text-sm font-semibold">What do you mostly edit?</h3>
               <div className="grid grid-cols-3 gap-2">
                 {NICHE_OPTIONS.map((option) => (
                   <button

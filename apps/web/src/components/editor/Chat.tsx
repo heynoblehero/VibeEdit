@@ -85,60 +85,60 @@ const SAMPLE_PROMPTS: Array<{
   prompt: string;
 }> = [
   {
-    tag: "Comic-style hook",
+    tag: "Remove filler words",
     ratio: "16:9",
-    niche: "comic",
+    niche: "youtube",
     prompt:
-      "Make a 30-second 1920x1080 comic-book facts hook. Red + yellow palette, bold Anton type, a glass-crack hit at the 0s smash, halftone backdrop, and a corner-stamp number. End on a 'watch part 2' CTA. Generic comic energy — no real publishers or characters.",
+      "I just uploaded an interview clip. Transcribe it, find all the 'um', 'uh', and long pauses over 0.4s, cut them out cleanly on word boundaries, burn sync'd captions (2 words, uppercase, white pill), warm grade, −14 LUFS output.",
   },
   {
-    tag: "Anime-style Short",
+    tag: "Highlight reel",
     ratio: "9:16",
-    niche: "anime",
+    niche: "shorts",
     prompt:
-      "Make a 30-second 1080x1920 anime facts Short. Pink + cyan chromatic palette, speed-line backdrop, tilted kicker text, big chromatic-split title, scale-pulse on the title. Generic anime energy — no real series or characters.",
+      "Turn the uploaded footage into a punchy 45-second highlight reel for Instagram Reels. Bold uppercase captions, tight cuts, no dead air, sync to the beat of the uploaded music track.",
   },
   {
-    tag: "60s history Short",
+    tag: "Auto captions",
     ratio: "9:16",
-    niche: "history",
+    niche: "shorts",
     prompt:
-      "Make a 60-second 1080x1920 vertical history Short about the ancient pyramids. Sepia palette, serif title type, slow ken-burns backgrounds, no flashes. End with a question that hooks the next video.",
+      "Transcribe the uploaded video and burn sync'd captions — 2 words at a time, all caps, white text with a semi-transparent black pill background. Export as 9:16 for TikTok.",
   },
   {
-    tag: "Finance long-form intro",
+    tag: "YouTube intro",
     ratio: "16:9",
-    niche: "finance",
+    niche: "youtube",
     prompt:
-      "Make a 20-second 1920x1080 intro for a finance long-form video. Black + neon-green palette, big animated counters, a sharp line chart drawing in, scanline overlay.",
+      "Make a 10-second 1920x1080 YouTube channel intro. Dark background, channel name 'NOVA' slams in with a light-speed trail effect, logo smash on beat. Cinematic and bold.",
   },
   {
-    tag: "Scary story Short",
-    ratio: "9:16",
-    niche: "scary",
-    prompt:
-      "Make a 45-second 1080x1920 scary story Short. Deep blue/purple gradient, slow fades only, candle-flicker grain. Soft serif title 'THE BASEMENT TAPE' that pulses.",
-  },
-  {
-    tag: "Tech tutorial intro",
+    tag: "Wedding highlight",
     ratio: "16:9",
-    niche: "tech",
+    niche: "wedding",
     prompt:
-      "Make a 15-second 1920x1080 tutorial intro for a coding channel. Dark gray + cyan accent, monospace type, three rotating code snippets, end on the channel name 'devloop'.",
+      "Edit the uploaded wedding footage into a 2-minute highlight reel. Warm cinematic grade, slow crossfades, mix in the uploaded music track, add title cards for each key moment — ceremony, first dance, speeches.",
   },
   {
-    tag: "Sleep-story long-form",
+    tag: "Tutorial cleanup",
     ratio: "16:9",
-    niche: "sleep",
+    niche: "education",
     prompt:
-      "Make a 30-second 1920x1080 calm sleep-story intro. Indigo gradient, very slow ken-burns, soft serif type, no FX. Title: 'Ancient Stars'. Should feel peaceful.",
+      "Clean up this screen-recording tutorial: cut the dead air and filler words, normalize audio to −14 LUFS, add an animated lower-third with my name and the topic, export 1080p.",
   },
   {
-    tag: "Sci-fi declassified Short",
+    tag: "Speed ramp",
     ratio: "9:16",
-    niche: "scifi",
+    niche: "content",
     prompt:
-      "Make a 30-second 1080x1920 sci-fi 'declassified file' Short. Cyan-on-black, grid + scanlines, JetBrains Mono for tags, glowing case-file number that pulses. Ominous.",
+      "Take the uploaded clip and ramp speed to 3× during the slow parts, snapping back to 1× at the action moments. Drop a dramatic music hit at the slowest frame. Export 9:16.",
+  },
+  {
+    tag: "Lower-third titles",
+    ratio: "16:9",
+    niche: "corporate",
+    prompt:
+      "Add animated lower-third name titles to each speaker segment in this interview. 'Jane Smith · CEO' fades in at the bottom-left — clean white text on a dark translucent bar. Corporate style.",
   },
 ];
 
@@ -904,17 +904,16 @@ function orderForPrefs(
 
 function humanNiche(niche: string): string {
   const map: Record<string, string> = {
-    comic: "comic / superhero",
-    anime: "anime / manga",
-    scifi: "sci-fi / mystery",
-    history: "history",
-    finance: "finance",
-    sleep: "sleep stories",
-    scary: "scary stories",
-    tech: "tech / coding",
-    other: "your channel",
+    youtube: "YouTube",
+    shorts: "Shorts / Reels",
+    wedding: "weddings & events",
+    corporate: "corporate & brand",
+    education: "tutorials",
+    documentary: "documentary & film",
+    content: "content creation",
+    other: "your workflow",
   };
-  return map[niche] || "your channel";
+  return map[niche] || "your workflow";
 }
 
 function LiveLine({ entry, projectId }: { entry: LiveEntry; projectId?: string }) {

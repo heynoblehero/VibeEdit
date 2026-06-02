@@ -201,18 +201,18 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── NICHE PICKER ──────────────────────────────────────────────────── */}
+      {/* ── WORKFLOW PICKER ───────────────────────────────────────────────── */}
       <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
         <div className="mb-14 text-center">
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-accent)]">
-            Built for your content
+            Built for every editor
           </p>
           <h2 className="text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight">
-            Knows your niche.
+            Knows your workflow.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-[var(--color-fg-muted)]">
-            The agent understands style conventions across content types — tap one to see what it
-            produces by default.
+            YouTube, weddings, corporate, documentaries, social shorts — the agent adapts its style,
+            pacing, and output format to match what you actually make.
           </p>
         </div>
         <NichePicker />
@@ -274,11 +274,11 @@ export default function Home() {
               price="$0"
               sub="Forever free"
               features={[
-                "5 renders / month",
-                "50 AI messages / month",
-                "Cloud render · 720p",
-                "All niche style packs",
+                "10 renders / month",
+                "Unlimited AI chat",
+                "480p export · watermark",
                 "Footage editing (trim, grade, captions)",
+                "Motion graphics from scratch",
               ]}
               cta={{ label: "Sign up free", href: "/app/signup" }}
             />
@@ -381,8 +381,8 @@ export default function Home() {
             a="Yes. Drop images, video, and audio into the project. Brand kits (Studio plan) apply your logo, colors, and host identity across every new project."
           />
           <Faq
-            q="Will TTS / voiceover be added?"
-            a="Yes — v1.1, ~4–6 weeks after launch. For now upload your own voiceover and the agent times scenes to it."
+            q="Can it add captions automatically?"
+            a="Yes. Drop any footage into the project, say 'add captions', and the agent transcribes via Whisper, generates word-level offsets, styles them (2-word chunks, bold white pill), and burns them permanently into the export. Bring your own OpenAI key for transcription."
           />
         </div>
       </section>

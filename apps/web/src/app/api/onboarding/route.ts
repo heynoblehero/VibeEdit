@@ -8,60 +8,55 @@ import { requireServerSession } from "@/lib/server-session";
 import { sendEmail } from "@/lib/email/send";
 import { welcomeEmail } from "@/lib/email/templates";
 
-// Niche → starter prompt seeded into the first project. Picked to match the
-// editor's sample-prompt cards so the experience is consistent.
+// Niche → starter prompt seeded into the first project.
+// All prompts reference an uploaded clip so new users immediately see the
+// footage-editing path, which is the primary use case.
 const STARTER_PROMPTS: Record<string, { name: string; prompt: string }> = {
-  comic: {
-    name: "My first comic hook",
+  youtube: {
+    name: "My first YouTube edit",
     prompt:
-      "Make a 30-second 1080x1920 comic-book facts hook. Red + yellow palette, halftone backdrop, big chromatic title, one glass-crack on the title beat. Generic comic energy — no real publishers or characters.",
+      "I've uploaded a video clip. Probe it, transcribe the speech, cut the filler words and long pauses, add sync'd captions (2 words, uppercase, white pill), apply auto color grade, normalize to −14 LUFS, and export 1080p. If no clip is uploaded yet, build me a 15-second cinematic YouTube channel intro instead.",
   },
-  anime: {
-    name: "My first anime Short",
+  shorts: {
+    name: "My first Short",
     prompt:
-      "30-second 1080x1920 anime facts Short. Pink + cyan chromatic palette, speed-line backdrop, tilted kicker text, big chromatic-split title, scale-pulse on the title.",
+      "Take the uploaded clip and turn it into a punchy 9:16 Short under 60 seconds. Tight cuts, bold uppercase captions, no dead air. If no clip is uploaded, make a 30-second 1080x1920 hook Short with fast cuts and bold typography.",
   },
-  scifi: {
-    name: "My first sci-fi declassified",
+  wedding: {
+    name: "My first wedding highlight",
     prompt:
-      "30-second 1080x1920 sci-fi 'declassified file' Short. Cyan-on-black, grid + scanlines, mono tags, glowing case-file number that pulses. Ominous tone.",
+      "Edit the uploaded wedding footage into a 90-second highlight reel. Warm cinematic grade, slow crossfades, mix in the uploaded music, add title cards for ceremony / first dance / speeches. If no footage uploaded, describe the edit plan instead.",
   },
-  history: {
-    name: "My first history Short",
+  corporate: {
+    name: "My first corporate edit",
     prompt:
-      "60-second 1080x1920 history Short about the ancient pyramids. Sepia palette, serif title type, slow ken-burns backgrounds, no flashes. End with a question that hooks the next video.",
+      "Clean up the uploaded interview or presentation recording: cut dead air, normalize audio to −14 LUFS, add animated lower-third name titles for each speaker. If no clip is uploaded yet, build me a 10-second 1920x1080 branded intro instead.",
   },
-  finance: {
-    name: "My first finance hook",
+  education: {
+    name: "My first tutorial edit",
     prompt:
-      "20-second 1920x1080 intro for a finance long-form video. Black + neon-green palette, big animated counters, a sharp line chart drawing in, scanline overlay.",
+      "Clean up the uploaded screen-recording tutorial: cut dead air and filler words, normalize audio, add a lower-third with the topic title, export 1080p. If no clip is uploaded, make a 15-second tutorial intro with monospace type and a clean dark theme.",
   },
-  sleep: {
-    name: "My first sleep-story intro",
+  documentary: {
+    name: "My first documentary cut",
     prompt:
-      "30-second 1920x1080 calm sleep-story intro. Indigo gradient, very slow ken-burns, soft serif type, no FX. Title: 'Ancient Stars'.",
+      "Grade the uploaded footage with a cinematic look, add lower-third location or speaker titles, normalize audio, and export. If no footage is uploaded, plan the edit and ask me to drop my clips.",
   },
-  scary: {
-    name: "My first scary story Short",
+  content: {
+    name: "My first content edit",
     prompt:
-      "45-second 1080x1920 scary story Short. Deep blue/purple gradient, slow fades only, candle-flicker grain. Soft serif title 'THE BASEMENT TAPE' that pulses.",
-  },
-  tech: {
-    name: "My first tech tutorial intro",
-    prompt:
-      "15-second 1920x1080 tutorial intro for a coding channel. Dark gray + cyan accent, monospace type, three rotating code snippets, end on the channel name 'devloop'.",
+      "Turn the uploaded footage into a highlight reel optimized for social. Tight cuts, captions, background music mix, export 9:16 for Reels/TikTok. If no clip is uploaded yet, make a 30-second 9:16 hook for a content creator channel.",
   },
 };
 
 const NICHES = [
-  "comic",
-  "anime",
-  "scifi",
-  "history",
-  "finance",
-  "sleep",
-  "scary",
-  "tech",
+  "youtube",
+  "shorts",
+  "wedding",
+  "corporate",
+  "education",
+  "documentary",
+  "content",
   "other",
 ] as const;
 const FORMATS = ["16:9", "9:16", "both"] as const;

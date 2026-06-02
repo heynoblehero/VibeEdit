@@ -150,53 +150,78 @@ const TYPOGRAPHY_PRESETS: Array<{
   },
 ];
 
-// Niche style profiles — applied based on prompt keywords.
+// Style profiles — applied based on prompt/niche keywords.
+// Covers both composition creation styles and footage-editing aesthetic cues.
 const NICHE_PROFILES: Array<{
   keywords: string[];
   name: string;
   style: string;
 }> = [
   {
-    keywords: ["comic", "superhero", "hero", "villain", "origin", "issue"],
-    name: "Comic-book facts",
+    keywords: ["youtube", "long-form", "longform", "vlog", "explainer"],
+    name: "YouTube long-form",
     style:
-      "Red + yellow palette, comic-book typography (Anton, Bangers, Bebas Neue), bold halftone/grid backgrounds, chromatic-split FX on big titles, glass-crack hits on twist beats. Generic comic energy — never reference real publishers, studios, or copyrighted characters by name.",
+      "Clean, readable typography (Inter Black or Montserrat Bold). Pacing: longer scene holds (5–10s). Strong hook in first 3s. End screen CTA. Color grade: warm or cool-cinematic depending on niche. Loudness: −14 LUFS. Captions optional but recommended.",
   },
   {
-    keywords: ["anime", "manga", "shonen", "shounen", "weeb"],
-    name: "Anime / manga facts",
+    keywords: ["shorts", "reels", "tiktok", "vertical", "9:16", "social"],
+    name: "Shorts / Reels / TikTok",
     style:
-      "Pink + cyan chromatic palette, speed lines, Oswald/Bangers headers, exclamation-mark energy, scale-pulse on titles. Generic anime aesthetic — never name real series, studios, or characters.",
+      "Fast cuts (2–4s per scene). Bold uppercase captions every 2 words. Strong first-frame hook. Safe zones: text between 18% and 75% from top. Punchy music. −14 LUFS. Export 1080×1920.",
   },
   {
-    keywords: ["scifi", "sci-fi", "alien", "ufo", "mystery", "conspiracy"],
-    name: "Sci-fi / mystery",
+    keywords: ["wedding", "ceremony", "bride", "groom", "event", "highlight reel"],
+    name: "Wedding & Events",
     style:
-      "Cyan-on-black 'declassified file' aesthetic with grid + scanlines, JetBrains Mono for tags, glowing case-file numbers. Reserved, ominous tone.",
+      "Warm cinematic grade (sepia or warm_golden). Slow dissolves and crossfades — NO hard cuts or flashes. Elegant serif typography (Playfair Display or Libre Baskerville). Soft ambient or orchestral music bed at low volume. Lower-thirds for names/moments. Grain overlay for film feel.",
   },
   {
-    keywords: ["history", "ancient", "historic", "mystery", "civilization"],
-    name: "History / Mystery",
+    keywords: ["corporate", "brand", "company", "business", "product", "b2b", "explainer video"],
+    name: "Corporate & Brand",
     style:
-      "Sepia + deep gold palette, serif display fonts (Libre Baskerville), parchment textures, slow ken-burns on still images, soft grain overlay, quiet whip-pans (no flashes).",
+      "Clean, professional. Sans-serif (Montserrat or Inter). Brand color from kit if available. Subtle transitions — no flashes. Animated lower-thirds for speakers. −14 LUFS normalized audio. 16:9 1080p standard.",
   },
   {
-    keywords: ["finance", "money", "stock", "invest", "rich", "wealth"],
-    name: "Finance / Money",
+    keywords: ["tutorial", "howto", "how to", "education", "course", "lesson", "screen recording"],
+    name: "Tutorial & Education",
     style:
-      "Black + neon green palette, mono fonts for numbers (JetBrains Mono), big animated counters, line charts that draw in, subtle scanline overlay, sharp typographic hits.",
+      "Clear, uncluttered. Dark or light theme matching the screen recording. Monospace font for code/commands (JetBrains Mono). Zoom-in on key UI moments. Chapter cards between sections. Captions for accessibility. Clean audio — noise reduction first.",
   },
   {
-    keywords: ["sleep", "story", "scary", "horror", "creepy", "dark"],
-    name: "Sleep stories / Scary stories",
+    keywords: ["documentary", "film", "cinematic", "interview", "documentary-style"],
+    name: "Documentary & Film",
     style:
-      "Deep blue/purple gradients, soft serif (Cormorant), slow fades + ken-burns ONLY (no fast cuts), low-volume ambient pad, candle-flicker grain overlay, minimal text.",
+      "Cool-cinematic or vintage-film grade. Wide shots: slow ken-burns. Interviews: clean cut on word boundaries, lower-thirds for speaker names and roles. Ambient music bed (0.12 volume). No FX gimmicks. Grain overlay for texture. Measured pacing.",
   },
   {
-    keywords: ["tech", "tutorial", "code", "dev", "engineering"],
-    name: "Tech / Tutorial",
+    keywords: ["gaming", "stream", "twitch", "gameplay", "esports", "clip"],
+    name: "Gaming & Streaming",
     style:
-      "Dark gray + accent color (yellow or cyan) palette, monospace + clean sans, code snippets as visual elements, sharp clean transitions, modest FX use.",
+      "Neon-pop or cool-cinematic grade. Fast cuts, reaction moments. Bold impact typography (Anton). Highlight key plays with zoom + flash. Chat overlay if applicable. High energy music.",
+  },
+  {
+    keywords: [
+      "comic",
+      "superhero",
+      "anime",
+      "manga",
+      "scifi",
+      "sci-fi",
+      "conspiracy",
+      "history",
+      "finance",
+      "sleep",
+      "horror",
+    ],
+    name: "Motion Graphics / Faceless",
+    style:
+      "Composition-only (PATH B). Match style to specific niche: comic = red+yellow+Anton; anime = pink+cyan+speed lines; scifi = cyan-on-black+scanlines; history = sepia+serif; finance = black+neon-green+counters; horror/sleep = dark+slow fades+grain.",
+  },
+  {
+    keywords: ["tech", "code", "dev", "engineering", "saas", "startup"],
+    name: "Tech / Dev",
+    style:
+      "Dark gray + accent (yellow or cyan). Monospace + clean sans. Code snippets as visual elements. Sharp clean transitions. Modest FX use.",
   },
 ];
 
@@ -244,7 +269,7 @@ export function buildSystemPrompt(insightsOrCtx?: string | SystemPromptContext):
       `- **${t.name}**: headline=${t.headline} / body=${t.body}\n  Style: ${t.style}\n  Headline: ${t.headlineAnimation}\n  Body: ${t.bodyAnimation}\n  Signature ease: "${t.signatureEase}" — use this ease for EVERY animation in the composition`,
   ).join("\n");
 
-  return `You are the VibeEdit Video agent. You write hyperframes compositions AND edit real video footage. You work inside one user's project directory. You can both create motion-graphics compositions from scratch AND process raw footage (trim, grade, key, concat, overlay, transcribe) before compositing it.
+  return `You are the VibeEdit Video agent. You edit real video footage AND create motion-graphics compositions from scratch. You work inside one user's project directory. Users range from YouTube creators to wedding videographers, corporate producers, documentary makers, and social media editors — calibrate your style, pacing, and output format to whoever you're talking to, not a default "faceless YouTube" assumption.
 
 # Persona
 
@@ -389,9 +414,10 @@ When the user signals approval ("looks great", "ship it", "render it", "perfect"
 
 - \`start_render\` only when the user explicitly asks ("render this", "give me the MP4", "export").
 
-# Style defaults for faceless YouTube
+# Style defaults for compositions
 
-- Bold typography (Anton, Bebas Neue, Inter Black). Big numbers, short words.
+- Match typography to the user's niche: bold Anton/Bebas Neue for high-energy social content; clean sans (Inter, Montserrat) for corporate/tutorial; warm serif (Libre Baskerville) for documentary/wedding. Default to Inter Black when the niche is unclear.
+- Big numbers, short words for social. Full sentences, smaller type for corporate/documentary.
 - **Background depth — never flat solid colors.** Solid backgrounds look like CSS homework. Always use a radial gradient with an off-center light source:
   \`\`\`css
   background: radial-gradient(ellipse at 20% 80%, #2a0a5e 0%, #0a0a0a 60%);

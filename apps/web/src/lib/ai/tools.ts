@@ -1917,22 +1917,22 @@ export function buildToolServer(ctx: ToolContext) {
   // --- Feature 1: analyze_clip (give the agent eyes) ---
   const analyzeClipTool = tool(
     "analyze_clip",
-    "Extract evenly-spaced frames from a video clip and return them as images so you can visually inspect the footage before making editing decisions. Call this before plan_edit when the user uploads new footage.",
+    "Extract evenly-spaced frames from a video clip and return them as images so you can visually inspect the footage before making editing decisions. Call this before plan_edit when the user uploads new footage. Frames are JPEG at 360px wide — enough to understand composition, colour, and content.",
     {
       filePath: z.string().describe("Relative path to the clip, e.g. 'assets/raw.mp4'."),
       frameCount: z
         .number()
         .int()
         .min(1)
-        .max(8)
+        .max(4)
         .optional()
-        .describe("Number of frames to extract (default 4, max 8)."),
+        .describe("Number of frames to extract (default 3, max 4). Capped to keep payload small."),
     },
     async ({ filePath, frameCount }) => {
       try {
         const dir = projectDir(ctx.userId, ctx.projectId);
         const abs = resolveProjectPath(dir, filePath);
-        const { frames, error } = await extractClipFrames(abs, frameCount ?? 4);
+        const { frames, error } = await extractClipFrames(abs, frameCount ?? 3);
         if (error && frames.length === 0) {
           return { content: [{ type: "text", text: `ERROR: ${error}` }], isError: true };
         }
@@ -1943,7 +1943,7 @@ export function buildToolServer(ctx: ToolContext) {
           },
         ];
         for (const frame of frames) {
-          content.push({ type: "image", data: frame, mimeType: "image/png" });
+          content.push({ type: "image", data: frame, mimeType: "image/jpeg" });
         }
         return { content };
       } catch (error) {
@@ -1969,15 +1969,15 @@ export function buildToolServer(ctx: ToolContext) {
         .number()
         .int()
         .min(1)
-        .max(8)
+        .max(4)
         .optional()
-        .describe("Frames to sample (default 4)."),
+        .describe("Frames to sample (default 3, max 4)."),
     },
     async ({ outputPath, frameCount }) => {
       try {
         const dir = projectDir(ctx.userId, ctx.projectId);
         const abs = resolveProjectPath(dir, outputPath);
-        const { frames, error } = await extractClipFrames(abs, frameCount ?? 4);
+        const { frames, error } = await extractClipFrames(abs, frameCount ?? 3);
         if (error && frames.length === 0) {
           return { content: [{ type: "text", text: `ERROR: ${error}` }], isError: true };
         }
@@ -1988,7 +1988,7 @@ export function buildToolServer(ctx: ToolContext) {
           },
         ];
         for (const frame of frames) {
-          content.push({ type: "image", data: frame, mimeType: "image/png" });
+          content.push({ type: "image", data: frame, mimeType: "image/jpeg" });
         }
         return { content };
       } catch (error) {
@@ -3571,16 +3571,16 @@ async function runSnapshot(
       const fullPath = path.join(snapshotsDir, file);
       const downscaled = await sharp(fullPath)
         .resize({
-          width: 960,
-          height: 960,
+          width: 720,
+          height: 720,
           fit: "inside",
           withoutEnlargement: true,
         })
-        .png({ quality: 80, compressionLevel: 9 })
+        .jpeg({ quality: 75 })
         .toBuffer();
       content.push({
         type: "image",
-        mimeType: "image/png",
+        mimeType: "image/jpeg",
         data: downscaled.toString("base64"),
       });
       content.push({

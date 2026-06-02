@@ -1373,21 +1373,27 @@ export async function renderEdl(opts: {
 
 export async function extractClipFrames(
   filePath: string,
-  count: number = 4,
+  count: number = 3,
 ): Promise<{ frames: string[]; error?: string }> {
   if (!existsSync(filePath)) return { frames: [], error: `file not found: ${filePath}` };
 
   const info = await probeClip(filePath).catch(() => null);
   if (!info) return { frames: [], error: "could not probe clip" };
 
-  const step = info.durationSeconds / (count + 1);
-  const timestamps = Array.from({ length: count }, (_, index) =>
+  // Hard-cap at 4 frames regardless of caller request. Each JPEG frame
+  // is ~40–80 KB base64; beyond 4 the total payload risks the proxy limit.
+  const capped = Math.min(count, 4);
+
+  const step = info.durationSeconds / (capped + 1);
+  const timestamps = Array.from({ length: capped }, (_, index) =>
     Number(((index + 1) * step).toFixed(3)),
   );
 
   const frames: string[] = [];
   for (const ts of timestamps) {
-    const tmpPng = tmpFile(".png");
+    // Use JPEG at 360px wide — roughly 30–60 KB vs 300–600 KB for a PNG at 640px.
+    // The agent needs to see composition/content, not pixel-level detail.
+    const tmpJpg = tmpFile(".jpg");
     const result = await ffmpegRun([
       "-ss",
       String(ts),
@@ -1396,19 +1402,21 @@ export async function extractClipFrames(
       "-vframes",
       "1",
       "-vf",
-      "scale=640:-1",
+      "scale=360:-2",
+      "-q:v",
+      "6",
       "-f",
       "image2",
-      tmpPng,
+      tmpJpg,
     ]);
-    if (result.ok && existsSync(tmpPng)) {
+    if (result.ok && existsSync(tmpJpg)) {
       try {
-        frames.push(readFileSync(tmpPng).toString("base64"));
+        frames.push(readFileSync(tmpJpg).toString("base64"));
       } catch {
         // skip this frame on read error
       } finally {
         try {
-          unlinkSync(tmpPng);
+          unlinkSync(tmpJpg);
         } catch {
           /* ignore */
         }

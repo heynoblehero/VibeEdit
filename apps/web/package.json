@@ -34,6 +34,8 @@
     "chokidar": "^4.0.1",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.36.0",
+    "html2canvas": "^1.4.1",
+    "mp4-muxer": "^5.2.2",
     "nanoid": "^5.0.7",
     "next": "^15.0.0",
     "react": "^19.0.0",

@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getMe, type PlanId } from "@/lib/billing/me-client";
+import {
+  renderOnClient,
+  supportsWebCodecs,
+  type ClientRenderProgress,
+} from "@/lib/render/client-renderer";
 
 type Review = {
   id: string;
@@ -74,6 +79,12 @@ export function RenderPanel({ projectId }: { projectId: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Client-side render state
+  const [clientProgress, setClientProgress] = useState<ClientRenderProgress | null>(null);
+  const [clientBlob, setClientBlob] = useState<Blob | null>(null);
+  // null = not yet determined, "webcodecs" = device render, "server" = server fallback
+  const [lastMethod, setLastMethod] = useState<"webcodecs" | "server" | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     getMe().then((data) => {
@@ -137,6 +148,31 @@ export function RenderPanel({ projectId }: { projectId: string }) {
   async function startRender(index = presetIndex) {
     const preset = PRESETS[index];
     setSubmitting(true);
+    setClientBlob(null);
+    setClientProgress(null);
+    setMenuOpen(false);
+
+    // ── Try client-side render first ──────────────────────────────────────
+    if (supportsWebCodecs()) {
+      setLastMethod("webcodecs");
+      const blob = await renderOnClient({
+        projectId,
+        fps: preset.fps,
+        quality: preset.quality,
+        onProgress: (p) => setClientProgress(p),
+      });
+      if (blob) {
+        setClientBlob(blob);
+        setClientProgress((prev) => (prev ? { ...prev, phase: "done" } : null));
+        setSubmitting(false);
+        return; // Done — no server call needed.
+      }
+      // Client render failed; fall through to server.
+    }
+
+    // ── Fall back to server ───────────────────────────────────────────────
+    setLastMethod("server");
+    setClientProgress(null);
     await fetch("/api/render", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -147,7 +183,6 @@ export function RenderPanel({ projectId }: { projectId: string }) {
       }),
     });
     setSubmitting(false);
-    setMenuOpen(false);
     refresh();
   }
 
@@ -173,8 +208,111 @@ export function RenderPanel({ projectId }: { projectId: string }) {
   const activePreset = PRESETS[presetIndex];
   const isRenderBusy = submitting || !!activeJobId;
 
+  // Client render progress 0-1
+  const clientPct =
+    clientProgress && clientProgress.totalFrames > 0
+      ? clientProgress.frame / clientProgress.totalFrames
+      : null;
+
   return (
     <div className="flex items-center gap-2 text-sm">
+      {/* Method badge */}
+      {lastMethod && <RenderMethodBadge method={lastMethod} />}
+
+      {/* Client-side render progress */}
+      {submitting && lastMethod === "webcodecs" && clientProgress && (
+        <div className="hidden items-center gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-1.5 sm:flex">
+          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--color-accent)]" />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-fg-muted)]">
+            {clientProgress.phase === "capturing"
+              ? "capturing"
+              : clientProgress.phase === "encoding"
+                ? "encoding"
+                : clientProgress.phase === "audio"
+                  ? "audio"
+                  : "muxing"}
+          </span>
+          {clientPct !== null && (
+            <>
+              <div
+                className="relative h-1.5 w-28 overflow-hidden rounded-full bg-[var(--color-border)]"
+                role="progressbar"
+                aria-valuenow={Math.round(clientPct * 100)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div
+                  className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-150"
+                  style={{ width: `${Math.max(2, Math.round(clientPct * 100))}%` }}
+                />
+              </div>
+              <span className="font-mono text-[10px] tabular-nums text-[var(--color-fg-muted)]">
+                {Math.round(clientPct * 100)}%
+              </span>
+              {clientProgress.phase === "capturing" && (
+                <span className="hidden font-mono text-[10px] text-[var(--color-fg-subtle)] lg:inline">
+                  {clientProgress.frame}/{clientProgress.totalFrames} fr
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Client-side render download (blob URL) */}
+      {clientBlob && <ClientDownloadButton blob={clientBlob} />}
+
+      {/* Server render status */}
+      {latest && latest.status === "running" && lastMethod !== "webcodecs" && (
+        <div className="hidden items-center gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-1.5 sm:flex">
+          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--color-accent)]" />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-fg-muted)]">
+            rendering
+          </span>
+          <div
+            className="relative h-1.5 w-28 overflow-hidden rounded-full bg-[var(--color-border)]"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(latest.progress * 100)}
+          >
+            <div
+              className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-300"
+              style={{ width: `${Math.max(2, Math.round(latest.progress * 100))}%` }}
+            />
+          </div>
+          <span className="font-mono text-[10px] tabular-nums text-[var(--color-fg-muted)]">
+            {Math.round(latest.progress * 100)}%
+          </span>
+          <EtaInline job={latest} />
+        </div>
+      )}
+      {latest && latest.status === "queued" && lastMethod !== "webcodecs" && (
+        <span className="hidden text-[10px] uppercase tracking-wider text-[var(--color-fg-muted)] sm:inline">
+          queued…
+        </span>
+      )}
+      {latest && latest.status === "done" && latest.outputPath && !clientBlob && (
+        <div className="flex items-center gap-1.5">
+          <a
+            href={`/api/render/${latest.id}/download`}
+            className="rounded-md border border-[var(--color-success)] bg-[var(--color-success)]/10 px-2 py-1.5 text-xs font-semibold text-[var(--color-success)] hover:bg-[var(--color-success)]/20 sm:px-3"
+          >
+            <span className="sm:hidden">↓</span>
+            <span className="hidden sm:inline">↓ Download .mp4</span>
+          </a>
+          <PublishButton renderJobId={latest.id} />
+          <ReviewsButton renderJobId={latest.id} />
+        </div>
+      )}
+      {latest && latest.status === "failed" && (
+        <span
+          className="max-w-[14ch] truncate text-xs text-[var(--color-danger)]"
+          title={latest.error || ""}
+        >
+          ✕ {latest.error}
+        </span>
+      )}
       {/* Live job status. Sits BEFORE the render button so the progress bar
 			    grows out of the action area. */}
       {latest && latest.status === "running" && (
@@ -541,6 +679,83 @@ function ReviewsButton({ renderJobId }: { renderJobId: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+function RenderMethodBadge({ method }: { method: "webcodecs" | "server" }) {
+  const isDevice = method === "webcodecs";
+  return (
+    <span
+      title={
+        isDevice
+          ? "Rendered on your device using WebCodecs — no server compute used"
+          : "Rendered on the VibeEdit server using Puppeteer + FFmpeg"
+      }
+      className={`hidden items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-semibold sm:inline-flex ${
+        isDevice
+          ? "border-[var(--color-accent)]/30 bg-[var(--color-accent)]/8 text-[var(--color-accent)]"
+          : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-fg-muted)]"
+      }`}
+    >
+      {isDevice ? (
+        <>
+          <svg
+            width="9"
+            height="9"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <path d="M8 21h8M12 17v4" />
+          </svg>
+          Device
+        </>
+      ) : (
+        <>
+          <svg
+            width="9"
+            height="9"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+          </svg>
+          Server
+        </>
+      )}
+    </span>
+  );
+}
+
+function ClientDownloadButton({ blob }: { blob: Blob }) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(blob);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [blob]);
+
+  if (!url) return null;
+  return (
+    <a
+      href={url}
+      download="render.mp4"
+      className="rounded-md border border-[var(--color-success)] bg-[var(--color-success)]/10 px-2 py-1.5 text-xs font-semibold text-[var(--color-success)] hover:bg-[var(--color-success)]/20 sm:px-3"
+    >
+      <span className="sm:hidden">↓</span>
+      <span className="hidden sm:inline">↓ Download .mp4</span>
+    </a>
   );
 }
 

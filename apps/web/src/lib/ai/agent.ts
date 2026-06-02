@@ -124,11 +124,10 @@ function loadUserPrefs(userId: string): {
   }
 }
 
-// Hard cap on tool-use turns per chat request. Without this, a confused
-// model can keep calling tools forever (especially screenshot_at_time +
-// lint_composition loops on broken HTML). 30 covers a realistic worst-case
-// first-draft (plan + ~6 file writes + lint + screenshot per scene) with headroom.
-const MAX_TURNS = 30;
+// Hard cap on tool-use turns per chat request. Complex compositions with
+// many asset downloads + retries can burn through 30 turns before writing.
+// 60 gives room for: plan + 10 download attempts + write + lint + screenshot.
+const MAX_TURNS = 60;
 
 export async function runAgent(opts: {
   userMessage: string;

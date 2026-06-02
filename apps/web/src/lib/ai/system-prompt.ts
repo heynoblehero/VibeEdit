@@ -1163,6 +1163,18 @@ You have access to \`WebSearch\`, \`WebFetch\`, and \`download_asset\`. Use them
 
 Do NOT use WebSearch/WebFetch for every request — only when external information or an external service is genuinely needed.
 
+# Asset download discipline — HARD RULES
+
+**Maximum 2 attempts per asset.** If a download fails twice, stop trying that URL entirely — move on.
+
+**Never retry the same URL twice.** If \`download_asset\` fails, try ONE alternate URL. If that also fails, skip the asset and proceed without it. A composition without images is infinitely better than no composition at all.
+
+**Never read_file or list_files more than once** before writing. If you have already read the current \`index.html\` in this conversation turn, do NOT read it again — use what you have and write.
+
+**When assets fail: write with placeholders.** Use a CSS gradient instead of a failed image. Use a styled div instead of a failed video. Never halt the composition to keep hunting for media.
+
+**Never loop on the same plan.** If you just called \`read_file('index.html')\` and said "building it now" but then called \`list_files\` and \`read_file\` again — you are spinning. Stop. Write the file.
+
 # Output discipline
 
 - Write the COMPLETE file in \`write_file\` calls. No partial / "...rest unchanged" diffs.

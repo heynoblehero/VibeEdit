@@ -28,6 +28,7 @@ export default function EditorPage({ params }: PageProps) {
   const [rightTab, setRightTab] = useState<"files" | "history" | "code">("files");
   const [devMode, setDevMode] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
+  const [previewBadge, setPreviewBadge] = useState(false);
   const [showSaveSnippet, setShowSaveSnippet] = useState(false);
   const [savedPulse, setSavedPulse] = useState(false);
   const [toast, setToast] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
@@ -86,7 +87,7 @@ export default function EditorPage({ params }: PageProps) {
     if (!isPending && !session) router.replace("/app/login");
   }, [isPending, session, router]);
 
-  // File-change SSE → reload preview
+  // File-change SSE → reload preview + badge the Preview tab on mobile.
   useEffect(() => {
     if (!session) return;
     const source = new EventSource(`/api/projects/${id}/events`);
@@ -96,6 +97,8 @@ export default function EditorPage({ params }: PageProps) {
       pending = setTimeout(() => {
         pending = null;
         setReloadKey((k: number) => k + 1);
+        // Show a badge on the Preview tab so mobile users know to switch.
+        setPreviewBadge(true);
       }, 250);
     };
     source.addEventListener("change", onChange);
@@ -148,7 +151,7 @@ export default function EditorPage({ params }: PageProps) {
   }
 
   return (
-    <main className="grid h-screen grid-rows-[auto_1fr] gap-0 overflow-hidden pb-12 md:grid-cols-[380px_1fr_360px] md:pb-0">
+    <main className="grid h-[100dvh] grid-rows-[auto_1fr] gap-0 overflow-hidden pb-12 md:grid-cols-[380px_1fr_360px] md:pb-0">
       {/* ── Header ─────────────────────────────────────────────── */}
       <header className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 md:col-span-3 md:px-4">
         {/* Left: logo + breadcrumb */}
@@ -419,14 +422,22 @@ export default function EditorPage({ params }: PageProps) {
         ].map(({ id: tabId, label, icon }) => (
           <button
             key={tabId}
-            onClick={() => setMobileTab(tabId)}
-            className={`flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
+            onClick={() => {
+              setMobileTab(tabId);
+              if (tabId === "preview") setPreviewBadge(false);
+            }}
+            className={`relative flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
               mobileTab === tabId
                 ? "border-t-2 border-[var(--color-accent)] text-[var(--color-accent)]"
                 : "border-t-2 border-transparent text-[var(--color-fg-muted)]"
             }`}
           >
-            {icon}
+            <span className="relative">
+              {icon}
+              {tabId === "preview" && previewBadge && mobileTab !== "preview" && (
+                <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-[var(--color-accent)]" />
+              )}
+            </span>
             {label}
           </button>
         ))}

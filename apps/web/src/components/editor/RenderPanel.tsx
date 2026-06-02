@@ -151,15 +151,15 @@ export function RenderPanel({ projectId }: { projectId: string }) {
     refresh();
   }
 
-  // Cmd+R global shortcut
+  // Cmd+R global shortcut — blocked while any job is active.
   useEffect(() => {
     function onRender() {
-      if (!submitting) startRender(presetIndex);
+      if (!submitting && !activeJobId) startRender(presetIndex);
     }
     window.addEventListener("vibeedit:render", onRender);
     return () => window.removeEventListener("vibeedit:render", onRender);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [submitting, presetIndex, projectId]);
+  }, [submitting, activeJobId, presetIndex, projectId]);
 
   function planMeets(
     current: "free" | "creator" | "studio",
@@ -171,13 +171,14 @@ export function RenderPanel({ projectId }: { projectId: string }) {
 
   const latest = jobs[0];
   const activePreset = PRESETS[presetIndex];
+  const isRenderBusy = submitting || !!activeJobId;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 text-sm">
+    <div className="flex items-center gap-2 text-sm">
       {/* Live job status. Sits BEFORE the render button so the progress bar
 			    grows out of the action area. */}
       {latest && latest.status === "running" && (
-        <div className="flex items-center gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-1.5">
+        <div className="hidden items-center gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-1.5 sm:flex">
           <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--color-accent)]" />
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-fg-muted)]">
             rendering
@@ -203,7 +204,7 @@ export function RenderPanel({ projectId }: { projectId: string }) {
         </div>
       )}
       {latest && latest.status === "queued" && (
-        <span className="text-[10px] uppercase tracking-wider text-[var(--color-fg-muted)]">
+        <span className="hidden text-[10px] uppercase tracking-wider text-[var(--color-fg-muted)] sm:inline">
           queued…
         </span>
       )}
@@ -211,9 +212,10 @@ export function RenderPanel({ projectId }: { projectId: string }) {
         <div className="flex items-center gap-1.5">
           <a
             href={`/api/render/${latest.id}/download`}
-            className="rounded-md border border-[var(--color-success)] bg-[var(--color-success)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--color-success)] hover:bg-[var(--color-success)]/20"
+            className="rounded-md border border-[var(--color-success)] bg-[var(--color-success)]/10 px-2 py-1.5 text-xs font-semibold text-[var(--color-success)] hover:bg-[var(--color-success)]/20 sm:px-3"
           >
-            ↓ Download .mp4
+            <span className="sm:hidden">↓</span>
+            <span className="hidden sm:inline">↓ Download .mp4</span>
           </a>
           <PublishButton renderJobId={latest.id} />
           <ReviewsButton renderJobId={latest.id} />
@@ -232,26 +234,50 @@ export function RenderPanel({ projectId }: { projectId: string }) {
       <div ref={menuRef} className="relative inline-flex">
         <button
           onClick={() => startRender(presetIndex)}
-          disabled={submitting}
-          className="flex items-center gap-2 rounded-l-md bg-[var(--color-accent)] px-3 py-1.5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50"
-          title={`Render with ${activePreset.label} (⌘R)`}
+          disabled={isRenderBusy}
+          className={`flex items-center gap-1.5 rounded-l-md px-2.5 py-1.5 text-sm font-semibold transition-all sm:gap-2 sm:px-3 ${
+            isRenderBusy
+              ? "cursor-not-allowed bg-[var(--color-surface-2)] text-[var(--color-fg-muted)] opacity-60"
+              : "bg-[var(--color-accent)] text-black hover:opacity-90"
+          }`}
+          title={
+            isRenderBusy
+              ? "Render in progress — wait for it to finish"
+              : `Render with ${activePreset.label} (⌘R)`
+          }
         >
           {submitting ? (
-            <>Queuing…</>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 animate-spin rounded-full border border-current border-t-transparent" />
+              <span className="hidden sm:inline">Queuing…</span>
+            </span>
+          ) : activeJobId ? (
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[var(--color-accent)]" />
+              <span className="hidden sm:inline">Rendering…</span>
+            </span>
           ) : (
             <>
-              ▶ Render
-              <span className="hidden text-[10px] font-normal opacity-70 sm:inline">
-                · {activePreset.label}
+              ▶
+              <span className="hidden sm:inline">
+                Render
+                <span className="ml-1 text-[10px] font-normal opacity-70">
+                  · {activePreset.label}
+                </span>
               </span>
+              <span className="text-xs sm:hidden">Render</span>
             </>
           )}
         </button>
         <button
           onClick={() => setMenuOpen((v) => !v)}
-          disabled={submitting}
+          disabled={isRenderBusy}
           aria-label="Choose render preset"
-          className="rounded-r-md border-l border-black/15 bg-[var(--color-accent)] px-2 py-1.5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50"
+          className={`rounded-r-md border-l px-1.5 py-1.5 text-sm font-semibold transition-all sm:px-2 ${
+            isRenderBusy
+              ? "cursor-not-allowed border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-fg-muted)] opacity-60"
+              : "border-black/15 bg-[var(--color-accent)] text-black hover:opacity-90"
+          }`}
         >
           ▾
         </button>

@@ -26,6 +26,8 @@ export async function PATCH(req: Request) {
   if (typeof body.hostName === "string") patch.hostName = body.hostName || null;
   if (typeof body.hostDescription === "string")
     patch.hostDescription = body.hostDescription || null;
+  if (typeof body.toneVoice === "string") patch.toneVoice = body.toneVoice || null;
+  if (typeof body.targetAudience === "string") patch.targetAudience = body.targetAudience || null;
   writeBrandKit(userId, patch);
   return NextResponse.json(await readBrandKit(userId));
 }

@@ -66,50 +66,83 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
 
   async function submit(skip = false) {
     setSaving(true);
-    const response = await fetch("/api/onboarding", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        niche: skip ? null : niche,
-        formatPreference: skip ? null : format,
-        postFrequency: skip ? null : frequency,
-        onboardingCompleted: true,
-      }),
-    });
-    // Save brand kit in parallel if user filled it in
-    if (!skip && (channelName.trim() || toneVoice || primaryColor !== "#7c3aed")) {
-      await fetch("/api/brand-kit", {
+    try {
+      const response = await fetch("/api/onboarding", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          channelName: channelName.trim() || null,
-          primaryColor,
-          toneVoice: toneVoice || null,
+          niche: skip ? null : niche,
+          formatPreference: skip ? null : format,
+          postFrequency: skip ? null : frequency,
+          onboardingCompleted: true,
         }),
       });
-    }
-    setSaving(false);
-    const data = (await response.json().catch(() => ({}))) as {
-      firstProjectId?: string | null;
-    };
-    if (data?.firstProjectId) {
-      window.location.href = `/app/projects/${data.firstProjectId}/edit`;
-      return;
+      // Save brand kit if user filled anything in on step 2.
+      if (!skip && (channelName.trim() || toneVoice || primaryColor !== "#7c3aed")) {
+        await fetch("/api/brand-kit", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            channelName: channelName.trim() || null,
+            primaryColor,
+            toneVoice: toneVoice || null,
+          }),
+        });
+      }
+      const data = (await response.json().catch(() => ({}))) as {
+        firstProjectId?: string | null;
+      };
+      if (data?.firstProjectId) {
+        window.location.href = `/app/projects/${data.firstProjectId}/edit`;
+        return;
+      }
+    } catch {
+      // Network or parse error — still dismiss so the user isn't stuck.
+    } finally {
+      setSaving(false);
     }
     onDone();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-6">
-      <div className="w-full max-w-2xl rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8">
-        {/* Step indicator */}
+    // Clicking the backdrop skips onboarding so the overlay never traps the user.
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-6"
+      onClick={() => submit(true)}
+      role="presentation"
+    >
+      <div
+        className="w-full max-w-2xl rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        {/* Step indicator + close button */}
         <div className="mb-6 flex items-center gap-2">
-          <div
-            className={`h-1.5 flex-1 rounded-full transition-colors ${step === "preferences" ? "bg-[var(--color-accent)]" : "bg-[var(--color-accent)]"}`}
-          />
+          <div className="h-1.5 flex-1 rounded-full bg-[var(--color-accent)]" />
           <div
             className={`h-1.5 flex-1 rounded-full transition-colors ${step === "brand" ? "bg-[var(--color-accent)]" : "bg-[var(--color-border)]"}`}
           />
+          <button
+            onClick={() => submit(true)}
+            disabled={saving}
+            className="ml-2 flex h-6 w-6 items-center justify-center rounded-lg text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)] disabled:opacity-40"
+            title="Skip setup"
+            aria-label="Skip setup"
+          >
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M1 1l8 8M9 1L1 9" />
+            </svg>
+          </button>
         </div>
 
         {step === "preferences" ? (
@@ -265,7 +298,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
               </button>
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => submit(false)}
+                  onClick={() => submit(true)}
                   disabled={saving}
                   className="text-sm text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] disabled:opacity-50"
                 >

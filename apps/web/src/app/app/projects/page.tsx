@@ -79,6 +79,7 @@ export default function ProjectsPage() {
   const { data: session, isPending } = useSession();
   const [projects, setProjects] = useState<Project[]>([]);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [search, setSearch] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -117,21 +118,31 @@ export default function ProjectsPage() {
 
   async function create(seed: "empty") {
     setCreating(true);
-    const meta = PLATFORM_META[platform];
-    const result = await fetch("/api/projects", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name: name.trim() || "Untitled Project",
-        seed,
-        platform,
-        aspectRatio: meta.ratio,
-      }),
-    });
-    setCreating(false);
-    if (!result.ok) return;
-    const { id } = (await result.json()) as { id: string };
-    router.push(`/app/projects/${id}/edit`);
+    setCreateError(null);
+    try {
+      const meta = PLATFORM_META[platform];
+      const result = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim() || "Untitled Project",
+          seed,
+          platform,
+          aspectRatio: meta.ratio,
+        }),
+      });
+      if (!result.ok) {
+        const msg = await result.text().catch(() => "Unknown error");
+        setCreateError(msg || `Server error ${result.status}`);
+        return;
+      }
+      const { id } = (await result.json()) as { id: string };
+      router.push(`/app/projects/${id}/edit`);
+    } catch (err) {
+      setCreateError((err as Error).message || "Could not create project — check your connection.");
+    } finally {
+      setCreating(false);
+    }
   }
 
   async function rename(id: string) {
@@ -366,6 +377,11 @@ export default function ProjectsPage() {
                 onClick={() => create("empty")}
               />
             </div>
+            {createError && (
+              <div className="mt-3 rounded-xl border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/8 px-4 py-2.5 text-xs text-[var(--color-danger)]">
+                Could not create project: {createError}
+              </div>
+            )}
             <div className="mt-3 flex items-center justify-between">
               <p className="text-xs text-[var(--color-fg-subtle)]">
                 Both use the same project — the agent figures it out from your first message.

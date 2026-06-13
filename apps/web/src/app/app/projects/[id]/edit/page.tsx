@@ -39,6 +39,16 @@ export default function EditorPage({ params }: PageProps) {
     return () => clearTimeout(h);
   }, [toast]);
 
+  // Surface notices dispatched by child panels (e.g. RenderPanel render errors).
+  useEffect(() => {
+    function onNotify(e: Event) {
+      const d = (e as CustomEvent<{ kind: "ok" | "error"; text: string }>).detail;
+      if (d?.text) setToast({ kind: d.kind, text: d.text });
+    }
+    window.addEventListener("vibeedit:notify", onNotify);
+    return () => window.removeEventListener("vibeedit:notify", onNotify);
+  }, []);
+
   // Fetch project name for breadcrumb
   useEffect(() => {
     if (!session) return;

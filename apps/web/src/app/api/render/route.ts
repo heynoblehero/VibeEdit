@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { and, desc, eq } from "drizzle-orm";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { db } from "@/lib/db";
 import { projects, renderJobs } from "@/lib/db/schema";
 import { requireServerSession } from "@/lib/server-session";
+import { projectDir } from "@/lib/storage/fs";
 import { enqueue } from "@/lib/render/queue";
 import {
   canRender,
@@ -43,6 +46,18 @@ export async function POST(req: Request) {
     .where(and(eq(projects.id, body.projectId), eq(projects.userId, userId)))
     .get();
   if (!owned) return new NextResponse("not found", { status: 404 });
+  // No composition yet — the CLI render would otherwise fail with a raw
+  // "No index.html file found" error. Return a clear, actionable message
+  // instead, and don't consume any billing gates.
+  if (!existsSync(join(projectDir(userId, body.projectId), "index.html"))) {
+    return NextResponse.json(
+      {
+        error: "no_composition",
+        message: "Nothing to render yet — ask the agent in chat to build the video first.",
+      },
+      { status: 400 },
+    );
+  }
   const gate = canRender(userId);
   if (!gate.ok) {
     return NextResponse.json(

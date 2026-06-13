@@ -145,12 +145,30 @@ export function RenderPanel({ projectId }: { projectId: string }) {
     };
   }, [menuOpen]);
 
+  // Surface render outcomes (errors / blocks) to the user via the editor's
+  // toast. Without this, a missing composition or a billing block fails
+  // silently and the button just spins back to idle.
+  function notify(kind: "ok" | "error", text: string) {
+    window.dispatchEvent(new CustomEvent("vibeedit:notify", { detail: { kind, text } }));
+  }
+
   async function startRender(index = presetIndex) {
     const preset = PRESETS[index];
     setSubmitting(true);
     setClientBlob(null);
     setClientProgress(null);
     setMenuOpen(false);
+
+    // ── Guard: nothing to render until a composition (index.html) exists ──
+    const meta = await fetch(`/api/projects/${projectId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null);
+    const files: string[] = Array.isArray(meta?.files) ? meta.files : [];
+    if (!files.includes("index.html")) {
+      notify("error", "Nothing to render yet — ask the agent to build the video first.");
+      setSubmitting(false);
+      return;
+    }
 
     // ── Try client-side render first ──────────────────────────────────────
     if (supportsWebCodecs()) {
@@ -173,7 +191,7 @@ export function RenderPanel({ projectId }: { projectId: string }) {
     // ── Fall back to server ───────────────────────────────────────────────
     setLastMethod("server");
     setClientProgress(null);
-    await fetch("/api/render", {
+    const res = await fetch("/api/render", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -183,6 +201,11 @@ export function RenderPanel({ projectId }: { projectId: string }) {
       }),
     });
     setSubmitting(false);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { message?: string } | null;
+      notify("error", data?.message || `Render failed (${res.status}). Please try again.`);
+      return;
+    }
     refresh();
   }
 

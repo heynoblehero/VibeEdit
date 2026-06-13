@@ -756,7 +756,7 @@ export function Chat({ projectId }: { projectId: string }) {
             placeholder="Describe the video — or type / for commands…"
             rows={3}
             disabled={busy}
-            className="w-full resize-none rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] px-3.5 py-2.5 text-sm outline-none transition-colors placeholder:text-[var(--color-fg-subtle)] focus:border-[var(--color-accent)] disabled:opacity-50"
+            className="w-full resize-none rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] px-3.5 py-2.5 text-base outline-none transition-colors placeholder:text-[var(--color-fg-subtle)] focus:border-[var(--color-accent)] disabled:opacity-50 md:text-sm"
           />
         </div>
         {busy ? (

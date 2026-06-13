@@ -45,7 +45,7 @@ export default function EditorPage({ params }: PageProps) {
     fetch(`/api/projects/${id}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data?.name) setProjectName(data.name);
+        if (data?.project?.name) setProjectName(data.project.name);
       })
       .catch(() => {});
   }, [id, session]);
@@ -151,7 +151,7 @@ export default function EditorPage({ params }: PageProps) {
   }
 
   return (
-    <main className="grid h-[100dvh] grid-rows-[auto_1fr] gap-0 overflow-hidden pb-12 md:grid-cols-[380px_1fr_360px] md:pb-0">
+    <main className="grid h-[100dvh] grid-rows-[auto_1fr] gap-0 overflow-hidden pb-[calc(3.75rem+env(safe-area-inset-bottom))] md:grid-cols-[380px_1fr_360px] md:pb-0">
       {/* ── Header ─────────────────────────────────────────────── */}
       <header className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 md:col-span-3 md:px-4">
         {/* Left: logo + breadcrumb */}
@@ -358,7 +358,7 @@ export default function EditorPage({ params }: PageProps) {
 
       {/* ── Mobile tab bar ─────────────────────────────────────── */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-30 flex border-t border-[var(--color-border)] bg-[var(--color-bg)]/95 backdrop-blur-sm md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 flex border-t border-[var(--color-border)] bg-[var(--color-bg)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm md:hidden"
         aria-label="Editor tabs"
       >
         {[

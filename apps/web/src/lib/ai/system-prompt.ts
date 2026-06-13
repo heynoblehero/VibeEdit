@@ -1153,8 +1153,33 @@ These FFmpeg tools process uploaded video/audio BEFORE compositing. Use them whe
 9. **Always call \`review_render\`** after render_edl completes. Visually verify the output — check for black frames, color issues, broken captions, abrupt cuts. Fix and re-render if needed.
 10. After the user approves the output, call \`save_insight\` for any style preferences you applied or learned (grade look, caption style, pacing preference, noise reduction level).
 11. Individual clip tools (trim_clip, grade_clip, etc.) only for single-clip preprocessing outside the EDL assembly.
-12. If compositionNeeded: write index.html referencing the EDL output, then lint → screenshot → verify.
+12. **Always write a previewable \`index.html\`** after a successful render_edl — even when the edit is "just" a processed clip with no motion graphics. The in-app Preview pane and the Render button both load \`index.html\`; if it is missing, the user sees an empty preview and \`start_render\` fails with "No composition found in … No index.html file found". Wrap the output with the single-clip pattern below, then lint → screenshot → verify.
 13. \`start_render\` only when user explicitly asks.
+
+## Single-clip composition pattern (so the video PLAYS, not a frozen frame)
+
+When the composition is a single processed/rendered clip (the common "edit my video" result), the \`<video>\` MUST be driven by a registered timeline — otherwise the player seeks to frame 0 and shows ONE static frame forever (a frequent failure). Use exactly this shape:
+
+\`\`\`html
+<body style="margin:0;background:#000">
+  <video class="clip" src="assets/processed/<name>.mp4" muted playsinline
+         data-start="0" data-duration="<CLIP_DURATION>" data-track-index="0"
+         style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain"></video>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    // Timeline total MUST be >= the clip duration, or the player stops early.
+    tl.to({}, { duration: <CLIP_DURATION> });
+    window.__timelines["main"] = tl;
+  </script>
+</body>
+\`\`\`
+
+- \`<CLIP_DURATION>\` = the exact \`probe_clip\` duration of the rendered output (e.g. 14.025). Probe it first; never guess.
+- \`class="clip"\` + \`data-start\`/\`data-duration\`/\`data-track-index\` are REQUIRED — that is how the runtime seeks the video to match the timeline clock. A bare \`<video autoplay>\` will NOT advance under frame capture.
+- Set the composition width/height to the clip's resolution so there is no letterboxing.
+- Overlays (e.g. a centered "NEW COLLECTION" title) go in the SAME timeline with their own tweens, layered above the video — never as a separate unregistered animation.
 
 ## render_edl pipeline (what it does internally)
 

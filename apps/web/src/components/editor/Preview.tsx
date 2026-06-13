@@ -34,6 +34,7 @@ export function Preview({ projectId, reloadKey }: { projectId: string; reloadKey
   const [isPlaying, setIsPlaying] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<number | null>(null);
   const [hasComposition, setHasComposition] = useState<boolean | null>(null);
+  const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16" | "1:1">("16:9");
   const [lastLatencyMs, setLastLatencyMs] = useState<number | null>(null);
   const [p50LatencyMs, setP50LatencyMs] = useState<number | null>(null);
   const [agentWorking, setAgentWorking] = useState(false);
@@ -53,6 +54,8 @@ export function Preview({ projectId, reloadKey }: { projectId: string; reloadKey
         if (cancelled) return;
         const files: string[] = Array.isArray(data?.files) ? data.files : [];
         setHasComposition(files.some((path) => path === "index.html"));
+        const ar = data?.project?.aspectRatio;
+        if (ar === "16:9" || ar === "9:16" || ar === "1:1") setAspectRatio(ar);
       })
       .catch(() => !cancelled && setHasComposition(false));
     return () => {
@@ -246,7 +249,16 @@ export function Preview({ projectId, reloadKey }: { projectId: string; reloadKey
 				    layout so nothing jumps. The actual <hyperframes-player> is only
 				    instantiated once a composition file exists, otherwise an
 				    informational overlay sits inside the same frame. */}
-        <div className="relative flex aspect-video w-full max-w-[min(100%,calc(76svh*16/9))] items-center justify-center overflow-hidden rounded-xl border border-[var(--color-border)] bg-black md:max-w-[min(100%,calc(70vh*16/9))] md:rounded-lg">
+        <div
+          className="relative flex w-full items-center justify-center overflow-hidden rounded-xl border border-[var(--color-border)] bg-black md:rounded-lg"
+          style={{
+            // Match the project's real aspect ratio so vertical (9:16) and square
+            // compositions fill the frame instead of being letterboxed into 16:9.
+            // The max-width cap keeps the derived height within the viewport.
+            aspectRatio: aspectRatio.replace(":", " / "),
+            maxWidth: `min(100%, calc(74svh * ${aspectRatio.split(":")[0]} / ${aspectRatio.split(":")[1]}))`,
+          }}
+        >
           {hasComposition === true && scriptLoaded ? (
             // @ts-expect-error custom element
             <hyperframes-player

@@ -776,12 +776,12 @@ export function Chat({ projectId }: { projectId: string }) {
             className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-black shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             Send
-            <kbd className="rounded bg-black/15 px-1 py-0.5 font-mono text-[9px] font-normal">
+            <kbd className="hidden rounded bg-black/15 px-1 py-0.5 font-mono text-[9px] font-normal sm:inline-block">
               ↵
             </kbd>
           </button>
         )}
-        <p className="mt-2 text-center text-[9px] text-[var(--color-fg-subtle)]">
+        <p className="mt-2 hidden text-center text-[9px] text-[var(--color-fg-subtle)] sm:block">
           ↵ send · ⇧↵ newline · drag image/video to attach · / for commands
         </p>
       </div>

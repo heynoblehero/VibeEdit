@@ -157,7 +157,7 @@ export default function EditorPage({ params }: PageProps) {
         {/* Left: logo + breadcrumb */}
         <div className="flex min-w-0 items-center gap-2">
           <Link href="/app/projects" className="shrink-0 transition-opacity hover:opacity-80">
-            <Wordmark size="sm" />
+            <Wordmark size="sm" compactBadge />
           </Link>
           {/* Separator + project name */}
           <div className="flex min-w-0 items-center gap-1.5 text-xs text-[var(--color-fg-subtle)]">

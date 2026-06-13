@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve, extname } from "node:path";
-import { rewriteAssetPath } from "../compiler/rewriteSubCompPaths.js";
-import { lintHyperframeHtml } from "./hyperframeLinter.js";
-import type { HyperframeLintFinding, HyperframeLintResult } from "./types.js";
+import { rewriteAssetPath } from "../compiler/rewriteSubCompPaths";
+import { lintHyperframeHtml } from "./hyperframeLinter";
+import type { HyperframeLintFinding, HyperframeLintResult } from "./types";
 
 /**
  * Project-level linting: lints the root index.html plus every sub-composition

@@ -3375,6 +3375,495 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
     },
   );
 
+  // -------------------------------------------------------------------------
+  // Visual critique — pixel-level analysis of last-captured snapshots
+  // -------------------------------------------------------------------------
+
+  const visualCritiqueTool = tool(
+    "visual_critique",
+    "Pixel-level analysis of the last-captured composition screenshots using brightness, contrast, and color statistics. Returns the frames + quantitative stats for structured critique. Call after screenshot_at_time. Score all 6 dimensions; fix anything below 7/10 before declaring done. Repeat up to 3 iterations.",
+    {
+      maxFrames: z
+        .number()
+        .int()
+        .min(1)
+        .max(4)
+        .optional()
+        .default(4)
+        .describe("How many snapshot frames to analyze (default 4 = all)."),
+    },
+    async ({ maxFrames }) => {
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const sharp = (await import("sharp")).default;
+      const dir = projectDir(ctx.userId, ctx.projectId);
+      const snapshotsDir = path.join(dir, "snapshots");
+
+      if (!fs.existsSync(snapshotsDir)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "ERROR: no snapshots found. Call screenshot_at_time first.",
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const files = fs
+        .readdirSync(snapshotsDir)
+        .filter((f: string) => f.toLowerCase().endsWith(".png"))
+        .sort()
+        .slice(0, maxFrames ?? 4);
+
+      if (files.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "ERROR: no PNG files in snapshots/. Call screenshot_at_time first.",
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const content: Array<{
+        type: string;
+        text?: string;
+        mimeType?: string;
+        data?: string;
+      }> = [];
+
+      content.push({
+        type: "text",
+        text:
+          "## Visual critique — score each frame on 6 dimensions (1–10). Fix ALL below 7/10.\n\n" +
+          "1. **Text readability** — hero text visible at a glance, has shadow/contrast, not clipped\n" +
+          "2. **Visual hierarchy** — clear hero/label/body distinction, one dominant element per frame\n" +
+          "3. **Color grade** — consistent filter applied, has depth and mood (not flat/grey)\n" +
+          "4. **Background depth** — radial gradient visible, not a plain solid color\n" +
+          "5. **Layout balance** — no elements touching edges, nothing cut off, good breathing room\n" +
+          "6. **Production polish** — grain overlay visible, text shadows, professional finish\n\n" +
+          "For each dimension below 7/10: write the exact CSS/GSAP change, apply it, re-screenshot.\n\n" +
+          "Pixel analysis per frame:",
+      });
+
+      for (const file of files) {
+        const fullPath = path.join(snapshotsDir, file);
+        try {
+          const stats = await sharp(fullPath).stats();
+          const r = stats.channels[0].mean;
+          const g = stats.channels[1].mean;
+          const b = stats.channels[2].mean;
+          const brightness = (r + g + b) / 3;
+          const contrast =
+            (stats.channels[0].stdev + stats.channels[1].stdev + stats.channels[2].stdev) / 3;
+          const colorSpread = Math.max(r, g, b) - Math.min(r, g, b);
+
+          const brightnessNote =
+            brightness < 30
+              ? "VERY DARK — text may be invisible against background"
+              : brightness < 60
+                ? "DARK — verify text has sufficient contrast"
+                : brightness > 220
+                  ? "VERY BRIGHT — check text is readable"
+                  : brightness > 180
+                    ? "BRIGHT — verify dark text has contrast"
+                    : "OK";
+          const contrastNote =
+            contrast < 20
+              ? "LOW CONTRAST — frame looks flat, check color grade"
+              : contrast < 40
+                ? "MODERATE — consider richer gradients"
+                : "OK";
+          const colorNote =
+            colorSpread < 15
+              ? "NEAR MONOCHROME — color grade may not be applied"
+              : colorSpread < 40
+                ? "LOW SATURATION — grade may be too subtle"
+                : "OK";
+
+          const downscaled = await sharp(fullPath)
+            .resize({ width: 720, height: 720, fit: "inside", withoutEnlargement: true })
+            .jpeg({ quality: 75 })
+            .toBuffer();
+
+          content.push({
+            type: "text",
+            text:
+              `\n**${file.replace(/\.png$/i, "")}** — ` +
+              `brightness: ${brightness.toFixed(0)}/255 (${brightnessNote}) | ` +
+              `contrast stdev: ${contrast.toFixed(0)} (${contrastNote}) | ` +
+              `color spread: ${colorSpread.toFixed(0)} (${colorNote})`,
+          });
+          content.push({
+            type: "image",
+            mimeType: "image/jpeg",
+            data: downscaled.toString("base64"),
+          });
+        } catch (error) {
+          content.push({
+            type: "text",
+            text: `ERROR reading ${file}: ${(error as Error).message}`,
+          });
+        }
+      }
+
+      content.push({
+        type: "text",
+        text:
+          "\nScore all 6 dimensions. Write specific fixes for every score below 7/10. " +
+          "Then call write_file → screenshot_at_time → visual_critique again. " +
+          "Stop after 3 iterations or when all dimensions reach 7/10.",
+      });
+
+      return { content };
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Remove background — AI-powered transparent PNG via Replicate rembg
+  // -------------------------------------------------------------------------
+
+  const removeBackgroundTool = tool(
+    "remove_background",
+    "Remove the background from a project image using AI (Replicate 851-labs/background-remover). Saves a transparent PNG to assets/. Use for host portraits, product shots, or any asset that needs to float over a video or gradient background. Requires a Replicate API key.",
+    {
+      imagePath: z
+        .string()
+        .describe("Source image relative path, e.g. 'assets/host.jpg'. Must exist in the project."),
+      outputFilename: z
+        .string()
+        .regex(/^[A-Za-z0-9._-]+\.png$/)
+        .describe("Output filename saved to assets/, e.g. 'host-nobg.png'."),
+    },
+    async ({ imagePath, outputFilename }) => {
+      const apiKey = ctx.apiKeys?.replicate;
+      if (!apiKey) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "ERROR: No Replicate API key. Ask the user to add their Replicate token at /app/settings/api-keys.",
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      let imageBuffer: Buffer;
+      try {
+        imageBuffer = readProjectFile(ctx.userId, ctx.projectId, imagePath).content;
+      } catch {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `ERROR: file not found: ${imagePath}. Verify the path with list_assets.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const ext = imagePath.split(".").pop()?.toLowerCase() ?? "jpeg";
+      const mime = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+      const dataUri = `data:${mime};base64,${imageBuffer.toString("base64")}`;
+
+      try {
+        const startRes = await fetch(
+          "https://api.replicate.com/v1/models/851-labs/background-remover/predictions",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+              Prefer: "wait=30",
+            },
+            body: JSON.stringify({ input: { image: dataUri } }),
+            signal: AbortSignal.timeout(40_000),
+          },
+        );
+
+        if (!startRes.ok) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `ERROR: Replicate API failed: HTTP ${startRes.status} — ${await startRes.text()}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        let prediction = (await startRes.json()) as {
+          id: string;
+          status: string;
+          output?: string;
+          error?: string;
+        };
+
+        const startedAt = Date.now();
+        while (prediction.status === "starting" || prediction.status === "processing") {
+          if (Date.now() - startedAt > 60_000) break;
+          await new Promise<void>((resolve) => setTimeout(resolve, 1_500));
+          const poll = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            signal: AbortSignal.timeout(15_000),
+          });
+          if (poll.ok) prediction = (await poll.json()) as typeof prediction;
+        }
+
+        if (prediction.status !== "succeeded" || !prediction.output) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `ERROR: background removal failed: ${prediction.error ?? prediction.status}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const imgRes = await fetch(prediction.output, { signal: AbortSignal.timeout(30_000) });
+        if (!imgRes.ok) {
+          return {
+            content: [
+              { type: "text", text: `ERROR: failed to download result: HTTP ${imgRes.status}` },
+            ],
+            isError: true,
+          };
+        }
+        const outputBuffer = Buffer.from(await imgRes.arrayBuffer());
+        const safe = outputFilename.replace(/[/\\]/g, "_").replace(/^\.+/, "");
+        writeProjectFile(ctx.userId, ctx.projectId, `assets/${safe}`, outputBuffer);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                `OK: background removed → assets/${safe} (${(outputBuffer.length / 1024).toFixed(0)} KB, transparent PNG). ` +
+                `Reference as <img src="assets/${safe}"> in your composition.`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Crop/resize image — Sharp-based, no API key required
+  // -------------------------------------------------------------------------
+
+  const cropImageTool = tool(
+    "crop_image",
+    "Crop and/or resize a project image with Sharp. Use to trim dead space around portraits, normalize upload dimensions, or fit an asset to a specific canvas size before compositing. No API key required.",
+    {
+      imagePath: z.string().describe("Source image relative path, e.g. 'assets/host.jpg'."),
+      outputFilename: z
+        .string()
+        .regex(/^[A-Za-z0-9._-]+\.(jpg|jpeg|png|webp)$/)
+        .describe("Output filename saved to assets/, e.g. 'host-cropped.jpg'."),
+      width: z.number().int().min(1).max(4096).optional().describe("Target width in pixels."),
+      height: z.number().int().min(1).max(4096).optional().describe("Target height in pixels."),
+      fit: z
+        .enum(["cover", "contain", "fill", "inside", "outside"])
+        .optional()
+        .default("inside")
+        .describe(
+          "Resize fit: 'cover' crops to fill; 'contain' letterboxes; 'inside' shrinks to fit without crop.",
+        ),
+      cropLeft: z.number().int().min(0).optional().describe("Crop start x (pixels)."),
+      cropTop: z.number().int().min(0).optional().describe("Crop start y (pixels)."),
+      cropWidth: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe("Crop region width (pixels, before resize)."),
+      cropHeight: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe("Crop region height (pixels, before resize)."),
+    },
+    async ({
+      imagePath,
+      outputFilename,
+      width,
+      height,
+      fit,
+      cropLeft,
+      cropTop,
+      cropWidth,
+      cropHeight,
+    }) => {
+      let imageBuffer: Buffer;
+      try {
+        imageBuffer = readProjectFile(ctx.userId, ctx.projectId, imagePath).content;
+      } catch {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `ERROR: file not found: ${imagePath}. Verify the path with list_assets.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      try {
+        const sharp = (await import("sharp")).default;
+        let pipeline = sharp(imageBuffer);
+
+        if (
+          cropLeft !== undefined ||
+          cropTop !== undefined ||
+          cropWidth !== undefined ||
+          cropHeight !== undefined
+        ) {
+          const meta = await pipeline.metadata();
+          pipeline = pipeline.extract({
+            left: cropLeft ?? 0,
+            top: cropTop ?? 0,
+            width: cropWidth ?? (meta.width ?? 9999) - (cropLeft ?? 0),
+            height: cropHeight ?? (meta.height ?? 9999) - (cropTop ?? 0),
+          });
+        }
+
+        if (width ?? height) {
+          pipeline = pipeline.resize({
+            width: width ?? undefined,
+            height: height ?? undefined,
+            fit: fit ?? "inside",
+            withoutEnlargement: true,
+          });
+        }
+
+        const safe = outputFilename.replace(/[/\\]/g, "_").replace(/^\.+/, "");
+        const fileExt = safe.split(".").pop()?.toLowerCase();
+        let outputBuffer: Buffer;
+        if (fileExt === "png") {
+          outputBuffer = await pipeline.png().toBuffer();
+        } else if (fileExt === "webp") {
+          outputBuffer = await pipeline.webp({ quality: 90 }).toBuffer();
+        } else {
+          outputBuffer = await pipeline.jpeg({ quality: 90 }).toBuffer();
+        }
+
+        writeProjectFile(ctx.userId, ctx.projectId, `assets/${safe}`, outputBuffer);
+        const outMeta = await sharp(outputBuffer).metadata();
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: saved assets/${safe} (${outMeta.width}×${outMeta.height}, ${(outputBuffer.length / 1024).toFixed(0)} KB).`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Style lock — CSS variables from brand kit for brand-consistent compositions
+  // -------------------------------------------------------------------------
+
+  const getStyleLockTool = tool(
+    "get_style_lock",
+    "Generate a CSS :root variables block and Google Fonts import from the user's brand kit. Paste into every composition's <head> and <style> to lock colors, fonts, and type scale — preventing brand drift across videos. Call this once at the start of every new composition, immediately after get_brand_kit.",
+    {},
+    async () => {
+      const kit = await readBrandKit(ctx.userId);
+
+      const primary = kit.primaryColor ?? "#0a0a0a";
+      const accent = kit.accentColor ?? "#ffffff";
+      const fontFamily = kit.fontFamily ?? "Inter";
+
+      const hexToRgb = (hex: string): [number, number, number] => {
+        const m = hex.replace("#", "").match(/.{2}/g);
+        if (!m || m.length < 3) return [0, 0, 0];
+        return [parseInt(m[0], 16), parseInt(m[1], 16), parseInt(m[2], 16)];
+      };
+
+      const darken = (hex: string, amount: number): string => {
+        const [r, g, b] = hexToRgb(hex);
+        const d = (v: number) =>
+          Math.max(0, Math.round(v * (1 - amount)))
+            .toString(16)
+            .padStart(2, "0");
+        return `#${d(r)}${d(g)}${d(b)}`;
+      };
+
+      const fontSlug = fontFamily.replace(/\s+/g, "+");
+      const fontsImport = [
+        `<link rel="preconnect" href="https://fonts.googleapis.com">`,
+        `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>`,
+        `<link href="https://fonts.googleapis.com/css2?family=${fontSlug}:wght@400;600;700;900&display=swap" rel="stylesheet">`,
+      ].join("\n");
+
+      const cssVars = [
+        `:root {`,
+        `  --brand-primary:     ${primary};`,
+        `  --brand-accent:      ${accent};`,
+        `  --brand-font:        '${fontFamily}', sans-serif;`,
+        `  --brand-bg-deep:     ${darken(primary, 0.15)};`,
+        `  --brand-bg-gradient: radial-gradient(ellipse at 20% 80%, ${primary} 0%, ${darken(primary, 0.45)} 60%);`,
+        `  --brand-text-hero:   clamp(64px, 10vw, 160px);`,
+        `  --brand-text-label:  clamp(20px, 3.5vw, 48px);`,
+        `  --brand-text-body:   clamp(16px, 2.2vw, 32px);`,
+        `  --brand-shadow:      0 2px 12px rgba(0,0,0,0.9);`,
+        `}`,
+      ].join("\n");
+
+      const lines: string[] = [
+        "Paste the fonts block into <head> and the CSS block into <style>.",
+        "Use var(--brand-accent) for highlights, var(--brand-bg-gradient) on scene backgrounds.",
+        "Never hard-code hex values that exist in this kit — always use the vars.",
+        "",
+        "--- FONTS (paste in <head>) ---",
+        fontsImport,
+        "",
+        "--- CSS VARS (paste in <style>) ---",
+        cssVars,
+      ];
+
+      if (kit.logoPath)
+        lines.push(
+          "",
+          `Logo: ${kit.logoPath} — add as:`,
+          `<img src="${kit.logoPath}" style="position:absolute;top:24px;right:24px;max-height:60px;opacity:0.9;z-index:100;">`,
+        );
+      if (kit.watermarkPath)
+        lines.push(
+          "",
+          `Watermark: ${kit.watermarkPath} — add at 50% opacity, bottom-right corner.`,
+        );
+
+      return {
+        content: [{ type: "text", text: lines.join("\n") }],
+      };
+    },
+  );
+
   return createSdkMcpServer({
     name: MCP_SERVER_NAME,
     version: "1.0.0",
@@ -3432,6 +3921,10 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       designThumbnailTool,
       fetchDataSourceTool,
       reformatCompositionTool,
+      visualCritiqueTool,
+      removeBackgroundTool,
+      cropImageTool,
+      getStyleLockTool,
     ],
   });
 }
@@ -3490,6 +3983,10 @@ export const ALLOWED_TOOL_NAMES = [
   "design_thumbnail",
   "fetch_data_source",
   "reformat_composition",
+  "visual_critique",
+  "remove_background",
+  "crop_image",
+  "get_style_lock",
 ].map((n) => `mcp__${MCP_SERVER_NAME}__${n}`);
 
 type SnapshotContent =
@@ -3500,54 +3997,18 @@ type SnapshotContent =
       mimeType: "image/png" | "image/jpeg";
     };
 
-async function runSnapshot(
-  userId: string,
-  projectId: string,
+/**
+ * Encode every PNG in a snapshots/ dir into downscaled JPEG image content
+ * for the model. Shared by both the warm in-process path and the CLI fallback.
+ */
+async function encodeSnapshotsDir(
+  snapshotsDir: string,
   timestamps: number[],
 ): Promise<SnapshotContent[]> {
-  const { spawn } = await import("node:child_process");
   const fs = await import("node:fs");
   const path = await import("node:path");
-  const dir = projectDir(userId, projectId);
-  const snapshotsDir = path.join(dir, "snapshots");
-  try {
-    fs.rmSync(snapshotsDir, { recursive: true, force: true });
-  } catch {
-    /* */
-  }
-  const atArg = timestamps.map((t) => String(t)).join(",");
-  const PATH = process.env.PATH || "";
-  const extraBin = process.cwd() + "/node_modules/.bin";
-  const cliOut = await new Promise<{ code: number; err: string }>((resolveP) => {
-    const child = spawn("hyperframes", ["snapshot", dir, "--at", atArg], {
-      stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, PATH: `${extraBin}:${PATH}` },
-    });
-    let err = "";
-    child.stderr?.on("data", (chunk: Buffer) => {
-      err += chunk.toString();
-      if (err.length > 4000) err = err.slice(-4000);
-    });
-    child.on("error", () => resolveP({ code: 1, err: err || "spawn failed" }));
-    child.on("exit", (code) => resolveP({ code: code ?? 1, err }));
-  });
-
-  if (cliOut.code !== 0) {
-    return [
-      {
-        type: "text",
-        text: `ERROR: snapshot CLI exited ${cliOut.code}: ${cliOut.err.slice(-800)}`,
-      },
-    ];
-  }
-
   if (!fs.existsSync(snapshotsDir)) {
-    return [
-      {
-        type: "text",
-        text: "ERROR: snapshots dir was not produced.",
-      },
-    ];
+    return [{ type: "text", text: "ERROR: snapshots dir was not produced." }];
   }
   const files = fs
     .readdirSync(snapshotsDir)
@@ -3597,9 +4058,87 @@ async function runSnapshot(
   return content;
 }
 
-async function runLint(userId: string, projectId: string): Promise<string> {
-  const { spawn } = await import("node:child_process");
+async function runSnapshot(
+  userId: string,
+  projectId: string,
+  timestamps: number[],
+): Promise<SnapshotContent[]> {
+  const path = await import("node:path");
   const dir = projectDir(userId, projectId);
+  const snapshotsDir = path.join(dir, "snapshots");
+
+  // Preferred path: capture in-process against the warm browser pool. This
+  // skips the cold Chromium launch + Node/CLI startup the spawn path pays on
+  // every call — the dominant cost in the agent's visual-critique loop.
+  try {
+    const { captureFrames } = await import("./snapshot/capture.js");
+    const paths = await captureFrames(dir, { at: timestamps });
+    if (paths.length > 0) {
+      return encodeSnapshotsDir(snapshotsDir, timestamps);
+    }
+    // No frames produced — fall through to the CLI as a sanity fallback.
+  } catch (warmErr) {
+    console.warn(
+      `[snapshot] warm capture failed, falling back to CLI: ${(warmErr as Error).message}`,
+    );
+  }
+
+  // Fallback: spawn the hyperframes CLI (cold Chromium per call).
+  const { spawn } = await import("node:child_process");
+  const fs = await import("node:fs");
+  try {
+    fs.rmSync(snapshotsDir, { recursive: true, force: true });
+  } catch {
+    /* */
+  }
+  const atArg = timestamps.map((t) => String(t)).join(",");
+  const PATH = process.env.PATH || "";
+  const extraBin = process.cwd() + "/node_modules/.bin";
+  const cliOut = await new Promise<{ code: number; err: string }>((resolveP) => {
+    const child = spawn("hyperframes", ["snapshot", dir, "--at", atArg], {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, PATH: `${extraBin}:${PATH}` },
+    });
+    let err = "";
+    child.stderr?.on("data", (chunk: Buffer) => {
+      err += chunk.toString();
+      if (err.length > 4000) err = err.slice(-4000);
+    });
+    child.on("error", () => resolveP({ code: 1, err: err || "spawn failed" }));
+    child.on("exit", (code) => resolveP({ code: code ?? 1, err }));
+  });
+
+  if (cliOut.code !== 0) {
+    return [
+      {
+        type: "text",
+        text: `ERROR: snapshot CLI exited ${cliOut.code}: ${cliOut.err.slice(-800)}`,
+      },
+    ];
+  }
+
+  return encodeSnapshotsDir(snapshotsDir, timestamps);
+}
+
+async function runLint(userId: string, projectId: string): Promise<string> {
+  const dir = projectDir(userId, projectId);
+
+  // Preferred path: lint in-process via core (no CLI spawn). Mirrors
+  // `hyperframes lint --json` non-verbose output (info-level filtered out).
+  try {
+    const { lintProject } = await import("@hyperframes/core/lint");
+    const result = lintProject(dir);
+    const findings = result.results
+      .flatMap((r) => r.result.findings)
+      .filter((f) => f.severity !== "info");
+    if (findings.length === 0) return "OK: 0 issues";
+    return findings.map((f) => `${f.severity} [${f.code}] ${f.message}`).join("\n");
+  } catch (err) {
+    console.warn(`[lint] in-process lint failed, falling back to CLI: ${(err as Error).message}`);
+  }
+
+  // Fallback: spawn the hyperframes CLI.
+  const { spawn } = await import("node:child_process");
   const PATH = process.env.PATH || "";
   const extraBin = process.cwd() + "/node_modules/.bin";
   return new Promise<string>((resolveP) => {

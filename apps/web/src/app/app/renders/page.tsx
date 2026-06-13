@@ -86,12 +86,6 @@ export default function RendersPage() {
           >
             Projects
           </Link>
-          <Link
-            href="/app/templates"
-            className="hidden text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] sm:inline"
-          >
-            Templates
-          </Link>
           <Link href="/app/renders" className="text-[var(--color-accent)]">
             Renders
           </Link>

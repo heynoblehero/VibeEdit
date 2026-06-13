@@ -3,8 +3,7 @@ import { nanoid } from "nanoid";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { projects, renderJobs } from "@/lib/db/schema";
-import { ensureProjectDir, projectDir, seedFromIsaacHook } from "@/lib/storage/fs";
-import { copyTemplateInto, getTemplate } from "@/lib/templates";
+import { ensureProjectDir, seedFromIsaacHook } from "@/lib/storage/fs";
 import { requireServerSession } from "@/lib/server-session";
 
 export async function GET() {
@@ -53,18 +52,12 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     name?: string;
     seed?: "isaac" | "empty";
-    template?: string;
     platform?: string;
     aspectRatio?: string;
   };
   const id = nanoid(10);
   const now = new Date();
-  let resolvedName = body.name?.slice(0, 100);
-  if (!resolvedName && body.template) {
-    const t = getTemplate(body.template);
-    if (t) resolvedName = t.name;
-  }
-  if (!resolvedName) resolvedName = "Untitled Project";
+  const resolvedName = body.name?.slice(0, 100) || "Untitled Project";
 
   const VALID_PLATFORMS = ["youtube", "tiktok", "instagram", "linkedin"] as const;
   const VALID_RATIOS = ["16:9", "9:16", "1:1"] as const;
@@ -88,9 +81,7 @@ export async function POST(req: Request) {
     .run();
 
   ensureProjectDir(userId, id);
-  if (body.template) {
-    copyTemplateInto(body.template, projectDir(userId, id));
-  } else if (body.seed === "isaac") {
+  if (body.seed === "isaac") {
     seedFromIsaacHook(userId, id);
   }
   return NextResponse.json({ id });

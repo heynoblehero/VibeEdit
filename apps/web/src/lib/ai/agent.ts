@@ -101,6 +101,7 @@ function loadBrandKit(userId: string): BrandKitContext | undefined {
       targetAudience: row.targetAudience,
       logoPath: row.logoPath,
       watermarkPath: row.watermarkPath,
+      voiceId: row.voiceId,
     };
   } catch {
     return undefined;

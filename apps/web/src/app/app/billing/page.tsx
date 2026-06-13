@@ -44,6 +44,7 @@ type Info = {
     chatTurns: { used: number; limit: number };
   };
   availablePlans: Plan[];
+  renderCredits?: number;
 };
 
 const PLAN_FEATURES: Record<string, string[]> = {
@@ -83,6 +84,7 @@ function BillingPage() {
   const params = useSearchParams();
   const { data: session, isPending } = useSession();
   const [info, setInfo] = useState<Info | null>(null);
+  const [credits, setCredits] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -90,14 +92,32 @@ function BillingPage() {
   }, [isPending, session, router]);
 
   async function refresh() {
-    const r = await fetch("/api/billing/me");
-    if (!r.ok) return;
-    setInfo(await r.json());
+    const [meRes, creditsRes] = await Promise.all([
+      fetch("/api/billing/me"),
+      fetch("/api/billing/credits"),
+    ]);
+    if (meRes.ok) setInfo(await meRes.json());
+    if (creditsRes.ok) {
+      const d = (await creditsRes.json()) as { credits: number };
+      setCredits(d.credits);
+    }
   }
 
   useEffect(() => {
     if (session) refresh();
   }, [session]);
+
+  async function buyCredits() {
+    setBusy("credits");
+    const r = await fetch("/api/billing/credits", { method: "POST" });
+    const d = (await r.json()) as { error?: string; message?: string; url?: string };
+    setBusy(null);
+    if (d.url) {
+      window.location.href = d.url;
+    } else {
+      alert(d.message || "Credits purchase not yet configured — set POLAR_PRODUCT_CREDITS.");
+    }
+  }
 
   async function startCheckout(planId: string) {
     setBusy(planId);
@@ -254,6 +274,32 @@ function BillingPage() {
                 used={info.usage.chatTurns.used}
                 limit={info.usage.chatTurns.limit}
               />
+            </div>
+
+            {/* Render credits */}
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] p-4">
+              <div>
+                <div className="text-sm font-medium text-[var(--color-fg)]">
+                  Render credits
+                  {credits !== null && credits > 0 && (
+                    <span className="ml-2 rounded-full bg-[var(--color-accent)] px-2 py-0.5 text-xs font-semibold text-black">
+                      {credits} available
+                    </span>
+                  )}
+                </div>
+                <div className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
+                  {credits === 0 || credits === null
+                    ? "Buy extra renders when you hit your monthly limit — no subscription needed."
+                    : `${credits} credit${credits === 1 ? "" : "s"} · each unlocks one 1080p render.`}
+                </div>
+              </div>
+              <button
+                onClick={buyCredits}
+                disabled={busy === "credits"}
+                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-sm font-medium text-[var(--color-fg-muted)] hover:border-[var(--color-accent)]/40 hover:text-[var(--color-fg)] disabled:opacity-50"
+              >
+                {busy === "credits" ? "Loading…" : "Buy 5 renders · $10"}
+              </button>
             </div>
 
             {onFree && (

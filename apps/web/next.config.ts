@@ -9,6 +9,8 @@ const config: NextConfig = {
     "chokidar",
     "esbuild",
     "sharp",
+    "puppeteer-core",
+    "@puppeteer/browsers",
   ],
   experimental: {
     serverActions: { bodySizeLimit: "50mb" },

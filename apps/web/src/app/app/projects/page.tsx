@@ -69,7 +69,6 @@ const PLATFORM_META: Record<
 const NAV_LINKS = [
   { href: "/app/projects", label: "Projects" },
   { href: "/app/renders", label: "Renders" },
-  { href: "/app/templates", label: "Templates" },
   { href: "/app/marketplace", label: "Marketplace" },
   { href: "/app/billing", label: "Billing" },
 ];
@@ -116,7 +115,7 @@ export default function ProjectsPage() {
     if (session) refresh();
   }, [session]);
 
-  async function create(seed: "empty") {
+  async function create() {
     setCreating(true);
     setCreateError(null);
     try {
@@ -126,7 +125,6 @@ export default function ProjectsPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name: name.trim() || "Untitled Project",
-          seed,
           platform,
           aspectRatio: meta.ratio,
         }),
@@ -295,7 +293,7 @@ export default function ProjectsPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") create("empty");
+                  if (e.key === "Enter") create();
                 }}
                 placeholder="Name your project (optional)…"
                 className="max-w-xs flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2 text-sm outline-none transition-colors placeholder:text-[var(--color-fg-subtle)] focus:border-[var(--color-accent)]"
@@ -328,71 +326,34 @@ export default function ProjectsPage() {
               </div>
             </div>
 
-            {/* Row 2: project type cards */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <NewProjectCard
-                icon={
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <circle cx="6" cy="6" r="3" />
-                    <circle cx="6" cy="18" r="3" />
-                    <path d="M20 4L8.12 15.88M14.47 14.48L20 20M8.12 8.12L12 12" />
-                  </svg>
-                }
-                title="Edit footage"
-                description="Upload clips and describe the edit — trim, grade, caption, export as MP4."
-                accent={false}
-                disabled={creating}
-                onClick={() => create("empty")}
-              />
-              <NewProjectCard
-                icon={
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
-                  </svg>
-                }
-                title="Create from scratch"
-                description="Describe a scene and the AI builds every frame — motion graphics, voiceover, music."
-                accent
-                disabled={creating}
-                onClick={() => create("empty")}
-              />
-            </div>
+            {/* Row 2: single new-project action */}
+            <NewProjectCard
+              icon={
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
+                </svg>
+              }
+              title="New project"
+              description="Upload clips to edit, or describe a scene to generate from scratch — the agent figures out what to do from your first message."
+              accent
+              disabled={creating}
+              onClick={() => create()}
+            />
             {createError && (
               <div className="mt-3 rounded-xl border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/8 px-4 py-2.5 text-xs text-[var(--color-danger)]">
                 Could not create project: {createError}
               </div>
             )}
-            <div className="mt-3 flex items-center justify-between">
-              <p className="text-xs text-[var(--color-fg-subtle)]">
-                Both use the same project — the agent figures it out from your first message.
-              </p>
-              <Link
-                href="/app/templates"
-                className="text-xs text-[var(--color-accent)] transition-opacity hover:opacity-80 whitespace-nowrap"
-              >
-                Browse templates →
-              </Link>
-            </div>
           </section>
 
           {/* ── Project list ────────────────────────────────────── */}
@@ -438,14 +399,8 @@ export default function ProjectsPage() {
                 </div>
                 <p className="font-semibold text-[var(--color-fg)]">No projects yet</p>
                 <p className="mt-1 text-sm text-[var(--color-fg-muted)]">
-                  Start a blank project above, or jump-start with a template.
+                  Start a new project above to begin.
                 </p>
-                <Link
-                  href="/app/templates"
-                  className="mt-5 inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/8 px-4 py-2 text-sm font-semibold text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/12"
-                >
-                  Browse templates →
-                </Link>
               </div>
             )}
             {filtered.length === 0 && projects.length > 0 && (

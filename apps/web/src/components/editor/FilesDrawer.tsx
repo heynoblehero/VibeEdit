@@ -16,6 +16,8 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
   const [bgTarget, setBgTarget] = useState<string | null>(null);
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [assetSearch, setAssetSearch] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,13 +37,38 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
   async function upload(event: React.ChangeEvent<HTMLInputElement>) {
     const fileList = event.target.files;
     if (!fileList || fileList.length === 0) return;
+    setUploadError(null);
+    setUploading(true);
     const form = new FormData();
     for (const f of Array.from(fileList)) form.append("file", f);
-    await fetch(`/api/projects/${projectId}/upload`, {
-      method: "POST",
-      body: form,
-    });
-    event.target.value = "";
+    try {
+      const res = await fetch(`/api/projects/${projectId}/upload`, {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) {
+        // 413 is the common one on mobile: phone video/audio exceeds the
+        // server (or reverse-proxy) body limit. Surface it instead of failing
+        // silently, which previously made uploads look like a no-op.
+        throw new Error(
+          res.status === 413
+            ? "File too large to upload. Try a shorter or compressed clip."
+            : `Upload failed (${res.status}). Please try again.`,
+        );
+      }
+      // Refresh the asset list so newly uploaded files appear immediately —
+      // the parent's reloadKey only bumps on agent edits, not uploads.
+      const refresh = await fetch(`/api/projects/${projectId}`);
+      if (refresh.ok) {
+        const j = await refresh.json();
+        setFiles(j.files || []);
+      }
+    } catch (err) {
+      setUploadError((err as Error).message.slice(0, 200));
+    } finally {
+      setUploading(false);
+      event.target.value = "";
+    }
   }
 
   function editInChat(path: string) {
@@ -122,11 +149,25 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
           <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-subtle)]">
             Assets
           </span>
-          <label className="cursor-pointer rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--color-fg-muted)] transition-colors hover:border-[var(--color-accent)]/50 hover:text-[var(--color-fg)]">
-            + Upload
-            <input type="file" multiple className="hidden" onChange={upload} />
+          <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--color-fg-muted)] transition-colors hover:border-[var(--color-accent)]/50 hover:text-[var(--color-fg)]">
+            {uploading && (
+              <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border border-[var(--color-fg-subtle)] border-t-[var(--color-fg)]" />
+            )}
+            {uploading ? "Uploading…" : "+ Upload"}
+            <input
+              type="file"
+              multiple
+              accept="image/*,video/*,audio/*"
+              disabled={uploading}
+              className="hidden"
+              onChange={upload}
+            />
           </label>
         </div>
+
+        {uploadError && (
+          <p className="mb-2 text-[10px] text-[var(--color-danger)]">{uploadError}</p>
+        )}
 
         {allAssets.length > 0 && (
           <>
@@ -174,8 +215,17 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
                 <line x1="12" y1="3" x2="12" y2="15" />
               </svg>
             </div>
-            <p className="text-[11px] text-[var(--color-fg-muted)]">Drop image, video, or audio</p>
-            <input type="file" multiple className="hidden" onChange={upload} />
+            <p className="text-[11px] text-[var(--color-fg-muted)]">
+              {uploading ? "Uploading…" : "Tap to add image, video, or audio"}
+            </p>
+            <input
+              type="file"
+              multiple
+              accept="image/*,video/*,audio/*"
+              disabled={uploading}
+              className="hidden"
+              onChange={upload}
+            />
           </label>
         ) : filteredAssets.length === 0 ? (
           <p className="py-4 text-center text-[11px] text-[var(--color-fg-muted)]">

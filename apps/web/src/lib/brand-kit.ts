@@ -13,6 +13,8 @@ export type BrandKitData = {
   hostDescription: string | null;
   toneVoice: string | null;
   targetAudience: string | null;
+  voiceId: string | null;
+  voiceSamplePath: string | null;
 };
 
 const EMPTY: BrandKitData = {
@@ -26,6 +28,8 @@ const EMPTY: BrandKitData = {
   hostDescription: null,
   toneVoice: null,
   targetAudience: null,
+  voiceId: null,
+  voiceSamplePath: null,
 };
 
 export async function readBrandKit(userId: string): Promise<BrandKitData> {
@@ -42,6 +46,8 @@ export async function readBrandKit(userId: string): Promise<BrandKitData> {
     hostDescription: row.hostDescription,
     toneVoice: row.toneVoice ?? null,
     targetAudience: row.targetAudience ?? null,
+    voiceId: row.voiceId ?? null,
+    voiceSamplePath: row.voiceSamplePath ?? null,
   };
 }
 
@@ -67,6 +73,8 @@ export function writeBrandKit(userId: string, patch: Partial<BrandKitData>) {
         hostDescription: patch.hostDescription ?? null,
         toneVoice: patch.toneVoice ?? null,
         targetAudience: patch.targetAudience ?? null,
+        voiceId: patch.voiceId ?? null,
+        voiceSamplePath: patch.voiceSamplePath ?? null,
         updatedAt: now,
       })
       .run();

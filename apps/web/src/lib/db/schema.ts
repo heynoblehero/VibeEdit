@@ -165,6 +165,10 @@ export const brandKits = sqliteTable("brandKits", {
   // Voice and audience context injected into every composition system prompt.
   toneVoice: text("toneVoice"),
   targetAudience: text("targetAudience"),
+  // Cloned ElevenLabs voice — created via POST /api/brand-kit/voice.
+  // Stored so every generate_voiceover call uses the user's own voice automatically.
+  voiceId: text("voiceId"),
+  voiceSamplePath: text("voiceSamplePath"),
   updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
 });
 

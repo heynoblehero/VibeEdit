@@ -11,7 +11,7 @@ import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MAX_HISTORY_CHARS = 8000;
+const MAX_HISTORY_CHARS = 14000;
 
 // Keyed by `${userId}:${projectId}` so the same user can have one in-flight
 // chat per project. Lets the client (or HMR) cancel a runaway agent loop
@@ -226,23 +226,73 @@ function serializePriorHistory(rows: Array<{ role: string; content: string }>): 
   const lines: string[] = [];
   for (const row of rows) {
     const parsed = safeParse(row.content);
-    const text =
-      typeof parsed === "string"
-        ? parsed
-        : Array.isArray(parsed)
-          ? parsed
-              .map((b) =>
-                b && typeof b === "object" && "text" in b ? (b as { text?: string }).text : "",
-              )
-              .filter(Boolean)
-              .join(" ")
-          : "";
+
+    if (typeof parsed === "string") {
+      if (parsed) lines.push(`${row.role}: ${parsed}`);
+      continue;
+    }
+
+    if (!Array.isArray(parsed)) continue;
+
+    const parts: string[] = [];
+    for (const block of parsed as Array<Record<string, unknown>>) {
+      if (!block || typeof block !== "object") continue;
+      if (block.type === "text" && typeof block.text === "string" && block.text) {
+        parts.push(block.text);
+      } else if (block.type === "tool_use" && typeof block.name === "string") {
+        const summary = summarizeToolForHistory(block.name, block.input as Record<string, unknown>);
+        if (summary) parts.push(`[${summary}]`);
+      }
+    }
+
+    const text = parts.join(" ").trim();
     if (text) lines.push(`${row.role}: ${text}`);
   }
   const joined = lines.join("\n");
   return joined.length > MAX_HISTORY_CHARS
     ? "…[earlier turns elided]…\n" + joined.slice(-MAX_HISTORY_CHARS)
     : joined;
+}
+
+function summarizeToolForHistory(name: string, input: Record<string, unknown>): string {
+  switch (name) {
+    case "write_file":
+      return typeof input.path === "string" ? `wrote ${input.path}` : "wrote file";
+    case "diff_file":
+      return typeof input.path === "string" ? `edited ${input.path}` : "edited file";
+    case "plan_composition": {
+      const parts = [
+        input.niche ?? "",
+        input.format ?? "",
+        input.totalDurationSeconds ? `${input.totalDurationSeconds}s` : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      return `planned composition: ${parts}`;
+    }
+    case "plan_edit":
+      return "planned edit";
+    case "render_edl":
+      return "rendered EDL";
+    case "start_render":
+      return "started render";
+    case "generate_voiceover":
+      return "generated voiceover";
+    case "generate_broll":
+      return typeof input.filename === "string"
+        ? `generated broll: ${input.filename}`
+        : "generated broll";
+    case "download_asset":
+      return typeof input.filename === "string"
+        ? `downloaded ${input.filename}`
+        : "downloaded asset";
+    case "screenshot_at_time": {
+      const ts = Array.isArray(input.timestamps) ? (input.timestamps as number[]).join(", ") : "";
+      return ts ? `screenshotted at [${ts}]s` : "screenshotted";
+    }
+    default:
+      return "";
+  }
 }
 
 function safeParse(s: string): unknown {

@@ -21,10 +21,27 @@ export async function GET() {
     ? { ok: true, detail: "api-key configured" }
     : { ok: true, detail: "using Claude Code OAuth (Agent SDK)" };
 
+  // Snapshot + lint now run in-process; the CLI binary is only a fallback, so
+  // its absence is informational (not a failure).
   const cliPath = resolve(process.cwd(), "node_modules", ".bin", "hyperframes");
-  checks.cli = existsSync(cliPath)
-    ? { ok: true, detail: "hyperframes binary present" }
-    : { ok: false, detail: "hyperframes binary missing" };
+  checks.cli = {
+    ok: true,
+    detail: existsSync(cliPath) ? "hyperframes binary present" : "binary absent (using in-process)",
+  };
+
+  // Chrome powers in-process snapshots — its absence is a real degradation.
+  try {
+    const { isChromeAvailable } = await import("@/lib/ai/snapshot/browser-pool");
+    const chromeOk = await isChromeAvailable();
+    checks.snapshotBrowser = chromeOk
+      ? { ok: true, detail: "chrome resolved" }
+      : {
+          ok: false,
+          detail: "no chrome (set HYPERFRAMES_BROWSER_PATH or run `hyperframes doctor`)",
+        };
+  } catch (error) {
+    checks.snapshotBrowser = { ok: false, detail: (error as Error).message };
+  }
 
   const allOk = Object.values(checks).every((c) => c.ok);
   const status = allOk ? "ok" : "degraded";

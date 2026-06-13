@@ -60,12 +60,6 @@ export default function StockPage() {
           >
             Projects
           </Link>
-          <Link
-            href="/app/templates"
-            className="hidden text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] sm:inline"
-          >
-            Templates
-          </Link>
           <Link href="/app/stock" className="text-[var(--color-accent)]">
             Stock
           </Link>

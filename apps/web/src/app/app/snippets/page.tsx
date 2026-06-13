@@ -95,12 +95,6 @@ export default function SnippetsPage() {
           >
             Marketplace
           </Link>
-          <Link
-            href="/app/templates"
-            className="hidden text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] sm:inline"
-          >
-            Templates
-          </Link>
         </nav>
       </header>
 

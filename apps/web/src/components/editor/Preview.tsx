@@ -77,8 +77,11 @@ export function Preview({ projectId, reloadKey }: { projectId: string; reloadKey
     document.head.appendChild(script);
   }, [scriptLoaded]);
 
-  // Track reload events + capture pre-remount playhead so we can restore
-  // the user's position when the new player becomes ready.
+  // When a new composition arrives, auto-play it so the user sees the result
+  // immediately without having to click play. Only auto-plays when triggered
+  // by a file-change event (reloadKey > 0); does not fire on initial load.
+  const autoPlayPendingRef = useRef(false);
+
   useEffect(() => {
     if (reloadKey === lastReloadKeyRef.current) return;
     lastReloadKeyRef.current = reloadKey;
@@ -96,6 +99,8 @@ export function Preview({ projectId, reloadKey }: { projectId: string; reloadKey
         setLastLatencyMs(delta);
         setP50LatencyMs(p50(readSamples()));
       }
+      // Schedule auto-play for when the new player becomes ready.
+      autoPlayPendingRef.current = true;
     }
     setPlayerReady(false);
   }, [reloadKey, playerReady]);
@@ -122,6 +127,17 @@ export function Preview({ projectId, reloadKey }: { projectId: string; reloadKey
         }
       }
       carryOverRef.current = null;
+
+      // Auto-play the composition the first time it loads after a file change.
+      if (autoPlayPendingRef.current) {
+        autoPlayPendingRef.current = false;
+        try {
+          player.currentTime = 0;
+          player.play?.();
+        } catch {
+          /* ignore — user can press play manually */
+        }
+      }
     };
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);

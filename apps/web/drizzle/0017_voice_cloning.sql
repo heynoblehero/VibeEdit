@@ -1,0 +1,2 @@
+ALTER TABLE `brandKits` ADD `voiceId` text;
+ALTER TABLE `brandKits` ADD `voiceSamplePath` text;

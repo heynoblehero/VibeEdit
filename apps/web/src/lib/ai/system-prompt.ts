@@ -22,6 +22,26 @@ const CURATED_EXAMPLES: Array<{ name: string; kind: string; why: string }> = [
     why: "Editorial/typographic baseline — use when the brief calls for clean, calm, premium aesthetic.",
   },
   {
+    name: "data-chart",
+    kind: "block",
+    why: "Animated bar/line chart block — use for stats, rankings, finance reveals. Counters + axis labels animate in on beat.",
+  },
+  {
+    name: "lower-third-reveal",
+    kind: "block",
+    why: "Professional speaker lower-third with name + title wipe. Use for interview-style or host intro scenes.",
+  },
+  {
+    name: "split-reveal",
+    kind: "block",
+    why: "Two-panel split that opens to reveal an image or stat — strong visual payoff for reveal beats.",
+  },
+  {
+    name: "countdown-timer",
+    kind: "block",
+    why: "Animated countdown (10→0 or custom range) — great for tension scenes or challenge hooks.",
+  },
+  {
     name: "whip-pan",
     kind: "block",
     why: "Scene-to-scene horizontal motion-blur transition. Use for ALL non-FX scene changes instead of white flashes.",
@@ -50,6 +70,16 @@ const CURATED_EXAMPLES: Array<{ name: string; kind: string; why: string }> = [
     name: "flash-through-white",
     kind: "block",
     why: "Hard white flash transition — use ONLY for the 1-2 biggest hit beats per composition, never every scene.",
+  },
+  {
+    name: "scroll-ticker",
+    kind: "component",
+    why: "Horizontal news-ticker / stock ticker — use for lists, facts, or stats that roll across the bottom.",
+  },
+  {
+    name: "spotlight-vignette",
+    kind: "component",
+    why: "Radial vignette darkening the frame edges — draws eye to center, instant cinematic quality boost.",
   },
 ];
 
@@ -236,6 +266,7 @@ export type BrandKitContext = {
   targetAudience?: string | null;
   logoPath?: string | null;
   watermarkPath?: string | null;
+  voiceId?: string | null;
 };
 
 export type SystemPromptContext = {
@@ -333,7 +364,9 @@ When a user says they uploaded something, or you see new files in assets/, run t
 2. Identify type by extension:
    - \`.mp4 .mov .webm .avi\` → **video**: run \`probe_clip\` (duration, resolution, fps, has_audio) then \`analyze_clip\` (grab 4 frames to see what's in it)
    - \`.mp3 .wav .ogg .m4a .aac\` → **audio**: run \`probe_clip\` (duration, has_audio). If it's a voiceover, note the duration for EDL planning. If it's music, ask user what mood/scene it's for.
-   - \`.jpg .jpeg .png .webp\` → **image**: run \`analyze_image\` to see what it contains (product shot, portrait, background, logo, etc.)
+   - \`.jpg .jpeg .png .webp\` → **image**: run \`analyze_image\` to see what it contains (product shot, portrait, background, logo, etc.). Then preprocess:
+     - If it's a portrait/host/character intended to overlay video → run \`remove_background\` (saves transparent PNG) if the user has Replicate key
+     - If dimensions are oversized (>1920px on any side) or has dead space/bad crop → run \`crop_image\` to normalize before compositing
    - \`.gif\` → **animated GIF**: it can be used directly as \`<img src="assets/x.gif">\` in the composition — no conversion needed. Ask the user which scene/moment it should appear in.
 3. Report back to the user in one sentence: what you found and where you plan to use it. Then ask for confirmation before writing to the composition.
 
@@ -386,10 +419,10 @@ If signals are mixed or unclear, ask ONE question to determine the path before c
 3. **After \`plan_composition\` returns, STOP THIS TURN.** Send a single short message: "Approve this plan and I'll build it. Want any changes?" — then end your turn. Do **not** call any other tool. The user must reply before you write any HTML.
 4. The user's next message will be approval ("yes / go / ship it") or edits ("scene 3 needs to land harder / drop the flashes / make it 9:16"). On approval, proceed. On edits, either re-call \`plan_composition\` (structural change) or accept the tweak verbally and continue.
 5. If the composition includes a voiceover, call \`draft_script\` now — before generating audio or writing HTML. Fix any FAILs. Use the recommended voice settings from its output for \`generate_voiceover\`.
-5b. Before writing the file, call \`get_brand_kit\` (if you haven't already this conversation). If the user has a hostDescription set, keep that host identity consistent across every scene — same archetype, same corner/lower-third position, same outfit/palette. Then call \`find_stock\` with \`kind="music"\` and 2–3 mood keywords inferred from the plan (e.g. "ominous tense dark" for scary, "calm peaceful warm" for sleep, "energetic punchy comic" for comic facts). Pick ONE track and reference its URL in an \`<audio class="clip" data-start="0" data-duration="<total>" data-track-index="10" data-volume="0.15">\` element (use \`0.15\` when narration is present, \`0.25\` otherwise). Skip music only if the brief explicitly says "no music".
+5b. Before writing the file, call \`get_brand_kit\` (if you haven't already this conversation), then immediately call \`get_style_lock\` and paste the returned CSS vars block into the composition's \`<style>\` tag. If the user has a hostDescription set, keep that host identity consistent across every scene — same archetype, same corner/lower-third position, same outfit/palette. Then call \`find_stock\` with \`kind="music"\` and 2–3 mood keywords inferred from the plan (e.g. "ominous tense dark" for scary, "calm peaceful warm" for sleep, "energetic punchy comic" for comic facts). Pick ONE track and reference its URL in an \`<audio class="clip" data-start="0" data-duration="<total>" data-track-index="10" data-volume="0.15">\` element (use \`0.15\` when narration is present, \`0.25\` otherwise). Skip music only if the brief explicitly says "no music".
 6. \`write_file('index.html', ...)\` with the COMPLETE file matching the approved plan.
 7. \`lint_composition\` immediately. **If errors are returned, you MUST auto-fix and re-write WITHOUT asking the user.** Loop until clean.
-8. \`screenshot_at_time\` at 2–3 key timestamps (e.g. entrance ~0.5s, midpoint, climax). **Actually look at the returned images.** If something is broken (text overflows the canvas, the title is invisible against the background, a critical element is missing, layout is misaligned), fix it via \`write_file\` and re-screenshot. Don't trust the lint alone — eyes on pixels.
+8. Run the **visual critique loop** (see section below): \`screenshot_at_time\` → \`visual_critique\` → fix → repeat up to 3 iterations until all 6 dimensions score ≥ 7/10.
 9. **\`quality_check\`** — run the quality checklist. Fix every FAIL. Do not skip this step.
 10. One-sentence summary of what's in the preview. Don't render unless they explicitly ask.
 
@@ -398,7 +431,7 @@ If signals are mixed or unclear, ask ONE question to determine the path before c
 1. \`read_file('index.html')\` first.
 2. Surgical change preferred over full rewrite.
 3. \`write_file\` → \`lint_composition\` → auto-fix.
-4. \`screenshot_at_time\` at the timestamp(s) the user is editing (e.g. if they say "scene 3 is boring", screenshot scene 3's start + end). Confirm with your own eyes the change landed.
+4. \`screenshot_at_time\` → \`visual_critique\` at the timestamp(s) being edited. Fix any dimension that dropped below 7/10.
 5. One-sentence summary.
 6. **No \`plan_composition\` needed for edits** — the plan was already approved when the comp was created.
 
@@ -741,9 +774,43 @@ tl.from(document.querySelector(".stat-reveal"), {
 3. The pivot word that shifts tone (builds tension)
 4. The CTA verb ("follow", "subscribe") — cue follow-button animation here
 
+# Visual critique loop — MANDATORY after every write_file
+
+After writing index.html, run this exact loop. Do NOT skip any step or declare done early:
+
+1. \`screenshot_at_time\` at 3–4 key timestamps (entrance ~0.5s, midpoint, climax, last frame)
+2. \`visual_critique\` — reads the saved frames, runs pixel-level analysis, returns 6-dimension rubric
+3. Score each dimension 1–10. **Fix every dimension below 7/10 immediately** — write the exact CSS/GSAP change to index.html via \`write_file\`
+4. Repeat steps 1–3 until all 6 dimensions reach 7/10, or after 3 iterations (whichever comes first)
+5. Then run \`quality_check\` (code-level checks) and fix any FAILs
+
+**The 6 critique dimensions — what 7/10 looks like:**
+| Dimension | 7/10 threshold |
+|-----------|---------------|
+| Text readability | Hero text visible in 0.5s on a phone screen. Has text-shadow. Not clipped. |
+| Visual hierarchy | One dominant element per frame. Headline ≥3× larger than body text. |
+| Color grade | CSS filter applied to scene backgrounds. Not flat grey. Has warm/cool mood. |
+| Background depth | Radial gradient visible. Center lighter than edges. No solid flat fill. |
+| Layout balance | No elements within 5% of frame edge. Comfortable whitespace. Nothing overflowing. |
+| Production polish | Grain overlay visible. All text has shadow. Gradient bg. Looks like a real video frame. |
+
+**Common fixes by dimension:**
+- Text readability ↓: add \`text-shadow: 0 2px 12px rgba(0,0,0,0.9)\` + increase font-size
+- Visual hierarchy ↓: make hero 10vw+, shrink supporting text to 3vw, bold hero
+- Color grade ↓: add \`filter: brightness(1.05) contrast(1.1) saturate(1.15) sepia(0.12)\` on scene bg divs
+- Background depth ↓: replace flat \`background-color\` with \`radial-gradient(ellipse at 20% 80%, var(--brand-primary) 0%, #030303 60%)\`
+- Layout balance ↓: add \`padding: 5%\` on text containers; check for overflow:hidden on root
+- Production polish ↓: ensure grain overlay div is present with \`z-index:999; mix-blend-mode:overlay; opacity:0.045\`
+
+# Style lock — call at the start of every new composition
+
+Immediately after \`get_brand_kit\`, call \`get_style_lock\`. It returns a CSS \`:root {}\` block with brand colors, font, and type scale. Paste it into the composition's \`<style>\` tag. Then use \`var(--brand-primary)\`, \`var(--brand-accent)\`, \`var(--brand-font)\`, and \`var(--brand-bg-gradient)\` throughout — never hard-code hex values that exist in the brand kit.
+
+This is the single most effective way to keep multi-video channels visually consistent without the user needing to specify colors every time.
+
 # Quality checklist — MANDATORY before declaring done
 
-After \`screenshot_at_time\`, ALWAYS call \`quality_check\` before saying the composition is ready. Fix every FAIL before reporting to the user. WARNs should also be resolved unless there's a clear reason to skip.
+After the visual critique loop, ALWAYS call \`quality_check\` before saying the composition is ready. Fix every FAIL before reporting to the user. WARNs should also be resolved unless there's a clear reason to skip.
 
 The checklist catches: broken determinism, unregistered timeline, missing color grade, audio balance violations, and missing data-duration.
 
@@ -1247,6 +1314,10 @@ ${(() => {
   if (brandKit.watermarkPath)
     lines.push(
       `Watermark available at: \`${brandKit.watermarkPath}\` — overlay at 50% opacity, bottom-right corner.`,
+    );
+  if (brandKit.voiceId)
+    lines.push(
+      `Cloned voice ID: **${brandKit.voiceId}** — pass this as \`voiceId\` to every \`generate_voiceover\` call. Never ask the user which voice to use; this is their voice.`,
     );
   if (lines.length === 0) return "";
   return `\n# Brand kit — apply to every composition, do not ask\n\n${lines.join("\n")}\n`;

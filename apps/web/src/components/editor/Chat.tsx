@@ -292,9 +292,6 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
   const [showAssetPicker, setShowAssetPicker] = useState(false);
   // When set, a fullscreen zoom viewer for a composition (live or a snapshot).
   const [viewer, setViewer] = useState<{ src: string; aspectRatio: AspectRatio } | null>(null);
-  // The live preview is pinned at the top of the chat; users can collapse it to
-  // give the conversation more room (persisted).
-  const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -390,18 +387,6 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
       })
       .catch(() => {});
   }, [projectId]);
-
-  useEffect(() => {
-    setPreviewCollapsed(localStorage.getItem("vibeedit:preview-collapsed") === "1");
-  }, []);
-
-  function togglePreview() {
-    setPreviewCollapsed((value) => {
-      const next = !value;
-      localStorage.setItem("vibeedit:preview-collapsed", next ? "1" : "0");
-      return next;
-    });
-  }
 
   // Auto-scroll the thread to the newest content — but only when the user is
   // already near the bottom, so reading earlier messages (or interacting with a
@@ -734,105 +719,6 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
         )}
       </div>
 
-      {/* Pinned live preview — always visible at the top so the current video
-          stays in view while you chat. Collapsible; tap ⤢ for fullscreen. */}
-      {!showSamples && (
-        <div className="shrink-0 border-b border-[var(--color-border)] bg-black">
-          {previewCollapsed ? (
-            <button
-              onClick={togglePreview}
-              className="flex w-full items-center justify-between px-3 py-2 text-[11px] font-medium text-[var(--color-fg-muted)] transition-colors hover:text-[var(--color-fg)]"
-            >
-              <span className="flex items-center gap-1.5">
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <polygon points="5 3 19 12 5 21" />
-                </svg>
-                Show preview
-              </span>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </button>
-          ) : (
-            <div className="relative">
-              <div className="h-[32svh] max-h-[440px] sm:h-[38svh] md:h-[44svh]">
-                <Preview projectId={projectId} reloadKey={reloadKey} stageVh={44} />
-              </div>
-              <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5">
-                <button
-                  onClick={() =>
-                    setViewer({
-                      src: `/api/projects/${projectId}/files/index.html?v=${reloadKey}`,
-                      aspectRatio,
-                    })
-                  }
-                  title="Open fullscreen"
-                  aria-label="Open fullscreen"
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-colors hover:bg-black/75"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <polyline points="15 3 21 3 21 9" />
-                    <polyline points="9 21 3 21 3 15" />
-                    <line x1="21" y1="3" x2="14" y2="10" />
-                    <line x1="3" y1="21" x2="10" y2="14" />
-                  </svg>
-                </button>
-                <button
-                  onClick={togglePreview}
-                  title="Collapse preview"
-                  aria-label="Collapse preview"
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-colors hover:bg-black/75"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <polyline points="18 15 12 9 6 15" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       <div
         ref={scrollRef}
         className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4"
@@ -875,6 +761,44 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
                   <LiveLine key={i} entry={entry} projectId={projectId} />
                 ),
               )}
+            </div>
+          )}
+          {/* Live preview as the latest message in the thread — the current
+              composition shows up inline (like image/video gen chats) and
+              scrolls with the conversation. Tap ⤢ for fullscreen + rotate. */}
+          {!showSamples && (
+            <div className="relative overflow-hidden rounded-2xl rounded-tl-sm border border-[var(--color-border)] bg-black shadow-sm">
+              <div className="h-[34svh] max-h-[460px] sm:h-[40svh] md:h-[46svh]">
+                <Preview projectId={projectId} reloadKey={reloadKey} stageVh={46} />
+              </div>
+              <button
+                onClick={() =>
+                  setViewer({
+                    src: `/api/projects/${projectId}/files/index.html?v=${reloadKey}`,
+                    aspectRatio,
+                  })
+                }
+                title="Open fullscreen"
+                aria-label="Open fullscreen"
+                className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-colors hover:bg-black/75"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="15 3 21 3 21 9" />
+                  <polyline points="9 21 3 21 3 15" />
+                  <line x1="21" y1="3" x2="14" y2="10" />
+                  <line x1="3" y1="21" x2="10" y2="14" />
+                </svg>
+              </button>
             </div>
           )}
         </div>

@@ -1,7 +1,8 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
-import { messages, projects } from "@/lib/db/schema";
+import { messages, projects, projectSnapshots } from "@/lib/db/schema";
+import { listAssets, markAiAssets, readProjectText } from "@/lib/storage/fs";
 import { requireServerSession } from "@/lib/server-session";
 import { runAgent, type AgentEvent } from "@/lib/ai/agent";
 import { enqueue } from "@/lib/render/queue";
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
 
   // Validate & trim BYOK keys before handing to the agent. Anything unknown
   // is dropped so a malicious caller can't smuggle arbitrary header names.
-  const ALLOWED_KEYS = ["replicate", "kling", "fal", "elevenlabs", "openai", "anthropic"] as const;
+  const ALLOWED_KEYS = ["replicate", "elevenlabs", "openai", "anthropic"] as const;
   const apiKeys: Record<string, string> = {};
   if (body.apiKeys && typeof body.apiKeys === "object") {
     for (const provider of ALLOWED_KEYS) {
@@ -164,6 +165,9 @@ export async function POST(req: Request) {
       };
 
       try {
+        // Snapshot the asset set so we can tell which files the agent created
+        // this turn (everything new = AI-made; uploads come in via /upload).
+        const assetsBefore = new Set(listAssets(userId, projectId));
         await runAgent({
           userMessage,
           priorHistory,
@@ -174,8 +178,6 @@ export async function POST(req: Request) {
             aspectRatio: owned.aspectRatio ?? undefined,
             apiKeys: apiKeys as {
               replicate?: string;
-              kling?: string;
-              fal?: string;
               elevenlabs?: string;
               openai?: string;
               anthropic?: string;
@@ -186,16 +188,23 @@ export async function POST(req: Request) {
           abortController,
         });
 
+        const newAssets = listAssets(userId, projectId).filter((p) => !assetsBefore.has(p));
+        markAiAssets(userId, projectId, newAssets);
+
         if (assistantBlocks.length) {
+          const assistantMessageId = nanoid(10);
           db.insert(messages)
             .values({
-              id: nanoid(10),
+              id: assistantMessageId,
               projectId,
               role: "assistant",
               content: JSON.stringify(assistantBlocks),
               createdAt: new Date(),
             })
             .run();
+          // Snapshot the composition this turn produced so the chat can replay
+          // each past version inline (skipped if nothing changed).
+          captureChatSnapshot(userId, projectId, assistantMessageId);
         }
         db.update(projects).set({ updatedAt: new Date() }).where(eq(projects.id, projectId)).run();
       } catch (error) {
@@ -219,6 +228,37 @@ export async function POST(req: Request) {
       "x-accel-buffering": "no",
     },
   });
+}
+
+// Records the current index.html as a versioned snapshot tied to the assistant
+// turn that produced it. De-duped: if the composition is byte-identical to the
+// most recent snapshot, no new version is recorded (so Q&A turns that don't
+// touch the composition don't spawn duplicate inline previews).
+function captureChatSnapshot(userId: string, projectId: string, messageId: string): void {
+  let html: string;
+  try {
+    html = readProjectText(userId, projectId, "index.html");
+  } catch {
+    return; // no composition yet — nothing to snapshot
+  }
+  const last = db
+    .select({ html: projectSnapshots.html })
+    .from(projectSnapshots)
+    .where(eq(projectSnapshots.projectId, projectId))
+    .orderBy(desc(projectSnapshots.createdAt))
+    .limit(1)
+    .get();
+  if (last && last.html === html) return;
+  db.insert(projectSnapshots)
+    .values({
+      id: nanoid(12),
+      projectId,
+      userId,
+      messageId,
+      html,
+      createdAt: new Date(),
+    })
+    .run();
 }
 
 function serializePriorHistory(rows: Array<{ role: string; content: string }>): string {

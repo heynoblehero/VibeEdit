@@ -83,3 +83,71 @@ export async function replicateGenerateImage(options: ReplicateImageOptions): Pr
   if (buffer.length === 0) throw new Error("replicate returned empty image");
   return buffer;
 }
+
+export type ReplicateVideoOptions = {
+  apiKey: string;
+  prompt: string;
+  aspectRatio?: "16:9" | "9:16" | "1:1";
+  duration?: "5" | "10";
+  // Any Replicate text-to-video model alias. Default Kling 1.6 standard; swap to
+  // luma/ray, wan-video/*, minimax/* etc. without touching call sites.
+  model?: string;
+  signal?: AbortSignal;
+};
+
+const DEFAULT_VIDEO_MODEL = "kwaivgi/kling-v1.6-standard";
+const VIDEO_POLL_INTERVAL_MS = 4_000;
+const VIDEO_MAX_POLL_MS = 300_000;
+
+// Text-to-video via Replicate. Same predictions API as images, but video
+// renders take 30–120s so we poll longer. Returns the downloaded MP4 bytes.
+export async function replicateGenerateVideo(options: ReplicateVideoOptions): Promise<Buffer> {
+  const model = options.model || DEFAULT_VIDEO_MODEL;
+  const startResponse = await fetch(`https://api.replicate.com/v1/models/${model}/predictions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${options.apiKey}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      input: {
+        prompt: options.prompt,
+        duration: options.duration || "5",
+        aspect_ratio: options.aspectRatio || "16:9",
+      },
+    }),
+    signal: options.signal,
+  });
+  if (!startResponse.ok) {
+    const text = await startResponse.text().catch(() => "");
+    throw new Error(`replicate video start failed: ${startResponse.status} ${text.slice(0, 400)}`);
+  }
+  let prediction = (await startResponse.json()) as Prediction;
+  const startedAt = Date.now();
+  while (prediction.status === "starting" || prediction.status === "processing") {
+    if (Date.now() - startedAt > VIDEO_MAX_POLL_MS) {
+      throw new Error(`replicate video timed out after ${VIDEO_MAX_POLL_MS / 1000}s`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, VIDEO_POLL_INTERVAL_MS));
+    const pollResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+      headers: { Authorization: `Bearer ${options.apiKey}` },
+      signal: options.signal,
+    });
+    if (!pollResponse.ok) continue;
+    prediction = (await pollResponse.json()) as Prediction;
+  }
+  if (prediction.status !== "succeeded") {
+    throw new Error(`replicate video ${prediction.status}: ${prediction.error || "unknown error"}`);
+  }
+  const videoUrl = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
+  if (!videoUrl || typeof videoUrl !== "string") {
+    throw new Error("replicate returned no video URL");
+  }
+  const videoResponse = await fetch(videoUrl, { signal: options.signal });
+  if (!videoResponse.ok) {
+    throw new Error(`replicate video fetch failed: ${videoResponse.status}`);
+  }
+  const buffer = Buffer.from(await videoResponse.arrayBuffer());
+  if (buffer.length === 0) throw new Error("replicate returned empty video");
+  return buffer;
+}

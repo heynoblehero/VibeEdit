@@ -11,7 +11,7 @@ import {
 import { listRegistry, readRegistryBlock } from "./registry";
 import { readBrandKit } from "../brand-kit";
 import { searchStock, type StockKind } from "../stock/registry";
-import { replicateGenerateImage } from "./providers/replicate";
+import { replicateGenerateImage, replicateGenerateVideo } from "./providers/replicate";
 import { nanoid } from "nanoid";
 import {
   resolveProjectPath,
@@ -54,9 +54,7 @@ export type ToolContext = {
   // BYOK keys forwarded from the browser's localStorage per chat request.
   // Tools check this map before falling back to process.env (dev-only) and
   // return a friendly error if neither is present.
-  apiKeys?: Partial<
-    Record<"replicate" | "kling" | "fal" | "elevenlabs" | "openai" | "anthropic", string>
-  >;
+  apiKeys?: Partial<Record<"replicate" | "elevenlabs" | "openai" | "anthropic", string>>;
   // Project-level platform context passed from the DB row.
   platform?: string;
   aspectRatio?: string;
@@ -2910,12 +2908,12 @@ ${jsLines.join("\n")}`;
   );
 
   // -------------------------------------------------------------------------
-  // AI B-roll generation (FAL / Kling)
+  // AI B-roll generation (Replicate — Kling text-to-video)
   // -------------------------------------------------------------------------
 
   const generateBrollTool = tool(
     "generate_broll",
-    "Generate a short AI video clip from a text prompt using FAL AI (Kling 1.6). Takes 30–90s to complete. Use when the user has no real footage — environment shots, product visuals, action scenes, abstract backgrounds. Returns the saved asset path. Requires a FAL API key at /app/settings/api-keys.",
+    "Generate a short AI video clip from a text prompt via Replicate (Kling text-to-video). Takes 30–120s to complete. Use when the user has no real footage — environment shots, product visuals, action scenes, abstract backgrounds. Returns the saved asset path. Requires a Replicate API key at /app/settings/api-keys.",
     {
       prompt: z
         .string()
@@ -2935,13 +2933,13 @@ ${jsLines.join("\n")}`;
         .describe("Output aspect ratio — match the composition format."),
     },
     async ({ prompt, filename, duration, aspectRatio }) => {
-      const apiKey = ctx.apiKeys?.fal;
+      const apiKey = ctx.apiKeys?.replicate;
       if (!apiKey) {
         return {
           content: [
             {
               type: "text",
-              text: `ERROR: No FAL API key configured. Ask the user to add their FAL key at /app/settings/api-keys, then try again.`,
+              text: `ERROR: No Replicate API key configured. Ask the user to add their Replicate token at /app/settings/api-keys, then try again.`,
             },
           ],
           isError: true,
@@ -2949,77 +2947,13 @@ ${jsLines.join("\n")}`;
       }
       const safe = filename.replace(/[/\\]/g, "_").replace(/^\.+/, "");
       const dest = `assets/${safe}`;
-      const modelPath = "fal-ai/kling-video/v1.6/standard/text-to-video";
       try {
-        const submitRes = await fetch(`https://queue.fal.run/${modelPath}`, {
-          method: "POST",
-          headers: {
-            Authorization: `Key ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ prompt, duration, aspect_ratio: aspectRatio }),
-          signal: AbortSignal.timeout(30_000),
+        const buffer = await replicateGenerateVideo({
+          apiKey,
+          prompt,
+          duration,
+          aspectRatio,
         });
-        if (!submitRes.ok) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `ERROR: FAL submit failed: HTTP ${submitRes.status} — ${await submitRes.text()}`,
-              },
-            ],
-            isError: true,
-          };
-        }
-        const { request_id } = (await submitRes.json()) as { request_id: string };
-        const statusUrl = `https://queue.fal.run/${modelPath}/requests/${request_id}`;
-        let videoUrl: string | null = null;
-        for (let attempt = 0; attempt < 24; attempt++) {
-          await new Promise<void>((resolve) => setTimeout(resolve, 5_000));
-          const statusRes = await fetch(statusUrl, {
-            headers: { Authorization: `Key ${apiKey}` },
-            signal: AbortSignal.timeout(15_000),
-          });
-          if (!statusRes.ok) continue;
-          const status = (await statusRes.json()) as {
-            status: string;
-            output?: { video?: { url: string } };
-          };
-          if (status.status === "COMPLETED" && status.output?.video?.url) {
-            videoUrl = status.output.video.url;
-            break;
-          }
-          if (status.status === "FAILED") {
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: `ERROR: FAL generation failed. Try a more specific or different prompt.`,
-                },
-              ],
-              isError: true,
-            };
-          }
-        }
-        if (!videoUrl) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `ERROR: FAL generation timed out after 120s. Try again or use duration="5".`,
-              },
-            ],
-            isError: true,
-          };
-        }
-        const dlRes = await fetch(videoUrl, { signal: AbortSignal.timeout(60_000) });
-        if (!dlRes.ok) {
-          return {
-            content: [{ type: "text", text: `ERROR: Video download failed: HTTP ${dlRes.status}` }],
-            isError: true,
-          };
-        }
-        const buffer = Buffer.from(await dlRes.arrayBuffer());
         writeProjectFile(ctx.userId, ctx.projectId, dest, buffer);
         return {
           content: [
@@ -3038,6 +2972,27 @@ ${jsLines.join("\n")}`;
           isError: true,
         };
       }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Next-step suggestions (one-tap follow-ups shown in the chat)
+  // -------------------------------------------------------------------------
+
+  const suggestNextStepsTool = tool(
+    "suggest_next_steps",
+    "ALWAYS call this as the very LAST step of every turn, once the work is done. Provide 3–4 short, specific follow-up edits the user is likely to want next, tailored to what was just built (e.g. 'Make the title red', 'Add a glow to the logo', 'Tighten the cuts', 'Add captions'). Each must be ≤6 words, imperative, and directly usable as the next instruction. These render as one-tap chips under your reply.",
+    {
+      suggestions: z
+        .array(z.string().min(2).max(60))
+        .min(2)
+        .max(4)
+        .describe("3–4 short next-step edits, each ≤6 words, specific to the current composition."),
+    },
+    async ({ suggestions }) => {
+      return {
+        content: [{ type: "text", text: `OK: ${suggestions.length} next steps suggested.` }],
+      };
     },
   );
 
@@ -3918,6 +3873,7 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       loadInsightsTool,
       downloadAssetTool,
       generateBrollTool,
+      suggestNextStepsTool,
       designThumbnailTool,
       fetchDataSourceTool,
       reformatCompositionTool,

@@ -1,30 +1,39 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isNoiseAsset, type AssetSource } from "@/lib/asset-actions";
 import { VariablesPanel } from "./VariablesPanel";
+import { AssetEditMenu, SourceBadge } from "./AssetEditMenu";
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg)$/i;
 const VIDEO_EXT = /\.(mp4|webm|mov)$/i;
 const AUDIO_EXT = /\.(mp3|wav|ogg|aac|m4a)$/i;
 
 type AssetFilter = "all" | "image" | "video" | "audio";
+type SourceFilter = "all" | "upload" | "ai";
 
 export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloadKey: number }) {
   const [files, setFiles] = useState<string[]>([]);
+  const [assetMeta, setAssetMeta] = useState<Record<string, AssetSource>>({});
   const [bgRemoving, setBgRemoving] = useState<string | null>(null);
   const [bgError, setBgError] = useState<string | null>(null);
   const [bgTarget, setBgTarget] = useState<string | null>(null);
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [assetSearch, setAssetSearch] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/projects/${projectId}`)
       .then((r) => (r.ok ? r.json() : { files: [] }))
       .then((j) => {
-        if (!cancelled) setFiles(j.files || []);
+        if (!cancelled) {
+          setFiles(j.files || []);
+          setAssetMeta(j.assetMeta || {});
+        }
       })
       .catch(() => {
         if (!cancelled) setFiles([]);
@@ -62,6 +71,7 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
       if (refresh.ok) {
         const j = await refresh.json();
         setFiles(j.files || []);
+        setAssetMeta(j.assetMeta || {});
       }
     } catch (err) {
       setUploadError((err as Error).message.slice(0, 200));
@@ -71,10 +81,26 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
     }
   }
 
-  function editInChat(path: string) {
-    // Hand the path off to Chat.tsx. The chat listener pre-fills the input
-    // with an instruction referencing this asset, then focuses the textarea.
-    window.dispatchEvent(new CustomEvent("vibeedit:edit-asset", { detail: { path } }));
+  async function remove(path: string) {
+    if (deleting) return;
+    const name = path.replace(/^assets\//, "");
+    if (!window.confirm(`Delete "${name}"? This can't be undone.`)) return;
+    setDeleting(path);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/file?path=${encodeURIComponent(path)}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        const refresh = await fetch(`/api/projects/${projectId}`);
+        if (refresh.ok) {
+          const j = await refresh.json();
+          setFiles(j.files || []);
+          setAssetMeta(j.assetMeta || {});
+        }
+      }
+    } finally {
+      setDeleting(null);
+    }
   }
 
   function playAsset(path: string) {
@@ -112,6 +138,7 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
       if (!nextResponse.ok) throw new Error("refresh failed");
       const next = await nextResponse.json();
       setFiles(next.files || []);
+      setAssetMeta(next.assetMeta || {});
     } catch (error) {
       setBgError((error as Error).message.slice(0, 200));
     } finally {
@@ -120,13 +147,14 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
     }
   }
 
-  const allAssets = files.filter((p) => p.startsWith("assets/"));
+  const allAssets = files.filter((p) => p.startsWith("assets/") && !isNoiseAsset(p));
 
   const filteredAssets = allAssets.filter((p) => {
     if (assetSearch) {
       const name = p.split("/").pop() ?? "";
       if (!name.toLowerCase().includes(assetSearch.toLowerCase())) return false;
     }
+    if (sourceFilter !== "all" && (assetMeta[p] ?? "upload") !== sourceFilter) return false;
     if (assetFilter === "image") return IMAGE_EXT.test(p);
     if (assetFilter === "video") return VIDEO_EXT.test(p);
     if (assetFilter === "audio") return AUDIO_EXT.test(p);
@@ -138,6 +166,12 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
     { id: "image", label: "Images" },
     { id: "video", label: "Video" },
     { id: "audio", label: "Audio" },
+  ];
+
+  const SOURCE_LABELS: Array<{ id: SourceFilter; label: string }> = [
+    { id: "all", label: "Any" },
+    { id: "upload", label: "Uploads" },
+    { id: "ai", label: "AI" },
   ];
 
   return (
@@ -171,13 +205,27 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
 
         {allAssets.length > 0 && (
           <>
-            <div className="mb-2 flex gap-1">
+            <div className="mb-2 flex flex-wrap items-center gap-1">
               {FILTER_LABELS.map(({ id, label }) => (
                 <button
                   key={id}
                   onClick={() => setAssetFilter(id)}
                   className={`rounded-md px-2 py-1 text-[10px] font-medium transition-colors ${
                     assetFilter === id
+                      ? "bg-[var(--color-accent)] text-black"
+                      : "bg-[var(--color-surface)] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+              <span className="mx-0.5 h-3.5 w-px bg-[var(--color-border)]" />
+              {SOURCE_LABELS.map(({ id, label }) => (
+                <button
+                  key={id}
+                  onClick={() => setSourceFilter(id)}
+                  className={`rounded-md px-2 py-1 text-[10px] font-medium transition-colors ${
+                    sourceFilter === id
                       ? "bg-[var(--color-accent)] text-black"
                       : "bg-[var(--color-surface)] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
                   }`}
@@ -238,8 +286,8 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
                 key={path}
                 path={path}
                 projectId={projectId}
+                source={assetMeta[path] ?? "upload"}
                 onPlay={() => playAsset(path)}
-                onEdit={() => editInChat(path)}
                 onCopyUrl={() => {
                   navigator.clipboard
                     .writeText(`assets/${path.replace(/^assets\//, "")}`)
@@ -250,6 +298,8 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
                   removeBackground(path);
                 }}
                 removingBg={bgRemoving === path}
+                onDelete={() => remove(path)}
+                deleting={deleting === path}
               />
             ))}
           </div>
@@ -300,19 +350,23 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
 function AssetTile({
   path,
   projectId,
+  source,
   onPlay,
-  onEdit,
   onCopyUrl,
   onRemoveBg,
   removingBg,
+  onDelete,
+  deleting,
 }: {
   path: string;
   projectId: string;
+  source: AssetSource;
   onPlay: () => void;
-  onEdit: () => void;
   onCopyUrl: () => void;
   onRemoveBg: () => void;
   removingBg: boolean;
+  onDelete: () => void;
+  deleting: boolean;
 }) {
   const url = `/api/projects/${projectId}/files/${path}`;
   const thumbUrl = `/api/projects/${projectId}/asset-thumb?path=${encodeURIComponent(path)}`;
@@ -322,100 +376,121 @@ function AssetTile({
   const filename = path.split("/").pop() || path;
 
   return (
-    <div
-      title={filename}
-      className="group relative aspect-square overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] transition-all hover:border-[var(--color-border-2)]"
-    >
-      {isImage ? (
-        <img src={url} alt={filename} className="h-full w-full object-cover" />
-      ) : isVideo || isAudio ? (
-        <img src={thumbUrl} alt={filename} className="h-full w-full object-cover" />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center font-mono text-xs text-[var(--color-fg-muted)]">
-          .{path.split(".").pop()}
-        </div>
-      )}
-
-      {(isVideo || isAudio) && (
-        <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[9px] font-medium text-white backdrop-blur-sm">
-          {isVideo ? "video" : "audio"}
-        </span>
-      )}
-
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1.5 bg-black/60 opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-        <button
-          onClick={onPlay}
-          title="Open"
-          className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-accent)] text-black shadow-lg transition-transform hover:scale-105"
-        >
-          <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor" aria-hidden="true">
-            <polygon points="0,0 10,6 0,12" />
-          </svg>
-        </button>
-        <button
-          onClick={onEdit}
-          title="Edit in chat"
-          className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-black shadow-lg transition-transform hover:scale-105"
-        >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-          </svg>
-        </button>
-        <button
-          onClick={onCopyUrl}
-          title="Copy asset path"
-          className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white shadow-lg backdrop-blur-sm transition-transform hover:scale-105"
-        >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-          </svg>
-        </button>
-        {isImage && (
-          <button
-            onClick={onRemoveBg}
-            disabled={removingBg}
-            title="Remove background"
-            className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white shadow-lg backdrop-blur-sm transition-transform hover:scale-105 disabled:opacity-50"
-          >
-            {removingBg ? (
-              <span className="inline-block h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
-            ) : (
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                aria-hidden="true"
-              >
-                <circle cx="6" cy="6" r="3" />
-                <circle cx="6" cy="18" r="3" />
-                <path d="M20 4L8.12 15.88M14.47 14.48L20 20M8.12 8.12L12 12" />
-              </svg>
-            )}
-          </button>
+    <div className="group flex flex-col gap-1" title={filename}>
+      <div className="relative aspect-square overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] transition-all hover:border-[var(--color-border-2)]">
+        {isImage ? (
+          <img src={url} alt={filename} className="h-full w-full object-cover" />
+        ) : isVideo || isAudio ? (
+          <img src={thumbUrl} alt={filename} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center font-mono text-xs text-[var(--color-fg-muted)]">
+            .{path.split(".").pop()}
+          </div>
         )}
+
+        <span className="pointer-events-none absolute left-1.5 top-1.5 z-10">
+          <SourceBadge source={source} />
+        </span>
+
+        {(isVideo || isAudio) && (
+          <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[9px] font-medium text-white backdrop-blur-sm">
+            {isVideo ? "video" : "audio"}
+          </span>
+        )}
+
+        <button
+          onClick={onDelete}
+          disabled={deleting}
+          title="Delete file"
+          className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white opacity-0 backdrop-blur-sm transition-all hover:bg-[var(--color-danger)] group-hover:opacity-100 group-focus-within:opacity-100 disabled:opacity-50"
+        >
+          {deleting ? (
+            <span className="inline-block h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
+          ) : (
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+          )}
+        </button>
+
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1.5 bg-black/60 opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <button
+            onClick={onPlay}
+            title="Open"
+            className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-accent)] text-black shadow-lg transition-transform hover:scale-105"
+          >
+            <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor" aria-hidden="true">
+              <polygon points="0,0 10,6 0,12" />
+            </svg>
+          </button>
+          <button
+            onClick={onCopyUrl}
+            title="Copy asset path"
+            className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white shadow-lg backdrop-blur-sm transition-transform hover:scale-105"
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+          </button>
+          {isImage && (
+            <button
+              onClick={onRemoveBg}
+              disabled={removingBg}
+              title="Remove background"
+              className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white shadow-lg backdrop-blur-sm transition-transform hover:scale-105 disabled:opacity-50"
+            >
+              {removingBg ? (
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
+              ) : (
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="6" cy="6" r="3" />
+                  <circle cx="6" cy="18" r="3" />
+                  <path d="M20 4L8.12 15.88M14.47 14.48L20 20M8.12 8.12L12 12" />
+                </svg>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1">
+        <span
+          className="min-w-0 flex-1 truncate text-[10px] text-[var(--color-fg-muted)]"
+          title={filename}
+        >
+          {filename}
+        </span>
+        <AssetEditMenu path={path} />
       </div>
     </div>
   );

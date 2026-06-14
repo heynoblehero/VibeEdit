@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/lib/auth-client";
 import { Chat } from "@/components/editor/Chat";
-import { Preview } from "@/components/editor/Preview";
 import { FilesDrawer } from "@/components/editor/FilesDrawer";
 import { HistoryPanel } from "@/components/editor/HistoryPanel";
 import { CodePane } from "@/components/editor/CodePane";
@@ -15,7 +14,7 @@ import { UserMenu } from "@/components/UserMenu";
 import { EditorTour } from "@/components/EditorTour";
 
 type PageProps = { params: Promise<{ id: string }> };
-type MobileTab = "chat" | "preview" | "files";
+type MobileTab = "chat" | "files";
 
 export default function EditorPage({ params }: PageProps) {
   const router = useRouter();
@@ -28,7 +27,6 @@ export default function EditorPage({ params }: PageProps) {
   const [rightTab, setRightTab] = useState<"files" | "history" | "code">("files");
   const [devMode, setDevMode] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
-  const [previewBadge, setPreviewBadge] = useState(false);
   const [showSaveSnippet, setShowSaveSnippet] = useState(false);
   const [savedPulse, setSavedPulse] = useState(false);
   const [toast, setToast] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
@@ -47,6 +45,16 @@ export default function EditorPage({ params }: PageProps) {
     }
     window.addEventListener("vibeedit:notify", onNotify);
     return () => window.removeEventListener("vibeedit:notify", onNotify);
+  }, []);
+
+  // Asset surfaces (Files panel / picker modal) fire this when they hand an
+  // edit to the agent, so mobile jumps to the chat to show it running.
+  useEffect(() => {
+    function onFocusChat() {
+      setMobileTab("chat");
+    }
+    window.addEventListener("vibeedit:focus-chat", onFocusChat);
+    return () => window.removeEventListener("vibeedit:focus-chat", onFocusChat);
   }, []);
 
   // Fetch project name for breadcrumb
@@ -107,8 +115,6 @@ export default function EditorPage({ params }: PageProps) {
       pending = setTimeout(() => {
         pending = null;
         setReloadKey((k: number) => k + 1);
-        // Show a badge on the Preview tab so mobile users know to switch.
-        setPreviewBadge(true);
       }, 250);
     };
     source.addEventListener("change", onChange);
@@ -161,9 +167,9 @@ export default function EditorPage({ params }: PageProps) {
   }
 
   return (
-    <main className="grid h-[100dvh] grid-rows-[auto_1fr] gap-0 overflow-hidden pb-[calc(3.75rem+env(safe-area-inset-bottom))] md:grid-cols-[380px_1fr_360px] md:pb-0">
+    <main className="grid h-[100dvh] grid-rows-[auto_1fr] gap-0 overflow-hidden pb-[calc(3.75rem+env(safe-area-inset-bottom))] md:grid-cols-[1fr_360px] md:pb-0">
       {/* ── Header ─────────────────────────────────────────────── */}
-      <header className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 md:col-span-3 md:px-4">
+      <header className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 md:col-span-2 md:px-4">
         {/* Left: logo + breadcrumb */}
         <div className="flex min-w-0 items-center gap-2">
           <Link href="/app/projects" className="shrink-0 transition-opacity hover:opacity-80">
@@ -252,21 +258,12 @@ export default function EditorPage({ params }: PageProps) {
         </div>
       </header>
 
-      {/* ── Chat panel ─────────────────────────────────────────── */}
+      {/* ── Chat panel (preview now lives inline in the thread) ── */}
       <aside
-        className={`${mobileTab === "chat" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-bg)] md:flex`}
+        className={`${mobileTab === "chat" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden bg-[var(--color-bg)] md:flex`}
       >
-        <Chat projectId={id} />
+        <Chat projectId={id} reloadKey={reloadKey} />
       </aside>
-
-      {/* ── Preview panel ──────────────────────────────────────── */}
-      <section
-        className={`${mobileTab === "preview" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden bg-black md:flex`}
-      >
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <Preview projectId={id} reloadKey={reloadKey} />
-        </div>
-      </section>
 
       {/* ── Right panel: Files + History tabs ──────────────────── */}
       <aside
@@ -392,25 +389,6 @@ export default function EditorPage({ params }: PageProps) {
             ),
           },
           {
-            id: "preview" as MobileTab,
-            label: "Preview",
-            icon: (
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <polygon points="5,3 19,12 5,21" />
-              </svg>
-            ),
-          },
-          {
             id: "files" as MobileTab,
             label: "Files",
             icon: (
@@ -432,22 +410,14 @@ export default function EditorPage({ params }: PageProps) {
         ].map(({ id: tabId, label, icon }) => (
           <button
             key={tabId}
-            onClick={() => {
-              setMobileTab(tabId);
-              if (tabId === "preview") setPreviewBadge(false);
-            }}
+            onClick={() => setMobileTab(tabId)}
             className={`relative flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
               mobileTab === tabId
                 ? "border-t-2 border-[var(--color-accent)] text-[var(--color-accent)]"
                 : "border-t-2 border-transparent text-[var(--color-fg-muted)]"
             }`}
           >
-            <span className="relative">
-              {icon}
-              {tabId === "preview" && previewBadge && mobileTab !== "preview" && (
-                <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-[var(--color-accent)]" />
-              )}
-            </span>
+            <span className="relative">{icon}</span>
             {label}
           </button>
         ))}

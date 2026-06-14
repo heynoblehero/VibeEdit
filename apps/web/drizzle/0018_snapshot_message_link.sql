@@ -1,0 +1,1 @@
+ALTER TABLE `projectSnapshots` ADD `messageId` text;

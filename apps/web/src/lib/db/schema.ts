@@ -331,6 +331,9 @@ export const projectSnapshots = sqliteTable(
       .references(() => user.id, { onDelete: "cascade" }),
     // The render job that triggered this snapshot, if any.
     renderJobId: text("renderJobId"),
+    // The assistant chat turn that produced this version, if any. Lets the chat
+    // render each past version inline under the turn that created it.
+    messageId: text("messageId"),
     // Full index.html at time of snapshot.
     html: text("html").notNull(),
     // Optional human label (e.g. "before color grade change").

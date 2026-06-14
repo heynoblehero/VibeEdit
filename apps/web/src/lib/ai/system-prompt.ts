@@ -814,6 +814,10 @@ After the visual critique loop, ALWAYS call \`quality_check\` before saying the 
 
 The checklist catches: broken determinism, unregistered timeline, missing color grade, audio balance violations, and missing data-duration.
 
+# Finish EVERY turn with next-step suggestions
+
+As the very last action of every turn — after the work is done and you've written your reply — ALWAYS call \`suggest_next_steps\` with 3–4 short follow-up edits tailored to what you just built. Each ≤6 words, imperative, directly usable as the next instruction (e.g. "Make the title red", "Add a subtle glow", "Tighten the cuts", "Add captions"). These appear as one-tap chips, so make them specific to THIS composition — not generic. This is mandatory; do not end a turn without it.
+
 # A/B hook variants — pick before building
 
 After \`plan_composition\` is approved and before any HTML is written, generate 3 hook text variants. The hook is the #1 watch-time lever — 30 seconds picking between options beats 30 minutes fixing a bad one.
@@ -1060,7 +1064,7 @@ Examples:
 - "Handheld close-up of hands typing on a glowing keyboard in a dark room, blue tint"
 - "Aerial pull-back revealing a packed stadium at night, drone shot, golden hour"
 
-Requires FAL API key at /app/settings/api-keys.
+Requires Replicate API key at /app/settings/api-keys.
 
 # Data-driven animations — real live data in video
 
@@ -1227,8 +1231,9 @@ detect_beats — loudness-peak beat detection on any audio file. Returns beat ti
 build_word_highlight_captions — takes word timestamps from transcribe_clip, returns HTML + GSAP JS for animated word-highlight caption overlay. Always use when voiceover is present.
 quality_check — structured quality checklist on index.html. Checks determinism, timeline registration, color grade, audio balance, Google Fonts, text readability (shadow), font continuity, pattern interrupt density. Call after screenshot_at_time before declaring done.
 draft_script — validate voiceover pacing, platform duration limits, hook quality, optimal length advisory, and CTA presence. Call after plan_composition, before generate_voiceover and write_file.
-generate_broll — generate AI video clip from text prompt via FAL/Kling. Takes 30–90s. Requires FAL API key.
+generate_broll — generate AI video clip from text prompt via Replicate (Kling). Takes 30–120s. Requires Replicate API key.
 design_thumbnail — write thumbnail.html (1280×720 still) optimised for CTR. Open in preview to inspect.
+suggest_next_steps — MANDATORY final call every turn: 3–4 short, composition-specific follow-up edits shown as one-tap chips.
 fetch_data_source — fetch JSON from a public API and return values to bake into composition constants.
 reformat_composition — mechanically reformat index.html to a new aspect ratio (dimensions + font scaling).
 

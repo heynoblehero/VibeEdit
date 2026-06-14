@@ -4,7 +4,13 @@ import { rmSync } from "node:fs";
 import { db } from "@/lib/db";
 import { projects, renderJobs } from "@/lib/db/schema";
 import { requireServerSession } from "@/lib/server-session";
-import { listFiles, projectDir, renderOutputPath } from "@/lib/storage/fs";
+import {
+  assetSource,
+  listFiles,
+  projectDir,
+  readAssetMeta,
+  renderOutputPath,
+} from "@/lib/storage/fs";
 
 export async function GET(_req: Request, context: { params: Promise<{ id: string }> }) {
   const session = await requireServerSession().catch((r) => r);
@@ -18,7 +24,13 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
     .get();
   if (!row) return new NextResponse("not found", { status: 404 });
   const files = listFiles(userId, id);
-  return NextResponse.json({ project: row, files });
+  // Provenance for each asset (upload vs AI-made) so the UI can tag/filter them.
+  const meta = readAssetMeta(userId, id);
+  const assetMeta: Record<string, "upload" | "ai"> = {};
+  for (const path of files) {
+    if (path.startsWith("assets/")) assetMeta[path] = assetSource(meta, path);
+  }
+  return NextResponse.json({ project: row, files, assetMeta });
 }
 
 export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {

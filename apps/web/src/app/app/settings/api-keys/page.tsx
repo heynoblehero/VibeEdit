@@ -276,8 +276,8 @@ export default function ApiKeysSettingsPage() {
             <em>"generate 4 background options for scene 2"</em>.
           </li>
           <li>
-            <span className="font-semibold">2.</span> The agent calls Replicate / Kling with your
-            key, saves the variants to{" "}
+            <span className="font-semibold">2.</span> The agent calls Replicate with your key, saves
+            the variants to{" "}
             <code className="rounded bg-[var(--color-bg)] px-1 text-xs">assets/variants/</code>.
           </li>
           <li>

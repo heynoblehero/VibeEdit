@@ -10,14 +10,7 @@ export const dynamic = "force-dynamic";
 // the POST body from the user's browser (localStorage) and is forwarded for
 // this one request only — nothing is persisted. Requires an authenticated
 // user so randos can't use the server as a free key-validation oracle.
-const ALLOWED_PROVIDERS: ProviderId[] = [
-  "replicate",
-  "kling",
-  "fal",
-  "elevenlabs",
-  "openai",
-  "anthropic",
-];
+const ALLOWED_PROVIDERS: ProviderId[] = ["replicate", "elevenlabs", "openai", "anthropic"];
 
 export async function POST(req: Request) {
   const session = await requireServerSession().catch((r) => r);

@@ -50,8 +50,13 @@ for (const entry of journal.entries) {
   if (applied.has(hash)) continue;
 
   // Split on Drizzle's statement-breakpoint marker.
+  // Split on Drizzle's breakpoint marker, then further on ';' — some
+  // hand-written migrations pack several statements into one chunk without a
+  // marker, and better-sqlite3's prepare() rejects multi-statement strings.
+  // These migrations contain no ';' inside string literals, so this is safe.
   const statements = sql
     .split("--> statement-breakpoint")
+    .flatMap((chunk) => chunk.split(";"))
     .map((s) => s.trim())
     .filter(Boolean);
 

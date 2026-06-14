@@ -112,33 +112,6 @@ async function probeAnthropic(apiKey: string): Promise<ProbeResult> {
   }
 }
 
-async function probeFal(apiKey: string): Promise<ProbeResult> {
-  // FAL doesn't expose a public account endpoint. The cheapest "is this key
-  // valid" check is hitting the rest-api root with auth — a missing/bad key
-  // returns 401, a valid one returns a 404 (because there's no root handler)
-  // rather than 401. Crude but reliable enough for a sanity check.
-  try {
-    const response = await fetchWithTimeout("https://rest.alpha.fal.ai/", {
-      headers: { Authorization: `Key ${apiKey}` },
-    });
-    if (response.status === 401 || response.status === 403)
-      return { ok: false, error: "invalid key" };
-    return { ok: true, detail: "key accepted" };
-  } catch (caught) {
-    return { ok: false, error: (caught as Error).message };
-  }
-}
-
-async function probeKling(_apiKey: string): Promise<ProbeResult> {
-  // Kling's API uses signed JWTs derived from accessKey + secret, so a single
-  // "key" probe isn't meaningful. Surface this honestly so users don't think
-  // the button is broken.
-  return {
-    ok: true,
-    detail: "saved — Kling uses signed requests; can't pre-verify",
-  };
-}
-
 export async function probeKey(provider: ProviderId, apiKey: string): Promise<ProbeResult> {
   if (!apiKey || apiKey.trim().length < 4) return { ok: false, error: "key too short" };
   switch (provider) {
@@ -150,10 +123,6 @@ export async function probeKey(provider: ProviderId, apiKey: string): Promise<Pr
       return probeOpenAi(apiKey);
     case "anthropic":
       return probeAnthropic(apiKey);
-    case "fal":
-      return probeFal(apiKey);
-    case "kling":
-      return probeKling(apiKey);
     default:
       return { ok: false, error: "unknown provider" };
   }

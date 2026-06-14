@@ -120,6 +120,20 @@
       "when": 1780440000000,
       "tag": "0016_reviews_analytics_credits",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1780520000000,
+      "tag": "0017_voice_cloning",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1780600000000,
+      "tag": "0018_snapshot_message_link",
+      "breakpoints": true
     }
   ]
 }

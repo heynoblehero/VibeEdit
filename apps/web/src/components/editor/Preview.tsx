@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { p50, readSamples, recordReload } from "@/lib/preview-budget";
+import { loadHyperframesPlayer } from "@/lib/hyperframes-player-loader";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -28,7 +29,19 @@ type PlayerEl = HTMLElement & {
   duration?: number;
 };
 
-export function Preview({ projectId, reloadKey }: { projectId: string; reloadKey: number }) {
+export function Preview({
+  projectId,
+  reloadKey,
+  stageVh = 74,
+}: {
+  projectId: string;
+  reloadKey: number;
+  // Caps the player width so its derived height stays within the stage. When the
+  // preview is embedded inline in the chat thread (not a full-height pane), pass
+  // the same value used for the wrapper's height (e.g. 62) so vertical (9:16)
+  // compositions fill the stage exactly instead of overflowing it.
+  stageVh?: number;
+}) {
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [playerReady, setPlayerReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -63,22 +76,16 @@ export function Preview({ projectId, reloadKey }: { projectId: string; reloadKey
     };
   }, [projectId, reloadKey]);
 
-  // Load the player script once
+  // Load the player script once (shared loader; also used by inline snapshot players)
   useEffect(() => {
-    if (scriptLoaded) return;
-    if (typeof window === "undefined") return;
-    if (customElements.get("hyperframes-player")) {
-      setScriptLoaded(true);
-      return;
-    }
-    const script = document.createElement("script");
-    script.src =
-      "https://cdn.jsdelivr.net/npm/@hyperframes/player/dist/hyperframes-player.global.js";
-    script.async = true;
-    script.onload = () => setScriptLoaded(true);
-    script.onerror = () => setScriptLoaded(true);
-    document.head.appendChild(script);
-  }, [scriptLoaded]);
+    let cancelled = false;
+    loadHyperframesPlayer().then(() => {
+      if (!cancelled) setScriptLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // When a new composition arrives, auto-play it so the user sees the result
   // immediately without having to click play. Only auto-plays when triggered
@@ -256,7 +263,7 @@ export function Preview({ projectId, reloadKey }: { projectId: string; reloadKey
             // compositions fill the frame instead of being letterboxed into 16:9.
             // The max-width cap keeps the derived height within the viewport.
             aspectRatio: aspectRatio.replace(":", " / "),
-            maxWidth: `min(100%, calc(74svh * ${aspectRatio.split(":")[0]} / ${aspectRatio.split(":")[1]}))`,
+            maxWidth: `min(100%, calc(${stageVh}svh * ${aspectRatio.split(":")[0]} / ${aspectRatio.split(":")[1]}))`,
           }}
         >
           {hasComposition === true && scriptLoaded ? (

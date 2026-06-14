@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { messages, projects } from "@/lib/db/schema";
+import { messages, projects, projectSnapshots } from "@/lib/db/schema";
 import { requireServerSession } from "@/lib/server-session";
 
 export async function GET(_req: Request, context: { params: Promise<{ id: string }> }) {
@@ -15,9 +15,18 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
     .where(and(eq(projects.id, id), eq(projects.userId, userId)))
     .get();
   if (!owned) return new NextResponse("not found", { status: 404 });
+  // Left-join the per-turn snapshot (if any) so the chat can render each past
+  // version inline. Render snapshots have a null messageId and never join here.
   const rows = db
-    .select()
+    .select({
+      id: messages.id,
+      role: messages.role,
+      content: messages.content,
+      createdAt: messages.createdAt,
+      snapshotId: projectSnapshots.id,
+    })
     .from(messages)
+    .leftJoin(projectSnapshots, eq(projectSnapshots.messageId, messages.id))
     .where(eq(messages.projectId, id))
     .orderBy(asc(messages.createdAt))
     .all();
@@ -27,6 +36,7 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
       role: m.role,
       content: JSON.parse(m.content),
       createdAt: m.createdAt,
+      snapshotId: m.snapshotId,
     })),
   });
 }

@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { markEditSent } from "@/lib/preview-budget";
+import { loadHyperframesPlayer } from "@/lib/hyperframes-player-loader";
+import { Preview } from "./Preview";
+import { AssetPickerModal } from "./AssetPickerModal";
 
 type ContentBlock =
   | { type: "text"; text: string }
@@ -23,7 +26,12 @@ type ChatMessage = {
   id?: string;
   role: "user" | "assistant";
   content: string | ContentBlock[];
+  // Set on assistant turns that produced a new composition version. Drives the
+  // inline per-version player so users can scroll back and replay past versions.
+  snapshotId?: string | null;
 };
+
+type AspectRatio = "16:9" | "9:16" | "1:1";
 
 type AgentEvent =
   | { type: "text"; text: string }
@@ -76,6 +84,23 @@ function extractVariants(result: string): VariantInfo | null {
   } catch {
     return null;
   }
+}
+
+// Pulls the agent's end-of-turn next-step suggestions out of the last assistant
+// message's suggest_next_steps tool call, to render as one-tap follow-up chips.
+function extractNextSteps(message: ChatMessage | undefined): string[] {
+  if (!message || typeof message.content === "string") return [];
+  for (const block of message.content) {
+    if (block.type === "tool_use" && block.name === "suggest_next_steps") {
+      const raw = (block.input as { suggestions?: unknown }).suggestions;
+      if (Array.isArray(raw)) {
+        return raw
+          .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+          .slice(0, 4);
+      }
+    }
+  }
+  return [];
 }
 
 const SAMPLE_PROMPTS: Array<{
@@ -250,7 +275,7 @@ const REGENERATE_CHIPS: Array<{ label: string; prompt: string }> = [
   },
 ];
 
-export function Chat({ projectId }: { projectId: string }) {
+export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: number }) {
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -263,8 +288,11 @@ export function Chat({ projectId }: { projectId: string }) {
   const [uploading, setUploading] = useState(false);
   const [slashMenuActive, setSlashMenuActive] = useState(false);
   const [slashMenuIndex, setSlashMenuIndex] = useState(0);
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
+  const [showAssetPicker, setShowAssetPicker] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const sendRef = useRef<(text?: string) => void>(() => {});
   const loadHistoryRef = useRef<() => void>(() => {});
   const fileHistoryRef = useRef<Map<string, string>>(new Map());
@@ -321,10 +349,18 @@ export function Chat({ projectId }: { projectId: string }) {
     }
     window.addEventListener("vibeedit:variant-picked", onVariantPicked);
 
+    function onSendPrompt(event: Event) {
+      const detail = (event as CustomEvent<{ text: string }>).detail;
+      if (!detail || typeof detail.text !== "string" || !detail.text.trim()) return;
+      sendRef.current(detail.text);
+    }
+    window.addEventListener("vibeedit:send-prompt", onSendPrompt);
+
     return () => {
       window.removeEventListener("vibeedit:edit-at", onEditAt);
       window.removeEventListener("vibeedit:edit-asset", onEditAsset);
       window.removeEventListener("vibeedit:variant-picked", onVariantPicked);
+      window.removeEventListener("vibeedit:send-prompt", onSendPrompt);
     };
   }, []);
 
@@ -337,6 +373,18 @@ export function Chat({ projectId }: { projectId: string }) {
       .then((r) => (r.ok ? r.json() : null))
       .then(setPrefs);
   }, []);
+
+  // Project aspect ratio — sizes the inline per-version snapshot players so
+  // vertical (9:16) and square comps aren't letterboxed into 16:9 cards.
+  useEffect(() => {
+    fetch(`/api/projects/${projectId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const ar = data?.project?.aspectRatio;
+        if (ar === "16:9" || ar === "9:16" || ar === "1:1") setAspectRatio(ar);
+      })
+      .catch(() => {});
+  }, [projectId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -371,9 +419,21 @@ export function Chat({ projectId }: { projectId: string }) {
   }
   loadHistoryRef.current = loadHistory;
 
+  function toggleAttach(path: string) {
+    setAttachedAssets((cur) =>
+      cur.includes(path) ? cur.filter((p) => p !== path) : [...cur, path],
+    );
+  }
+  function detachAsset(path: string) {
+    setAttachedAssets((cur) => cur.filter((p) => p !== path));
+  }
+
   async function dropFiles(fileList: FileList | File[]) {
     const files = Array.from(fileList).filter(
-      (file) => file.type.startsWith("image/") || file.type.startsWith("video/"),
+      (file) =>
+        file.type.startsWith("image/") ||
+        file.type.startsWith("video/") ||
+        file.type.startsWith("audio/"),
     );
     if (!files.length) return;
     setUploading(true);
@@ -500,6 +560,8 @@ export function Chat({ projectId }: { projectId: string }) {
   sendRef.current = send;
 
   function handleEvent(event: AgentEvent) {
+    // suggest_next_steps is surfaced as one-tap chips, not as a tool-log line.
+    if (event.type === "tool_use" && event.name === "suggest_next_steps") return;
     if (event.type === "text") {
       setLive((l) => [...l, { kind: "text", text: event.text }]);
     } else if (event.type === "tool_use") {
@@ -553,6 +615,23 @@ export function Chat({ projectId }: { projectId: string }) {
   const showSamples = messages.length === 0 && !busy;
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
   const showChips = !busy && lastAssistant !== undefined;
+  // Context-aware follow-ups the agent suggested at the end of its last turn.
+  // Falls back to the generic quick-edits when the agent didn't emit any.
+  const nextSteps = extractNextSteps(lastAssistant);
+  const chipItems =
+    nextSteps.length > 0 ? nextSteps.map((s) => ({ label: s, prompt: s })) : REGENERATE_CHIPS;
+
+  // Per-version inline players. Each assistant turn that changed the composition
+  // carries a snapshotId; we number them chronologically and render a click-to-
+  // play card under every past version. The newest version is excluded here —
+  // it's shown live in the always-on stage at the bottom of the thread.
+  const versionMessages = messages.filter((m) => m.role === "assistant" && m.snapshotId);
+  const versionNumberById = new Map<string, number>();
+  versionMessages.forEach((m, i) => versionNumberById.set(m.snapshotId as string, i + 1));
+  const latestSnapshotId =
+    versionMessages.length > 0
+      ? (versionMessages[versionMessages.length - 1].snapshotId as string)
+      : null;
 
   return (
     <div
@@ -575,8 +654,17 @@ export function Chat({ projectId }: { projectId: string }) {
     >
       {dragging && (
         <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center rounded border-2 border-dashed border-[var(--color-accent)] bg-[var(--color-bg)]/85 text-sm font-semibold text-[var(--color-accent)]">
-          Drop image or video to attach
+          Drop image, video, or audio to attach
         </div>
+      )}
+      {showAssetPicker && (
+        <AssetPickerModal
+          projectId={projectId}
+          attached={attachedAssets}
+          onToggleAttach={toggleAttach}
+          onDetach={detachAsset}
+          onClose={() => setShowAssetPicker(false)}
+        />
       )}
       <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2.5">
         <div className="flex items-center gap-2">
@@ -610,180 +698,270 @@ export function Chat({ projectId }: { projectId: string }) {
         )}
       </div>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-4">
-        {showSamples && <SamplePromptCards prefs={prefs} onPick={(text) => send(text)} />}
-        {messages.map((message, index) => (
-          <MessageBubble
-            key={message.id || index}
-            message={message}
-            projectId={projectId}
-            onBranched={(newProjectId) => router.push(`/app/projects/${newProjectId}/edit`)}
-          />
-        ))}
-        {live.length > 0 && (
-          <div className="max-w-[90%] space-y-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs shadow-sm">
-            {groupLive(live).map((entry, i) =>
-              entry.kind === "buildGroup" ? (
-                <BuildGroupView key={i} entries={entry.entries} projectId={projectId} />
-              ) : (
-                <LiveLine key={i} entry={entry} projectId={projectId} />
-              ),
-            )}
-          </div>
-        )}
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+        <div className="mx-auto w-full max-w-3xl space-y-2">
+          {showSamples && <SamplePromptCards prefs={prefs} onPick={(text) => send(text)} />}
+          {messages.map((message, index) => {
+            const showVersion =
+              message.role === "assistant" &&
+              !!message.snapshotId &&
+              message.snapshotId !== latestSnapshotId;
+            return (
+              <div key={message.id || index} className="space-y-2">
+                <MessageBubble
+                  message={message}
+                  projectId={projectId}
+                  onBranched={(newProjectId) => router.push(`/app/projects/${newProjectId}/edit`)}
+                />
+                {showVersion && (
+                  <SnapshotPlayer
+                    projectId={projectId}
+                    snapshotId={message.snapshotId as string}
+                    aspectRatio={aspectRatio}
+                    versionNumber={versionNumberById.get(message.snapshotId as string) ?? 0}
+                  />
+                )}
+              </div>
+            );
+          })}
+          {live.length > 0 && (
+            <div className="max-w-[90%] space-y-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs shadow-sm">
+              {groupLive(live).map((entry, i) =>
+                entry.kind === "buildGroup" ? (
+                  <BuildGroupView key={i} entries={entry.entries} projectId={projectId} />
+                ) : (
+                  <LiveLine key={i} entry={entry} projectId={projectId} />
+                ),
+              )}
+            </div>
+          )}
+          {/* Inline preview — the generated video shows up in the thread itself,
+              like image/video gen tools. Reflects the current composition; the
+              middle preview pane has been folded into this. Hidden only on the
+              empty start screen (sample prompts). */}
+          {!showSamples && (
+            <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-black shadow-sm">
+              <div className="h-[62svh] max-h-[640px]">
+                <Preview projectId={projectId} reloadKey={reloadKey} stageVh={62} />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {showChips && (
         <div className="border-t border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2.5">
-          <div className="mb-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-subtle)]">
-            Quick edits
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {REGENERATE_CHIPS.map((chip) => (
-              <button
-                key={chip.label}
-                onClick={() => send(chip.prompt)}
-                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-xs font-medium text-[var(--color-fg-muted)] transition-colors hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface-2)] hover:text-[var(--color-fg)]"
-              >
-                {chip.label}
-              </button>
-            ))}
+          <div className="mx-auto w-full max-w-3xl">
+            <div className="mb-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-subtle)]">
+              {nextSteps.length > 0 ? "Suggested next steps" : "Quick edits"}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {chipItems.map((chip) => (
+                <button
+                  key={chip.label}
+                  onClick={() => send(chip.prompt)}
+                  className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-xs font-medium text-[var(--color-fg-muted)] transition-colors hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface-2)] hover:text-[var(--color-fg)]"
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
       <div className="border-t border-[var(--color-border)] bg-[var(--color-bg)] p-3">
-        {(attachedAssets.length > 0 || uploading) && (
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {attachedAssets.map((path) => (
-              <span
-                key={path}
-                className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--color-fg)]"
-              >
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
+        <div className="mx-auto w-full max-w-3xl">
+          {(attachedAssets.length > 0 || uploading) && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {attachedAssets.map((path) => (
+                <span
+                  key={path}
+                  className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--color-fg)]"
                 >
-                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.64 16.34a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                </svg>
-                {path.replace(/^assets\//, "")}
-                <button
-                  onClick={() => setAttachedAssets((current) => current.filter((p) => p !== path))}
-                  className="text-[var(--color-fg-muted)] hover:text-[var(--color-danger)]"
-                  title="Remove attachment"
-                >
-                  ✕
-                </button>
-              </span>
-            ))}
-            {uploading && (
-              <span className="flex items-center gap-1.5 text-[10px] text-[var(--color-fg-muted)]">
-                <span className="inline-block h-2 w-2 animate-spin rounded-full border border-[var(--color-border)] border-t-[var(--color-accent)]" />
-                uploading…
-              </span>
-            )}
-          </div>
-        )}
-        <div className="relative">
-          {slashMenuActive && (
-            <SlashCommandMenu
-              input={input}
-              selectedIndex={slashMenuIndex}
-              onSelect={executeSlashCommand}
-              getFiltered={getFilteredCommands}
-            />
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.64 16.34a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                  {path.replace(/^assets\//, "")}
+                  <button
+                    onClick={() =>
+                      setAttachedAssets((current) => current.filter((p) => p !== path))
+                    }
+                    className="text-[var(--color-fg-muted)] hover:text-[var(--color-danger)]"
+                    title="Remove attachment"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+              {uploading && (
+                <span className="flex items-center gap-1.5 text-[10px] text-[var(--color-fg-muted)]">
+                  <span className="inline-block h-2 w-2 animate-spin rounded-full border border-[var(--color-border)] border-t-[var(--color-accent)]" />
+                  uploading…
+                </span>
+              )}
+            </div>
           )}
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(event) => {
-              const value = event.target.value;
-              setInput(value);
-              if (value.startsWith("/") && !busy) {
-                setSlashMenuActive(true);
-                setSlashMenuIndex(0);
-              } else if (slashMenuActive) {
-                setSlashMenuActive(false);
-              }
-            }}
-            onKeyDown={(event) => {
-              if (slashMenuActive) {
-                const filtered = getFilteredCommands(input);
-                if (event.key === "ArrowDown") {
-                  event.preventDefault();
-                  setSlashMenuIndex((i) => (i + 1) % Math.max(filtered.length, 1));
-                  return;
-                }
-                if (event.key === "ArrowUp") {
-                  event.preventDefault();
-                  setSlashMenuIndex(
-                    (i) => (i - 1 + Math.max(filtered.length, 1)) % Math.max(filtered.length, 1),
-                  );
-                  return;
-                }
-                if (event.key === "Escape") {
-                  event.preventDefault();
+          <div className="relative">
+            {slashMenuActive && (
+              <SlashCommandMenu
+                input={input}
+                selectedIndex={slashMenuIndex}
+                onSelect={executeSlashCommand}
+                getFiltered={getFilteredCommands}
+              />
+            )}
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(event) => {
+                const value = event.target.value;
+                setInput(value);
+                if (value.startsWith("/") && !busy) {
+                  setSlashMenuActive(true);
+                  setSlashMenuIndex(0);
+                } else if (slashMenuActive) {
                   setSlashMenuActive(false);
-                  return;
                 }
-                if (event.key === "Tab") {
-                  event.preventDefault();
-                  const cmd = filtered[slashMenuIndex];
-                  if (cmd) {
-                    setInput(cmd.cmd + " ");
-                    setSlashMenuActive(false);
+              }}
+              onKeyDown={(event) => {
+                if (slashMenuActive) {
+                  const filtered = getFilteredCommands(input);
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setSlashMenuIndex((i) => (i + 1) % Math.max(filtered.length, 1));
+                    return;
                   }
-                  return;
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setSlashMenuIndex(
+                      (i) => (i - 1 + Math.max(filtered.length, 1)) % Math.max(filtered.length, 1),
+                    );
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setSlashMenuActive(false);
+                    return;
+                  }
+                  if (event.key === "Tab") {
+                    event.preventDefault();
+                    const cmd = filtered[slashMenuIndex];
+                    if (cmd) {
+                      setInput(cmd.cmd + " ");
+                      setSlashMenuActive(false);
+                    }
+                    return;
+                  }
+                  if (event.key === "Enter" && !event.shiftKey && filtered.length > 0) {
+                    event.preventDefault();
+                    executeSlashCommand(filtered[Math.min(slashMenuIndex, filtered.length - 1)]);
+                    return;
+                  }
                 }
-                if (event.key === "Enter" && !event.shiftKey && filtered.length > 0) {
+                if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
-                  executeSlashCommand(filtered[Math.min(slashMenuIndex, filtered.length - 1)]);
-                  return;
+                  send();
                 }
-              }
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                send();
-              }
+              }}
+              placeholder="Describe the video — or type / for commands…"
+              rows={3}
+              disabled={busy}
+              className="w-full resize-none rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] px-3.5 py-2.5 text-base outline-none transition-colors placeholder:text-[var(--color-fg-subtle)] focus:border-[var(--color-accent)] disabled:opacity-50 md:text-sm"
+            />
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,video/*,audio/*"
+            className="hidden"
+            onChange={(event) => {
+              if (event.target.files?.length) dropFiles(event.target.files);
+              event.target.value = "";
             }}
-            placeholder="Describe the video — or type / for commands…"
-            rows={3}
-            disabled={busy}
-            className="w-full resize-none rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] px-3.5 py-2.5 text-base outline-none transition-colors placeholder:text-[var(--color-fg-subtle)] focus:border-[var(--color-accent)] disabled:opacity-50 md:text-sm"
           />
+          <div className="mt-2 flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={busy || uploading}
+              title="Upload an image, video, or audio file"
+              className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-fg-muted)] transition-colors hover:border-[var(--color-accent)]/50 hover:text-[var(--color-fg)] disabled:opacity-50"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.64 16.34a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              </svg>
+              Attach
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAssetPicker(true)}
+              title="Browse your uploaded files"
+              className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-fg-muted)] transition-colors hover:border-[var(--color-accent)]/50 hover:text-[var(--color-fg)]"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+              Files
+            </button>
+          </div>
+          {busy ? (
+            <button
+              onClick={() => {
+                fetch(`/api/chat?projectId=${projectId}`, { method: "DELETE" }).catch(() => {});
+              }}
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/8 py-2.5 text-sm font-semibold text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger)]/14"
+            >
+              <span className="inline-block h-3 w-3 rounded-sm bg-current" aria-hidden="true" />
+              Stop agent
+            </button>
+          ) : (
+            <button
+              onClick={() => send()}
+              disabled={!input.trim() && attachedAssets.length === 0}
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-black shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
+            >
+              Send
+              <kbd className="hidden rounded bg-black/15 px-1 py-0.5 font-mono text-[9px] font-normal sm:inline-block">
+                ↵
+              </kbd>
+            </button>
+          )}
+          <p className="mt-2 hidden text-center text-[9px] text-[var(--color-fg-subtle)] sm:block">
+            ↵ send · ⇧↵ newline · drag image/video to attach · / for commands
+          </p>
         </div>
-        {busy ? (
-          <button
-            onClick={() => {
-              fetch(`/api/chat?projectId=${projectId}`, { method: "DELETE" }).catch(() => {});
-            }}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/8 py-2.5 text-sm font-semibold text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger)]/14"
-          >
-            <span className="inline-block h-3 w-3 rounded-sm bg-current" aria-hidden="true" />
-            Stop agent
-          </button>
-        ) : (
-          <button
-            onClick={() => send()}
-            disabled={!input.trim() && attachedAssets.length === 0}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-black shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
-          >
-            Send
-            <kbd className="hidden rounded bg-black/15 px-1 py-0.5 font-mono text-[9px] font-normal sm:inline-block">
-              ↵
-            </kbd>
-          </button>
-        )}
-        <p className="mt-2 hidden text-center text-[9px] text-[var(--color-fg-subtle)] sm:block">
-          ↵ send · ⇧↵ newline · drag image/video to attach · / for commands
-        </p>
       </div>
     </div>
   );
@@ -1162,6 +1340,97 @@ function ScreenshotStrip({ images }: { images: Array<{ data: string; mimeType: s
   );
 }
 
+// Inline player for a past composition version. Lazy: the heavy
+// <hyperframes-player> (which runs the composition's animation loop) is only
+// mounted after the user clicks play, so a long thread with many versions
+// stays light. The click is also the user-gesture that unblocks autoplay.
+function SnapshotPlayer({
+  projectId,
+  snapshotId,
+  aspectRatio,
+  versionNumber,
+}: {
+  projectId: string;
+  snapshotId: string;
+  aspectRatio: AspectRatio;
+  versionNumber: number;
+}) {
+  const [active, setActive] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    loadHyperframesPlayer().then(() => {
+      if (!cancelled) setReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [active]);
+
+  const [w, h] = aspectRatio.split(":");
+  const src = `/api/projects/${projectId}/snapshots/${snapshotId}/html`;
+
+  return (
+    <div className="max-w-[88%] overflow-hidden rounded-xl border border-[var(--color-border)] bg-black">
+      <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5">
+        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-fg-muted)]">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
+          Version {versionNumber}
+        </span>
+        {active && (
+          <button
+            onClick={() => {
+              setActive(false);
+              setReady(false);
+            }}
+            className="text-[10px] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+          >
+            ✕ close
+          </button>
+        )}
+      </div>
+      <div
+        className="relative mx-auto flex items-center justify-center"
+        style={{
+          aspectRatio: `${w} / ${h}`,
+          maxWidth: `min(100%, calc(38svh * ${w} / ${h}))`,
+        }}
+      >
+        {active ? (
+          ready ? (
+            // @ts-expect-error custom element
+            <hyperframes-player
+              src={src}
+              controls
+              autoplay
+              style={{ width: "100%", height: "100%", display: "block" }}
+            />
+          ) : (
+            <div className="flex items-center gap-2 text-xs text-[var(--color-fg-muted)]">
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[var(--color-accent)]" />
+              loading player…
+            </div>
+          )
+        ) : (
+          <button
+            onClick={() => setActive(true)}
+            className="group absolute inset-0 flex items-center justify-center"
+            aria-label={`Play version ${versionNumber}`}
+          >
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 backdrop-blur-sm transition-colors group-hover:bg-white/25">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="white" aria-hidden="true">
+                <polygon points="6,4 20,12 6,20" />
+              </svg>
+            </span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const API_KEY_ERROR_RE = /no ([\w][\w\s\-/]*?) api key/i;
 
 function ApiKeyErrorCard({ result }: { result: string }) {
@@ -1269,6 +1538,8 @@ function groupContentBlocks(blocks: ContentBlock[]): ContentGroup[] {
     buffer = null;
   };
   for (const block of blocks) {
+    // Rendered as suggestion chips, not as a tool bubble in the thread.
+    if (block.type === "tool_use" && block.name === "suggest_next_steps") continue;
     if (block.type === "tool_use" && BUILD_STEP_NAMES.has(block.name)) {
       if (!buffer) buffer = { steps: [], images: [] };
       buffer.steps.push({ name: block.name, input: block.input });

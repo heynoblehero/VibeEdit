@@ -8,7 +8,7 @@
  * blast radius.
  */
 
-export type ProviderId = "replicate" | "kling" | "fal" | "elevenlabs" | "openai" | "anthropic";
+export type ProviderId = "replicate" | "elevenlabs" | "openai" | "anthropic";
 
 export type ProviderMeta = {
   id: ProviderId;
@@ -23,24 +23,11 @@ export const PROVIDERS: ProviderMeta[] = [
   {
     id: "replicate",
     name: "Replicate",
-    description: "Stills via Flux, Stable Diffusion, etc. Generates 1–4 variants per scene.",
+    description:
+      "All AI media: stills (Flux/SDXL), b-roll video (Kling), and background removal. One key for everything.",
     getKeyUrl: "https://replicate.com/account/api-tokens",
     placeholder: "r8_xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     keyPrefix: "r8_",
-  },
-  {
-    id: "kling",
-    name: "Kling",
-    description: "Short video clips for b-roll. 5–10s 720p/1080p outputs.",
-    getKeyUrl: "https://klingai.com",
-    placeholder: "kling-xxxxxxxx",
-  },
-  {
-    id: "fal",
-    name: "FAL",
-    description: "Fast image/video gen via FAL hosted models.",
-    getKeyUrl: "https://fal.ai/dashboard/keys",
-    placeholder: "fal-xxxxxxxx",
   },
   {
     id: "elevenlabs",

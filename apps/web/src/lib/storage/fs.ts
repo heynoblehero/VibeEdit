@@ -114,6 +114,48 @@ export function listAssets(userId: string, projectId: string): string[] {
   return listFiles(userId, projectId).filter((p) => p.startsWith("assets/"));
 }
 
+export type AssetSource = "upload" | "ai";
+
+// Per-project provenance manifest. Lives at the project root (not under assets/,
+// so it never shows up as an asset itself) and is copied by branch/duplicate
+// since those cpSync the whole project dir. Only AI-created assets are recorded;
+// anything absent defaults to "upload".
+const ASSET_META_FILE = ".assetmeta.json";
+
+export function readAssetMeta(userId: string, projectId: string): Record<string, AssetSource> {
+  const full = join(projectDir(userId, projectId), ASSET_META_FILE);
+  if (!existsSync(full)) return {};
+  try {
+    const parsed = JSON.parse(readFileSync(full, "utf8"));
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, AssetSource>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function markAiAssets(userId: string, projectId: string, paths: string[]): void {
+  if (paths.length === 0) return;
+  const meta = readAssetMeta(userId, projectId);
+  let changed = false;
+  for (const path of paths) {
+    if (meta[path] !== "ai") {
+      meta[path] = "ai";
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  const full = join(projectDir(userId, projectId), ASSET_META_FILE);
+  mkdirSync(dirname(full), { recursive: true });
+  writeFileSync(full, JSON.stringify(meta, null, 2));
+}
+
+// Source of a single asset: recorded "ai", else AI-only output dirs, else upload.
+export function assetSource(meta: Record<string, AssetSource>, path: string): AssetSource {
+  if (meta[path]) return meta[path];
+  if (path.startsWith("assets/processed/") || path.startsWith("assets/variants/")) return "ai";
+  return "upload";
+}
+
 const MIMES: Record<string, string> = {
   html: "text/html; charset=utf-8",
   htm: "text/html; charset=utf-8",

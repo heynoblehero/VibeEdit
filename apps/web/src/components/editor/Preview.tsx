@@ -264,6 +264,9 @@ export function Preview({
             // The max-width cap keeps the derived height within the viewport.
             aspectRatio: aspectRatio.replace(":", " / "),
             maxWidth: `min(100%, calc(${stageVh}svh * ${aspectRatio.split(":")[0]} / ${aspectRatio.split(":")[1]}))`,
+            // Never let a tall (9:16) composition exceed the container height —
+            // the box shrinks to fit while preserving aspect ratio.
+            maxHeight: "100%",
           }}
         >
           {hasComposition === true && scriptLoaded ? (

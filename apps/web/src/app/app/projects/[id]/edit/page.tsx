@@ -260,14 +260,14 @@ export default function EditorPage({ params }: PageProps) {
 
       {/* ── Chat panel (preview now lives inline in the thread) ── */}
       <aside
-        className={`${mobileTab === "chat" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden bg-[var(--color-bg)] md:flex`}
+        className={`${mobileTab === "chat" ? "flex" : "hidden"} min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--color-bg)] md:flex`}
       >
         <Chat projectId={id} reloadKey={reloadKey} />
       </aside>
 
       {/* ── Right panel: Files + History tabs ──────────────────── */}
       <aside
-        className={`${mobileTab === "files" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden border-l border-[var(--color-border)] bg-[var(--color-bg)] md:flex`}
+        className={`${mobileTab === "files" ? "flex" : "hidden"} min-h-0 min-w-0 flex-col overflow-hidden border-l border-[var(--color-border)] bg-[var(--color-bg)] md:flex`}
       >
         {/* Tab bar */}
         <div className="flex shrink-0 border-b border-[var(--color-border)] bg-[var(--color-bg)]">

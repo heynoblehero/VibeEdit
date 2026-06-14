@@ -698,8 +698,11 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
         )}
       </div>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
-        <div className="mx-auto w-full max-w-3xl space-y-2">
+      <div
+        ref={scrollRef}
+        className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4"
+      >
+        <div className="mx-auto w-full min-w-0 max-w-3xl space-y-2">
           {showSamples && <SamplePromptCards prefs={prefs} onPick={(text) => send(text)} />}
           {messages.map((message, index) => {
             const showVersion =

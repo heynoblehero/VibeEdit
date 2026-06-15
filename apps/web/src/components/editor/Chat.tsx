@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { markEditSent } from "@/lib/preview-budget";
-import { Preview } from "./Preview";
 import { AssetPickerModal } from "./AssetPickerModal";
 import { VideoViewerModal } from "./VideoViewerModal";
 
@@ -726,10 +725,8 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
         <div className="mx-auto w-full min-w-0 max-w-3xl space-y-2">
           {showSamples && <SamplePromptCards prefs={prefs} onPick={(text) => send(text)} />}
           {messages.map((message, index) => {
-            const showVersion =
-              message.role === "assistant" &&
-              !!message.snapshotId &&
-              message.snapshotId !== latestSnapshotId;
+            const versionSnapshotId = message.role === "assistant" ? message.snapshotId : null;
+            const isLatestVersion = !!versionSnapshotId && versionSnapshotId === latestSnapshotId;
             return (
               <div key={message.id || index} className="space-y-2">
                 <MessageBubble
@@ -737,13 +734,19 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
                   projectId={projectId}
                   onBranched={(newProjectId) => router.push(`/app/projects/${newProjectId}/edit`)}
                 />
-                {showVersion && (
-                  <SnapshotPlayer
+                {versionSnapshotId && (
+                  <VideoMessageCard
+                    label={
+                      isLatestVersion
+                        ? "Latest preview"
+                        : `Version ${versionNumberById.get(versionSnapshotId) ?? 0}`
+                    }
                     aspectRatio={aspectRatio}
-                    versionNumber={versionNumberById.get(message.snapshotId as string) ?? 0}
                     onOpen={() =>
                       setViewer({
-                        src: `/api/projects/${projectId}/snapshots/${message.snapshotId}/html`,
+                        src: isLatestVersion
+                          ? `/api/projects/${projectId}/files/index.html?v=${reloadKey}`
+                          : `/api/projects/${projectId}/snapshots/${versionSnapshotId}/html`,
                         aspectRatio,
                       })
                     }
@@ -761,44 +764,6 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
                   <LiveLine key={i} entry={entry} projectId={projectId} />
                 ),
               )}
-            </div>
-          )}
-          {/* Live preview as the latest message in the thread — the current
-              composition shows up inline (like image/video gen chats) and
-              scrolls with the conversation. Tap ⤢ for fullscreen + rotate. */}
-          {!showSamples && (
-            <div className="relative overflow-hidden rounded-2xl rounded-tl-sm border border-[var(--color-border)] bg-black shadow-sm">
-              <div className="h-[34svh] max-h-[460px] sm:h-[40svh] md:h-[46svh]">
-                <Preview projectId={projectId} reloadKey={reloadKey} stageVh={46} />
-              </div>
-              <button
-                onClick={() =>
-                  setViewer({
-                    src: `/api/projects/${projectId}/files/index.html?v=${reloadKey}`,
-                    aspectRatio,
-                  })
-                }
-                title="Open fullscreen"
-                aria-label="Open fullscreen"
-                className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-colors hover:bg-black/75"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <polyline points="15 3 21 3 21 9" />
-                  <polyline points="9 21 3 21 3 15" />
-                  <line x1="21" y1="3" x2="14" y2="10" />
-                  <line x1="3" y1="21" x2="10" y2="14" />
-                </svg>
-              </button>
             </div>
           )}
         </div>
@@ -1411,49 +1376,46 @@ function ScreenshotStrip({ images }: { images: Array<{ data: string; mimeType: s
   );
 }
 
-// Inline player for a past composition version. Lazy: the heavy
-// <hyperframes-player> (which runs the composition's animation loop) is only
-// mounted after the user clicks play, so a long thread with many versions
-// stays light. The click is also the user-gesture that unblocks autoplay.
-function SnapshotPlayer({
+// A compact, Telegram/YouTube-style video card for a composition version. Shows
+// a small poster with a play button; tapping opens the fullscreen viewer (zoom +
+// rotate). The heavy player only mounts in the viewer, so a long thread with
+// many version cards stays light. Width is capped per orientation so vertical
+// (9:16) clips don't blow up the bubble.
+function VideoMessageCard({
+  label,
   aspectRatio,
-  versionNumber,
   onOpen,
 }: {
+  label: string;
   aspectRatio: AspectRatio;
-  versionNumber: number;
   onOpen: () => void;
 }) {
   const [w, h] = aspectRatio.split(":");
+  const portrait = Number(h) > Number(w);
+  const maxWidth = portrait ? 150 : 260;
 
-  // A compact poster for a past version. Tapping opens the fullscreen viewer
-  // (zoom + rotate) — the heavy player only mounts there, keeping the thread light.
   return (
-    <div className="max-w-[88%] overflow-hidden rounded-xl border border-[var(--color-border)] bg-black">
-      <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5">
-        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-fg-muted)]">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
-          Version {versionNumber}
-        </span>
-        <span className="text-[10px] text-[var(--color-fg-subtle)]">tap to play</span>
+    <button
+      onClick={onOpen}
+      aria-label={`Play ${label} fullscreen`}
+      style={{ maxWidth }}
+      className="group block w-full overflow-hidden rounded-2xl rounded-tl-sm border border-[var(--color-border)] bg-[var(--color-surface)] text-left shadow-sm transition-colors hover:border-[var(--color-accent)]/50"
+    >
+      <div className="relative w-full" style={{ aspectRatio: `${w} / ${h}` }}>
+        <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-surface-2)] to-black" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-transform group-hover:scale-105">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <polygon points="6,4 20,12 6,20" />
+            </svg>
+          </span>
+        </div>
       </div>
-      <button
-        onClick={onOpen}
-        aria-label={`Play version ${versionNumber} fullscreen`}
-        className="group relative mx-auto flex items-center justify-center"
-        style={{
-          aspectRatio: `${w} / ${h}`,
-          maxWidth: `min(100%, calc(30svh * ${w} / ${h}))`,
-          maxHeight: "30svh",
-        }}
-      >
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 backdrop-blur-sm transition-colors group-hover:bg-white/25">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="white" aria-hidden="true">
-            <polygon points="6,4 20,12 6,20" />
-          </svg>
-        </span>
-      </button>
-    </div>
+      <div className="flex items-center justify-between gap-2 px-2.5 py-1.5">
+        <span className="truncate text-[11px] font-medium text-[var(--color-fg)]">{label}</span>
+        <span className="shrink-0 text-[9px] text-[var(--color-fg-muted)]">{aspectRatio}</span>
+      </div>
+    </button>
   );
 }
 

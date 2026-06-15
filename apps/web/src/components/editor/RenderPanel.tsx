@@ -8,16 +8,6 @@ import {
   type ClientRenderProgress,
 } from "@/lib/render/client-renderer";
 
-type Review = {
-  id: string;
-  renderJobId: string;
-  userId: string;
-  timestampSeconds: number;
-  text: string;
-  resolved: boolean;
-  createdAt: string;
-};
-
 type Job = {
   id: string;
   status: "queued" | "running" | "done" | "failed";
@@ -324,8 +314,6 @@ export function RenderPanel({ projectId }: { projectId: string }) {
             <span className="sm:hidden">↓</span>
             <span className="hidden sm:inline">↓ Download .mp4</span>
           </a>
-          <PublishButton renderJobId={latest.id} />
-          <ReviewsButton renderJobId={latest.id} />
         </div>
       )}
       {latest && latest.status === "failed" && (
@@ -378,8 +366,6 @@ export function RenderPanel({ projectId }: { projectId: string }) {
             <span className="sm:hidden">↓</span>
             <span className="hidden sm:inline">↓ Download .mp4</span>
           </a>
-          <PublishButton renderJobId={latest.id} />
-          <ReviewsButton renderJobId={latest.id} />
         </div>
       )}
       {latest && latest.status === "failed" && (
@@ -486,221 +472,6 @@ export function RenderPanel({ projectId }: { projectId: string }) {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function PublishButton({ renderJobId }: { renderJobId: string }) {
-  const [open, setOpen] = useState(false);
-  const [publishing, setPublishing] = useState<string | null>(null);
-  const [result, setResult] = useState<string | null>(null);
-
-  async function publish(platform: "youtube" | "tiktok") {
-    setPublishing(platform);
-    setOpen(false);
-    const res = await fetch("/api/publish", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ renderJobId, platform }),
-    });
-    const data = (await res.json()) as {
-      ok?: boolean;
-      url?: string;
-      error?: string;
-      message?: string;
-    };
-    if (data.ok && data.url) {
-      setResult(data.url);
-    } else if (data.error === "not_connected") {
-      window.open("/app/settings/publishing", "_blank");
-    } else {
-      alert(data.message || data.error || "Publish failed");
-    }
-    setPublishing(null);
-  }
-
-  if (result) {
-    return (
-      <a
-        href={result}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="rounded-md border border-[var(--color-accent)] px-2.5 py-1.5 text-xs font-semibold text-[var(--color-accent)] hover:opacity-80"
-      >
-        ↗ Published
-      </a>
-    );
-  }
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        disabled={!!publishing}
-        className="rounded-md border border-[var(--color-border)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] disabled:opacity-50"
-      >
-        {publishing ? `Publishing to ${publishing}…` : "↑ Publish"}
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full z-40 mt-1 w-44 overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] shadow-xl">
-          <p className="border-b border-[var(--color-border)] px-3 py-2 text-[10px] uppercase tracking-wider text-[var(--color-fg-muted)]">
-            Publish to
-          </p>
-          {(["youtube", "tiktok"] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => publish(p)}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[var(--color-bg-2)]"
-            >
-              {p === "youtube" ? "▶ YouTube" : "♪ TikTok"}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ReviewsButton({ renderJobId }: { renderJobId: string }) {
-  const [open, setOpen] = useState(false);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [text, setText] = useState("");
-  const [ts, setTs] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    fetch(`/api/render/${renderJobId}/reviews`)
-      .then((r) => (r.ok ? r.json() : { reviews: [] }))
-      .then((d) => setReviews((d as { reviews: Review[] }).reviews));
-  }, [open, renderJobId]);
-
-  useEffect(() => {
-    if (!open) return;
-    function onOutside(event: MouseEvent) {
-      if (!panelRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    window.addEventListener("mousedown", onOutside);
-    return () => window.removeEventListener("mousedown", onOutside);
-  }, [open]);
-
-  async function submit() {
-    const seconds = parseFloat(ts);
-    if (!text.trim() || isNaN(seconds)) return;
-    setSubmitting(true);
-    const r = await fetch(`/api/render/${renderJobId}/reviews`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ timestampSeconds: seconds, text: text.trim() }),
-    });
-    if (r.ok) {
-      const d = (await r.json()) as { review: Review };
-      setReviews((prev) =>
-        [...prev, d.review].sort((a, b) => a.timestampSeconds - b.timestampSeconds),
-      );
-      setText("");
-      setTs("");
-    }
-    setSubmitting(false);
-  }
-
-  async function resolve(reviewId: string, resolved: boolean) {
-    await fetch(`/api/render/${renderJobId}/reviews`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ reviewId, resolved }),
-    });
-    setReviews((prev) => prev.map((rv) => (rv.id === reviewId ? { ...rv, resolved } : rv)));
-  }
-
-  const open_count = reviews.filter((rv) => !rv.resolved).length;
-
-  return (
-    <div ref={panelRef} className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-md border border-[var(--color-border)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
-        title="Review comments"
-      >
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-        Review
-        {open_count > 0 && (
-          <span className="rounded-full bg-[var(--color-accent)] px-1.5 py-0.5 text-[9px] font-bold text-black">
-            {open_count}
-          </span>
-        )}
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-80 overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl">
-          <div className="border-b border-[var(--color-border)] px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-fg-muted)]">
-            Review comments
-          </div>
-          <div className="max-h-64 overflow-y-auto">
-            {reviews.length === 0 ? (
-              <p className="px-3 py-4 text-center text-xs text-[var(--color-fg-subtle)]">
-                No comments yet
-              </p>
-            ) : (
-              <ul className="divide-y divide-[var(--color-border)]">
-                {reviews.map((rv) => (
-                  <li key={rv.id} className={`px-3 py-2 ${rv.resolved ? "opacity-50" : ""}`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="shrink-0 rounded bg-[var(--color-bg-2)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-accent)]">
-                        {rv.timestampSeconds.toFixed(1)}s
-                      </span>
-                      <p className="flex-1 text-xs text-[var(--color-fg)]">{rv.text}</p>
-                      <button
-                        onClick={() => resolve(rv.id, !rv.resolved)}
-                        className="shrink-0 text-[10px] text-[var(--color-fg-subtle)] hover:text-[var(--color-success)]"
-                        title={rv.resolved ? "Reopen" : "Mark resolved"}
-                      >
-                        {rv.resolved ? "↩" : "✓"}
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div className="border-t border-[var(--color-border)] p-3">
-            <div className="mb-2 flex gap-2">
-              <input
-                value={ts}
-                onChange={(e) => setTs(e.target.value)}
-                placeholder="0.0s"
-                className="w-16 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-2)] px-2 py-1.5 text-xs outline-none placeholder:text-[var(--color-fg-subtle)] focus:border-[var(--color-accent)]"
-              />
-              <input
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && submit()}
-                placeholder="Add a comment…"
-                className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-2)] px-2 py-1.5 text-xs outline-none placeholder:text-[var(--color-fg-subtle)] focus:border-[var(--color-accent)]"
-              />
-            </div>
-            <button
-              onClick={submit}
-              disabled={submitting || !text.trim() || isNaN(parseFloat(ts))}
-              className="w-full rounded-lg bg-[var(--color-accent)] py-1.5 text-xs font-semibold text-black disabled:opacity-40"
-            >
-              {submitting ? "Adding…" : "Add comment"}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

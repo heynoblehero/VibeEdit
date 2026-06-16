@@ -13,6 +13,8 @@ import { readBrandKit } from "../brand-kit";
 import { searchStock, type StockKind } from "../stock/registry";
 import { replicateGenerateImage, replicateGenerateVideo } from "./providers/replicate";
 import { nanoid } from "nanoid";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve, sep } from "node:path";
 import {
   resolveProjectPath,
   probeClip,
@@ -313,7 +315,7 @@ export function buildToolServer(ctx: ToolContext) {
 
   const findStockTool = tool(
     "find_stock",
-    "Search the curated stock library for SFX, b-roll video, character illustrations, or MUSIC beds. Returns matching assets with their URLs. URLs are publicly served — reference them directly as `src=\"...\"`. For 'music', search by mood keywords (energetic / calm / ominous / playful / mysterious / dark / warm). Every composition should include exactly ONE music track unless the brief says otherwise.",
+    "Search the curated stock library for SFX, b-roll video, character illustrations, or MUSIC beds. Returns matching assets with their /stock/… URLs. IMPORTANT: download each chosen asset into the project with download_asset (it copies the /stock/ file straight into assets/), then reference it as src=\"assets/<filename>\". Do NOT reference the raw /stock/… path in the composition — assets must live under assets/ to be bundled into the render (music and b-roll video especially, or audio renders silent). For 'music', search by mood keywords (energetic / calm / ominous / playful / mysterious / dark / warm). Every composition should include exactly ONE music track unless the brief says otherwise.",
     {
       query: z
         .string()
@@ -399,7 +401,7 @@ export function buildToolServer(ctx: ToolContext) {
 
   const downloadAssetTool = tool(
     "download_asset",
-    'Fetch any public image, GIF, or video URL and save it to the project\'s assets/ folder. Use this after finding a meme, GIF, or image URL via WebSearch/WebFetch — download it so the composition can reference it as src="assets/<filename>". Sanitizes the filename and guards against path traversal. Returns the saved asset path.',
+    'Save an asset into the project\'s assets/ folder. Accepts a public http(s) URL (memes/GIFs/images found via WebSearch/WebFetch) OR a local stock-library path like /stock/music/<x>.mp3 from find_stock (copied straight off disk — no network). The composition then references it as src="assets/<filename>". Sanitizes the filename and guards against path traversal. Returns the saved asset path.',
     {
       url: z.string().describe("Public URL of the image, GIF, or video to download."),
       filename: z
@@ -413,22 +415,45 @@ export function buildToolServer(ctx: ToolContext) {
       const safe = filename.replace(/[/\\]/g, "_").replace(/^\.+/, "");
       const dest = `assets/${safe}`;
       try {
-        const response = await fetch(url, {
-          headers: { "user-agent": "VibeEdit/1.0 asset-downloader" },
-          signal: AbortSignal.timeout(30_000),
-        });
-        if (!response.ok) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `ERROR: HTTP ${response.status} fetching ${url}`,
-              },
-            ],
-            isError: true,
-          };
+        let buffer: Buffer;
+        if (url.startsWith("/") && !url.startsWith("//")) {
+          // A locally-served path (e.g. the stock library at /stock/music/x.mp3,
+          // served from public/). The server can't fetch() a host-less path, so
+          // copy it straight off disk into the project's assets/.
+          const rel = url.replace(/^\/+/, "").split(/[?#]/)[0];
+          const publicRoot = resolve(process.cwd(), "public");
+          const absPath = resolve(publicRoot, rel);
+          if (absPath !== publicRoot && !absPath.startsWith(publicRoot + sep)) {
+            return {
+              content: [{ type: "text", text: `ERROR: invalid local path ${url}` }],
+              isError: true,
+            };
+          }
+          if (!existsSync(absPath)) {
+            return {
+              content: [{ type: "text", text: `ERROR: local asset not found: ${url}` }],
+              isError: true,
+            };
+          }
+          buffer = readFileSync(absPath);
+        } else {
+          const response = await fetch(url, {
+            headers: { "user-agent": "VibeEdit/1.0 asset-downloader" },
+            signal: AbortSignal.timeout(30_000),
+          });
+          if (!response.ok) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `ERROR: HTTP ${response.status} fetching ${url}`,
+                },
+              ],
+              isError: true,
+            };
+          }
+          buffer = Buffer.from(await response.arrayBuffer());
         }
-        const buffer = Buffer.from(await response.arrayBuffer());
         writeProjectFile(ctx.userId, ctx.projectId, dest, buffer);
         return {
           content: [

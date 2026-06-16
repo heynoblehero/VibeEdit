@@ -24,7 +24,8 @@ export type StockAsset = {
 };
 
 export const STOCK_REGISTRY: StockAsset[] = [
-  // SFX (Freesound CC0 archetypes — populate the actual files later)
+  // SFX — Kenney.nl CC0 sound packs (interface / impact / sci-fi / RPG audio).
+  // Public domain, no attribution required. Files are .ogg.
   {
     slug: "whoosh-fast",
     kind: "sfx",
@@ -32,7 +33,7 @@ export const STOCK_REGISTRY: StockAsset[] = [
     tags: ["whoosh", "transition", "swoosh", "fast"],
     durationSeconds: 0.5,
     licence: "CC0",
-    url: "/stock/sfx/whoosh-fast.wav",
+    url: "/stock/sfx/whoosh-fast.ogg",
   },
   {
     slug: "glass-crack",
@@ -41,7 +42,7 @@ export const STOCK_REGISTRY: StockAsset[] = [
     tags: ["impact", "break", "smash", "comic"],
     durationSeconds: 0.7,
     licence: "CC0",
-    url: "/stock/sfx/glass-crack.wav",
+    url: "/stock/sfx/glass-crack.ogg",
   },
   {
     slug: "riser-dramatic",
@@ -50,7 +51,7 @@ export const STOCK_REGISTRY: StockAsset[] = [
     tags: ["riser", "build", "tension", "dramatic"],
     durationSeconds: 3.5,
     licence: "CC0",
-    url: "/stock/sfx/riser-dramatic.wav",
+    url: "/stock/sfx/riser-dramatic.ogg",
   },
   {
     slug: "sub-bass-hit",
@@ -59,7 +60,7 @@ export const STOCK_REGISTRY: StockAsset[] = [
     tags: ["impact", "bass", "drop", "hit"],
     durationSeconds: 1.0,
     licence: "CC0",
-    url: "/stock/sfx/sub-bass-hit.wav",
+    url: "/stock/sfx/sub-bass-hit.ogg",
   },
   {
     slug: "retro-chime",
@@ -68,7 +69,7 @@ export const STOCK_REGISTRY: StockAsset[] = [
     tags: ["chime", "ui", "retro", "ping"],
     durationSeconds: 0.6,
     licence: "CC0",
-    url: "/stock/sfx/retro-chime.wav",
+    url: "/stock/sfx/retro-chime.ogg",
   },
   {
     slug: "shutter-click",
@@ -77,7 +78,7 @@ export const STOCK_REGISTRY: StockAsset[] = [
     tags: ["camera", "shutter", "click", "stamp"],
     durationSeconds: 0.3,
     licence: "CC0",
-    url: "/stock/sfx/shutter-click.wav",
+    url: "/stock/sfx/shutter-click.ogg",
   },
   {
     slug: "scanline-buzz",
@@ -86,7 +87,7 @@ export const STOCK_REGISTRY: StockAsset[] = [
     tags: ["glitch", "scifi", "buzz", "tv"],
     durationSeconds: 1.4,
     licence: "CC0",
-    url: "/stock/sfx/scanline-buzz.wav",
+    url: "/stock/sfx/scanline-buzz.ogg",
   },
   {
     slug: "page-flip",
@@ -95,7 +96,7 @@ export const STOCK_REGISTRY: StockAsset[] = [
     tags: ["paper", "history", "flip", "book"],
     durationSeconds: 0.5,
     licence: "CC0",
-    url: "/stock/sfx/page-flip.wav",
+    url: "/stock/sfx/page-flip.ogg",
   },
 
   // B-roll (Pexels CC0 archetypes)

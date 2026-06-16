@@ -315,7 +315,7 @@ export function buildToolServer(ctx: ToolContext) {
 
   const findStockTool = tool(
     "find_stock",
-    "Search the curated stock library for SFX, b-roll video, character illustrations, or MUSIC beds. Returns matching assets with their /stock/… URLs. IMPORTANT: download each chosen asset into the project with download_asset (it copies the /stock/ file straight into assets/), then reference it as src=\"assets/<filename>\". Do NOT reference the raw /stock/… path in the composition — assets must live under assets/ to be bundled into the render (music and b-roll video especially, or audio renders silent). For 'music', search by mood keywords (energetic / calm / ominous / playful / mysterious / dark / warm). Every composition should include exactly ONE music track unless the brief says otherwise.",
+    "Search the curated stock library for MUSIC beds and b-roll video. Returns matching assets with their /stock/… URLs. Only assets whose files actually exist are returned — if a search comes back empty, that kind isn't stocked, so do NOT invent or guess a /stock/… path (a made-up path 404s and renders silent/blank). IMPORTANT: download each chosen asset into the project with download_asset (it copies the /stock/ file straight into assets/), then reference it as src=\"assets/<filename>\". Do NOT reference the raw /stock/… path in the composition — assets must live under assets/ to be bundled into the render (music and b-roll video especially, or audio renders silent). For 'music', search by mood keywords (energetic / calm / ominous / playful / mysterious / dark / warm). Every composition should include exactly ONE music track unless the brief says otherwise.",
     {
       query: z
         .string()

@@ -3,6 +3,9 @@
 // In production: pre-download CC0 assets and place them in /public/stock/.
 // For local dev, this registry stands as the catalog and the agent can list it.
 
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+
 export type StockKind = "sfx" | "broll" | "character" | "music";
 
 export type StockAsset = {
@@ -293,25 +296,53 @@ export const STOCK_REGISTRY: StockAsset[] = [
   },
 ];
 
+// The registry lists archetypes for every kind, but only assets whose files
+// have actually been placed under public/stock/ can be served. Surfacing a
+// phantom entry to the agent is how compositions end up referencing a URL that
+// 404s at preview/render time — e.g. an SFX track that never plays, leaving the
+// video silent. Filter to assets that exist on disk so find_stock (and the
+// public stock API) only ever hand out playable URLs.
+function assetFileExists(asset: StockAsset): boolean {
+  const rel = asset.url.replace(/^\/+/, "").split(/[?#]/)[0];
+  const abs = resolve(process.cwd(), "public", rel);
+  return existsSync(abs);
+}
+
+let availableCache: StockAsset[] | null = null;
+function availableStock(): StockAsset[] {
+  if (availableCache) return availableCache;
+  availableCache = STOCK_REGISTRY.filter(assetFileExists);
+  return availableCache;
+}
+
 export function searchStock(query: string, kind?: StockKind): StockAsset[] {
+  const registry = availableStock();
   const terms = query
     .toLowerCase()
     .split(/\s+/)
     .filter((s) => s.length >= 2);
   if (terms.length === 0) {
-    return kind ? STOCK_REGISTRY.filter((a) => a.kind === kind) : STOCK_REGISTRY;
+    return kind ? registry.filter((a) => a.kind === kind) : registry;
   }
-  const scored = STOCK_REGISTRY.filter((a) => !kind || a.kind === kind).map((asset) => {
-    const moodList = asset.mood || [];
-    const hay = (asset.name + " " + asset.tags.join(" ") + " " + moodList.join(" ")).toLowerCase();
-    let score = 0;
-    for (const term of terms) {
-      if (hay.includes(term)) score += 1;
-      if (asset.tags.includes(term)) score += 2;
-      if (moodList.includes(term)) score += 3;
-    }
-    return { asset, score };
-  });
+  const scored = registry
+    .filter((a) => !kind || a.kind === kind)
+    .map((asset) => {
+      const moodList = asset.mood || [];
+      const hay = (
+        asset.name +
+        " " +
+        asset.tags.join(" ") +
+        " " +
+        moodList.join(" ")
+      ).toLowerCase();
+      let score = 0;
+      for (const term of terms) {
+        if (hay.includes(term)) score += 1;
+        if (asset.tags.includes(term)) score += 2;
+        if (moodList.includes(term)) score += 3;
+      }
+      return { asset, score };
+    });
   return scored
     .filter((s) => s.score > 0)
     .sort((a, b) => b.score - a.score)

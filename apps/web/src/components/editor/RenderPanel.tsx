@@ -67,6 +67,7 @@ export function RenderPanel({ projectId }: { projectId: string }) {
   const [presetIndex, setPresetIndex] = useState(0);
   const [planId, setPlanId] = useState<PlanId>("free");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Client-side render state
@@ -148,6 +149,7 @@ export function RenderPanel({ projectId }: { projectId: string }) {
     setClientBlob(null);
     setClientProgress(null);
     setMenuOpen(false);
+    setModalOpen(true); // open the progress modal for the whole render lifecycle
 
     // ── Guard: nothing to render until a composition (index.html) exists ──
     const meta = await fetch(`/api/projects/${projectId}`)
@@ -380,18 +382,13 @@ export function RenderPanel({ projectId }: { projectId: string }) {
       {/* Render button — split into "Render" + caret to show presets. */}
       <div ref={menuRef} className="relative inline-flex">
         <button
-          onClick={() => startRender(presetIndex)}
-          disabled={isRenderBusy}
+          onClick={() => (isRenderBusy ? setModalOpen(true) : startRender(presetIndex))}
           className={`flex items-center gap-1.5 rounded-l-md px-2.5 py-1.5 text-sm font-semibold transition-all sm:gap-2 sm:px-3 ${
             isRenderBusy
-              ? "cursor-not-allowed bg-[var(--color-surface-2)] text-[var(--color-fg-muted)] opacity-60"
+              ? "cursor-pointer bg-[var(--color-surface-2)] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
               : "bg-[var(--color-accent)] text-black hover:opacity-90"
           }`}
-          title={
-            isRenderBusy
-              ? "Render in progress — wait for it to finish"
-              : `Render with ${activePreset.label} (⌘R)`
-          }
+          title={isRenderBusy ? "Show render progress" : `Render with ${activePreset.label} (⌘R)`}
         >
           {submitting ? (
             <span className="flex items-center gap-1.5">
@@ -471,6 +468,223 @@ export function RenderPanel({ projectId }: { projectId: string }) {
             </ul>
           </div>
         )}
+      </div>
+
+      {modalOpen && (
+        <RenderModal
+          onClose={() => setModalOpen(false)}
+          onRetry={() => startRender(presetIndex)}
+          submitting={submitting}
+          method={lastMethod}
+          clientProgress={clientProgress}
+          clientPct={clientPct}
+          clientBlob={clientBlob}
+          job={latest}
+        />
+      )}
+    </div>
+  );
+}
+
+function RenderModal({
+  onClose,
+  onRetry,
+  submitting,
+  method,
+  clientProgress,
+  clientPct,
+  clientBlob,
+  job,
+}: {
+  onClose: () => void;
+  onRetry: () => void;
+  submitting: boolean;
+  method: "webcodecs" | "server" | null;
+  clientProgress: ClientRenderProgress | null;
+  clientPct: number | null;
+  clientBlob: Blob | null;
+  job: Job | undefined;
+}) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!clientBlob) return;
+    const url = URL.createObjectURL(clientBlob);
+    setBlobUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [clientBlob]);
+
+  useEffect(() => {
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onEsc);
+    return () => window.removeEventListener("keydown", onEsc);
+  }, [onClose]);
+
+  const serverDone = job?.status === "done" && !!job.outputPath && method === "server";
+  const done = !!clientBlob || serverDone;
+  const error = job?.status === "failed" ? job.error || "Render failed." : null;
+  const rawPct = method === "webcodecs" ? clientPct : job ? job.progress : null;
+  const pctInt = rawPct !== null ? Math.round(Math.max(0, Math.min(1, rawPct)) * 100) : null;
+
+  let phaseText = "Working…";
+  if (method === "webcodecs" && clientProgress) {
+    phaseText =
+      clientProgress.phase === "initializing"
+        ? "Preparing composition…"
+        : clientProgress.phase === "capturing"
+          ? `Capturing frames… ${clientProgress.frame}/${clientProgress.totalFrames}`
+          : clientProgress.phase === "encoding"
+            ? "Encoding video…"
+            : clientProgress.phase === "audio"
+              ? "Mixing audio…"
+              : clientProgress.phase === "muxing"
+                ? "Finalizing MP4…"
+                : "Finishing up…";
+  } else if (job?.status === "queued") {
+    phaseText = "Queued — waiting for a render slot…";
+  } else if (job?.status === "running") {
+    phaseText = "Rendering on the server…";
+  } else if (submitting) {
+    phaseText = "Starting render…";
+  }
+
+  const methodLabel =
+    method === "webcodecs"
+      ? "Rendering on your device"
+      : method === "server"
+        ? "Rendering on the server"
+        : null;
+  const title = error ? "Render failed" : done ? "Render complete" : "Rendering…";
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="animate-scale-in w-full max-w-md overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl"
+      >
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-3.5">
+          <h2 className="font-semibold text-[var(--color-fg)]">{title}</h2>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)]"
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M1 1l10 10M11 1L1 11" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="px-5 py-5">
+          {error ? (
+            <div className="space-y-4">
+              <div className="flex items-start gap-2.5 rounded-xl border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/8 p-3 text-sm text-[var(--color-danger)]">
+                <span className="mt-px shrink-0">⚠</span>
+                <span className="break-words">{error}</span>
+              </div>
+              <button
+                onClick={onRetry}
+                className="w-full rounded-xl bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-black transition-opacity hover:opacity-90"
+              >
+                Try again
+              </button>
+            </div>
+          ) : done ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-success)]/15 text-[var(--color-success)]">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </span>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-[var(--color-fg)]">
+                    Your MP4 is ready
+                  </div>
+                  {methodLabel && (
+                    <div className="text-xs text-[var(--color-fg-muted)]">{methodLabel}</div>
+                  )}
+                </div>
+              </div>
+              {clientBlob && blobUrl ? (
+                <a
+                  href={blobUrl}
+                  download="render.mp4"
+                  className="block w-full rounded-xl bg-[var(--color-accent)] py-2.5 text-center text-sm font-semibold text-black transition-opacity hover:opacity-90"
+                >
+                  ↓ Download MP4
+                </a>
+              ) : serverDone && job ? (
+                <a
+                  href={`/api/render/${job.id}/download`}
+                  className="block w-full rounded-xl bg-[var(--color-accent)] py-2.5 text-center text-sm font-semibold text-black transition-opacity hover:opacity-90"
+                >
+                  ↓ Download MP4
+                </a>
+              ) : null}
+              <button
+                onClick={onClose}
+                className="w-full rounded-xl border border-[var(--color-border)] py-2 text-sm font-medium text-[var(--color-fg-muted)] transition-colors hover:text-[var(--color-fg)]"
+              >
+                Close
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              {methodLabel && (
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-fg-subtle)]">
+                  {methodLabel}
+                </div>
+              )}
+              <div className="flex items-center gap-2 text-sm text-[var(--color-fg)]">
+                <span className="inline-block h-2 w-2 shrink-0 animate-pulse rounded-full bg-[var(--color-accent)]" />
+                {phaseText}
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-[var(--color-border)]">
+                {pctInt !== null ? (
+                  <div
+                    className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-200"
+                    style={{ width: `${Math.max(3, pctInt)}%` }}
+                  />
+                ) : (
+                  <div className="h-full w-1/3 animate-pulse rounded-full bg-[var(--color-accent)]" />
+                )}
+              </div>
+              <div className="flex items-center justify-between text-xs text-[var(--color-fg-muted)]">
+                <span className="font-mono tabular-nums">
+                  {pctInt !== null ? `${pctInt}%` : "starting…"}
+                </span>
+                {job && job.status === "running" && <EtaInline job={job} />}
+              </div>
+              <p className="text-[11px] text-[var(--color-fg-subtle)]">
+                You can close this — the render keeps going. Reopen it from the Render button.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -213,10 +213,7 @@ export function RenderPanel({ projectId }: { projectId: string }) {
           `In-browser render failed (${err.phase}, frame ${err.frame}/${err.totalFrames}). Rendering on the server instead.`,
         );
       } else if (err) {
-        notify(
-          "ok",
-          "This video is large — rendering on the server. We'll email you when it's ready.",
-        );
+        notify("ok", "Rendering on the server for full quality — we'll email you when it's ready.");
       }
     }
 

@@ -100,6 +100,16 @@ export async function renderOnClient(opts: ClientRenderOptions): Promise<Blob | 
       );
     }
 
+    // ── 2c. Fidelity guard — features html2canvas can't capture ───────────
+    // The device path rasterizes the DOM with html2canvas, which renders
+    // <video> elements and WebGL canvases as blank. Compositions using motion
+    // footage or 3D must go to the server (real Chrome screenshots) so those
+    // layers actually appear in the MP4 instead of silently dropping out.
+    const unsupported = unsupportedFeature(html);
+    if (unsupported) {
+      return fail(`composition uses ${unsupported}, which needs the server renderer`, true);
+    }
+
     // ── 3. Create the offscreen render iframe ────────────────────────────
     const iframe = createRenderIframe(width, height);
     document.body.appendChild(iframe);
@@ -348,6 +358,28 @@ function isHeapNearLimit(): boolean {
   ).memory;
   if (!mem || !mem.jsHeapSizeLimit) return false;
   return mem.usedJSHeapSize / mem.jsHeapSizeLimit > 0.88;
+}
+
+/**
+ * Returns a human-readable description of the first feature the device renderer
+ * can't faithfully capture, or null if the composition is safe for html2canvas.
+ *
+ * html2canvas walks the DOM/CSS and cannot read:
+ *  - <video> pixels (motion b-roll) — drawn blank / poster only
+ *  - WebGL canvases (Three.js etc.) — the drawing buffer reads empty unless
+ *    preserveDrawingBuffer is set, which compositions don't do
+ * Both must render on the server (Puppeteer drives real Chrome).
+ */
+function unsupportedFeature(html: string): string | null {
+  if (/<video[\s>]/i.test(html)) return "motion footage (<video>)";
+  if (
+    /WebGLRenderer|getContext\(\s*["'](?:webgl2?|experimental-webgl)["']|\bthree(?:\.min)?\.js|three\.module/i.test(
+      html,
+    )
+  ) {
+    return "3D / WebGL";
+  }
+  return null;
 }
 
 export function supportsWebCodecs(): boolean {

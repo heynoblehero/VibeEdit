@@ -68,7 +68,7 @@ export const MCP_SERVER_NAME = "hyperframes";
 export function buildToolServer(ctx: ToolContext) {
   const planCompositionTool = tool(
     "plan_composition",
-    "REQUIRED FIRST STEP for any NEW composition (not edits). Emit a structured scene plan including color grade, typography pair, and beat-sync intent. After this returns, STOP your turn — say 'Approve this plan and I'll build it' and wait for the user's next message before any write_file call.",
+    "REQUIRED FIRST STEP for any NEW composition (not edits). Emit a structured scene plan — this is a SHOTLIST, not a slide outline: every scene must name the real visual media (photo / b-roll / motion graphic) that anchors it via the `media` field, plus color grade, typography pair, beat-sync, and transitions. After this returns, STOP your turn — say 'Approve this plan and I'll build it' and wait for the user's next message before any write_file call.",
     {
       format: z.enum(["16:9", "9:16", "1:1"]).describe("Output aspect ratio."),
       totalDurationSeconds: z
@@ -108,6 +108,11 @@ export function buildToolServer(ctx: ToolContext) {
             index: z.number().int().min(1),
             durationSeconds: z.number(),
             intent: z.string().describe("What this scene communicates in 1 line."),
+            media: z
+              .string()
+              .describe(
+                'The REAL visual asset that anchors this scene + how to treat it. This is what makes a video instead of a slideshow. Name what to search_media / download and the treatment, e.g. "photo of Steve Jobs 1984 keynote — remove_background cutout, slow 1.1x push-in", "b-roll: rain on window, full-bleed, subtle ken-burns", "motion-graphic: animated line chart of stock crash". Use "text-on-gradient" ONLY when no real media could possibly fit — that should be rare; most scenes need a photo, clip, or motion graphic.',
+              ),
             beats: z.array(z.string()).describe("2-4 key visual/text beats in this scene."),
             fx: z
               .array(z.string())

@@ -5,6 +5,7 @@ import { getMe, type PlanId } from "@/lib/billing/me-client";
 import {
   renderOnClient,
   supportsWebCodecs,
+  type ClientRenderError,
   type ClientRenderProgress,
 } from "@/lib/render/client-renderer";
 
@@ -165,11 +166,15 @@ export function RenderPanel({ projectId }: { projectId: string }) {
     // ── Try client-side render first ──────────────────────────────────────
     if (supportsWebCodecs()) {
       setLastMethod("webcodecs");
+      let clientErr: ClientRenderError | null = null;
       const blob = await renderOnClient({
         projectId,
         fps: preset.fps,
         quality: preset.quality,
         onProgress: (p) => setClientProgress(p),
+        onError: (e) => {
+          clientErr = e;
+        },
       });
       if (blob) {
         setClientBlob(blob);
@@ -177,7 +182,20 @@ export function RenderPanel({ projectId }: { projectId: string }) {
         setSubmitting(false);
         return; // Done — no server call needed.
       }
-      // Client render failed; fall through to server.
+      // Client render didn't produce a file. Tell the user what happened
+      // instead of silently switching engines, then fall through to server.
+      const err = clientErr as ClientRenderError | null;
+      if (err && !err.recoverable) {
+        notify(
+          "error",
+          `In-browser render failed (${err.phase}, frame ${err.frame}/${err.totalFrames}). Rendering on the server instead.`,
+        );
+      } else if (err) {
+        notify(
+          "ok",
+          "This video is large — rendering on the server. We'll email you when it's ready.",
+        );
+      }
     }
 
     // ── Fall back to server ───────────────────────────────────────────────

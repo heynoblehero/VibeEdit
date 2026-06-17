@@ -26,12 +26,33 @@ export interface ClientRenderProgress {
   method: ClientRenderMethod;
 }
 
+export interface ClientRenderError {
+  phase: ClientRenderPhase;
+  frame: number;
+  totalFrames: number;
+  message: string;
+  /** True when we deliberately bailed (too long / memory pressure), not a bug. */
+  recoverable: boolean;
+}
+
 export interface ClientRenderOptions {
   projectId: string;
   fps: number;
   quality: "draft" | "standard" | "high";
   onProgress: (p: ClientRenderProgress) => void;
+  /**
+   * Called when the in-browser render cannot complete and we fall back to the
+   * server. Gives the caller the actual reason + location so it's no longer a
+   * silent failure (or, worse, an invisible tab crash).
+   */
+  onError?: (e: ClientRenderError) => void;
 }
+
+// In-browser rendering holds the whole encoded MP4 in RAM (fastStart:
+// "in-memory") plus all compressed chunks. Past a few minutes that itself gets
+// heavy, and very long captures are slow + fragile, so anything longer is sent
+// to the server queue instead. ~3 min at the target fps.
+const MAX_CLIENT_SECONDS = 180;
 
 /** Returns an MP4 Blob, or null if client-side rendering is not possible. */
 export async function renderOnClient(opts: ClientRenderOptions): Promise<Blob | null> {
@@ -41,6 +62,20 @@ export async function renderOnClient(opts: ClientRenderOptions): Promise<Blob | 
 
   // Reduce resolution on draft quality to speed things up.
   const scale = quality === "draft" ? 0.5 : 1;
+
+  // Tracked across the whole pipeline so a failure can report WHERE it died.
+  let phase: ClientRenderPhase = "initializing";
+  let currentFrame = 0;
+  let totalFrames = 0;
+
+  const fail = (message: string, recoverable: boolean): null => {
+    const tag = recoverable ? "falling back to server" : "FAILED";
+    console.error(
+      `[client-render] ${tag} — phase=${phase} frame=${currentFrame}/${totalFrames}: ${message}`,
+    );
+    opts.onError?.({ phase, frame: currentFrame, totalFrames, message, recoverable });
+    return null;
+  };
 
   try {
     // ── 1. Fetch the composition HTML ────────────────────────────────────
@@ -55,7 +90,15 @@ export async function renderOnClient(opts: ClientRenderOptions): Promise<Blob | 
     const { totalDuration, width: srcW, height: srcH } = meta;
     const width = Math.round(srcW * scale);
     const height = Math.round(srcH * scale);
-    const totalFrames = Math.ceil(totalDuration * fps);
+    totalFrames = Math.ceil(totalDuration * fps);
+
+    // ── 2b. Length guard — long compositions render on the server ─────────
+    if (totalDuration > MAX_CLIENT_SECONDS) {
+      return fail(
+        `composition is ${Math.round(totalDuration)}s (over the ${MAX_CLIENT_SECONDS}s in-browser limit)`,
+        true,
+      );
+    }
 
     // ── 3. Create the offscreen render iframe ────────────────────────────
     const iframe = createRenderIframe(width, height);
@@ -66,17 +109,47 @@ export async function renderOnClient(opts: ClientRenderOptions): Promise<Blob | 
       // network request, no CSP issues with assets on the same host).
       await loadCompositionIntoIframe(iframe, html, 12_000);
 
+      phase = "capturing";
       onProgress({ phase: "capturing", frame: 0, totalFrames, method: "webcodecs" });
 
-      // ── 4. Capture frames ─────────────────────────────────────────────
       // Lazily import html2canvas so it doesn't bloat the initial bundle.
       const { default: html2canvas } = (await import(
         /* webpackChunkName: "html2canvas" */ "html2canvas"
       )) as { default: typeof import("html2canvas").default };
 
-      const frameDataList: ImageData[] = [];
+      // ── 4. Streaming capture + encode ─────────────────────────────────
+      // Each frame is encoded the instant it's captured, then its pixels are
+      // released. The previous implementation buffered every frame's raw RGBA
+      // (≈ width*height*4 bytes each) in an array and encoded afterwards — at
+      // 1080×1920 that's ~8 MB/frame, so a ~1-minute clip needed >10 GB and
+      // the browser OOM-killed the tab (window "snaps" shut, nothing logged).
+      // Holding one frame at a time plus the small compressed chunks keeps
+      // peak memory flat regardless of length.
+      let encoderError: Error | null = null;
+      const videoChunks: EncodedVideoChunk[] = [];
+      const encoder = new VideoEncoder({
+        output: (chunk) => videoChunks.push(chunk),
+        // Don't throw from the callback (it runs off the call stack and would
+        // become an uncaught error); record it and surface it from the loop.
+        error: (e) => {
+          encoderError = new Error(`VideoEncoder error: ${e.message}`);
+        },
+      });
+
+      encoder.configure({
+        codec: "avc1.42001f", // H.264 Baseline
+        width,
+        height,
+        bitrate: quality === "draft" ? 1_500_000 : quality === "standard" ? 5_000_000 : 12_000_000,
+        framerate: fps,
+      });
+
+      const frameDurationUs = Math.round(1_000_000 / fps);
 
       for (let f = 0; f < totalFrames; f++) {
+        currentFrame = f;
+        if (encoderError) throw encoderError;
+
         const t = f / fps;
         seekComposition(iframe, t);
         // Two rAF ticks: first lets GSAP update, second lets the browser paint.
@@ -111,13 +184,41 @@ export async function renderOnClient(opts: ClientRenderOptions): Promise<Blob | 
 
         const ctx = captured.getContext("2d");
         if (!ctx) throw new Error("Canvas 2D context unavailable");
-        frameDataList.push(ctx.getImageData(0, 0, width, height));
+        const imageData = ctx.getImageData(0, 0, width, height);
+
+        const frame = new VideoFrame(imageDataToUint8ClampedArray(imageData, width, height), {
+          format: "RGBA",
+          codedWidth: width,
+          codedHeight: height,
+          timestamp: f * frameDurationUs,
+          duration: frameDurationUs,
+        });
+        encoder.encode(frame, { keyFrame: f % (fps * 2) === 0 });
+        frame.close();
+
+        // Backpressure: keep the encoder queue bounded so chunks drain instead
+        // of piling up if the encoder falls behind html2canvas.
+        while (encoder.encodeQueueSize > fps * 2) {
+          await rafTick();
+          if (encoderError) throw encoderError;
+        }
 
         onProgress({ phase: "capturing", frame: f + 1, totalFrames, method: "webcodecs" });
+
+        // Proactive OOM guard (Chromium only): bail to the server *before* the
+        // tab is killed, turning a silent crash into a clean fallback.
+        if (f % 30 === 0 && isHeapNearLimit()) {
+          return fail(`memory pressure at frame ${f}/${totalFrames}`, true);
+        }
       }
 
-      // ── 5. Encode video frames with WebCodecs VideoEncoder ────────────
-      onProgress({ phase: "encoding", frame: 0, totalFrames, method: "webcodecs" });
+      // ── 5. Finalize the video stream ──────────────────────────────────
+      phase = "encoding";
+      onProgress({ phase: "encoding", frame: totalFrames, totalFrames, method: "webcodecs" });
+      await encoder.flush();
+      encoder.close();
+      if (encoderError) throw encoderError;
+
       const { Muxer, ArrayBufferTarget } = await import(
         /* webpackChunkName: "mp4-muxer" */ "mp4-muxer"
       );
@@ -134,48 +235,6 @@ export async function renderOnClient(opts: ClientRenderOptions): Promise<Blob | 
         fastStart: "in-memory",
       });
 
-      const videoChunks: EncodedVideoChunk[] = [];
-      const encoder = new VideoEncoder({
-        output: (chunk) => videoChunks.push(chunk),
-        error: (e) => {
-          throw new Error(`VideoEncoder error: ${e.message}`);
-        },
-      });
-
-      encoder.configure({
-        codec: "avc1.42001f", // H.264 Baseline
-        width,
-        height,
-        bitrate: quality === "draft" ? 1_500_000 : quality === "standard" ? 5_000_000 : 12_000_000,
-        framerate: fps,
-      });
-
-      const frameDurationUs = Math.round(1_000_000 / fps);
-
-      for (let f = 0; f < frameDataList.length; f++) {
-        const imageData = frameDataList[f];
-        const timestampUs = f * frameDurationUs;
-
-        // VideoFrame from ImageData
-        const frame = new VideoFrame(imageDataToUint8ClampedArray(imageData, width, height), {
-          format: "RGBA",
-          codedWidth: width,
-          codedHeight: height,
-          timestamp: timestampUs,
-          duration: frameDurationUs,
-        });
-
-        encoder.encode(frame, { keyFrame: f % (fps * 2) === 0 });
-        frame.close();
-
-        if (f % 10 === 0) {
-          onProgress({ phase: "encoding", frame: f + 1, totalFrames, method: "webcodecs" });
-        }
-      }
-
-      await encoder.flush();
-      encoder.close();
-
       // ── 6. Encode audio with WebCodecs AudioEncoder ───────────────────
       const audioTracks = parseAudioTracks(html);
       let audioChunks: EncodedAudioChunk[] = [];
@@ -183,6 +242,7 @@ export async function renderOnClient(opts: ClientRenderOptions): Promise<Blob | 
       const numChannels = 2;
 
       if (audioTracks.length > 0) {
+        phase = "audio";
         onProgress({ phase: "audio", frame: 0, totalFrames, method: "webcodecs" });
         const mixedBuffer = await mixAudioTracks(audioTracks, projectId, totalDuration);
 
@@ -253,6 +313,7 @@ export async function renderOnClient(opts: ClientRenderOptions): Promise<Blob | 
       }
 
       // Video-only mux (no audio tracks or audio encoding failed)
+      phase = "muxing";
       onProgress({ phase: "muxing", frame: totalFrames, totalFrames, method: "webcodecs" });
       for (const chunk of videoChunks) {
         muxer.addVideoChunk(chunk, { decoderConfig: undefined as never });
@@ -265,12 +326,29 @@ export async function renderOnClient(opts: ClientRenderOptions): Promise<Blob | 
       document.body.removeChild(iframe);
     }
   } catch (err) {
-    console.warn("[client-render] failed, falling back to server:", err);
-    return null;
+    // Unexpected failure (not one of the deliberate bail-outs above). Report
+    // exactly what broke and where so it stops being an invisible failure,
+    // then fall back to the server queue.
+    const message = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
+    return fail(message, false);
   }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+
+/**
+ * Chromium exposes `performance.memory`. When the JS heap is within ~12% of the
+ * hard limit we're about to be OOM-killed, so callers can stop and fall back
+ * gracefully. Always returns false where the API is unavailable (Firefox,
+ * Safari) — there we rely on the streaming encoder keeping memory flat.
+ */
+function isHeapNearLimit(): boolean {
+  const mem = (
+    performance as unknown as { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } }
+  ).memory;
+  if (!mem || !mem.jsHeapSizeLimit) return false;
+  return mem.usedJSHeapSize / mem.jsHeapSizeLimit > 0.88;
+}
 
 export function supportsWebCodecs(): boolean {
   return (

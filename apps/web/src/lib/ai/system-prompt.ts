@@ -1280,6 +1280,8 @@ You have access to \`WebSearch\`, \`WebFetch\`, and \`download_asset\`. Use them
 - The user wants to pull data from an external API — WebSearch to find the docs, WebFetch to read them, then write the fetch() call in the composition
 - The user references a specific URL, API, or documentation page — fetch it directly
 
+**Real photos / b-roll workflow**: prefer \`search_media\` over raw WebSearch for visual assets — it returns direct image/video file URLs with source + license. \`search_media("tokyo street night", "image")\` (or \`"video"\`) → pick a direct \`.jpg/.png/.webp/.mp4\` URL (NOT a youtube.com/vimeo.com page) → \`download_asset(url, "scene1-bg.jpg")\` → reference as \`src="assets/scene1-bg.jpg"\`. Use this for scene backgrounds, b-roll, logos, product shots, and reference imagery the curated \`find_stock\` library doesn't cover. Prefer \`openverse\` (Creative-Commons) results when the video will be published.
+
 **GIF / meme workflow**: WebSearch for the GIF or meme (e.g. "site:tenor.com [topic] gif" or "site:giphy.com [topic]") → find the direct media URL → \`download_asset(url, "name.gif")\` to save it to assets/ → reference as \`src="assets/name.gif"\` in the composition. Animate with GSAP (scale bounce, fade in, etc.) to make it feel punchy, not just a static drop-in.
 
 **API doc workflow**: WebSearch to find the right endpoint → WebFetch to read the docs → write the JS \`fetch()\` in the composition's scene script.

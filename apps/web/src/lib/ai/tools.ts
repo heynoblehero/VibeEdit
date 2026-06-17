@@ -472,6 +472,43 @@ export function buildToolServer(ctx: ToolContext) {
     },
   );
 
+  const searchMediaTool = tool(
+    "search_media",
+    'Search the web for real images and video to use in the composition — photos, b-roll, logos, product shots, reference imagery the curated find_stock library doesn\'t cover. Returns candidates with URL, source, and license. After picking one, call download_asset with its URL to copy it into assets/ and reference it as src="assets/<file>". IMPORTANT: only download direct media file URLs (…​.jpg/.png/.webp/.gif/.mp4/.webm). Skip results that are web pages (e.g. youtube.com/watch, a vimeo.com/<id> page) — those are not downloadable media files. Prefer CC-licensed (openverse) results when the video will be published.',
+    {
+      query: z
+        .string()
+        .describe(
+          "What to find, e.g. 'tokyo street night neon', 'golden retriever puppy', 'circuit board macro'.",
+        ),
+      kind: z
+        .enum(["image", "video"])
+        .optional()
+        .default("image")
+        .describe("image (default) or video. Video search returns mostly direct .mp4/.webm clips."),
+    },
+    async ({ query, kind }) => {
+      const results = await searchMedia(query, kind ?? "image");
+      if (results.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No media found for "${query}". Try broader terms, or use find_stock / generate_image.`,
+            },
+          ],
+        };
+      }
+      const lines = results
+        .slice(0, 12)
+        .map(
+          (r) =>
+            `[${r.source}${r.license ? `, ${r.license}` : ""}] ${r.title || "(untitled)"} — ${r.url}`,
+        );
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    },
+  );
+
   const lintTool = tool(
     "lint_composition",
     "Run the hyperframes linter on the project's index.html. Call this AFTER write_file. If errors are returned, fix them and re-write.",
@@ -3424,7 +3461,7 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
           "2. **Visual hierarchy** — clear hero/label/body distinction, one dominant element per frame\n" +
           "3. **Color grade** — consistent filter applied, has depth and mood (not flat/grey)\n" +
           "4. **Background depth** — radial gradient visible, not a plain solid color\n" +
-          "5. **Layout balance** — no elements touching edges, nothing cut off, good breathing room\n" +
+          "5. **Layout balance** — no elements touching edges, nothing cut off, no two elements overlapping/colliding (text over text, caption over logo), good breathing room\n" +
           "6. **Production polish** — grain overlay visible, text shadows, professional finish\n\n" +
           "For each dimension below 7/10: write the exact CSS/GSAP change, apply it, re-screenshot.\n\n" +
           "Pixel analysis per frame:",
@@ -3906,6 +3943,7 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       removeBackgroundTool,
       cropImageTool,
       getStyleLockTool,
+      searchMediaTool,
     ],
   });
 }
@@ -3968,7 +4006,86 @@ export const ALLOWED_TOOL_NAMES = [
   "remove_background",
   "crop_image",
   "get_style_lock",
+  "search_media",
 ].map((n) => `mcp__${MCP_SERVER_NAME}__${n}`);
+
+type MediaResult = { url: string; source: string; license?: string; title?: string };
+
+/**
+ * Web media search backing `search_media`. Two keyless/self-hosted backends:
+ *  - Openverse (api.openverse.org): Creative-Commons images, no API key.
+ *  - SearXNG (self-hosted, via SEARXNG_URL): broader image + video discovery.
+ * Either may be absent/unreachable; results are merged and de-duped, and an
+ * empty array just tells the agent to try find_stock / generate_image instead.
+ */
+async function searchMedia(query: string, kind: "image" | "video"): Promise<MediaResult[]> {
+  const out: MediaResult[] = [];
+
+  // Openverse — CC-licensed images only (no video endpoint).
+  if (kind === "image") {
+    try {
+      const r = await fetch(
+        `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&page_size=10`,
+        {
+          headers: { "user-agent": "VibeEdit/1.0 media-search" },
+          signal: AbortSignal.timeout(12_000),
+        },
+      );
+      if (r.ok) {
+        const data = (await r.json()) as {
+          results?: Array<{ url?: string; title?: string; license?: string; source?: string }>;
+        };
+        for (const it of data.results ?? []) {
+          if (it.url) {
+            out.push({
+              url: it.url,
+              source: it.source ? `openverse/${it.source}` : "openverse",
+              license: it.license ? it.license.toUpperCase() : undefined,
+              title: it.title,
+            });
+          }
+        }
+      }
+    } catch {
+      /* backend unreachable — fall through */
+    }
+  }
+
+  // SearXNG — self-hosted metasearch; broader images + video. Opt-in via env.
+  const sx = process.env.SEARXNG_URL;
+  if (sx) {
+    try {
+      const cat = kind === "video" ? "videos" : "images";
+      const r = await fetch(
+        `${sx.replace(/\/$/, "")}/search?q=${encodeURIComponent(query)}&format=json&categories=${cat}&safesearch=1`,
+        {
+          headers: { "user-agent": "VibeEdit/1.0 media-search" },
+          signal: AbortSignal.timeout(12_000),
+        },
+      );
+      if (r.ok) {
+        const data = (await r.json()) as {
+          results?: Array<{ url?: string; img_src?: string; title?: string; engine?: string }>;
+        };
+        for (const it of data.results ?? []) {
+          const mediaUrl = kind === "image" ? it.img_src || it.url : it.url;
+          if (mediaUrl) {
+            out.push({
+              url: mediaUrl,
+              source: it.engine ? `searxng/${it.engine}` : "searxng",
+              title: it.title,
+            });
+          }
+        }
+      }
+    } catch {
+      /* backend unreachable — fall through */
+    }
+  }
+
+  const seen = new Set<string>();
+  return out.filter((r) => (seen.has(r.url) ? false : (seen.add(r.url), true)));
+}
 
 type SnapshotContent =
   | { type: "text"; text: string }

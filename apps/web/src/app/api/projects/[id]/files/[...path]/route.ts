@@ -33,15 +33,29 @@ export async function GET(
     // is never recognised, so the probe falls through to direct-timeline mode
     // and audio is silenced again.
     if (relPath === "index.html" && mime === "text/html") {
-      const html = content.toString("utf-8");
+      let html = content.toString("utf-8");
+      // Rewrite relative asset references (assets/…) to absolute file-API URLs
+      // so they resolve correctly regardless of which document context requests
+      // them. The live preview runs the composition inside the player's
+      // <iframe src=…/files/index.html>; when the browser's autoplay policy
+      // forces the player to mirror timed media into parent-frame <audio>
+      // proxies, those proxies live in the editor document (/app/projects/<id>/)
+      // and resolve a relative "assets/narration.mp3" against THAT base — a 404.
+      // Absolute URLs are context-independent and fix preview audio without
+      // touching the on-disk HTML (renders read the file directly, and the
+      // device renderer's audio mixer passes absolute URLs through unchanged).
+      const assetBase = `/api/projects/${id}/files/assets/`;
+      html = html
+        .replace(/(\b(?:src|href)\s*=\s*["'])(?:\.\/)?assets\//g, `$1${assetBase}`)
+        .replace(/(url\(\s*["']?)(?:\.\/)?assets\//g, `$1${assetBase}`);
       if (!html.includes("hyperframe.runtime") && !html.includes("__player")) {
         const tag =
           '<script src="https://cdn.jsdelivr.net/npm/@hyperframes/core/dist/hyperframe.runtime.iife.js" crossorigin="anonymous"></script>';
-        const injected = html.includes("<head")
+        html = html.includes("<head")
           ? html.replace(/<head[^>]*>/, (m) => `${m}\n${tag}`)
           : `${tag}\n${html}`;
-        content = Buffer.from(injected, "utf-8");
       }
+      content = Buffer.from(html, "utf-8");
     }
     const total = content.length;
     const rangeHeader = req.headers.get("range");

@@ -180,6 +180,28 @@ export function RenderPanel({ projectId }: { projectId: string }) {
         setClientBlob(blob);
         setClientProgress((prev) => (prev ? { ...prev, phase: "done" } : null));
         setSubmitting(false);
+        // Persist the in-browser render to the project so it survives a tab
+        // close and shows up in render history. The blob stays in memory for
+        // an immediate download regardless of whether this upload succeeds.
+        try {
+          const fd = new FormData();
+          fd.append("file", blob, "render.mp4");
+          fd.append("projectId", projectId);
+          fd.append("fps", String(preset.fps));
+          fd.append("quality", preset.quality);
+          const saveRes = await fetch("/api/render/client-save", { method: "POST", body: fd });
+          if (saveRes.ok) refresh();
+          else
+            notify(
+              "error",
+              "Render finished but couldn't be saved to your project — download it now to keep it.",
+            );
+        } catch {
+          notify(
+            "error",
+            "Render finished but couldn't be saved to your project — download it now to keep it.",
+          );
+        }
         return; // Done — no server call needed.
       }
       // Client render didn't produce a file. Tell the user what happened

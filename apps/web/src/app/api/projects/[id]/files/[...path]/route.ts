@@ -32,7 +32,7 @@ export async function GET(
     // against a newer CDN player causes a version mismatch where __player.getDuration
     // is never recognised, so the probe falls through to direct-timeline mode
     // and audio is silenced again.
-    if (relPath === "index.html" && mime === "text/html") {
+    if (relPath === "index.html" && mime.startsWith("text/html")) {
       let html = content.toString("utf-8");
       // Rewrite relative asset references (assets/…) to absolute file-API URLs
       // so they resolve correctly regardless of which document context requests

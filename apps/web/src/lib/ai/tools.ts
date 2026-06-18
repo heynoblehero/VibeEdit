@@ -113,6 +113,11 @@ export function buildToolServer(ctx: ToolContext) {
               .describe(
                 'The REAL visual asset that anchors this scene + how to treat it. This is what makes a video instead of a slideshow. Name what to search_media / download and the treatment, e.g. "photo of Steve Jobs 1984 keynote — remove_background cutout, slow 1.1x push-in", "b-roll: rain on window, full-bleed, subtle ken-burns", "motion-graphic: animated line chart of stock crash". Use "text-on-gradient" ONLY when no real media could possibly fit — that should be rare; most scenes need a photo, clip, or motion graphic.',
               ),
+            animation: z
+              .string()
+              .describe(
+                'How the media + text MOVE in this scene — entrance, emphasis, exit. Motion is what separates an edit from a static slide; every scene needs deliberate movement. e.g. "media push-in 1.0→1.12x across the hold; hook text chars stagger in at 0.03s; impact-zoom + glass-crack on the beat at 2.0s; exit whip-pan left into next scene".',
+              ),
             beats: z.array(z.string()).describe("2-4 key visual/text beats in this scene."),
             fx: z
               .array(z.string())
@@ -217,18 +222,70 @@ export function buildToolServer(ctx: ToolContext) {
           `WARNING: Last scene transition is '${lastScene.transitionToNext}' — must be 'none' (there is no next scene).`,
         );
       }
+      // ── Plan score — rate the shotlist on the levers that drive retention.
+      // Deterministic so the agent (and user) see how strong the plan is and
+      // exactly what to raise BEFORE building. Media richness is weighted
+      // highest — it's the difference between an edited video and a slideshow.
+      const sceneCount = plan.scenes.length;
+      const isTextOnly = (m: string) =>
+        !m || /^\s*(text[-\s]?on[-\s]?gradient|text|none|n\/?a|css)\s*$/i.test(m);
+      const mediaScenes = plan.scenes.filter((s) => !isTextOnly(s.media)).length;
+      const mediaScore = Math.round((30 * mediaScenes) / Math.max(1, sceneCount));
+
+      let hookScore = 0;
+      if (scene1) {
+        if (scene1.sceneRole === "hook") hookScore += 5;
+        if (scene1.durationSeconds <= 3.5) hookScore += 5;
+        const sig = ["hook", "question", "claim", "stat", "number", "title", "headline"];
+        if (scene1.beats.some((b) => sig.some((s) => b.toLowerCase().includes(s)))) hookScore += 5;
+      }
+
+      let pacingScore = 15;
+      if (avgSeconds > 90) pacingScore -= 8;
+      else if (avgSeconds > 12 && plan.format !== "16:9") pacingScore -= 4;
+      const distinctDurations = new Set(plan.scenes.map((s) => Math.round(s.durationSeconds))).size;
+      if (sceneCount >= 3 && distinctDurations === 1) pacingScore -= 3;
+      pacingScore = Math.max(0, pacingScore);
+
+      const distinctLayouts = new Set(plan.scenes.map((s) => s.layoutArchetype)).size;
+      const distinctTransitions = new Set(plan.scenes.map((s) => s.transitionToNext)).size;
+      let varietyScore = Math.min(8, Math.round((8 * distinctLayouts) / Math.min(sceneCount, 5)));
+      varietyScore += distinctTransitions >= 2 ? 5 : 2;
+      if (flashCount <= 2) varietyScore += 2;
+      varietyScore = Math.min(15, varietyScore);
+
+      let arcScore = 15;
+      if (roles[0] !== "hook") arcScore -= 6;
+      if (lastRole !== "cta" && lastRole !== "reveal") arcScore -= 5;
+      if (tensionIndex !== -1 && revealIndex !== -1 && tensionIndex > revealIndex) arcScore -= 4;
+      arcScore = Math.max(0, arcScore);
+
+      const beatScore = plan.beatSyncNote ? 10 : 5;
+
+      const score = mediaScore + hookScore + pacingScore + varietyScore + arcScore + beatScore;
+      const grade =
+        score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : score >= 60 ? "D" : "F";
+
       // Add arc summary to output
       const arcSummary = plan.scenes.map((s) => `S${s.index}:${s.sceneRole}`).join(" → ");
       const archetypeSummary = plan.scenes
         .map((s) => `S${s.index}:${s.layoutArchetype}`)
         .join(" → ");
+      const mediaNote =
+        mediaScenes < sceneCount
+          ? `⚠ ${sceneCount - mediaScenes}/${sceneCount} scenes have no real media (text-on-gradient). Add a photo / b-roll / motion-graphic to each — this is the biggest score lever.`
+          : null;
       const lines = [
         `OK: plan recorded — ${plan.scenes.length} scenes / ${plan.totalDurationSeconds}s / ${plan.format}.`,
         `Grade: ${plan.colorGrade} | Typography: ${plan.typographyPair}${plan.beatSyncNote ? ` | Beat-sync: ${plan.beatSyncNote}` : ""}`,
         `Arc: ${arcSummary}`,
         `Layouts: ${archetypeSummary}`,
+        `Plan score: ${score}/100 (${grade}) — media ${mediaScore}/30 · hook ${hookScore}/15 · pacing ${pacingScore}/15 · variety ${varietyScore}/15 · arc ${arcScore}/15 · beat-sync ${beatScore}/10`,
+        ...(mediaNote ? [mediaNote] : []),
         ...warnings,
-        `Now stop and ask the user to approve before writing any HTML.`,
+        score < 80
+          ? `Plan scored below the 80 bar — raise the weakest dimensions (start with media) and re-call plan_composition BEFORE asking the user to approve. Don't ship a weak plan.`
+          : `Strong plan. Show the user the score + arc, then ask them to approve before writing any HTML.`,
       ];
       return {
         content: [{ type: "text", text: lines.join("\n") }],
@@ -514,6 +571,69 @@ export function buildToolServer(ctx: ToolContext) {
     },
   );
 
+  const prepareSceneMediaTool = tool(
+    "prepare_scene_media",
+    'Source AND download the real media for MANY scenes AT ONCE, in parallel. Call this ONCE right after the plan is approved, passing one entry per scene that needs real media (from each scene\'s `media` field). It runs all the searches + downloads concurrently and returns a manifest of saved asset paths (or a per-scene error). Reference the returned paths as src="assets/…" in the composition; for cut-out subjects, run remove_background on the saved path afterward. This is the fast path — do NOT call search_media + download_asset one scene at a time when you can batch here.',
+    {
+      scenes: z
+        .array(
+          z.object({
+            sceneIndex: z.number().int().min(1),
+            query: z
+              .string()
+              .describe("Search terms for this scene's media, e.g. 'steve jobs 1984 keynote'."),
+            kind: z.enum(["image", "video"]).optional().default("image"),
+            filename: z
+              .string()
+              .optional()
+              .describe(
+                "Base filename (no extension), e.g. 'scene1-jobs'. Defaults to scene<index>.",
+              ),
+          }),
+        )
+        .min(1)
+        .max(12)
+        .describe("One entry per scene needing real media."),
+    },
+    async ({ scenes }) => {
+      const results = await Promise.all(
+        scenes.map(async (sc) => {
+          const kind = sc.kind ?? "image";
+          try {
+            const found = await searchMedia(sc.query, kind);
+            const direct = found.find((r) => isDirectMediaUrl(r.url, kind));
+            if (!direct) {
+              return `S${sc.sceneIndex}: ✗ no direct ${kind} URL for "${sc.query}" (try search_media manually or a different query)`;
+            }
+            const base = (sc.filename || `scene${sc.sceneIndex}`)
+              .replace(/[^A-Za-z0-9._-]+/g, "_")
+              .replace(/\.[^.]*$/, "");
+            const dest = `assets/${base}.${extFromUrl(direct.url, kind)}`;
+            const resp = await fetch(direct.url, {
+              headers: { "user-agent": "VibeEdit/1.0 media-fetch" },
+              signal: AbortSignal.timeout(30_000),
+            });
+            if (!resp.ok) return `S${sc.sceneIndex}: ✗ HTTP ${resp.status} for ${direct.url}`;
+            const buffer = Buffer.from(await resp.arrayBuffer());
+            writeProjectFile(ctx.userId, ctx.projectId, dest, buffer);
+            return `S${sc.sceneIndex}: ✓ ${dest} (${Math.round(buffer.length / 1024)}KB, ${direct.source}${direct.license ? `, ${direct.license}` : ""})`;
+          } catch (error) {
+            return `S${sc.sceneIndex}: ✗ ${(error as Error).message}`;
+          }
+        }),
+      );
+      const ok = results.filter((r) => r.includes("✓")).length;
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Prepared ${ok}/${scenes.length} scenes in parallel:\n${results.join("\n")}\n\nReference the ✓ paths as src="assets/…". For ✗ scenes, retry with a different query or fall back to a motion-graphic / generate_image.`,
+          },
+        ],
+      };
+    },
+  );
+
   const lintTool = tool(
     "lint_composition",
     "Run the hyperframes linter on the project's index.html. Call this AFTER write_file. If errors are returned, fix them and re-write.",
@@ -570,7 +690,13 @@ export function buildToolServer(ctx: ToolContext) {
         .string()
         .regex(/^[A-Za-z0-9._-]+\.mp3$/)
         .describe("Output filename, e.g. 'narration.mp3'."),
-      script: z.string().min(2).max(8000).describe("Narration script. ≤8000 chars per request."),
+      script: z
+        .string()
+        .min(2)
+        .max(8000)
+        .describe(
+          "Narration script, ≤8000 chars. Write it EXPRESSIVELY — ElevenLabs gets pacing & emphasis from punctuation/capitalization. End every sentence with . ? or !; use commas for breath pauses, … for dramatic pauses, — for sharp breaks, and CAPITALIZE the 1–2 words per sentence that should land hardest. Use contractions and short, varied sentences. A flat, lightly-punctuated script sounds robotic. No bracketed stage directions like [excited].",
+        ),
       voiceId: z
         .string()
         .optional()
@@ -2651,7 +2777,11 @@ ${jsLines.join("\n")}`;
         .array(
           z.object({
             name: z.string().describe("Act label, e.g. 'Problem', 'Story', 'Reveal', 'Value'."),
-            voiceoverText: z.string().describe("Full voiceover script for this act."),
+            voiceoverText: z
+              .string()
+              .describe(
+                "Full voiceover script for this act. Write it for the EAR, expressively punctuated so ElevenLabs doesn't read it flat: full stops/?/!, commas for pauses, … for dramatic beats, CAPS on the key word, contractions, short varied sentences.",
+              ),
             durationSeconds: z.number().describe("Planned duration for this act in seconds."),
             intent: z.string().optional().describe("What this act accomplishes."),
           }),
@@ -3949,6 +4079,7 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       cropImageTool,
       getStyleLockTool,
       searchMediaTool,
+      prepareSceneMediaTool,
     ],
   });
 }
@@ -4012,9 +4143,25 @@ export const ALLOWED_TOOL_NAMES = [
   "crop_image",
   "get_style_lock",
   "search_media",
+  "prepare_scene_media",
 ].map((n) => `mcp__${MCP_SERVER_NAME}__${n}`);
 
 type MediaResult = { url: string; source: string; license?: string; title?: string };
+
+const DIRECT_IMAGE_EXT = /\.(jpe?g|png|webp|gif|avif|bmp)(?:[?#]|$)/i;
+const DIRECT_VIDEO_EXT = /\.(mp4|webm|mov|m4v)(?:[?#]|$)/i;
+
+/** A directly-downloadable media file URL (not a youtube/vimeo/page link). */
+function isDirectMediaUrl(url: string, kind: "image" | "video"): boolean {
+  if (!/^https?:\/\//i.test(url)) return false;
+  return kind === "video" ? DIRECT_VIDEO_EXT.test(url) : DIRECT_IMAGE_EXT.test(url);
+}
+
+/** Best-guess file extension for a media URL, defaulting per kind. */
+function extFromUrl(url: string, kind: "image" | "video"): string {
+  const m = url.match(kind === "video" ? DIRECT_VIDEO_EXT : DIRECT_IMAGE_EXT);
+  return (m?.[1] || (kind === "video" ? "mp4" : "jpg")).toLowerCase();
+}
 
 /**
  * Web media search backing `search_media`. Two keyless/self-hosted backends:

@@ -416,14 +416,14 @@ If signals are mixed or unclear, ask ONE question to determine the path before c
 
 1. Read the user's brief. If a niche keyword matches (see profiles below), apply that style.
 2. **Call \`plan_composition\` FIRST.** Emit the full plan: format, totalDurationSeconds, niche, palette, and 3–8 scenes each with intent + beats + fx. Be specific — beat strings like "Title 'MARVEL FACTS' scales in with chromatic split" not "title appears".
-3. **After \`plan_composition\` returns, STOP THIS TURN.** Send a single short message: "Approve this plan and I'll build it. Want any changes?" — then end your turn. Do **not** call any other tool. The user must reply before you write any HTML.
+3. **After \`plan_composition\` returns, check the Plan score it reports.** If it scored below 80/100, silently revise the weakest dimensions (media richness first — every scene should have a real photo / b-roll / motion graphic, not text-on-gradient) and re-call \`plan_composition\` until it clears 80. Then **STOP THIS TURN**: send a single short message with the score + one-line arc, e.g. "Plan's ready (87/100, media-rich, hook→tension→reveal→cta). Approve and I'll build it — want any changes?" — then end your turn. Do **not** call any other tool. The user must reply before you write any HTML.
 4. The user's next message will be approval ("yes / go / ship it") or edits ("scene 3 needs to land harder / drop the flashes / make it 9:16"). On approval, proceed. On edits, either re-call \`plan_composition\` (structural change) or accept the tweak verbally and continue.
 5. If the composition includes a voiceover, call \`draft_script\` now — before generating audio or writing HTML. Fix any FAILs. Use the recommended voice settings from its output for \`generate_voiceover\`.
 5b. Before writing the file, call \`get_brand_kit\` (if you haven't already this conversation), then immediately call \`get_style_lock\` and paste the returned CSS vars block into the composition's \`<style>\` tag. If the user has a hostDescription set, keep that host identity consistent across every scene — same archetype, same corner/lower-third position, same outfit/palette. Then call \`find_stock\` with \`kind="music"\` and 2–3 mood keywords inferred from the plan (e.g. "ominous tense dark" for scary, "calm peaceful warm" for sleep, "energetic punchy comic" for comic facts). Pick ONE track, then call \`download_asset\` with its \`/stock/…\` URL to copy it into \`assets/\` (e.g. \`assets/music-bed.mp3\`), and reference THAT path — \`<audio class="clip" src="assets/music-bed.mp3" data-start="0" data-duration="<total>" data-track-index="10" data-volume="0.15">\` (use \`0.15\` when narration is present, \`0.25\` otherwise). Never reference the raw \`/stock/…\` path directly — it won't be bundled into the render and the audio will be silent. Skip music only if the brief explicitly says "no music".
 5c. **Research & source the visual media — MANDATORY, this is what stops the output from being a slideshow.** For every scene whose \`media\` is not "text-on-gradient":
    - **Research the topic first.** Identify the concrete subjects, people, places, events, products, and data in the brief. If facts/dates/quotes matter, \`WebSearch\` / \`fetch_data_source\` for them (and for "news / conspiracy / what people say" angles, search those out too) so the script is real, not generic.
-   - **Find the actual media.** \`search_media\` for each subject — real photos, b-roll, logos, product shots ("Steve Jobs 1984", "apple factory china", "stock market crash floor"). Pick the BEST result (highest resolution, cleanest, on-topic), not the first.
-   - **Download + treat it.** \`download_asset\` the chosen direct URL into \`assets/\`. Then process to fit: \`remove_background\` for subject cut-outs (so a person floats over your designed scene, not their original background), \`crop_image\` to the scene's aspect, and apply the composition's color grade so everything matches. For motion-graphic scenes (charts, maps, flowcharts) pull the relevant \`read_registry_block\` and build it.
+   - **Source ALL scene media in parallel — call \`prepare_scene_media\` ONCE** with one entry per scene that needs real media (from each scene's \`media\` field). It runs every search + download concurrently and returns a manifest of saved \`assets/…\` paths. This is far faster than sourcing one scene at a time. Use \`search_media\` + \`download_asset\` individually only to fill gaps for the scenes it couldn't resolve (✗).
+   - **Treat each asset to fit.** \`remove_background\` for subject cut-outs (so a person floats over your designed scene, not their original background), \`crop_image\` to the scene's aspect, and apply the composition's color grade so everything matches. For motion-graphic scenes (charts, maps, flowcharts) pull the relevant \`read_registry_block\` and build it.
    - Each scene should end up with a real visual anchor + motion (ken-burns push/pan on stills, GSAP entrance, beat-synced cut). Text is an OVERLAY on media, not the main subject.
    - Budget: 2 attempts per asset (see download discipline). If an asset truly can't be found, fall back to a designed motion-graphic or generate_image — a pure text card is the last resort, not the default.
 6. \`write_file('index.html', ...)\` with the COMPLETE file matching the approved plan.
@@ -733,6 +733,21 @@ element entrance, scale pulse, color shift, emoji pop, or a scene cut.
 | Grain pulse | grain overlay opacity: 0.3→0.5→0.3 over 0.5s |
 
 \`quality_check\` will WARN when the avg timeline beat gap exceeds 4.5s.
+
+# Voiceover scripts that don't sound robotic — punctuate for prosody
+
+ElevenLabs derives pacing, intonation, and emphasis almost entirely from the **punctuation and capitalization** in the script text. A flat, lightly-punctuated wall of words reads monotone and machine-like. Every script you pass to \`generate_voiceover\` (and every \`voiceoverText\` in \`draft_script\`) MUST be expressively punctuated:
+
+- **End every sentence** with \`.\`, \`?\`, or \`!\`. Questions genuinely rise; exclamations add energy — use \`!\` for real punch, not every line.
+- **Commas** for natural breath pauses inside sentences. Bare word lists with no commas sound robotic.
+- **Ellipses \`…\`** for a dramatic pause or trailing off. **Em-dash \`—\`** for a sharp cut-off or aside.
+- **Capitalize for emphasis**: Title-Case or ALL-CAPS the one or two words per sentence that should land hardest ("This was the BIGGEST cover-up in tech history."). Use full caps sparingly — one stressed word per sentence, not whole sentences.
+- **Write spoken English**: contractions (it's, don't, you're), short punchy sentences, varied sentence length for rhythm. Read it aloud in your head — if it sounds like a textbook, rewrite it.
+- Do NOT put stage directions in brackets like \`[excited]\` — older voice models read them aloud. Convey emotion through the words, punctuation, and caps instead.
+- Match the niche: sleep/ASMR → long, soft, comma-heavy, lowercase, lots of \`…\`. Hype/comic/finance → short, punchy, \`!\` and CAPS on the key beat.
+
+Example — robotic: "Apple is a company that has done many bad things over the years and people are starting to notice"
+Expressive: "Apple isn't the hero you think it is. For YEARS, they buried the truth… and now? People are finally waking up."
 
 # Word-highlight animated captions
 

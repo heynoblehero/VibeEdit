@@ -1371,32 +1371,15 @@ export async function renderEdl(opts: {
 // making editing decisions (give agent eyes).
 // ---------------------------------------------------------------------------
 
-export async function extractClipFrames(
-  filePath: string,
-  count: number = 3,
-): Promise<{ frames: string[]; error?: string }> {
-  if (!existsSync(filePath)) return { frames: [], error: `file not found: ${filePath}` };
-
-  const info = await probeClip(filePath).catch(() => null);
-  if (!info) return { frames: [], error: "could not probe clip" };
-
-  // Hard-cap at 4 frames regardless of caller request. Each JPEG frame
-  // is ~40–80 KB base64; beyond 4 the total payload risks the proxy limit.
-  const capped = Math.min(count, 4);
-
-  const step = info.durationSeconds / (capped + 1);
-  const timestamps = Array.from({ length: capped }, (_, index) =>
-    Number(((index + 1) * step).toFixed(3)),
-  );
-
+// Extract one JPEG (base64) per timestamp. Shared by even-spacing and
+// cut-boundary extractors. JPEG at 360px wide keeps each frame ~30–60 KB.
+async function framesAtTimestamps(filePath: string, timestamps: number[]): Promise<string[]> {
   const frames: string[] = [];
   for (const ts of timestamps) {
-    // Use JPEG at 360px wide — roughly 30–60 KB vs 300–600 KB for a PNG at 640px.
-    // The agent needs to see composition/content, not pixel-level detail.
     const tmpJpg = tmpFile(".jpg");
     const result = await ffmpegRun([
       "-ss",
-      String(ts),
+      String(Math.max(0, ts)),
       "-i",
       filePath,
       "-vframes",
@@ -1423,8 +1406,48 @@ export async function extractClipFrames(
       }
     }
   }
+  return frames;
+}
 
+export async function extractClipFrames(
+  filePath: string,
+  count: number = 3,
+): Promise<{ frames: string[]; error?: string }> {
+  if (!existsSync(filePath)) return { frames: [], error: `file not found: ${filePath}` };
+
+  const info = await probeClip(filePath).catch(() => null);
+  if (!info) return { frames: [], error: "could not probe clip" };
+
+  // Hard-cap at 4 frames regardless of caller request. Each JPEG frame
+  // is ~40–80 KB base64; beyond 4 the total payload risks the proxy limit.
+  const capped = Math.min(count, 4);
+  const step = info.durationSeconds / (capped + 1);
+  const timestamps = Array.from({ length: capped }, (_, index) =>
+    Number(((index + 1) * step).toFixed(3)),
+  );
+  const frames = await framesAtTimestamps(filePath, timestamps);
   return frames.length > 0 ? { frames } : { frames: [], error: "no frames extracted" };
+}
+
+// Extract frames at explicit timestamps (clamped, de-duped, capped at 4) — used
+// to inspect cut boundaries in a rendered EDL, where black frames / jump cuts /
+// dropped captions show up the instant after a cut.
+export async function extractFramesAt(
+  filePath: string,
+  timestamps: number[],
+): Promise<{ frames: string[]; usedTimestamps: number[]; error?: string }> {
+  if (!existsSync(filePath))
+    return { frames: [], usedTimestamps: [], error: `file not found: ${filePath}` };
+  const info = await probeClip(filePath).catch(() => null);
+  if (!info) return { frames: [], usedTimestamps: [], error: "could not probe clip" };
+  const max = Math.max(0, info.durationSeconds - 0.05);
+  const uniq = [...new Set(timestamps.map((t) => Number(Math.max(0, Math.min(max, t)).toFixed(3))))]
+    .sort((a, b) => a - b)
+    .slice(0, 4);
+  const frames = await framesAtTimestamps(filePath, uniq);
+  return frames.length > 0
+    ? { frames, usedTimestamps: uniq }
+    : { frames: [], usedTimestamps: uniq, error: "no frames extracted" };
 }
 
 // ---------------------------------------------------------------------------

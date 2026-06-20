@@ -36,6 +36,7 @@ import {
   computeSegmentOffsets,
   autoGradeFilter,
   extractClipFrames,
+  extractFramesAt,
   detectFillerWords,
   applyNoiseReduction,
   analyzePacing,
@@ -2292,12 +2293,18 @@ export function buildToolServer(ctx: ToolContext) {
   // --- Feature 2: review_render (self-correction loop) ---
   const reviewRenderTool = tool(
     "review_render",
-    "After render_edl completes, call this to extract frames from the output and visually verify the result. Check for layout issues, missing captions, color problems, or abrupt cuts. Fix and re-render if needed.",
+    "After render_edl completes, call this to visually verify the output. BEST PRACTICE: pass `cutBoundaries` (the output-timeline cut times from compute_segment_offsets) so it samples the frame right AFTER each cut — that's where black frames, jump cuts, and dropped captions hide. Omit cutBoundaries for a quick even-spaced overview. Fix and re-render if any cut fails; repeat up to 3×.",
     {
       outputPath: z
         .string()
         .describe(
           "Relative output path from the render_edl call, e.g. 'assets/processed/final.mp4'.",
+        ),
+      cutBoundaries: z
+        .array(z.number())
+        .optional()
+        .describe(
+          "Output-timeline seconds where cuts occur (the cumulative kept-segment offsets from compute_segment_offsets, excluding 0 and the final end). Each is inspected just after the cut. Up to 4 checked per call — call again with the rest if there are more.",
         ),
       frameCount: z
         .number()
@@ -2305,12 +2312,41 @@ export function buildToolServer(ctx: ToolContext) {
         .min(1)
         .max(4)
         .optional()
-        .describe("Frames to sample (default 3, max 4)."),
+        .describe("Even-spaced frames to sample when cutBoundaries is omitted (default 3, max 4)."),
     },
-    async ({ outputPath, frameCount }) => {
+    async ({ outputPath, cutBoundaries, frameCount }) => {
       try {
         const dir = projectDir(ctx.userId, ctx.projectId);
         const abs = resolveProjectPath(dir, outputPath);
+
+        if (cutBoundaries && cutBoundaries.length > 0) {
+          // Sample just after each cut, where seam defects appear.
+          const probes = cutBoundaries.map((b) => b + 0.06);
+          const { frames, usedTimestamps, error } = await extractFramesAt(abs, probes);
+          if (error && frames.length === 0) {
+            return { content: [{ type: "text", text: `ERROR: ${error}` }], isError: true };
+          }
+          const more =
+            cutBoundaries.length > usedTimestamps.length
+              ? ` (showing the first ${usedTimestamps.length} of ${cutBoundaries.length} cuts — call again with the rest.)`
+              : "";
+          const content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> =
+            [
+              {
+                type: "text",
+                text: `Cut-boundary review — frames sampled just after cuts at ${usedTimestamps
+                  .map((t) => `${t.toFixed(2)}s`)
+                  .join(
+                    ", ",
+                  )} in ${outputPath}.${more}\nFor EACH frame check: (1) not black or frozen, (2) no mid-action / mid-word jump, (3) captions present and aligned, (4) no color/exposure pop vs the previous segment. If a cut fails: re-snap that boundary with snap_to_boundary or add a short crossfade, then re-render and re-review. Repeat up to 3×.`,
+              },
+            ];
+          for (const frame of frames) {
+            content.push({ type: "image", data: frame, mimeType: "image/jpeg" });
+          }
+          return { content };
+        }
+
         const { frames, error } = await extractClipFrames(abs, frameCount ?? 3);
         if (error && frames.length === 0) {
           return { content: [{ type: "text", text: `ERROR: ${error}` }], isError: true };
@@ -2318,7 +2354,7 @@ export function buildToolServer(ctx: ToolContext) {
         const content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> = [
           {
             type: "text",
-            text: `Render review — ${frames.length} frame${frames.length !== 1 ? "s" : ""} from ${outputPath}. Check for: abrupt cuts, incorrect colors, missing/misaligned captions, black frames.`,
+            text: `Render review — ${frames.length} frame${frames.length !== 1 ? "s" : ""} from ${outputPath}. Check for: abrupt cuts, incorrect colors, missing/misaligned captions, black frames. For a per-cut check, call again with cutBoundaries.`,
           },
         ];
         for (const frame of frames) {

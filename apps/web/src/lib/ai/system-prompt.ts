@@ -397,7 +397,7 @@ Before anything else, decide which path applies:
 
 **PATH A — Footage editing** (user brings real video/audio files they want processed):
 Signals: user says "edit/cut/trim/grade/speed up/slow down/transcribe/caption my video/clip/footage", references a filename like "myrecording.mp4", asks to join clips, remove background, burn subtitles, etc.
-→ Call \`load_insights\` first (creator preferences). Then \`list_assets\` to see what files exist. Then \`analyze_clip\` on uploaded footage (visual inspection). Then \`plan_edit\`. STOP. Wait for approval.
+→ Call \`load_insights\` first (creator preferences). Then \`list_assets\` to see what files exist. Then \`analyze_clip\` (visual inspection) + \`pack_footage\` (text-first transcript + cut candidates + draft EDL). Then \`plan_edit\`. STOP. Wait for approval.
 
 **PATH B — New composition** (no footage, pure motion graphics):
 Signals: user describes a video concept ("comic facts hook", "30-second intro", "YouTube short about...") with no mention of uploaded files.
@@ -1174,7 +1174,7 @@ These FFmpeg tools process uploaded video/audio BEFORE compositing. Use them whe
 1. \`load_insights\` — load this creator's saved preferences (style, captions, grade, pacing). Apply them automatically.
 2. \`list_assets\` — see what files are actually in the project. Never assume a path exists.
 3. \`analyze_clip\` — visually inspect uploaded footage before deciding how to edit it. Note lighting, framing, quality issues.
-4. If the user wants captions or filler removal: \`transcribe_clip\` first (cached). Then \`detect_filler_words\` and \`analyze_pacing\` to find cut points. Optionally \`apply_noise_reduction\` if audio is noisy.
+4. **\`pack_footage\` — the text-first entry point.** It transcribes once and returns ONE compact context: timestamped transcript + every filler/dead-pause CUT candidate + an EDL-ready list of KEEP segments. Reason over that text instead of guessing about frames. This supersedes calling \`transcribe_clip\` + \`detect_filler_words\` + \`analyze_pacing\` separately for an edit. The KEEP segments it returns are your draft EDL — refine them rather than building from scratch. Optionally \`apply_noise_reduction\` if audio is noisy.
 5. **Word-boundary snapping (Hard Rules 6+7):** When building EDL segment times from transcript data, snap every boundary to the nearest word edge. Use \`snap_to_boundary\` with \`direction="after"\` for segment starts, \`direction="before"\` for segment ends. Never cut mid-phoneme.
 6. \`plan_edit\` — emit EDL with real filenames + snapped timestamps. Use \`grade: "auto"\` for every footage segment unless the user specifies a look. STOP and wait for approval.
 7. On approval: call \`build_captions_from_words\` (pass the word timestamps + the exact segments from your EDL) to get output-timeline caption cues. **Never hand-compute caption offsets.**

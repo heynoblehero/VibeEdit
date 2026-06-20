@@ -1810,6 +1810,149 @@ export function buildToolServer(ctx: ToolContext) {
     },
   );
 
+  const packFootageTool = tool(
+    "pack_footage",
+    "TEXT-FIRST footage pack — call this FIRST when editing raw footage, before anything else. Transcribes the clip once, then packs the whole timeline into ONE compact text context: duration/resolution/pacing, a timestamped transcript, every filler word + dead pause as CUT candidates, and a ready-to-refine list of KEEP segments (output as EDL-ready JSON). Reason over this text instead of guessing about frames you can't see; tweak the KEEP segments, then feed them straight to render_edl. Requires a BYOK OpenAI key (for transcription).",
+    {
+      path: z
+        .string()
+        .describe("Relative path to the raw video/audio asset, e.g. 'assets/recording.mp4'."),
+      language: z.string().optional().describe("ISO 639-1 code (e.g. 'en'). Omit for auto-detect."),
+      minPauseToCut: z
+        .number()
+        .optional()
+        .default(0.6)
+        .describe("Silence ≥ this many seconds is flagged as dead space to cut. Default 0.6."),
+    },
+    async ({ path, language, minPauseToCut }) => {
+      const apiKey = ctx.apiKeys?.openai;
+      if (!apiKey) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "ERROR: No OpenAI key configured (needed to transcribe). Ask the user to paste their OpenAI API key at /app/settings/api-keys.",
+            },
+          ],
+          isError: true,
+        };
+      }
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const filePath = resolveProjectPath(dir, path);
+        const info = await probeClip(filePath);
+        const tr = await transcribeClip({
+          filePath,
+          apiKey,
+          language,
+          cacheDir: resolveProjectPath(dir, "assets/processed/transcripts"),
+        });
+        if (!tr.ok || !tr.words || tr.words.length === 0) {
+          return {
+            content: [{ type: "text", text: `ERROR: ${tr.error || "no speech detected"}` }],
+            isError: true,
+          };
+        }
+        const words = tr.words;
+        const duration = info.durationSeconds || words[words.length - 1].end;
+        const pacing = analyzePacing(words, duration);
+        const threshold = minPauseToCut ?? 0.6;
+        const fillers = detectFillerWords(words).filter((f) => f.reason === "filler_word");
+        const deadPauses = pacing.longPauses.filter((p) => p.duration >= threshold);
+
+        // Cut intervals = filler words + dead pauses, merged. Both come from word
+        // boundaries, so the KEEP complement is already word-aligned (no mid-word cuts).
+        type Cut = { start: number; end: number; label: string };
+        const cuts: Cut[] = [
+          ...fillers.map((f) => ({
+            start: f.start,
+            end: f.end,
+            label: `filler "${f.word.trim()}"`,
+          })),
+          ...deadPauses.map((p) => ({
+            start: p.start,
+            end: p.end,
+            label: `pause ${p.duration.toFixed(1)}s`,
+          })),
+        ].sort((a, b) => a.start - b.start);
+        const merged: Cut[] = [];
+        for (const c of cuts) {
+          const last = merged[merged.length - 1];
+          if (last && c.start <= last.end + 0.05) {
+            last.end = Math.max(last.end, c.end);
+            last.label += `, ${c.label}`;
+          } else merged.push({ ...c });
+        }
+        const keeps: Array<{ source: string; start: number; end: number }> = [];
+        let cursor = 0;
+        for (const c of merged) {
+          if (c.start - cursor > 0.15)
+            keeps.push({ source: path, start: round2(cursor), end: round2(c.start) });
+          cursor = Math.max(cursor, c.end);
+        }
+        if (duration - cursor > 0.15)
+          keeps.push({ source: path, start: round2(cursor), end: round2(duration) });
+
+        // Timestamped transcript, line-broken on dead pauses / every ~12 words.
+        const tcLines: string[] = [];
+        let line: string[] = [];
+        let lineStart = words[0].start;
+        for (let i = 0; i < words.length; i++) {
+          if (line.length === 0) lineStart = words[i].start;
+          line.push(words[i].word.trim());
+          const gapNext = i + 1 < words.length ? words[i + 1].start - words[i].end : 0;
+          if (line.length >= 12 || gapNext >= threshold || i === words.length - 1) {
+            tcLines.push(`[${fmtTc(lineStart)}] ${line.join(" ")}`);
+            line = [];
+          }
+        }
+
+        const cutTime = merged.reduce((s, c) => s + (c.end - c.start), 0);
+        const keptTime = keeps.reduce((s, k) => s + (k.end - k.start), 0);
+        const header = [
+          `# Footage pack — ${path}`,
+          `Duration ${duration.toFixed(1)}s${info.width ? ` · ${info.width}x${info.height}` : ""}${info.fps ? ` @ ${info.fps}fps` : ""} · audio ${info.hasAudio ? "yes" : "no"}`,
+          `Pacing: ${pacing.recommendation}`,
+          `Tightening: ${merged.length} cut candidates remove ~${cutTime.toFixed(1)}s → final ~${keptTime.toFixed(1)}s.`,
+          ``,
+          `## Cut candidates (fillers + dead space)`,
+          merged.length
+            ? merged.map((c) => `- ${fmtTc(c.start)}–${fmtTc(c.end)} (${c.label})`).join("\n")
+            : "- none — footage is already tight.",
+          ``,
+          `## KEEP segments — EDL-ready (refine, then pass to render_edl)`,
+          "```json",
+          JSON.stringify(keeps),
+          "```",
+          ``,
+          `## Timestamped transcript`,
+        ].join("\n");
+        const fullPack = `${header}\n${tcLines.join("\n")}\n`;
+
+        // Persist the pack alongside the footage (text-first session memory).
+        const stem =
+          path
+            .split("/")
+            .pop()
+            ?.replace(/\.[^.]+$/, "") || "clip";
+        const packPath = `edit/${stem}.pack.md`;
+        writeProjectFile(ctx.userId, ctx.projectId, packPath, fullPack);
+
+        // Keep the returned context bounded; the full transcript is on disk.
+        const returned =
+          fullPack.length > 24_000
+            ? `${header}\n(${tcLines.length} transcript lines — full pack saved to ${packPath}; read_file it for the words.)\n`
+            : `${fullPack}\n(Saved to ${packPath}.)`;
+        return { content: [{ type: "text", text: returned }] };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
   const buildCaptionsFromWordsTool = tool(
     "build_captions_from_words",
     "Convert Whisper word-level timestamps into output-timeline caption cues for an EDL. ALWAYS call this after transcribe_clip — never hand-compute caption offsets. Handles segment snipping, speed adjustment, and output-timeline remapping (Hard Rule 5).",
@@ -4057,6 +4200,7 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       extractAudioTool,
       burnCaptionsTool,
       transcribeClipTool,
+      packFootageTool,
       analyzeClipTool,
       reviewRenderTool,
       detectFillerWordsTool,
@@ -4121,6 +4265,7 @@ export const ALLOWED_TOOL_NAMES = [
   "extract_audio",
   "burn_captions",
   "transcribe_clip",
+  "pack_footage",
   "analyze_clip",
   "review_render",
   "detect_filler_words",
@@ -4147,6 +4292,14 @@ export const ALLOWED_TOOL_NAMES = [
 ].map((n) => `mcp__${MCP_SERVER_NAME}__${n}`);
 
 type MediaResult = { url: string; source: string; license?: string; title?: string };
+
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
+/** Format seconds as m:ss for compact transcript timecodes. */
+function fmtTc(seconds: number): string {
+  const s = Math.max(0, seconds);
+  return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+}
 
 const DIRECT_IMAGE_EXT = /\.(jpe?g|png|webp|gif|avif|bmp)(?:[?#]|$)/i;
 const DIRECT_VIDEO_EXT = /\.(mp4|webm|mov|m4v)(?:[?#]|$)/i;

@@ -16,6 +16,7 @@ import {
   replicateGenerateImage,
   replicateGenerateVideo,
   replicateRemoveBackground,
+  replicateImageFromReference,
 } from "./providers/replicate";
 import { nanoid } from "nanoid";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -787,6 +788,91 @@ export function buildToolServer(ctx: ToolContext) {
             {
               type: "text",
               text: `OK: locked persona copied to ${dest}. Reference src="${dest}" and reuse this exact file in every scene the host appears.`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const addPersonaPoseTool = tool(
+    "add_persona_pose",
+    "Generate a NEW pose/expression of the LOCKED persona — the SAME character doing something specific (pointing, shocked, thumbs-up, explaining) — from its base via a character-consistency model, and save it to the persona's pose set. Use when a scene needs the host in a particular pose. Afterwards bring it into a video with use_persona(pose=<label>). Requires a Replicate key.",
+    {
+      label: z
+        .string()
+        .regex(/^[a-z0-9-]+$/)
+        .describe("Short slug for this pose, e.g. 'pointing', 'shocked', 'thumbs-up'."),
+      prompt: z
+        .string()
+        .describe(
+          "What the SAME character is doing — pose, expression, framing. e.g. 'pointing to the right with a surprised open-mouth expression'.",
+        ),
+    },
+    async ({ label, prompt }) => {
+      const apiKey = ctx.apiKeys?.replicate;
+      if (!apiKey) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "ERROR: No Replicate API key. Ask the user to add their Replicate token at /app/settings/api-keys.",
+            },
+          ],
+          isError: true,
+        };
+      }
+      const dir = personaDir(ctx.userId);
+      const file = join(dir, "persona.json");
+      if (!existsSync(file)) {
+        return {
+          content: [{ type: "text", text: "ERROR: no persona. Call generate_persona first." }],
+          isError: true,
+        };
+      }
+      try {
+        const persona = JSON.parse(readFileSync(file, "utf8")) as {
+          name: string;
+          description: string;
+          style: string;
+          base: string;
+          poses?: Array<{ label: string; file: string }>;
+        };
+        const basePath = join(dir, persona.base);
+        if (!existsSync(basePath)) {
+          return {
+            content: [{ type: "text", text: "ERROR: persona base image missing on disk." }],
+            isError: true,
+          };
+        }
+        const baseUri = `data:image/png;base64,${readFileSync(basePath).toString("base64")}`;
+        const fullPrompt = `${persona.description}. ${prompt}. Art style: ${persona.style}. The exact same character, isolated on a plain solid pure-white background, no text, no logo.`;
+        const raw = await replicateImageFromReference({
+          apiKey,
+          prompt: fullPrompt,
+          referenceDataUri: baseUri,
+        });
+        const transparent = await replicateRemoveBackground(
+          apiKey,
+          `data:image/png;base64,${raw.toString("base64")}`,
+        );
+        mkdirSync(join(dir, "poses"), { recursive: true });
+        const poseFile = `poses/${label}.png`;
+        writeFileSync(join(dir, poseFile), transparent);
+        persona.poses = (persona.poses || [])
+          .filter((p) => p.label !== label)
+          .concat([{ label, file: poseFile }]);
+        writeFileSync(file, JSON.stringify(persona, null, 2));
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: pose "${label}" added to persona "${persona.name}". Bring it into a scene with use_persona(pose="${label}").`,
             },
           ],
         };
@@ -4427,6 +4513,7 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       generatePersonaTool,
       getPersonaTool,
       usePersonaTool,
+      addPersonaPoseTool,
     ],
   });
 }
@@ -4495,6 +4582,7 @@ export const ALLOWED_TOOL_NAMES = [
   "generate_persona",
   "get_persona",
   "use_persona",
+  "add_persona_pose",
 ].map((n) => `mcp__${MCP_SERVER_NAME}__${n}`);
 
 type MediaResult = { url: string; source: string; license?: string; title?: string };

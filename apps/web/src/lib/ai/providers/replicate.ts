@@ -138,6 +138,68 @@ export async function replicateRemoveBackground(
   return buffer;
 }
 
+// Character-consistency model for generating new poses of a locked persona from
+// its base image. Default fofr/consistent-character ("same character, different
+// poses"); swap via env without code changes. The reference image goes on
+// PERSONA_POSE_IMAGE_KEY (model-specific — "subject" for consistent-character,
+// "image"/"input_image" for others).
+const PERSONA_POSE_MODEL = process.env.PERSONA_POSE_MODEL || "fofr/consistent-character";
+const PERSONA_POSE_IMAGE_KEY = process.env.PERSONA_POSE_IMAGE_KEY || "subject";
+const POSE_MAX_POLL_MS = 180_000;
+
+/**
+ * Generate a new image of the SAME subject from a reference image + a prompt
+ * (new pose/expression). Returns the first output image. Minimal input payload
+ * (prompt + reference) for cross-model compatibility.
+ */
+export async function replicateImageFromReference(opts: {
+  apiKey: string;
+  prompt: string;
+  referenceDataUri: string;
+  model?: string;
+  imageKey?: string;
+  signal?: AbortSignal;
+}): Promise<Buffer> {
+  const model = opts.model || PERSONA_POSE_MODEL;
+  const imageKey = opts.imageKey || PERSONA_POSE_IMAGE_KEY;
+  const startResponse = await fetch(`https://api.replicate.com/v1/models/${model}/predictions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${opts.apiKey}`,
+      "content-type": "application/json",
+      Prefer: "wait=30",
+    },
+    body: JSON.stringify({ input: { prompt: opts.prompt, [imageKey]: opts.referenceDataUri } }),
+    signal: opts.signal,
+  });
+  if (!startResponse.ok) {
+    const text = await startResponse.text().catch(() => "");
+    throw new Error(`replicate pose start failed: ${startResponse.status} ${text.slice(0, 400)}`);
+  }
+  let prediction = (await startResponse.json()) as Prediction;
+  const startedAt = Date.now();
+  while (prediction.status === "starting" || prediction.status === "processing") {
+    if (Date.now() - startedAt > POSE_MAX_POLL_MS) throw new Error("replicate pose timed out");
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    const pollResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+      headers: { Authorization: `Bearer ${opts.apiKey}` },
+      signal: opts.signal,
+    });
+    if (!pollResponse.ok) throw new Error(`replicate pose poll failed: ${pollResponse.status}`);
+    prediction = (await pollResponse.json()) as Prediction;
+  }
+  if (prediction.status !== "succeeded") {
+    throw new Error(`replicate pose ${prediction.status}: ${prediction.error || "unknown"}`);
+  }
+  const url = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
+  if (!url || typeof url !== "string") throw new Error("replicate pose returned no image");
+  const imageResponse = await fetch(url, { signal: opts.signal });
+  if (!imageResponse.ok) throw new Error(`replicate pose fetch failed: ${imageResponse.status}`);
+  const buffer = Buffer.from(await imageResponse.arrayBuffer());
+  if (buffer.length === 0) throw new Error("replicate pose returned empty image");
+  return buffer;
+}
+
 export type ReplicateVideoOptions = {
   apiKey: string;
   prompt: string;

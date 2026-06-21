@@ -1,0 +1,94 @@
+name: Generation Eval
+
+# Runs representative briefs through the real generation pipeline and reports the
+# "% postable" rate. Gates PRs that touch the agent prompt/tools (so a change
+# that quietly degrades output fails the build) and tracks the trend nightly.
+#
+# Requires repo secrets: ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL (the proxy).
+# Optional: OPENAI_API_KEY, ELEVENLABS_API_KEY (needed for narrated briefs).
+# Optional repo variable: EVAL_POSTABLE_BAR (PR gate threshold, default 70).
+#
+# NOTE: this spends real model tokens on every run — keep the PR trigger scoped.
+
+on:
+  schedule:
+    - cron: "0 7 * * *" # nightly, 07:00 UTC — report only (no gate)
+  workflow_dispatch:
+    inputs:
+      briefs:
+        description: "Comma-separated brief ids (blank = all)"
+        required: false
+        default: ""
+      bar:
+        description: "Fail if postable % is below this (blank = no gate)"
+        required: false
+        default: ""
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/web/src/lib/ai/system-prompt.ts"
+      - "apps/web/src/lib/ai/tools.ts"
+      - "apps/web/src/lib/ai/ffmpeg-tools.ts"
+      - "apps/web/src/lib/ai/agent.ts"
+      - "apps/web/eval/**"
+      - ".github/workflows/eval.yml"
+
+concurrency:
+  group: eval-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  eval:
+    name: Generation eval
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      # Guard: skip (don't fail) when the agent secret isn't configured — keeps
+      # the workflow green on forks / before secrets are added.
+      - id: check
+        run: |
+          if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ANTHROPIC_API_KEY not set — skipping eval. Add repo secrets to enable."
+          fi
+
+      - if: steps.check.outputs.ready == 'true'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - if: steps.check.outputs.ready == 'true'
+        run: bun install --frozen-lockfile
+
+      - name: Initialize database schema
+        if: steps.check.outputs.ready == 'true'
+        working-directory: apps/web
+        run: bun run db:migrate
+
+      - name: Run eval
+        if: steps.check.outputs.ready == 'true'
+        working-directory: apps/web
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          # PRs gate on the bar (input > repo var > 70). Scheduled runs report only (0).
+          EVAL_POSTABLE_BAR: ${{ github.event.inputs.bar || (github.event_name == 'pull_request' && (vars.EVAL_POSTABLE_BAR || '70')) || '0' }}
+        run: bun eval/run.ts ${{ github.event.inputs.briefs && format('--briefs={0}', github.event.inputs.briefs) || '' }}
+
+      - name: Upload report
+        if: ${{ always() && steps.check.outputs.ready == 'true' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: eval-report
+          path: apps/web/eval/reports/latest.json
+          if-no-files-found: ignore

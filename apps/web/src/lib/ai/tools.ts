@@ -7,14 +7,19 @@ import {
   readProjectFile,
   writeProjectFile,
   projectDir,
+  personaDir,
 } from "../storage/fs";
 import { listRegistry, readRegistryBlock } from "./registry";
 import { readBrandKit } from "../brand-kit";
 import { searchStock, type StockKind } from "../stock/registry";
-import { replicateGenerateImage, replicateGenerateVideo } from "./providers/replicate";
+import {
+  replicateGenerateImage,
+  replicateGenerateVideo,
+  replicateRemoveBackground,
+} from "./providers/replicate";
 import { nanoid } from "nanoid";
-import { existsSync, readFileSync } from "node:fs";
-import { resolve, sep } from "node:path";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { resolve, sep, join } from "node:path";
 import {
   resolveProjectPath,
   probeClip,
@@ -632,6 +637,165 @@ export function buildToolServer(ctx: ToolContext) {
           },
         ],
       };
+    },
+  );
+
+  const generatePersonaTool = tool(
+    "generate_persona",
+    "Create the creator's LOCKED persona character — a recurring on-screen host/mascot that stars in every video (the channel's brand, like a CodeBullet doodle). Generates the character once via AI, removes the background, and saves it as the persona's canonical base. After this, ALWAYS reuse it with use_persona — never regenerate the character per video; reusing the same locked asset is what makes the persona consistent. Requires a Replicate API key.",
+    {
+      name: z.string().describe("Persona name, e.g. 'Pixel the Robot' or 'Professor Quill'."),
+      description: z
+        .string()
+        .describe(
+          "What the character looks like + its vibe, e.g. 'a sarcastic blue robot with one big eye and stubby arms' or 'a calm grey-haired professor in a tweed jacket'.",
+        ),
+      style: z
+        .string()
+        .optional()
+        .describe(
+          "Art style, e.g. 'MS-Paint doodle', 'clean flat vector', 'Pixar-style 3D', 'hand-drawn comic'. Defaults to clean flat vector.",
+        ),
+      voiceId: z
+        .string()
+        .optional()
+        .describe("ElevenLabs voiceId to lock to this persona (used by generate_voiceover)."),
+    },
+    async ({ name, description, style, voiceId }) => {
+      const apiKey = ctx.apiKeys?.replicate;
+      if (!apiKey) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "ERROR: No Replicate API key. Ask the user to add their Replicate token at /app/settings/api-keys.",
+            },
+          ],
+          isError: true,
+        };
+      }
+      try {
+        const styleDesc = style || "clean modern flat vector illustration, bold simple shapes";
+        const prompt = `Character mascot / host for a video channel. ${description}. Art style: ${styleDesc}. A SINGLE character, head-and-torso, centered, facing the camera, friendly expressive pose, isolated on a plain flat solid pure-white background, even studio lighting, no text, no logo, no border — a clean repeatable character design.`;
+        const raw = await replicateGenerateImage({ apiKey, prompt, aspectRatio: "3:4" });
+        const dataUri = `data:image/png;base64,${raw.toString("base64")}`;
+        const transparent = await replicateRemoveBackground(apiKey, dataUri);
+        const dir = personaDir(ctx.userId);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, "base.png"), transparent);
+        const persona = {
+          name,
+          description,
+          style: styleDesc,
+          voiceId: voiceId || undefined,
+          base: "base.png",
+          poses: [] as Array<{ label: string; file: string }>,
+          createdAt: new Date().toISOString(),
+        };
+        writeFileSync(join(dir, "persona.json"), JSON.stringify(persona, null, 2));
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: persona "${name}" generated and LOCKED (transparent base.png). From now on bring it into a video with use_persona and reference that path — do NOT regenerate the character; reusing the locked asset is what keeps the persona consistent across videos.`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const getPersonaTool = tool(
+    "get_persona",
+    "Return the creator's locked persona (name, description, art style, locked voiceId, and available poses), or report there is none. Call this early when building so you can feature the persona consistently.",
+    {},
+    async () => {
+      const file = join(personaDir(ctx.userId), "persona.json");
+      if (!existsSync(file)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "No persona yet. If the user wants a recurring host/character, call generate_persona to create + lock one.",
+            },
+          ],
+        };
+      }
+      try {
+        const persona = JSON.parse(readFileSync(file, "utf8"));
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Active persona:\n${JSON.stringify(persona)}\nBring it into this project with use_persona, reference the returned path across scenes, and narrate with its voiceId.`,
+            },
+          ],
+        };
+      } catch {
+        return {
+          content: [{ type: "text", text: "ERROR: persona.json unreadable." }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const usePersonaTool = tool(
+    "use_persona",
+    "Copy the locked persona character into THIS project's assets/ so the composition can show it. Returns the asset path to reference (e.g. assets/persona.png). Reuse the SAME asset across every scene — that consistency is the whole point. Pass a pose label to fetch a specific pose if one exists.",
+    {
+      pose: z
+        .string()
+        .optional()
+        .describe("Pose/expression label (omit for the canonical base character)."),
+    },
+    async ({ pose }) => {
+      const dir = personaDir(ctx.userId);
+      const file = join(dir, "persona.json");
+      if (!existsSync(file)) {
+        return {
+          content: [{ type: "text", text: "ERROR: no persona. Call generate_persona first." }],
+          isError: true,
+        };
+      }
+      try {
+        const persona = JSON.parse(readFileSync(file, "utf8")) as {
+          base: string;
+          poses?: Array<{ label: string; file: string }>;
+        };
+        let src = persona.base;
+        if (pose) {
+          const found = persona.poses?.find((p) => p.label === pose);
+          if (found) src = found.file;
+        }
+        const srcPath = join(dir, src);
+        if (!existsSync(srcPath)) {
+          return {
+            content: [{ type: "text", text: `ERROR: persona asset ${src} missing on disk.` }],
+            isError: true,
+          };
+        }
+        const dest = `assets/persona${pose ? `-${pose.replace(/[^a-z0-9]/gi, "")}` : ""}.png`;
+        writeProjectFile(ctx.userId, ctx.projectId, dest, readFileSync(srcPath));
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: locked persona copied to ${dest}. Reference src="${dest}" and reuse this exact file in every scene the host appears.`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
     },
   );
 
@@ -4260,6 +4424,9 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       getStyleLockTool,
       searchMediaTool,
       prepareSceneMediaTool,
+      generatePersonaTool,
+      getPersonaTool,
+      usePersonaTool,
     ],
   });
 }
@@ -4325,6 +4492,9 @@ export const ALLOWED_TOOL_NAMES = [
   "get_style_lock",
   "search_media",
   "prepare_scene_media",
+  "generate_persona",
+  "get_persona",
+  "use_persona",
 ].map((n) => `mcp__${MCP_SERVER_NAME}__${n}`);
 
 type MediaResult = { url: string; source: string; license?: string; title?: string };

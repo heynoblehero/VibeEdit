@@ -20,6 +20,13 @@ export function renderOutputPath(jobId: string): string {
   return resolve(STORAGE_ROOT, "renders", jobId);
 }
 
+// Per-user persona store — a creator's locked character(s) live here and are
+// reused across every project (the consistency that makes a persona a brand).
+// Holds persona.json + base.png + poses/<label>.png.
+export function personaDir(userId: string): string {
+  return resolve(STORAGE_ROOT, "personas", userId);
+}
+
 // One JPEG per project — always overwritten by the latest successful render.
 // Stored outside the project file tree so it doesn't show up in listFiles().
 export function projectThumbPath(userId: string, projectId: string): string {

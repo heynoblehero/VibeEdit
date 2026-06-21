@@ -84,6 +84,60 @@ export async function replicateGenerateImage(options: ReplicateImageOptions): Pr
   return buffer;
 }
 
+/**
+ * Remove the background from an image, returning a transparent PNG buffer.
+ * Same model the remove_background tool uses (851-labs/background-remover) —
+ * exposed here so the persona generator can produce a clean, floatable
+ * character in one shot.
+ */
+export async function replicateRemoveBackground(
+  apiKey: string,
+  imageDataUri: string,
+  signal?: AbortSignal,
+): Promise<Buffer> {
+  const startResponse = await fetch(
+    "https://api.replicate.com/v1/models/851-labs/background-remover/predictions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+        Prefer: "wait=30",
+      },
+      body: JSON.stringify({ input: { image: imageDataUri } }),
+      signal,
+    },
+  );
+  if (!startResponse.ok) {
+    const text = await startResponse.text().catch(() => "");
+    throw new Error(`replicate bg-remove failed: ${startResponse.status} ${text.slice(0, 400)}`);
+  }
+  let prediction = (await startResponse.json()) as Prediction;
+  const startedAt = Date.now();
+  while (prediction.status === "starting" || prediction.status === "processing") {
+    if (Date.now() - startedAt > MAX_POLL_MS) throw new Error("replicate bg-remove timed out");
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    const pollResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal,
+    });
+    if (!pollResponse.ok)
+      throw new Error(`replicate bg-remove poll failed: ${pollResponse.status}`);
+    prediction = (await pollResponse.json()) as Prediction;
+  }
+  if (prediction.status !== "succeeded") {
+    throw new Error(`replicate bg-remove ${prediction.status}: ${prediction.error || "unknown"}`);
+  }
+  const url = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
+  if (!url || typeof url !== "string") throw new Error("replicate bg-remove returned no image");
+  const imageResponse = await fetch(url, { signal });
+  if (!imageResponse.ok)
+    throw new Error(`replicate bg-remove fetch failed: ${imageResponse.status}`);
+  const buffer = Buffer.from(await imageResponse.arrayBuffer());
+  if (buffer.length === 0) throw new Error("replicate bg-remove returned empty image");
+  return buffer;
+}
+
 export type ReplicateVideoOptions = {
   apiKey: string;
   prompt: string;

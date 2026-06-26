@@ -54,16 +54,17 @@ export default function Home() {
             </div>
 
             <h1 className="text-[clamp(2.6rem,6vw,4.5rem)] font-black leading-[1.04] tracking-[-0.03em] text-[var(--color-fg)]">
-              Edit any video —
+              Edit any video.
               <br />
-              <span className="text-[var(--color-accent)]">or make one.</span>
+              Make any video.
               <br />
-              Just by talking.
+              <span className="text-[var(--color-accent)]">Just by talking.</span>
             </h1>
 
             <p className="mt-6 max-w-[460px] text-[1.05rem] leading-[1.7] text-[var(--color-fg-muted)]">
-              Bring your own footage and fix, cut, and restructure it by chatting — or generate a
-              whole video from scratch. No timeline. No tools. You talk, the AI edits underneath.
+              Drop in your footage and fix, cut, and restructure it by chatting — or spin up a whole
+              video from a sentence. No timeline. No tools to learn. You talk, the AI edits
+              underneath, and hands you a finished MP4.
             </p>
 
             <p className="mt-5 flex items-center gap-2 text-sm font-medium text-[var(--color-accent)]">
@@ -82,16 +83,16 @@ export default function Home() {
             <div className="mt-8">
               <Link
                 href="/app/signup"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--color-accent)] px-7 py-3.5 font-semibold text-black shadow-lg shadow-[var(--color-accent)]/20 transition-all hover:opacity-90 hover:shadow-[var(--color-accent)]/30"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--color-accent)] px-8 py-4 text-base font-semibold text-black shadow-lg shadow-[var(--color-accent)]/20 transition-all hover:-translate-y-0.5 hover:opacity-95 hover:shadow-xl hover:shadow-[var(--color-accent)]/30"
               >
-                Start a project
+                Make your first video — free
                 <svg
-                  width="14"
-                  height="14"
+                  width="15"
+                  height="15"
                   viewBox="0 0 14 14"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="2.2"
+                  strokeWidth="2.4"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   aria-hidden="true"
@@ -101,7 +102,7 @@ export default function Home() {
               </Link>
             </div>
             <p className="mt-4 text-xs text-[var(--color-fg-subtle)]">
-              Runs in your browser · no install · no editing skills needed
+              Free to start · runs in your browser, no install · no editing skills needed
             </p>
           </div>
 
@@ -500,9 +501,9 @@ export default function Home() {
           </p>
           <Link
             href="/app/signup"
-            className="mt-10 inline-flex items-center gap-2 rounded-xl bg-[var(--color-accent)] px-8 py-4 text-base font-semibold text-black shadow-xl shadow-[var(--color-accent)]/20 transition-all hover:opacity-90 hover:shadow-[var(--color-accent)]/30 sm:text-lg"
+            className="mt-10 inline-flex items-center gap-2 rounded-xl bg-[var(--color-accent)] px-8 py-4 text-base font-semibold text-black shadow-xl shadow-[var(--color-accent)]/20 transition-all hover:-translate-y-0.5 hover:opacity-95 hover:shadow-2xl hover:shadow-[var(--color-accent)]/30 sm:text-lg"
           >
-            Start a project
+            Make your first video — free
             <svg
               width="16"
               height="16"

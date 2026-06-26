@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { isNoiseAsset, type AssetSource } from "@/lib/asset-actions";
 import { VariablesPanel } from "./VariablesPanel";
 import { AssetEditMenu, SourceBadge } from "./AssetEditMenu";
@@ -12,9 +12,26 @@ const AUDIO_EXT = /\.(mp3|wav|ogg|aac|m4a)$/i;
 type AssetFilter = "all" | "image" | "video" | "audio";
 type SourceFilter = "all" | "upload" | "ai";
 
+type AssetHandle = {
+  name: string;
+  summary: string | null;
+  durationSeconds: number;
+  analyzed: boolean;
+};
+
+type Character = {
+  name: string;
+  description: string;
+  style: string;
+  poses: string[];
+  hasBase: boolean;
+};
+
 export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloadKey: number }) {
   const [files, setFiles] = useState<string[]>([]);
   const [assetMeta, setAssetMeta] = useState<Record<string, AssetSource>>({});
+  const [handles, setHandles] = useState<Record<string, AssetHandle>>({});
+  const [characters, setCharacters] = useState<Character[]>([]);
   const [bgRemoving, setBgRemoving] = useState<string | null>(null);
   const [bgError, setBgError] = useState<string | null>(null);
   const [bgTarget, setBgTarget] = useState<string | null>(null);
@@ -24,6 +41,26 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+
+  const loadHandles = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/projects/${projectId}/assets`);
+      if (!r.ok) return;
+      const j = (await r.json()) as { assets: Array<{ path: string } & AssetHandle> };
+      const map: Record<string, AssetHandle> = {};
+      for (const a of j.assets) {
+        map[a.path] = {
+          name: a.name,
+          summary: a.summary,
+          durationSeconds: a.durationSeconds,
+          analyzed: a.analyzed,
+        };
+      }
+      setHandles(map);
+    } catch {
+      // non-fatal — fall back to filenames
+    }
+  }, [projectId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,10 +75,25 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
       .catch(() => {
         if (!cancelled) setFiles([]);
       });
+    loadHandles();
     return () => {
       cancelled = true;
     };
-  }, [projectId, reloadKey]);
+  }, [projectId, reloadKey, loadHandles]);
+
+  // Characters are account-level (reused across every project), so load once.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/characters")
+      .then((r) => (r.ok ? r.json() : { characters: [] }))
+      .then((j) => {
+        if (!cancelled) setCharacters(Array.isArray(j.characters) ? j.characters : []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function upload(event: React.ChangeEvent<HTMLInputElement>) {
     const fileList = event.target.files;
@@ -73,6 +125,7 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
         setFiles(j.files || []);
         setAssetMeta(j.assetMeta || {});
       }
+      loadHandles();
     } catch (err) {
       setUploadError((err as Error).message.slice(0, 200));
     } finally {
@@ -287,6 +340,8 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
                 path={path}
                 projectId={projectId}
                 source={assetMeta[path] ?? "upload"}
+                handle={handles[path]}
+                onRenamed={loadHandles}
                 onPlay={() => playAsset(path)}
                 onCopyUrl={() => {
                   navigator.clipboard
@@ -309,6 +364,26 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
           <p className="mt-2 text-[10px] text-[var(--color-fg-muted)]">
             Removing background… (first run ~30MB download)
           </p>
+        )}
+      </div>
+
+      {/* Characters — account-level reusable host/character, reused across projects */}
+      <div className="border-b border-[var(--color-border)] p-4">
+        <div className="mb-3">
+          <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-subtle)]">
+            Characters
+          </span>
+        </div>
+        {characters.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-[var(--color-border)] px-3 py-4 text-center text-[11px] text-[var(--color-fg-muted)]">
+            No character yet — ask the AI to generate one.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {characters.map((c) => (
+              <CharacterTile key={c.name} character={c} />
+            ))}
+          </div>
         )}
       </div>
 
@@ -347,10 +422,69 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
   );
 }
 
+function CharacterTile({ character }: { character: Character }) {
+  // Reusing the locked persona is the cleanest way to keep a brand consistent —
+  // tell the AI to bring it in (it reads the account-level persona itself).
+  function use() {
+    window.dispatchEvent(
+      new CustomEvent("vibeedit:send-prompt", {
+        detail: { text: `Use my character "${character.name}" in this video.` },
+      }),
+    );
+  }
+
+  return (
+    <button
+      onClick={use}
+      title={`Use "${character.name}" in this video`}
+      className="group flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-left transition-colors hover:border-[var(--color-accent)]/40 hover:bg-[var(--color-surface-2)]"
+    >
+      <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-2)]">
+        {character.hasBase ? (
+          <img
+            src="/api/characters/image?file=base.png"
+            alt={character.name}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center text-[var(--color-fg-subtle)]">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 21v-1a7 7 0 0 1 14 0v1" />
+            </svg>
+          </span>
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs font-medium text-[var(--color-fg)]">
+          {character.name}
+        </span>
+        {character.description && (
+          <span className="block truncate text-[10px] text-[var(--color-fg-muted)]">
+            {character.description}
+          </span>
+        )}
+      </span>
+    </button>
+  );
+}
+
 function AssetTile({
   path,
   projectId,
   source,
+  handle,
+  onRenamed,
   onPlay,
   onCopyUrl,
   onRemoveBg,
@@ -361,6 +495,8 @@ function AssetTile({
   path: string;
   projectId: string;
   source: AssetSource;
+  handle?: AssetHandle;
+  onRenamed: () => void;
   onPlay: () => void;
   onCopyUrl: () => void;
   onRemoveBg: () => void;
@@ -374,6 +510,21 @@ function AssetTile({
   const isVideo = VIDEO_EXT.test(path);
   const isAudio = AUDIO_EXT.test(path);
   const filename = path.split("/").pop() || path;
+  const label = handle?.name || filename;
+
+  async function renameHandle() {
+    const next = window.prompt(
+      "Rename this asset's chat handle (what you'll call it when talking to the AI):",
+      label,
+    );
+    if (!next || next.trim() === label) return;
+    await fetch(`/api/projects/${projectId}/assets`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path, name: next.trim() }),
+    }).catch(() => {});
+    onRenamed();
+  }
 
   return (
     <div className="group flex flex-col gap-1" title={filename}>
@@ -484,14 +635,29 @@ function AssetTile({
       </div>
 
       <div className="flex items-center gap-1">
-        <span
-          className="min-w-0 flex-1 truncate text-[10px] text-[var(--color-fg-muted)]"
-          title={filename}
+        <button
+          onClick={renameHandle}
+          className="min-w-0 flex-1 truncate text-left text-[10px] font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)]"
+          title={`${label} — click to rename the chat handle${handle?.summary ? `\n${handle.summary}` : ""}`}
         >
-          {filename}
-        </span>
+          {label}
+        </button>
         <AssetEditMenu path={path} />
       </div>
+      {handle?.summary ? (
+        <span
+          className="block truncate text-[9px] text-[var(--color-fg-subtle)]"
+          title={handle.summary}
+        >
+          {handle.summary}
+        </span>
+      ) : (
+        (isVideo || isAudio) && (
+          <span className="block text-[9px] italic text-[var(--color-fg-subtle)]">
+            not analyzed yet
+          </span>
+        )
+      )}
     </div>
   );
 }

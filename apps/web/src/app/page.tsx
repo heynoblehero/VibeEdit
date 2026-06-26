@@ -50,18 +50,20 @@ export default function Home() {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--color-accent)] opacity-60" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--color-accent)]" />
               </span>
-              AI video editing agent · now in early access
+              Vibe coding, but for video · now in early access
             </div>
 
             <h1 className="text-[clamp(2.6rem,6vw,4.5rem)] font-black leading-[1.04] tracking-[-0.03em] text-[var(--color-fg)]">
-              Describe the edit.
+              Edit any video —
               <br />
-              <span className="text-[var(--color-accent)]">Get the MP4.</span>
+              <span className="text-[var(--color-accent)]">or make one.</span>
+              <br />
+              Just by talking.
             </h1>
 
-            <p className="mt-6 max-w-[440px] text-[1.05rem] leading-[1.7] text-[var(--color-fg-muted)]">
-              Upload footage and tell the agent what you want. It trims, grades, captions, and
-              exports — no timeline, no settings panels. Just chat.
+            <p className="mt-6 max-w-[460px] text-[1.05rem] leading-[1.7] text-[var(--color-fg-muted)]">
+              Bring your own footage and fix, cut, and restructure it by chatting — or generate a
+              whole video from scratch. No timeline. No tools. You talk, the AI edits underneath.
             </p>
 
             <p className="mt-5 flex items-center gap-2 text-sm font-medium text-[var(--color-accent)]">
@@ -77,12 +79,12 @@ export default function Home() {
               Try it live — type a prompt in the sandbox →
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="mt-8">
               <Link
                 href="/app/signup"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--color-accent)] px-7 py-3.5 font-semibold text-black shadow-lg shadow-[var(--color-accent)]/20 transition-all hover:opacity-90 hover:shadow-[var(--color-accent)]/30"
               >
-                Start editing free
+                Start a project
                 <svg
                   width="14"
                   height="14"
@@ -97,15 +99,9 @@ export default function Home() {
                   <path d="M2 7h10M8 3l4 4-4 4" />
                 </svg>
               </Link>
-              <Link
-                href="#how"
-                className="inline-flex items-center justify-center rounded-xl border border-[var(--color-border-2)] bg-[var(--color-surface)] px-7 py-3.5 font-medium text-[var(--color-fg)] transition-colors hover:border-[var(--color-border-2)] hover:bg-[var(--color-surface-2)]"
-              >
-                See how it works
-              </Link>
             </div>
             <p className="mt-4 text-xs text-[var(--color-fg-subtle)]">
-              Free plan available · $1 trial on paid plans · no credit card required
+              Runs in your browser · no install · no editing skills needed
             </p>
           </div>
 
@@ -120,18 +116,42 @@ export default function Home() {
 
       {/* ── THE BIG IDEA ──────────────────────────────────────────────────── */}
       <section className="border-y border-[var(--color-border)] bg-[var(--color-surface)]/50">
-        <div className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6 sm:py-28">
-          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-accent)]">
-            The core idea
-          </p>
-          <h2 className="text-[clamp(1.8rem,4vw,3rem)] font-bold leading-[1.15] tracking-tight">
-            An agent, not a tool.
-          </h2>
-          <p className="mx-auto mt-6 max-w-lg text-[1rem] leading-[1.8] text-[var(--color-fg-muted)]">
-            Traditional editors wait for you to drag clips and turn dials. VibeEdit reads your
-            message, plans the edit, runs the tools, checks its own work, and hands you an MP4. You
-            direct. It executes.
-          </p>
+        <div className="mx-auto max-w-5xl px-4 py-20 sm:px-6 sm:py-28">
+          <div className="mb-14 text-center">
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-accent)]">
+              The core idea
+            </p>
+            <h2 className="text-[clamp(1.8rem,4vw,3rem)] font-bold leading-[1.15] tracking-tight">
+              Two jobs. One conversation.
+            </h2>
+            <p className="mx-auto mt-6 max-w-lg text-[1rem] leading-[1.8] text-[var(--color-fg-muted)]">
+              Editors wait for you to drag clips and turn dials. VibeEdit just listens. You talk —
+              it cuts, grades, captions, builds, and hands you an MP4. You direct. It executes.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <JobCard
+              kicker="Edit any video"
+              title="Bring your own footage."
+              body="Drop in your clips and fix them by chatting. Trim the rambling, cut to the good parts, restructure the whole thing, fix the color, add captions — all by describing it. No timeline to scrub, no panels to learn."
+              examples={[
+                '"Cut the dead air and tighten the intro."',
+                '"Reorder this so the demo comes first."',
+                '"Warm grade and burn captions."',
+              ]}
+            />
+            <JobCard
+              kicker="Or make one"
+              title="Build from scratch."
+              body="No footage? Describe the video you want and the AI builds every scene — titles, motion graphics, transitions, music. The same chat that edits your clips can generate a video from a single sentence."
+              examples={[
+                '"30s finance hook, black + neon green."',
+                '"Explainer for my app, three scenes."',
+                '"Make scene 2 punchier."',
+              ]}
+            />
+          </div>
         </div>
       </section>
 
@@ -149,6 +169,80 @@ export default function Home() {
           </p>
         </div>
         <HowItWorksTabs />
+      </section>
+
+      {/* ── RECURRING CHARACTER ───────────────────────────────────────────── */}
+      <section className="relative overflow-hidden border-y border-[var(--color-border)] bg-[var(--color-surface)]/50">
+        <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+          <div
+            className="absolute -right-32 top-1/2 h-[420px] w-[420px] -translate-y-1/2 rounded-full opacity-[0.06]"
+            style={{ background: "radial-gradient(circle, #d4ff3a 0%, transparent 70%)" }}
+          />
+        </div>
+        <div className="relative mx-auto grid max-w-6xl gap-12 px-4 py-20 sm:px-6 sm:py-28 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-16">
+          <div>
+            <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-[var(--color-border-2)] bg-[var(--color-surface)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-accent)]">
+              Only on VibeEdit
+            </p>
+            <h2 className="text-[clamp(1.8rem,4vw,3rem)] font-bold leading-[1.12] tracking-tight">
+              One character.
+              <br />
+              <span className="text-[var(--color-accent)]">Every video.</span>
+            </h2>
+            <p className="mt-6 max-w-lg text-[1.05rem] leading-[1.8] text-[var(--color-fg-muted)]">
+              Lock in a recurring AI host once, and they star — consistently — in everything you
+              make. Same face, same voice, same vibe across every upload. It becomes your channel's
+              identity, the way CodeBullet's character is his.
+            </p>
+            <p className="mt-4 max-w-lg text-[1.05rem] leading-[1.8] text-[var(--color-fg-muted)]">
+              No other AI video tool can keep a character consistent. We built VibeEdit around it.
+            </p>
+            <ul className="mt-8 space-y-3">
+              {[
+                "Generate a host, then lock them as your brand",
+                "Reuse the same persona in any new project",
+                "AI poses & expressions from your locked base",
+              ].map((item) => (
+                <li key={item} className="flex items-start gap-3 text-sm text-[var(--color-fg)]">
+                  <svg
+                    className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-accent)]"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M3 8l3.5 3.5L13 4" />
+                  </svg>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "Intro", emoji: "🎬", tint: "from-[#d4ff3a]/15" },
+              { label: "Reaction", emoji: "😮", tint: "from-[#60a5fa]/15" },
+              { label: "Explainer", emoji: "🧑‍🏫", tint: "from-[#ff6ad5]/15" },
+              { label: "Hook", emoji: "🔥", tint: "from-[#00ff88]/15" },
+              { label: "Outro", emoji: "👋", tint: "from-[#ffd43b]/15" },
+              { label: "Thumbnail", emoji: "📸", tint: "from-[#c774e8]/15" },
+            ].map((pose) => (
+              <div
+                key={pose.label}
+                className={`relative flex aspect-[3/4] flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-[var(--color-border)] bg-gradient-to-b ${pose.tint} to-transparent`}
+              >
+                <span className="text-3xl">{pose.emoji}</span>
+                <span className="absolute inset-x-0 bottom-0 bg-black/50 py-1 text-center text-[10px] uppercase tracking-wide text-white/80 backdrop-blur-sm">
+                  {pose.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
       {/* ── CAPABILITIES ──────────────────────────────────────────────────── */}
@@ -366,7 +460,11 @@ export default function Home() {
           />
           <Faq
             q="How is this different from Sora or Runway?"
-            a="They generate raw pixels you can't edit. VibeEdit edits real footage and builds compositions that render deterministically — same prompt, same MP4, every time. You can also refine anything by chat."
+            a="They generate raw pixels you can't edit. VibeEdit edits real footage and builds compositions that render deterministically — same prompt, same MP4, every time. You can also refine anything by chat. And only VibeEdit gives you a recurring AI host who stars consistently across every video."
+          />
+          <Faq
+            q="What's the recurring character?"
+            a="Generate an AI host once, lock them in, and they appear — same face, same voice, same vibe — in every video you make. It becomes your channel's identity (think CodeBullet's character). The AI can also pose and re-express your locked host for new scenes. No other AI video tool keeps a character consistent."
           />
           <Faq
             q="Do I have to install anything?"
@@ -397,14 +495,14 @@ export default function Home() {
             Your next video is <span className="text-[var(--color-accent)]">one message away.</span>
           </h2>
           <p className="mx-auto mt-5 max-w-md text-[var(--color-fg-muted)]">
-            No timeline to learn. No settings to configure. Just describe what you want — the agent
-            handles the rest.
+            Edit your footage or build from scratch — and let your recurring host star in all of it.
+            No timeline, no tools. Just talk.
           </p>
           <Link
             href="/app/signup"
             className="mt-10 inline-flex items-center gap-2 rounded-xl bg-[var(--color-accent)] px-8 py-4 text-base font-semibold text-black shadow-xl shadow-[var(--color-accent)]/20 transition-all hover:opacity-90 hover:shadow-[var(--color-accent)]/30 sm:text-lg"
           >
-            Start editing free
+            Start a project
             <svg
               width="16"
               height="16"
@@ -468,6 +566,40 @@ export default function Home() {
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+/* ── Job card ─────────────────────────────────────────────────────────────── */
+function JobCard({
+  kicker,
+  title,
+  body,
+  examples,
+}: {
+  kicker: string;
+  title: string;
+  body: string;
+  examples: string[];
+}) {
+  return (
+    <div className="flex flex-col gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 sm:p-8">
+      <div className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-accent)]">
+        {kicker}
+      </div>
+      <h3 className="text-xl font-bold text-[var(--color-fg)] sm:text-2xl">{title}</h3>
+      <p className="text-sm leading-relaxed text-[var(--color-fg-muted)] sm:text-base">{body}</p>
+      <div className="mt-1 space-y-2">
+        {examples.map((example) => (
+          <div
+            key={example}
+            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-2)] px-3 py-2 font-mono text-xs leading-relaxed text-[var(--color-fg)]"
+          >
+            <span className="text-[var(--color-accent)]">{"> "}</span>
+            {example}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

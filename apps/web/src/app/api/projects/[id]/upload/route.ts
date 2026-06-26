@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { requireServerSession } from "@/lib/server-session";
 import { writeProjectFile, listAssets } from "@/lib/storage/fs";
+import { ensureManifest } from "@/lib/storage/manifests";
 
 export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
   const session = await requireServerSession().catch((r) => r);
@@ -26,5 +27,11 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     writeProjectFile(userId, id, `assets/${safeName}`, buffer);
     files.push(`assets/${safeName}`);
   }
+  // Capture cheap facts (ffprobe + stat) into each asset's manifest now; the
+  // expensive `understanding` is filled lazily on first reference. Best-effort —
+  // a probe failure must not fail the upload.
+  await Promise.all(
+    files.map((rel) => ensureManifest(userId, id, rel, { source: "upload" }).catch(() => null)),
+  );
   return NextResponse.json({ uploaded: files, assets: listAssets(userId, id) });
 }

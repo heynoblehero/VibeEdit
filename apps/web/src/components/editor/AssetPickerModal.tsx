@@ -24,6 +24,12 @@ const SOURCE_LABELS: Array<{ id: SourceFilter; label: string }> = [
   { id: "ai", label: "AI" },
 ];
 
+type Character = {
+  name: string;
+  description: string;
+  hasBase: boolean;
+};
+
 // A composer-side file browser: see every uploaded asset, attach an existing
 // one to the current message, upload new ones, or delete files you no longer
 // need. Deleting an asset still referenced by the composition asks for an
@@ -42,6 +48,7 @@ export function AssetPickerModal({
   onClose: () => void;
 }) {
   const [files, setFiles] = useState<string[]>([]);
+  const [characters, setCharacters] = useState<Character[]>([]);
   const [assetMeta, setAssetMeta] = useState<Record<string, AssetSource>>({});
   const [referenced, setReferenced] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<AssetFilter>("all");
@@ -67,6 +74,29 @@ export function AssetPickerModal({
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
+
+  // Characters are account-level — reusable across projects — so load once.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/characters")
+      .then((r) => (r.ok ? r.json() : { characters: [] }))
+      .then((j) => {
+        if (!cancelled) setCharacters(Array.isArray(j.characters) ? j.characters : []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function useCharacter(name: string) {
+    window.dispatchEvent(
+      new CustomEvent("vibeedit:send-prompt", {
+        detail: { text: `Use my character "${name}" in this video.` },
+      }),
+    );
+    onClose();
+  }
 
   // Work out which assets the current composition references, so we can warn
   // before deleting one. Best-effort: recomputed whenever the file list changes.
@@ -260,6 +290,66 @@ export function AssetPickerModal({
         )}
 
         {error && <p className="px-5 pt-3 text-xs text-[var(--color-danger)]">{error}</p>}
+
+        {/* Characters — account-level reusable character, click to have the AI use it */}
+        <div className="border-b border-[var(--color-border)] px-5 py-3">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-subtle)]">
+            Characters
+          </p>
+          {characters.length === 0 ? (
+            <p className="text-[11px] text-[var(--color-fg-muted)]">
+              No character yet — ask the AI to generate one.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {characters.map((c) => (
+                <button
+                  key={c.name}
+                  onClick={() => useCharacter(c.name)}
+                  title={`Use "${c.name}" in this video`}
+                  className="group flex items-center gap-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] p-2 pr-3 text-left transition-colors hover:border-[var(--color-accent)]/50"
+                >
+                  <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
+                    {c.hasBase ? (
+                      <img
+                        src="/api/characters/image?file=base.png"
+                        alt={c.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-full w-full items-center justify-center text-[var(--color-fg-subtle)]">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <circle cx="12" cy="8" r="4" />
+                          <path d="M4 21v-1a7 7 0 0 1 14 0v1" />
+                        </svg>
+                      </span>
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block max-w-[160px] truncate text-xs font-medium text-[var(--color-fg)]">
+                      {c.name}
+                    </span>
+                    {c.description && (
+                      <span className="block max-w-[160px] truncate text-[10px] text-[var(--color-fg-muted)]">
+                        {c.description}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Grid */}
         <div className="min-h-0 flex-1 overflow-y-auto p-5">

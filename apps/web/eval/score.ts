@@ -27,6 +27,15 @@ export interface CompositionScore {
 
 export interface ScoreInput {
   html: string;
+  /**
+   * Which pipeline produced this output.
+   *  - "build" (default): a generated composition (GSAP/runtime timeline).
+   *  - "edit": an EDL-rendered footage edit wrapped in a single-clip index.html
+   *    that references the processed output mp4. Edit-mode toggles a set of
+   *    additive checks; build-mode scores exactly as it did before this field
+   *    existed.
+   */
+  mode?: "build" | "edit";
   /** This brief is expected to have narration → audio + captions matter. */
   needsAudio?: boolean;
   /** Returns true if a project-relative path (e.g. "assets/x.mp3") exists on disk. */
@@ -34,6 +43,26 @@ export interface ScoreInput {
   /** The agent run surfaced a tool error (from the runner's event stream). */
   hadToolError?: boolean;
 }
+
+/**
+ * Extract <video> source paths from the html (the src attr on <video> itself,
+ * or on nested <source> elements). Used by edit-mode playback wiring checks.
+ */
+const VIDEO_SRC_RE =
+  /<video\b[^>]*\bsrc\s*=\s*["']([^"']+)["']|<source\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi;
+
+function collectVideoSrcs(html: string): string[] {
+  const srcs = new Set<string>();
+  let m: RegExpExecArray | null;
+  VIDEO_SRC_RE.lastIndex = 0;
+  while ((m = VIDEO_SRC_RE.exec(html)) !== null) {
+    const ref = (m[1] || m[2] || "").split(/[?#]/)[0];
+    if (ref) srcs.add(ref);
+  }
+  return [...srcs];
+}
+
+const PROCESSED_VIDEO_RE = /(?:assets\/processed\/|\boutput\b)[^"')\s]*\.(?:mp4|webm|mov|m4v)/i;
 
 const ASSET_REF_RE = /(?:src|href)\s*=\s*["'](assets\/[^"']+)["']|url\(\s*["']?(assets\/[^"')]+)/gi;
 
@@ -56,7 +85,8 @@ function countMedia(html: string): number {
 }
 
 export function scoreComposition(input: ScoreInput): CompositionScore {
-  const { html, needsAudio = false, assetExists, hadToolError = false } = input;
+  const { html, mode = "build", needsAudio = false, assetExists, hadToolError = false } = input;
+  const isEdit = mode === "edit";
   const checks: CheckResult[] = [];
   const add = (name: string, pass: boolean, critical: boolean, detail: string) =>
     checks.push({ name, pass, critical, detail });
@@ -66,26 +96,32 @@ export function scoreComposition(input: ScoreInput): CompositionScore {
   add("built", built, true, built ? `${html.length} bytes` : "no/empty index.html");
 
   // 2. Playable — has a total duration the player can read.
+  // (In edit mode the <video> element is the timing source, so duration is
+  // informational rather than critical — but build-mode behavior is unchanged.)
   const hasDuration = /data-duration\s*=/.test(html);
   add(
     "playable_duration",
     hasDuration,
-    true,
+    !isEdit,
     hasDuration ? "data-duration present" : "missing data-duration",
   );
 
-  // 3. Has a motion driver (GSAP / runtime timeline) — otherwise it's a frozen frame.
+  // 3. Has a motion driver (GSAP / runtime timeline) — otherwise it's a frozen
+  // frame. N/a in edit mode: a single-clip footage edit has no timeline driver,
+  // the rendered mp4 carries the motion.
   const hasTimeline = /\bgsap\b|__hf\b|__timelines\b|\.timeline\(/i.test(html);
   add(
     "has_timeline",
-    hasTimeline,
+    isEdit ? true : hasTimeline,
     false,
-    hasTimeline ? "timeline/gsap found" : "no animation driver",
+    isEdit ? "n/a (edit)" : hasTimeline ? "timeline/gsap found" : "no animation driver",
   );
 
   // 4. Media-rich, not a text slideshow (the core quality lever).
+  // An edit is a single processed clip — one <video> is enough.
   const mediaCount = countMedia(html);
-  add("media_rich", mediaCount >= 2, false, `${mediaCount} media element(s)`);
+  const mediaBar = isEdit ? 1 : 2;
+  add("media_rich", mediaCount >= mediaBar, false, `${mediaCount} media element(s)`);
 
   // 5. No raw /stock/ refs (these 404 — the silent-audio bug).
   const rawStock = /["'(]\/stock\//.test(html);
@@ -131,6 +167,70 @@ export function scoreComposition(input: ScoreInput): CompositionScore {
     hadToolError ? "a tool errored during the run" : "clean run",
   );
 
+  // ── Edit-mode checks (additive; only emitted when mode === "edit"). ──
+  // An edit must actually be wired for playback: the wrapper index.html has to
+  // reference the processed output video, not just describe the edit in text.
+  let videoWired = false;
+  if (isEdit) {
+    const videoSrcs = collectVideoSrcs(html);
+    const hasVideoEl = /<video\b/i.test(html);
+
+    // 10. There is a real <video>/<source> pointing at a processed render.
+    const processedSrc =
+      videoSrcs.find((s) => PROCESSED_VIDEO_RE.test(s)) ||
+      (PROCESSED_VIDEO_RE.test(html) ? "html" : undefined);
+    videoWired = hasVideoEl && (videoSrcs.length > 0 || processedSrc !== undefined);
+    add(
+      "edit_video_wired",
+      videoWired,
+      true,
+      videoWired
+        ? `<video> → ${processedSrc ?? videoSrcs[0]}`
+        : hasVideoEl
+          ? "<video> has no resolvable source"
+          : "no <video> element wiring the rendered clip",
+    );
+
+    // 11. The render output points at a processed/output artifact (not a raw
+    // upload echoed back unchanged — a "frozen", no-op edit).
+    const pointsAtProcessed =
+      videoSrcs.some((s) => PROCESSED_VIDEO_RE.test(s)) || PROCESSED_VIDEO_RE.test(html);
+    add(
+      "edit_processed_output",
+      pointsAtProcessed,
+      false,
+      pointsAtProcessed ? "references processed/output render" : "no processed/output ref found",
+    );
+
+    // 12. Not a static text-only result masquerading as a video.
+    const notFrozen = videoWired && html.length > 800;
+    add(
+      "edit_not_static",
+      notFrozen,
+      true,
+      notFrozen ? "playable clip wrapper" : "static/empty result — not a playable clip",
+    );
+
+    // 13. Resolved video sources exist on disk (when we can check).
+    if (assetExists && videoSrcs.length) {
+      const localSrcs = videoSrcs.filter((s) => !/^https?:/i.test(s));
+      const brokenVid = localSrcs.filter((s) => !assetExists(s));
+      add(
+        "edit_video_resolves",
+        brokenVid.length === 0,
+        true,
+        brokenVid.length ? `broken: ${brokenVid.slice(0, 4).join(", ")}` : `${localSrcs.length} ok`,
+      );
+    } else {
+      add(
+        "edit_video_resolves",
+        true,
+        true,
+        videoSrcs.length ? "not checked" : "no local video src",
+      );
+    }
+  }
+
   // Weighted score (informational, for ranking which briefs are weakest).
   const weights: Record<string, number> = {
     built: 20,
@@ -142,14 +242,27 @@ export function scoreComposition(input: ScoreInput): CompositionScore {
     audio_present: 8,
     captions: 4,
     no_tool_error: 3,
+    // Edit-mode weights — only contribute when those checks are present.
+    edit_video_wired: 25,
+    edit_processed_output: 8,
+    edit_not_static: 15,
+    edit_video_resolves: 10,
   };
-  const total = Object.values(weights).reduce((a, b) => a + b, 0);
+  // Only the weights for checks that actually ran count toward the denominator,
+  // so build-mode totals stay exactly 100 (additive edit checks don't dilute it).
+  const total = checks.reduce((sum, c) => sum + (weights[c.name] ?? 0), 0);
   const earned = checks.reduce((sum, c) => sum + (c.pass ? (weights[c.name] ?? 0) : 0), 0);
-  const score = Math.round((100 * earned) / total);
+  const score = total > 0 ? Math.round((100 * earned) / total) : 0;
 
   const failedCritical = checks.filter((c) => c.critical && !c.pass).map((c) => c.name);
-  // Postable = no critical failure AND it's actually a video (media-rich + score bar).
-  const postable = failedCritical.length === 0 && mediaCount >= 2 && score >= 75;
+  // Postable = no critical failure AND it's actually a video (enough media +
+  // score bar). In edit mode the one wired <video> is the video, so the bar is
+  // the same media floor the check uses.
+  const postable =
+    failedCritical.length === 0 &&
+    mediaCount >= mediaBar &&
+    (isEdit ? videoWired : true) &&
+    score >= 75;
 
   return { checks, score, postable, failedCritical };
 }

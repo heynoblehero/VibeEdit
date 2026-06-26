@@ -2,6 +2,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import { ALLOWED_TOOL_NAMES, MCP_SERVER_NAME, buildToolServer, type ToolContext } from "./tools";
 import { buildSystemPrompt, type BrandKitContext } from "./system-prompt";
 import { listFiles } from "../storage/fs";
+import { assetSummaryLines } from "../storage/manifests";
 import { db } from "@/lib/db";
 import { creatorInsights, userPreferences, brandKits } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -143,6 +144,12 @@ export async function runAgent(opts: {
     Object.freeze(opts.ctx.apiKeys);
   }
   const server = buildToolServer(opts.ctx);
+  // Always tell the AI what assets exist and what to call them — the "name" is
+  // the chat handle the user points at. Full detail is pulled via read_manifest.
+  const assetLines = assetSummaryLines(opts.ctx.userId, opts.ctx.projectId);
+  const assetBlock = assetLines.length
+    ? `Project assets (refer to each by its name; call read_manifest for full detail before editing):\n${assetLines.map((l) => `- ${l}`).join("\n")}\n\n`
+    : "";
   const prefix = opts.priorHistory
     ? `Prior conversation context:\n${opts.priorHistory}\n\nNew user message:\n`
     : "";
@@ -156,7 +163,7 @@ export async function runAgent(opts: {
     if (byokKey) agentEnv.ANTHROPIC_API_KEY = byokKey;
 
     for await (const message of query({
-      prompt: prefix + opts.userMessage,
+      prompt: assetBlock + prefix + opts.userMessage,
       options: {
         systemPrompt: buildSystemPrompt({
           insights,

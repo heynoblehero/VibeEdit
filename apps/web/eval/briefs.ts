@@ -10,6 +10,17 @@ export interface Brief {
   format: "16:9" | "9:16" | "1:1";
   /** Does this brief imply narration (→ audio + captions are scored as required)? */
   needsAudio: boolean;
+  /**
+   * Which pipeline this brief exercises. Absent/"build" → generate a
+   * composition. "edit" → the talk-to-edit footage path (EDL → mp4 wrapped in
+   * a single-clip index.html); scored with the additive edit-mode checks.
+   */
+  mode?: "build" | "edit";
+  /**
+   * For edit briefs: a project-relative source clip the agent should edit. The
+   * runner is expected to seed this into the project before the run.
+   */
+  sourceClip?: string;
 }
 
 export const BRIEFS: Brief[] = [
@@ -48,5 +59,24 @@ export const BRIEFS: Brief[] = [
     prompt: "A calm 35-second sleep-story intro about a quiet cabin in the snow.",
     format: "9:16",
     needsAudio: true,
+  },
+  // ── Edit-path briefs (talk-to-edit footage → EDL → single-clip wrapper). ──
+  {
+    id: "edit-talkinghead-tighten",
+    prompt:
+      "Here's a raw talking-head clip. Tighten it — cut the dead air and ums at the start and end — and burn in captions.",
+    format: "9:16",
+    needsAudio: true,
+    mode: "edit",
+    sourceClip: "assets/uploads/talkinghead.mp4",
+  },
+  {
+    id: "edit-broll-trim",
+    prompt:
+      "Trim this raw vlog footage down to the best 20 seconds and add a quick title card at the top.",
+    format: "16:9",
+    needsAudio: false,
+    mode: "edit",
+    sourceClip: "assets/uploads/vlog.mp4",
   },
 ];

@@ -298,6 +298,21 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
   const loadHistoryRef = useRef<() => void>(() => {});
   const fileHistoryRef = useRef<Map<string, string>>(new Map());
 
+  // Prefill the chat box with the project description captured at creation
+  // (the unified "describe it" step). One-shot — cleared after reading.
+  useEffect(() => {
+    try {
+      const key = `vibeedit:seed:${projectId}`;
+      const seed = localStorage.getItem(key);
+      if (seed) {
+        setInput(seed);
+        localStorage.removeItem(key);
+      }
+    } catch {
+      // localStorage unavailable — skip
+    }
+  }, [projectId]);
+
   useEffect(() => {
     function onEditAt(event: Event) {
       const detail = (event as CustomEvent<{ timestamp: number }>).detail;

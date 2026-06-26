@@ -1002,13 +1002,27 @@ export interface EdlGrade {
 // EdlGrade object → manual parameters.
 export type EdlGradeSpec = EdlGrade | "auto" | "none";
 
+// Background replacement for a segment — greenscreen (chroma key) the source and
+// composite it over a new image/video background. The signature footage effect,
+// made a first-class EDL treatment so "put me on a beach" is one conversational,
+// undoable edit (talk → EDL → render → undo). Powers the persona use-case.
+export interface EdlBackground {
+  replaceWith: string; // relative asset path to the new background (image or video)
+  chromaKey?: boolean; // true = key out a solid color first (greenscreen). Default true.
+  color?: string; // key color hex, e.g. "00FF00" (green) or "0000FF" (blue). Default green.
+  similarity?: number; // chroma similarity 0.01–1.0. Default 0.30.
+  blend?: number; // chroma edge blend 0.0–1.0. Default 0.10.
+}
+
 export interface EdlSegment {
+  id?: string; // stable handle so chat can address a specific cut ("drop s3")
   source: string; // relative asset path
   start: number; // start time in source (seconds)
   end: number; // end time in source (seconds)
   beat?: string; // label e.g. "HOOK", "PROBLEM", "CTA"
   grade?: EdlGradeSpec;
   speed?: number; // default 1.0
+  background?: EdlBackground; // replace the segment's background (greenscreen composite)
   // J/L cut support: audio bleeds across hard video cuts for natural pacing.
   // audioLeadSeconds: next segment's audio starts this many seconds early.
   // audioTrailSeconds: this segment's audio continues into the next segment.
@@ -1200,21 +1214,59 @@ export async function renderEdl(opts: {
         vfParts.push(`setpts=${(1 / segment.speed).toFixed(6)}*PTS`);
       }
 
-      const args = ["-ss", String(segment.start), "-t", String(segDuration), "-i", sourcePath];
+      const audioFadeFilter = (): string => {
+        let af = `afade=t=in:st=0:d=0.03,afade=t=out:st=${fadeOutStart}:d=0.03`;
+        if (segment.speed && segment.speed !== 1) af += `,${buildAtempo(segment.speed)}`;
+        return af;
+      };
 
-      if (vfParts.length > 0) args.push("-vf", vfParts.join(","));
+      let args: string[];
+      if (segment.background?.replaceWith) {
+        // Background replacement: chroma-key the source (greenscreen) and
+        // composite the keyed foreground over a new image/video background.
+        const bg = segment.background;
+        const bgPath = resolveProjectPath(dir, bg.replaceWith);
+        const w = info.width || 1080;
+        const h = info.height || 1920;
+        const isBgImage = /\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(bg.replaceWith);
+        const useKey = bg.chromaKey ?? true;
+        const color = (bg.color ?? "00FF00").replace(/^#/, "");
+        const similarity = bg.similarity ?? 0.3;
+        const blend = bg.blend ?? 0.1;
 
-      if (info.hasAudio) {
-        let audioFilter = `afade=t=in:st=0:d=0.03,afade=t=out:st=${fadeOutStart}:d=0.03`;
-        if (segment.speed && segment.speed !== 1) {
-          audioFilter += `,${buildAtempo(segment.speed)}`;
+        // Foreground: grade/speed (vfParts) → chroma key → normalize size.
+        const fgFilters = [...vfParts];
+        if (useKey) fgFilters.push(`chromakey=0x${color}:${similarity}:${blend}`);
+        fgFilters.push(`scale=${w}:${h}`);
+        // Background: cover the frame (scale up + center-crop), square pixels.
+        const bgChain = `[1:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},setsar=1[bg]`;
+        // overlay shortest=1 bounds output to the foreground length (handles speed
+        // changes + looped image backgrounds without a duration mismatch).
+        let filterComplex = `[0:v]${fgFilters.join(",")}[fg];${bgChain};[bg][fg]overlay=0:0:shortest=1[v]`;
+
+        args = ["-ss", String(segment.start), "-t", String(segDuration), "-i", sourcePath];
+        if (isBgImage) args.push("-loop", "1", "-i", bgPath);
+        else args.push("-i", bgPath);
+
+        const maps = ["-map", "[v]"];
+        if (info.hasAudio) {
+          filterComplex += `;[0:a]${audioFadeFilter()}[a]`;
+          maps.push("-map", "[a]", "-c:a", "aac", "-b:a", "192k");
+        } else {
+          maps.push("-an");
         }
-        args.push("-af", audioFilter, "-c:a", "aac", "-b:a", "192k");
+        args.push("-filter_complex", filterComplex, ...maps);
+        args.push("-c:v", "libx264", "-preset", "fast", "-crf", "18", segPath);
       } else {
-        args.push("-an");
+        args = ["-ss", String(segment.start), "-t", String(segDuration), "-i", sourcePath];
+        if (vfParts.length > 0) args.push("-vf", vfParts.join(","));
+        if (info.hasAudio) {
+          args.push("-af", audioFadeFilter(), "-c:a", "aac", "-b:a", "192k");
+        } else {
+          args.push("-an");
+        }
+        args.push("-c:v", "libx264", "-preset", "fast", "-crf", "18", segPath);
       }
-
-      args.push("-c:v", "libx264", "-preset", "fast", "-crf", "18", segPath);
 
       const segResult = await ffmpegRun(args);
       if (!segResult.ok) {

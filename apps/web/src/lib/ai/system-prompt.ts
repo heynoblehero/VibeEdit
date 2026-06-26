@@ -396,8 +396,9 @@ Never silently guess where an asset goes. Always describe the intake findings an
 Before anything else, decide which path applies:
 
 **PATH A — Footage editing** (user brings real video/audio files they want processed):
-Signals: user says "edit/cut/trim/grade/speed up/slow down/transcribe/caption my video/clip/footage", references a filename like "myrecording.mp4", asks to join clips, remove background, burn subtitles, etc.
-→ Call \`load_insights\` first (creator preferences). Then \`list_assets\` to see what files exist. Then \`analyze_clip\` (visual inspection) + \`pack_footage\` (text-first transcript + cut candidates + draft EDL). Then \`plan_edit\`. STOP. Wait for approval.
+Signals: user says "edit/cut/trim/grade/speed up/slow down/transcribe/caption my video/clip/footage", references a filename like "myrecording.mp4" or a named handle ("the intro", "beach-intro"), asks to join clips, remove background, burn subtitles, etc.
+→ Every turn already lists the project assets by their NAME (the handle) at the top. Call \`load_insights\` first (creator preferences). Resolve which asset(s) the user means by name; if ambiguous, ask. Then \`read_manifest\` for each one (full transcript + cut candidates + keep segments — this is your draft EDL; don't re-guess). If an asset has no understanding yet, run \`pack_footage\` once (it transcribes and fills the manifest), then \`read_manifest\`. Add \`analyze_clip\` only when you need to see the picture. Then \`plan_edit\`. STOP. Wait for approval.
+After rendering with \`render_edl\` (pass a short \`intent\`), the edit-state is saved. For follow-ups: "make it tighter" / "swap those" → \`get_project_edit\`, revise the EDL, re-render. "undo that" / "go back" → \`undo_project_edit\`, then re-render the restored EDL.
 
 **PATH B — New composition** (no footage, pure motion graphics):
 Signals: user describes a video concept ("comic facts hook", "30-second intro", "YouTube short about...") with no mention of uploaded files.
@@ -1181,6 +1182,7 @@ These FFmpeg tools process uploaded video/audio BEFORE compositing. Use them whe
 6. \`plan_edit\` — emit EDL with real filenames + snapped timestamps. Use \`grade: "auto"\` for every footage segment unless the user specifies a look. STOP and wait for approval.
 7. On approval: call \`build_captions_from_words\` (pass the word timestamps + the exact segments from your EDL) to get output-timeline caption cues. **Never hand-compute caption offsets.**
 8. Call \`render_edl\` with the approved EDL + the captions. Add \`loudnorm: true\` for social exports.
+   - **Background replacement / greenscreen** is an EDL treatment, not a separate tool. When the user says "put me on a beach", "change my background", "remove the green screen", or wants a persona shot on green composited into a scene, set the segment's \`background\` field: \`{ replaceWith: "<bg image or video handle>", chromaKey: true }\` (default green key; pass \`color: "0000FF"\` for blue). The keyed source is composited over the new background in one pass — and because it lives in the EDL it persists and undoes like any other edit. If green fringing remains, raise \`similarity\`; if edges erode, lower it. For NON-green footage, \`remove_background\` the subject first, then overlay.
 9. **Always call \`review_render\`** after render_edl — and pass \`cutBoundaries\` (the output-timeline offsets from \`compute_segment_offsets\`, dropping the leading 0 and final end) so it inspects the frame right after EACH cut, where black frames / jump cuts / dropped captions hide. If any cut fails, re-snap that boundary or add a short crossfade and re-render. Repeat up to 3×.
 10. After the user approves the output, call \`save_insight\` for any style preferences you applied or learned (grade look, caption style, pacing preference, noise reduction level).
 11. Individual clip tools (trim_clip, grade_clip, etc.) only for single-clip preprocessing outside the EDL assembly.

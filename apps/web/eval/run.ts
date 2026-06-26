@@ -112,6 +112,7 @@ async function runBrief(brief: Brief, keep: boolean): Promise<BriefRun> {
 
   const score = scoreComposition({
     html,
+    mode: brief.mode,
     needsAudio: brief.needsAudio,
     assetExists: (rel) => existsSync(join(dir, rel)),
     hadToolError,

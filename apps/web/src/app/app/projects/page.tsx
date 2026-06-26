@@ -80,6 +80,7 @@ export default function ProjectsPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [search, setSearch] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -135,6 +136,16 @@ export default function ProjectsPage() {
         return;
       }
       const { id } = (await result.json()) as { id: string };
+      // Hand the description to the editor as the seeded first message (the
+      // unified "describe it" step). Chat reads + clears this on mount.
+      const desc = description.trim();
+      if (desc) {
+        try {
+          localStorage.setItem(`vibeedit:seed:${id}`, desc);
+        } catch {
+          // non-fatal
+        }
+      }
       router.push(`/app/projects/${id}/edit`);
     } catch (err) {
       setCreateError((err as Error).message || "Could not create project — check your connection.");
@@ -325,6 +336,18 @@ export default function ProjectsPage() {
                 })}
               </div>
             </div>
+
+            {/* Row 1.5: describe it — seeds the first chat message */}
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) create();
+              }}
+              rows={2}
+              placeholder="Describe the video you want (optional) — e.g. “a punchy 30s explainer about our pricing change” or “tighten my uploaded clip and add captions”. ⌘↵ to create."
+              className="mb-4 w-full resize-none rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2.5 text-sm outline-none transition-colors placeholder:text-[var(--color-fg-subtle)] focus:border-[var(--color-accent)]"
+            />
 
             {/* Row 2: single new-project action */}
             <NewProjectCard

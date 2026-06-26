@@ -10,6 +10,15 @@ import {
   personaDir,
 } from "../storage/fs";
 import { listRegistry, readRegistryBlock } from "./registry";
+import {
+  ensureManifest,
+  readManifest,
+  writeManifest,
+  setUnderstanding,
+  summaryLine,
+  type AssetManifest,
+} from "../storage/manifests";
+import { applyEdit, undoEdit, readProjectState, describeState } from "../storage/project-state";
 import { readBrandKit } from "../brand-kit";
 import { searchStock, type StockKind } from "../stock/registry";
 import {
@@ -68,6 +77,26 @@ export type ToolContext = {
   platform?: string;
   aspectRatio?: string;
 };
+
+// Resolve a user/AI reference ("beach-intro", "the intro", "assets/beach-intro.mp4")
+// to an asset's manifest: exact path → exact name → alias → case-insensitive name.
+// This is the no-timeline selection mechanism — getting it right is the difference
+// between magic and frustration. Ambiguity is left for the tool to surface.
+function resolveAssetManifest(ctx: ToolContext, ref: string): AssetManifest | null {
+  const wanted = ref.trim();
+  const direct = readManifest(ctx.userId, ctx.projectId, wanted);
+  if (direct) return direct;
+  const manifests = listAssets(ctx.userId, ctx.projectId)
+    .map((rel) => readManifest(ctx.userId, ctx.projectId, rel))
+    .filter((m): m is AssetManifest => m !== null);
+  const lower = wanted.toLowerCase();
+  return (
+    manifests.find((m) => m.path === wanted || m.name === wanted) ??
+    manifests.find((m) => m.aliases.includes(wanted)) ??
+    manifests.find((m) => m.name.toLowerCase() === lower) ??
+    null
+  );
+}
 
 // Tool names are surfaced to the agent as `mcp__hyperframes__<name>`.
 export const MCP_SERVER_NAME = "hyperframes";
@@ -661,8 +690,32 @@ export function buildToolServer(ctx: ToolContext) {
         .string()
         .optional()
         .describe("ElevenLabs voiceId to lock to this persona (used by generate_voiceover)."),
+      traits: z
+        .array(z.string())
+        .optional()
+        .describe("Personality traits, e.g. ['sarcastic','nerdy','warm']. Shapes how it talks."),
+      speakingStyle: z
+        .string()
+        .optional()
+        .describe(
+          "How the character talks, e.g. 'short punchy sentences, dry jokes, talks to camera'.",
+        ),
+      catchphrases: z.array(z.string()).optional().describe("Signature lines the character uses."),
+      sampleScripts: z
+        .array(z.string())
+        .optional()
+        .describe("A few example scripts written in the character's voice (for tone reference)."),
     },
-    async ({ name, description, style, voiceId }) => {
+    async ({
+      name,
+      description,
+      style,
+      voiceId,
+      traits,
+      speakingStyle,
+      catchphrases,
+      sampleScripts,
+    }) => {
       const apiKey = ctx.apiKeys?.replicate;
       if (!apiKey) {
         return {
@@ -691,6 +744,12 @@ export function buildToolServer(ctx: ToolContext) {
           voiceId: voiceId || undefined,
           base: "base.png",
           poses: [] as Array<{ label: string; file: string }>,
+          personality: {
+            traits: traits || [],
+            speakingStyle: speakingStyle || "",
+            catchphrases: catchphrases || [],
+          },
+          sampleScripts: sampleScripts || [],
           createdAt: new Date().toISOString(),
         };
         writeFileSync(join(dir, "persona.json"), JSON.stringify(persona, null, 2));
@@ -882,6 +941,183 @@ export function buildToolServer(ctx: ToolContext) {
           isError: true,
         };
       }
+    },
+  );
+
+  const updatePersonaTool = tool(
+    "update_persona",
+    "Edit the locked persona's identity in place when the user asks ('make Pixel angrier', 'lock this voice', 'give it a catchphrase'). Updates personality / voice / sample scripts on the account-level persona so the change carries into every future project. Does NOT regenerate the base image (use add_persona_pose for new looks). Only pass the fields that change.",
+    {
+      description: z.string().optional().describe("Replace the visual description."),
+      style: z.string().optional().describe("Replace the art style."),
+      voiceId: z.string().optional().describe("Lock/replace the ElevenLabs voiceId."),
+      traits: z.array(z.string()).optional().describe("Replace the personality traits list."),
+      speakingStyle: z.string().optional().describe("Replace how the character talks."),
+      catchphrases: z.array(z.string()).optional().describe("Replace the catchphrases list."),
+      addSampleScript: z.string().optional().describe("Append one sample script in-voice."),
+    },
+    async ({
+      description,
+      style,
+      voiceId,
+      traits,
+      speakingStyle,
+      catchphrases,
+      addSampleScript,
+    }) => {
+      const file = join(personaDir(ctx.userId), "persona.json");
+      if (!existsSync(file)) {
+        return {
+          content: [{ type: "text", text: "ERROR: no persona to update. Call generate_persona." }],
+          isError: true,
+        };
+      }
+      try {
+        const persona = JSON.parse(readFileSync(file, "utf8")) as {
+          description?: string;
+          style?: string;
+          voiceId?: string;
+          personality?: { traits?: string[]; speakingStyle?: string; catchphrases?: string[] };
+          sampleScripts?: string[];
+          [k: string]: unknown;
+        };
+        if (description) persona.description = description;
+        if (style) persona.style = style;
+        if (voiceId) persona.voiceId = voiceId;
+        persona.personality = persona.personality || {};
+        if (traits) persona.personality.traits = traits;
+        if (speakingStyle) persona.personality.speakingStyle = speakingStyle;
+        if (catchphrases) persona.personality.catchphrases = catchphrases;
+        if (addSampleScript)
+          persona.sampleScripts = [...(persona.sampleScripts || []), addSampleScript];
+        writeFileSync(file, JSON.stringify(persona, null, 2));
+        return {
+          content: [
+            { type: "text", text: `OK: persona updated.\n${JSON.stringify(persona.personality)}` },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const listAssetsSummaryTool = tool(
+    "list_assets_summary",
+    "List every project asset as ONE compact line each — `name · kind · duration · summary` — using its manifest. Call this FIRST to learn what footage/images/audio exist and what to call them in chat. The `name` is the handle to use when referring to an asset; pull full detail with read_manifest only for the asset you're editing.",
+    {},
+    async () => {
+      const assets = listAssets(ctx.userId, ctx.projectId);
+      if (!assets.length) {
+        return { content: [{ type: "text", text: "(no assets uploaded)" }] };
+      }
+      const lines: string[] = [];
+      for (const rel of assets) {
+        const m =
+          readManifest(ctx.userId, ctx.projectId, rel) ??
+          (await ensureManifest(ctx.userId, ctx.projectId, rel).catch(() => null));
+        lines.push(m ? summaryLine(m) : `${rel} · (no manifest)`);
+      }
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    },
+  );
+
+  const readManifestTool = tool(
+    "read_manifest",
+    "Return the FULL JSON manifest for one asset — facts (duration/resolution/fps) plus understanding (transcript, cut candidates, keep segments, caption, etc.) if analyzed. Pass the asset's name OR its path. Use this to reason over an asset's contents before proposing edits, instead of guessing about frames you can't see.",
+    {
+      asset: z.string().describe("The asset's name (handle) or project-relative path."),
+    },
+    async ({ asset }) => {
+      const m = resolveAssetManifest(ctx, asset);
+      if (!m) {
+        return {
+          content: [
+            { type: "text", text: `No asset matches "${asset}". Call list_assets_summary.` },
+          ],
+          isError: true,
+        };
+      }
+      return { content: [{ type: "text", text: JSON.stringify(m, null, 2) }] };
+    },
+  );
+
+  const upsertManifestTool = tool(
+    "upsert_manifest",
+    "Update an asset's manifest metadata: rename it (change the chat handle), add aliases, or set a one-line summary. Use this to give an asset a clearer name the user referred to, or to record what an asset is. Does NOT touch the analyzed understanding (use the analysis tools for that).",
+    {
+      asset: z.string().describe("The asset's current name or project-relative path."),
+      name: z.string().optional().describe("New chat handle (kebab-case, e.g. 'beach-intro')."),
+      addAliases: z.array(z.string()).optional().describe("Extra handles the user might use."),
+      summary: z.string().optional().describe("One-line description of what this asset is."),
+    },
+    async ({ asset, name, addAliases, summary }) => {
+      const existing = resolveAssetManifest(ctx, asset);
+      if (!existing) {
+        return {
+          content: [{ type: "text", text: `No asset matches "${asset}".` }],
+          isError: true,
+        };
+      }
+      const m = await ensureManifest(ctx.userId, ctx.projectId, existing.path);
+      if (name) m.name = name;
+      if (addAliases?.length) m.aliases = [...new Set([...m.aliases, ...addAliases])];
+      if (summary) m.understanding = { ...m.understanding, summary };
+      writeManifest(ctx.userId, ctx.projectId, m);
+      return { content: [{ type: "text", text: `OK: ${summaryLine(m)}` }] };
+    },
+  );
+
+  const getProjectEditTool = tool(
+    "get_project_edit",
+    "Return the project's current edit-state (the last rendered EDL + how many undo steps are available). Call this to see the current cut before revising it — e.g. the user says 'make it tighter' or 'swap the first two clips'.",
+    {},
+    async () => {
+      const state = readProjectState(ctx.userId, ctx.projectId);
+      if (!state) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "No edit-state yet — nothing has been rendered with render_edl.",
+            },
+          ],
+        };
+      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: `${describeState(state)}\n\nCurrent EDL:\n${JSON.stringify(state.edl, null, 2)}`,
+          },
+        ],
+      };
+    },
+  );
+
+  const undoProjectEditTool = tool(
+    "undo_project_edit",
+    "Revert to the PREVIOUS edit-state (conversational undo). Returns the restored EDL — pass it straight to render_edl to re-render the earlier cut. Use when the user says 'undo that', 'go back', or rejects the last change.",
+    {},
+    async () => {
+      const state = undoEdit(ctx.userId, ctx.projectId);
+      if (!state) {
+        return {
+          content: [{ type: "text", text: "Nothing to undo — no earlier edit-state exists." }],
+          isError: true,
+        };
+      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Reverted. ${describeState(state)}\n\nRestored EDL (pass to render_edl):\n${JSON.stringify(state.edl, null, 2)}`,
+          },
+        ],
+      };
     },
   );
 
@@ -1181,16 +1417,28 @@ export function buildToolServer(ctx: ToolContext) {
           };
         }
         const palette = await extractPalette(file.content);
+        const tone =
+          palette.avgLightness > 0.6 ? "bright" : palette.avgLightness < 0.3 ? "dark" : "mid";
         const lines = [
           `Palette analysis of ${path}:`,
-          `Avg lightness: ${Math.round(palette.avgLightness * 100)}/100 (${
-            palette.avgLightness > 0.6 ? "bright" : palette.avgLightness < 0.3 ? "dark" : "mid"
-          })`,
+          `Avg lightness: ${Math.round(palette.avgLightness * 100)}/100 (${tone})`,
           "Top colors (sample → hex):",
           ...palette.colors.map(
             (c, i) => `  ${i + 1}. ${c.hex}  (rgb ${c.r},${c.g},${c.b}, ~${c.percent}%)`,
           ),
         ];
+        // Persist the palette as image understanding on the manifest (cached).
+        try {
+          await setUnderstanding(ctx.userId, ctx.projectId, path, {
+            summary: `image · ${tone} tone · palette ${palette.colors
+              .slice(0, 3)
+              .map((c) => c.hex)
+              .join(" ")}`,
+            dominantColors: palette.colors.map((c) => c.hex),
+          });
+        } catch {
+          // best-effort
+        }
         return { content: [{ type: "text", text: lines.join("\n") }] };
       } catch (error) {
         return {
@@ -1383,6 +1631,21 @@ export function buildToolServer(ctx: ToolContext) {
                 ])
                 .optional(),
               speed: z.number().min(0.25).max(4).optional(),
+              background: z
+                .object({
+                  replaceWith: z.string().describe("Relative asset path to the new background."),
+                  chromaKey: z
+                    .boolean()
+                    .optional()
+                    .describe("Greenscreen the source first. Default true."),
+                  color: z.string().optional().describe("Key color hex. Default '00FF00' (green)."),
+                  similarity: z.number().min(0.01).max(1).optional(),
+                  blend: z.number().min(0).max(1).optional(),
+                })
+                .optional()
+                .describe(
+                  "Replace this segment's background (greenscreen → composite over replaceWith). For 'put me on a beach' / persona-on-green over a scene.",
+                ),
             }),
           )
           .min(1),
@@ -2189,6 +2452,22 @@ export function buildToolServer(ctx: ToolContext) {
         const packPath = `edit/${stem}.pack.md`;
         writeProjectFile(ctx.userId, ctx.projectId, packPath, fullPack);
 
+        // Persist the understanding onto the asset's manifest (cached, reused by
+        // read_manifest / list_assets_summary across the whole edit session).
+        try {
+          const transcriptText = words.map((w) => w.word.trim()).join(" ");
+          await setUnderstanding(ctx.userId, ctx.projectId, path, {
+            summary: `${duration.toFixed(0)}s clip — ${transcriptText.split(" ").slice(0, 16).join(" ")}…`,
+            transcript: words,
+            transcriptText,
+            cuts: merged.map((c) => ({ start: c.start, end: c.end, label: c.label })),
+            keepSegments: keeps.map((k) => ({ start: k.start, end: k.end })),
+            pacing: pacing.recommendation,
+          });
+        } catch {
+          // best-effort — manifest write must not fail the pack
+        }
+
         // Keep the returned context bounded; the full transcript is on disk.
         const returned =
           fullPack.length > 24_000
@@ -2418,6 +2697,40 @@ export function buildToolServer(ctx: ToolContext) {
                   .max(4)
                   .optional()
                   .describe("Speed multiplier. Default 1.0."),
+                background: z
+                  .object({
+                    replaceWith: z
+                      .string()
+                      .describe("Relative asset path to the new background (image or video)."),
+                    chromaKey: z
+                      .boolean()
+                      .optional()
+                      .describe("Key out a solid color first (greenscreen). Default true."),
+                    color: z
+                      .string()
+                      .optional()
+                      .describe(
+                        "Key color hex, e.g. '00FF00' (green) or '0000FF' (blue). Default green.",
+                      ),
+                    similarity: z
+                      .number()
+                      .min(0.01)
+                      .max(1)
+                      .optional()
+                      .describe(
+                        "Chroma similarity 0.01–1.0. Raise if green remains; lower if edges erode. Default 0.30.",
+                      ),
+                    blend: z
+                      .number()
+                      .min(0)
+                      .max(1)
+                      .optional()
+                      .describe("Edge blend 0.0–1.0. Default 0.10."),
+                  })
+                  .optional()
+                  .describe(
+                    "Replace this segment's background: greenscreen the source and composite over replaceWith. Use for 'put me on a beach', 'change my background', or compositing a persona shot on green over any scene. One conversational, undoable edit.",
+                  ),
               }),
             )
             .min(1)
@@ -2468,8 +2781,14 @@ export function buildToolServer(ctx: ToolContext) {
             ),
         })
         .describe("Edit Decision List."),
+      intent: z
+        .string()
+        .optional()
+        .describe(
+          "Short note on what this edit does, e.g. 'remove filler', 'tighten + captions'. Recorded as a revision so the user can undo it conversationally.",
+        ),
     },
-    async ({ edl }) => {
+    async ({ edl, intent }) => {
       try {
         const dir = projectDir(ctx.userId, ctx.projectId);
         const result = await renderEdl({
@@ -2479,14 +2798,29 @@ export function buildToolServer(ctx: ToolContext) {
         if (!result.ok) {
           return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
         }
+        // Persist the rendered EDL as the project's edit-state (enables undo).
+        let undoNote = "";
+        try {
+          const state = applyEdit(
+            ctx.userId,
+            ctx.projectId,
+            edl as EditDecisionList,
+            intent || "edit",
+            { mode: "edit" },
+          );
+          undoNote = ` · ${state.revisions.length} undo step(s) available`;
+        } catch {
+          // best-effort — persistence must not fail the render
+        }
         const segCount = edl.segments.length;
         const overlayCount = edl.overlays?.length ?? 0;
         const captionCount = edl.captions?.length ?? 0;
+        const bgCount = edl.segments.filter((s) => s.background?.replaceWith).length;
         return {
           content: [
             {
               type: "text",
-              text: `OK: rendered EDL → ${edl.outputPath} (${segCount} segment${segCount !== 1 ? "s" : ""}${overlayCount ? `, ${overlayCount} overlay${overlayCount !== 1 ? "s" : ""}` : ""}${captionCount ? `, ${captionCount} captions` : ""})`,
+              text: `OK: rendered EDL → ${edl.outputPath} (${segCount} segment${segCount !== 1 ? "s" : ""}${bgCount ? `, ${bgCount} background-replaced` : ""}${overlayCount ? `, ${overlayCount} overlay${overlayCount !== 1 ? "s" : ""}` : ""}${captionCount ? `, ${captionCount} captions` : ""})${undoNote}`,
             },
           ],
         };
@@ -4514,6 +4848,12 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       getPersonaTool,
       usePersonaTool,
       addPersonaPoseTool,
+      updatePersonaTool,
+      listAssetsSummaryTool,
+      readManifestTool,
+      upsertManifestTool,
+      getProjectEditTool,
+      undoProjectEditTool,
     ],
   });
 }
@@ -4583,6 +4923,12 @@ export const ALLOWED_TOOL_NAMES = [
   "get_persona",
   "use_persona",
   "add_persona_pose",
+  "update_persona",
+  "list_assets_summary",
+  "read_manifest",
+  "upsert_manifest",
+  "get_project_edit",
+  "undo_project_edit",
 ].map((n) => `mcp__${MCP_SERVER_NAME}__${n}`);
 
 type MediaResult = { url: string; source: string; license?: string; title?: string };

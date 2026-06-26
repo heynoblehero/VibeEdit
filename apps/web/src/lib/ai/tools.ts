@@ -29,6 +29,7 @@ import {
 } from "./providers/replicate";
 import { captionImage } from "./providers/vision";
 import { nanoid } from "nanoid";
+import { assertPublicHttpUrl } from "../net/ssrf-guard";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve, sep, join } from "node:path";
 import {
@@ -602,6 +603,7 @@ export function buildToolServer(ctx: ToolContext) {
           }
           buffer = readFileSync(absPath);
         } else {
+          await assertPublicHttpUrl(url); // SSRF guard before fetching agent-chosen URL
           const response = await fetch(url, {
             headers: { "user-agent": "VibeEdit/1.0 asset-downloader" },
             signal: AbortSignal.timeout(30_000),
@@ -712,6 +714,7 @@ export function buildToolServer(ctx: ToolContext) {
               .replace(/[^A-Za-z0-9._-]+/g, "_")
               .replace(/\.[^.]*$/, "");
             const dest = `assets/${base}.${extFromUrl(direct.url, kind)}`;
+            await assertPublicHttpUrl(direct.url); // SSRF guard on search-result URL
             const resp = await fetch(direct.url, {
               headers: { "user-agent": "VibeEdit/1.0 media-fetch" },
               signal: AbortSignal.timeout(30_000),
@@ -4253,6 +4256,7 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
         };
       }
       try {
+        await assertPublicHttpUrl(url); // SSRF guard: block internal/metadata hosts
         const res = await fetch(url, {
           headers: { "User-Agent": "VibeEdit/1.0 data-fetcher", Accept: "application/json" },
           signal: AbortSignal.timeout(15_000),

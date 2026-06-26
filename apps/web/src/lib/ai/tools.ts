@@ -27,6 +27,7 @@ import {
   replicateRemoveBackground,
   replicateImageFromReference,
 } from "./providers/replicate";
+import { captionImage } from "./providers/vision";
 import { nanoid } from "nanoid";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve, sep, join } from "node:path";
@@ -78,24 +79,90 @@ export type ToolContext = {
   aspectRatio?: string;
 };
 
-// Resolve a user/AI reference ("beach-intro", "the intro", "assets/beach-intro.mp4")
-// to an asset's manifest: exact path → exact name → alias → case-insensitive name.
-// This is the no-timeline selection mechanism — getting it right is the difference
-// between magic and frustration. Ambiguity is left for the tool to surface.
-function resolveAssetManifest(ctx: ToolContext, ref: string): AssetManifest | null {
+// Tokenize a reference/name into lowercase word tokens for fuzzy overlap.
+function refTokens(s: string): string[] {
+  return s
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length > 1);
+}
+
+// Score how well `ref` plausibly matches a manifest. Returns a number where
+// higher = better; 0 means "no plausible match" (excluded from candidates).
+// Tiers: exact path/name/alias (>=100) → case-insensitive name (90) →
+// substring of name/alias (50+) → token overlap against name/aliases/caption/
+// summary (1+ per matched token). This is what lets "beach" find "beach-intro"
+// AND "beach-sunset" so the tool can surface the ambiguity instead of guessing.
+function scoreAssetMatch(m: AssetManifest, ref: string): number {
   const wanted = ref.trim();
+  const lower = wanted.toLowerCase();
+  if (m.path === wanted || m.name === wanted) return 120;
+  if (m.aliases.includes(wanted)) return 110;
+  if (m.name.toLowerCase() === lower) return 100;
+  if (m.aliases.some((a) => a.toLowerCase() === lower)) return 95;
+
+  let score = 0;
+  const nameLower = m.name.toLowerCase();
+  if (nameLower.includes(lower) || lower.includes(nameLower)) score += 50;
+  if (m.aliases.some((a) => a.toLowerCase().includes(lower))) score += 40;
+
+  // Token overlap against name + aliases + understanding text.
+  const refToks = new Set(refTokens(wanted));
+  if (refToks.size) {
+    const haystack = [
+      m.name,
+      ...m.aliases,
+      m.understanding?.summary ?? "",
+      m.understanding?.caption ?? "",
+      ...(m.understanding?.tags ?? []),
+    ].join(" ");
+    const hayToks = new Set(refTokens(haystack));
+    for (const t of refToks) if (hayToks.has(t)) score += 8;
+  }
+  return score;
+}
+
+// Return ALL plausible matches for a reference, best-first. Exact path/name/alias
+// hits short-circuit to a single result; otherwise fuzzy scoring surfaces every
+// candidate so callers can disambiguate. This is the no-timeline selection
+// mechanism — getting it right is the difference between magic and frustration.
+function findAssetCandidates(ctx: ToolContext, ref: string): AssetManifest[] {
+  const wanted = ref.trim();
+  // Fast path: a literal path/manifest hit is unambiguous.
   const direct = readManifest(ctx.userId, ctx.projectId, wanted);
-  if (direct) return direct;
+  if (direct) return [direct];
+
   const manifests = listAssets(ctx.userId, ctx.projectId)
     .map((rel) => readManifest(ctx.userId, ctx.projectId, rel))
     .filter((m): m is AssetManifest => m !== null);
-  const lower = wanted.toLowerCase();
-  return (
-    manifests.find((m) => m.path === wanted || m.name === wanted) ??
-    manifests.find((m) => m.aliases.includes(wanted)) ??
-    manifests.find((m) => m.name.toLowerCase() === lower) ??
-    null
-  );
+
+  const scored = manifests
+    .map((m) => ({ m, score: scoreAssetMatch(m, wanted) }))
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  // An exact hit (path/name/alias, score >= 95) wins outright — never treat it
+  // as ambiguous against weaker fuzzy matches.
+  const top = scored[0];
+  if (top && top.score >= 95) return [top.m];
+  return scored.map((s) => s.m);
+}
+
+// Resolve a user/AI reference to the single best-matching manifest (or null).
+// Kept for callers that don't disambiguate; prefer findAssetCandidates when you
+// want to surface ambiguity to the user.
+function resolveAssetManifest(ctx: ToolContext, ref: string): AssetManifest | null {
+  return findAssetCandidates(ctx, ref)[0] ?? null;
+}
+
+// Build the user-facing message when a reference matches multiple assets. The
+// whole product is accuracy — never silently act on the wrong clip; list the
+// candidates and ask which one.
+function ambiguousMatchText(ref: string, candidates: AssetManifest[]): string {
+  const lines = candidates.map((m) => `  - ${summaryLine(m)}`);
+  return `"${ref}" matches ${candidates.length} assets — ask the user which one (do NOT guess):\n${lines.join(
+    "\n",
+  )}`;
 }
 
 // Tool names are surfaced to the agent as `mcp__hyperframes__<name>`.
@@ -1032,8 +1099,8 @@ export function buildToolServer(ctx: ToolContext) {
       asset: z.string().describe("The asset's name (handle) or project-relative path."),
     },
     async ({ asset }) => {
-      const m = resolveAssetManifest(ctx, asset);
-      if (!m) {
+      const candidates = findAssetCandidates(ctx, asset);
+      if (candidates.length === 0) {
         return {
           content: [
             { type: "text", text: `No asset matches "${asset}". Call list_assets_summary.` },
@@ -1041,7 +1108,10 @@ export function buildToolServer(ctx: ToolContext) {
           isError: true,
         };
       }
-      return { content: [{ type: "text", text: JSON.stringify(m, null, 2) }] };
+      if (candidates.length > 1) {
+        return { content: [{ type: "text", text: ambiguousMatchText(asset, candidates) }] };
+      }
+      return { content: [{ type: "text", text: JSON.stringify(candidates[0], null, 2) }] };
     },
   );
 
@@ -1055,13 +1125,19 @@ export function buildToolServer(ctx: ToolContext) {
       summary: z.string().optional().describe("One-line description of what this asset is."),
     },
     async ({ asset, name, addAliases, summary }) => {
-      const existing = resolveAssetManifest(ctx, asset);
-      if (!existing) {
+      const candidates = findAssetCandidates(ctx, asset);
+      if (candidates.length === 0) {
         return {
-          content: [{ type: "text", text: `No asset matches "${asset}".` }],
+          content: [
+            { type: "text", text: `No asset matches "${asset}". Call list_assets_summary.` },
+          ],
           isError: true,
         };
       }
+      if (candidates.length > 1) {
+        return { content: [{ type: "text", text: ambiguousMatchText(asset, candidates) }] };
+      }
+      const existing = candidates[0];
       const m = await ensureManifest(ctx.userId, ctx.projectId, existing.path);
       if (name) m.name = name;
       if (addAliases?.length) m.aliases = [...new Set([...m.aliases, ...addAliases])];
@@ -1440,6 +1516,67 @@ export function buildToolServer(ctx: ToolContext) {
           // best-effort
         }
         return { content: [{ type: "text", text: lines.join("\n") }] };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const captionAssetTool = tool(
+    "caption_asset",
+    "Generate an AI caption + tags describing what's IN an image asset, saved to its manifest so the AI knows the contents for b-roll selection and references.",
+    {
+      asset: z.string().describe("The image asset's name (handle) or project-relative path."),
+    },
+    async ({ asset }) => {
+      const m = resolveAssetManifest(ctx, asset);
+      if (!m) {
+        return {
+          content: [
+            { type: "text", text: `No asset matches "${asset}". Call list_assets_summary.` },
+          ],
+          isError: true,
+        };
+      }
+      if (m.kind !== "image") {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `ERROR: ${m.name} is a ${m.kind}, not an image. caption_asset only works on images.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      const apiKey = ctx.apiKeys?.openai;
+      if (!apiKey) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "ERROR: No OpenAI key configured. Ask the user to paste their OpenAI API key at /app/settings/api-keys, then try again.",
+            },
+          ],
+          isError: true,
+        };
+      }
+      try {
+        const file = readProjectFile(ctx.userId, ctx.projectId, m.path);
+        const imageDataUri = `data:${file.mime};base64,${file.content.toString("base64")}`;
+        const { caption, tags } = await captionImage({ apiKey, imageDataUri });
+        await setUnderstanding(ctx.userId, ctx.projectId, m.path, { caption, tags });
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Captioned ${m.name}:\n${caption}\nTags: ${tags.join(", ")}`,
+            },
+          ],
+        };
       } catch (error) {
         return {
           content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
@@ -4796,6 +4933,7 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       listRegistryTool,
       readRegistryTool,
       analyzeImageTool,
+      captionAssetTool,
       generateCaptionsTool,
       generateImageTool,
       generateImageVariantsTool,
@@ -4872,6 +5010,7 @@ export const ALLOWED_TOOL_NAMES = [
   "list_registry_blocks",
   "read_registry_block",
   "analyze_image",
+  "caption_asset",
   "generate_captions",
   "generate_image",
   "generate_image_variants",

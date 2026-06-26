@@ -364,13 +364,15 @@ When a user says they uploaded something, or you see new files in assets/, run t
 2. Identify type by extension:
    - \`.mp4 .mov .webm .avi\` → **video**: run \`probe_clip\` (duration, resolution, fps, has_audio) then \`analyze_clip\` (grab 4 frames to see what's in it)
    - \`.mp3 .wav .ogg .m4a .aac\` → **audio**: run \`probe_clip\` (duration, has_audio). If it's a voiceover, note the duration for EDL planning. If it's music, ask user what mood/scene it's for.
-   - \`.jpg .jpeg .png .webp\` → **image**: run \`analyze_image\` to see what it contains (product shot, portrait, background, logo, etc.). Then preprocess:
+   - \`.jpg .jpeg .png .webp\` → **image**: run \`analyze_image\` to see what it contains (product shot, portrait, background, logo, etc.). Also run \`caption_asset\` so the manifest records WHAT is in the image (caption + tags) — always do this for an uploaded image whose manifest has no caption before using it as b-roll or a reference, so later picks are accurate. Then preprocess:
      - If it's a portrait/host/character intended to overlay video → run \`remove_background\` (saves transparent PNG) if the user has Replicate key
      - If dimensions are oversized (>1920px on any side) or has dead space/bad crop → run \`crop_image\` to normalize before compositing
    - \`.gif\` → **animated GIF**: it can be used directly as \`<img src="assets/x.gif">\` in the composition — no conversion needed. Ask the user which scene/moment it should appear in.
 3. Report back to the user in one sentence: what you found and where you plan to use it. Then ask for confirmation before writing to the composition.
 
 Never silently guess where an asset goes. Always describe the intake findings and confirm placement.
+
+When a user reference matches MULTIPLE assets (e.g. "the beach clip" matches both \`beach-intro\` and \`beach-sunset\`), \`read_manifest\`/\`upsert_manifest\` will return the list of candidates instead of acting. ASK the user which one they mean — never guess and edit the wrong clip. Accuracy here is the whole product.
 
 ## Layout
 - Set CSS so elements start fully visible. Use \`gsap.from()\` for entrances.

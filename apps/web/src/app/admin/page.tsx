@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { Wordmark } from "@/components/Wordmark";
+import SupportInbox from "@/components/admin/SupportInbox";
+import ObservabilityTiles from "@/components/admin/ObservabilityTiles";
 
 type Overview = {
   users: { total: number; last24h: number; last7d: number };
@@ -21,7 +23,7 @@ type Overview = {
   topUsers: Array<{ userId: string; email: string; turns: number }>;
 };
 
-type Tab = "overview" | "users" | "billing" | "renders" | "moderation";
+type Tab = "overview" | "users" | "billing" | "renders" | "moderation" | "support" | "monitoring";
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: "overview", label: "Overview" },
@@ -29,6 +31,8 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: "billing", label: "Billing" },
   { id: "renders", label: "Render ops" },
   { id: "moderation", label: "Moderation" },
+  { id: "support", label: "Support" },
+  { id: "monitoring", label: "Monitoring" },
 ];
 
 export default function AdminPage() {
@@ -112,6 +116,8 @@ export default function AdminPage() {
       {tab === "billing" && <BillingTab />}
       {tab === "renders" && <RendersTab />}
       {tab === "moderation" && <ModerationTab />}
+      {tab === "support" && <SupportInbox />}
+      {tab === "monitoring" && <ObservabilityTiles />}
     </main>
   );
 }

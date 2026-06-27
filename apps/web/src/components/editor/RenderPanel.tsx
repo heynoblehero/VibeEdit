@@ -17,6 +17,10 @@ type Job = {
   error: string | null;
   createdAt: string;
   startedAt?: string | null;
+  // Set by the queue when a transient attempt failed and a backoff retry is
+  // scheduled. Lets the UI explain "retrying…" instead of an opaque re-queue.
+  attempts?: number | null;
+  retryReason?: string | null;
 };
 
 type Preset = {
@@ -356,12 +360,24 @@ export function RenderPanel({ projectId }: { projectId: string }) {
         </div>
       )}
       {latest && latest.status === "failed" && (
-        <span
-          className="max-w-[14ch] truncate text-xs text-[var(--color-danger)]"
-          title={latest.error || ""}
-        >
-          ✕ {latest.error}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            className="flex max-w-[16ch] items-center gap-1 truncate text-xs text-[var(--color-danger)] hover:underline"
+            title={latest.error || "Render failed"}
+          >
+            <span aria-hidden="true">✕</span>
+            <span className="truncate">{latest.error || "Render failed"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => startRender(presetIndex)}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-[11px] font-semibold text-[var(--color-fg)] hover:bg-[var(--color-bg-2)]"
+          >
+            Retry
+          </button>
+        </div>
       )}
       {/* Live job status. Sits BEFORE the render button so the progress bar
 			    grows out of the action area. */}
@@ -408,12 +424,24 @@ export function RenderPanel({ projectId }: { projectId: string }) {
         </div>
       )}
       {latest && latest.status === "failed" && (
-        <span
-          className="max-w-[14ch] truncate text-xs text-[var(--color-danger)]"
-          title={latest.error || ""}
-        >
-          ✕ {latest.error}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            className="flex max-w-[16ch] items-center gap-1 truncate text-xs text-[var(--color-danger)] hover:underline"
+            title={latest.error || "Render failed"}
+          >
+            <span aria-hidden="true">✕</span>
+            <span className="truncate">{latest.error || "Render failed"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => startRender(presetIndex)}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-[11px] font-semibold text-[var(--color-fg)] hover:bg-[var(--color-bg-2)]"
+          >
+            Retry
+          </button>
+        </div>
       )}
 
       {/* Render button — split into "Render" + caret to show presets. */}
@@ -579,7 +607,9 @@ function RenderModal({
                 ? "Finalizing MP4…"
                 : "Finishing up…";
   } else if (job?.status === "queued") {
-    phaseText = "Queued — waiting for a render slot…";
+    phaseText = job.retryReason
+      ? "A transient error occurred — retrying automatically…"
+      : "Queued — waiting for a render slot…";
   } else if (job?.status === "running") {
     phaseText = "Rendering on the server…";
   } else if (submitting) {

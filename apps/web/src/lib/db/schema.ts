@@ -102,6 +102,14 @@ export const renderJobs = sqliteTable(
     progress: real("progress").notNull().default(0),
     outputPath: text("outputPath"),
     error: text("error"),
+    // Number of times this job has been attempted (1 = first try). Transient
+    // failures (network/provider/timeout) are retried with exponential backoff
+    // up to a cap; permanent failures stop immediately. See lib/render/queue.ts.
+    attempts: integer("attempts").notNull().default(0),
+    // Human-readable reason for the most recent failure. On the terminal
+    // "failed" state this is the message surfaced to the user. Survives retries
+    // so a later success still leaves a trail in render history.
+    lastError: text("lastError"),
     fps: integer("fps").notNull().default(30),
     quality: text("quality").notNull().default("standard"),
     // Higher = processed sooner. 0=free, 1=creator, 2=studio.

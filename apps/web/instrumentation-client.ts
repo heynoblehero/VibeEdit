@@ -14,5 +14,8 @@ if (dsn) {
   });
 }
 
-// Required by Sentry for client-side navigation instrumentation.
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+// Note: `onRouterTransitionStart` (Sentry's explicit nav hook) is a v9 / Next
+// 15.3+ API and is NOT exported by the @sentry/nextjs v8 we run — exporting it
+// caused an "Attempted import error" at build. v8 already instruments client
+// navigation via its default browser-tracing integration, so no export is
+// needed. Re-add this when upgrading to @sentry/nextjs v9.

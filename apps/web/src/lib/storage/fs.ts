@@ -7,10 +7,35 @@ import {
   writeFileSync,
   statSync,
   unlinkSync,
+  rmSync,
 } from "node:fs";
 import { resolve, join, dirname, relative, sep } from "node:path";
 
-const STORAGE_ROOT = process.env.STORAGE_ROOT || resolve(process.cwd(), "storage");
+export const STORAGE_ROOT = process.env.STORAGE_ROOT || resolve(process.cwd(), "storage");
+
+// Per-user brand-kit asset store (logo / watermark / voice sample uploads).
+export function brandKitDir(userId: string): string {
+  return resolve(STORAGE_ROOT, "brand-kits", userId);
+}
+
+// Hard-delete every on-disk artifact owned by a user: their whole project tree,
+// personas, brand-kit uploads, thumbnails, and each render's output directory.
+// Used by the admin account-removal flow. renderJobIds are passed in because
+// render outputs are keyed by job id (renders/<jobId>), not by userId.
+export function deleteUserStorage(userId: string, renderJobIds: string[]): void {
+  const rm = (p: string) => {
+    try {
+      rmSync(p, { recursive: true, force: true });
+    } catch {
+      // Best-effort: a missing or already-removed path must not abort the rest.
+    }
+  };
+  rm(resolve(STORAGE_ROOT, "projects", userId));
+  rm(personaDir(userId));
+  rm(brandKitDir(userId));
+  rm(resolve(STORAGE_ROOT, "thumbs", userId));
+  for (const jobId of renderJobIds) rm(renderOutputPath(jobId));
+}
 
 export function projectDir(userId: string, projectId: string): string {
   return resolve(STORAGE_ROOT, "projects", userId, projectId);

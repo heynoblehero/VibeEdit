@@ -287,13 +287,24 @@ function UsersTab() {
 }
 
 type UserDetailData = {
-  user: { id: string; email: string; name: string; emailVerified: boolean; createdAt: string };
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    emailVerified: boolean;
+    createdAt: string;
+    isAdmin: boolean;
+    banned: boolean;
+    bannedReason: string | null;
+    bannedAt: string | null;
+  };
   subscription: {
     plan: string;
     status: string;
     currentPeriodEnd: string | null;
     cancelAtPeriodEnd: boolean;
     renderCredits: number;
+    polarCustomerId: string | null;
   } | null;
   plan: { id: string; name: string; renderLimit: number; chatTurnLimit: number };
   usage: {
@@ -314,12 +325,16 @@ type UserDetailData = {
 function UserDetail({ userId, onBack }: { userId: string; onBack: () => void }) {
   const [data, setData] = useState<UserDetailData | null>(null);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     fetch(`/api/admin/users/${userId}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((v) => v && setData(v as UserDetailData))
       .catch(() => {});
   }, [userId]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
   if (!data) return <p className="text-sm text-[var(--color-fg-muted)]">Loading…</p>;
 
@@ -344,6 +359,24 @@ function UserDetail({ userId, onBack }: { userId: string; onBack: () => void }) 
         <ImpersonateButton userId={data.user.id} email={data.user.email} />
       </div>
 
+      {data.user.banned && (
+        <div className="rounded-2xl border border-[var(--color-danger)] bg-[var(--color-danger)]/10 p-3 text-sm">
+          <span className="font-semibold text-[var(--color-danger)]">Account banned</span>
+          {data.user.bannedReason ? ` — ${data.user.bannedReason}` : ""}
+          {data.user.bannedAt && (
+            <span className="ml-1 text-xs text-[var(--color-fg-muted)]">
+              (since {new Date(data.user.bannedAt).toLocaleString()})
+            </span>
+          )}
+        </div>
+      )}
+
+      {data.user.isAdmin && (
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs text-[var(--color-fg-muted)]">
+          This is an admin account. Ban, delete, and refund actions are disabled for admins.
+        </div>
+      )}
+
       <section className="grid gap-3 sm:grid-cols-3">
         <UsageBar
           label="Renders · mo"
@@ -363,6 +396,17 @@ function UserDetail({ userId, onBack }: { userId: string; onBack: () => void }) 
       </section>
 
       <GrantPlan userId={data.user.id} current={data.subscription?.plan ?? "free"} />
+
+      {!data.user.isAdmin && (
+        <DangerZone
+          userId={data.user.id}
+          email={data.user.email}
+          banned={data.user.banned}
+          hasPolarCustomer={!!data.subscription?.polarCustomerId}
+          onChanged={reload}
+          onDeleted={onBack}
+        />
+      )}
 
       <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
         <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--color-fg-muted)]">
@@ -460,6 +504,165 @@ function GrantPlan({ userId, current }: { userId: string; current: string }) {
       <p className="mt-2 text-[10px] text-[var(--color-fg-muted)]">
         Sets subscription status to active. Audited in the error log.
       </p>
+    </section>
+  );
+}
+
+function DangerZone({
+  userId,
+  email,
+  banned,
+  hasPolarCustomer,
+  onChanged,
+  onDeleted,
+}: {
+  userId: string;
+  email: string;
+  banned: boolean;
+  hasPolarCustomer: boolean;
+  onChanged: () => void;
+  onDeleted: () => void;
+}) {
+  const [banReason, setBanReason] = useState("");
+  const [banBusy, setBanBusy] = useState(false);
+  const [refundBusy, setRefundBusy] = useState(false);
+  const [refundMsg, setRefundMsg] = useState<string | null>(null);
+  const [delConfirm, setDelConfirm] = useState("");
+  const [delBusy, setDelBusy] = useState(false);
+  const [delMsg, setDelMsg] = useState<string | null>(null);
+
+  async function toggleBan() {
+    setBanBusy(true);
+    const r = await fetch(`/api/admin/users/${userId}/ban`, {
+      method: banned ? "DELETE" : "POST",
+      headers: { "content-type": "application/json" },
+      body: banned ? undefined : JSON.stringify({ reason: banReason }),
+    }).catch(() => null);
+    setBanBusy(false);
+    if (r?.ok) {
+      setBanReason("");
+      onChanged();
+    } else {
+      alert(`Ban action failed: ${(await r?.text().catch(() => "")) || "error"}`);
+    }
+  }
+
+  async function refund() {
+    setRefundBusy(true);
+    setRefundMsg(null);
+    const r = await fetch(`/api/admin/users/${userId}/refund`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ reason: "customer_request" }),
+    }).catch(() => null);
+    setRefundBusy(false);
+    const json = await r?.json().catch(() => null);
+    if (r?.ok && json?.ok) {
+      setRefundMsg(`Refunded ${((json.amount ?? 0) / 100).toFixed(2)} (order ${json.orderId}).`);
+    } else {
+      setRefundMsg(`Not refunded: ${json?.reason ?? "error"}.`);
+    }
+  }
+
+  async function remove() {
+    if (delConfirm.trim().toLowerCase() !== email.toLowerCase()) {
+      setDelMsg("Type the exact email to confirm.");
+      return;
+    }
+    setDelBusy(true);
+    setDelMsg(null);
+    const r = await fetch(`/api/admin/users/${userId}`, {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ confirmEmail: delConfirm.trim() }),
+    }).catch(() => null);
+    setDelBusy(false);
+    if (r?.ok) {
+      onDeleted();
+    } else {
+      setDelMsg(`Delete failed: ${(await r?.text().catch(() => "")) || "error"}`);
+    }
+  }
+
+  return (
+    <section className="rounded-2xl border border-[var(--color-danger)] bg-[var(--color-surface)] p-4">
+      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--color-danger)]">
+        Danger zone
+      </h3>
+
+      {/* Ban / unban */}
+      <div className="mb-4 border-b border-[var(--color-border)] pb-4">
+        <p className="mb-2 text-sm font-medium">{banned ? "Lift suspension" : "Ban account"}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          {!banned && (
+            <input
+              type="text"
+              value={banReason}
+              onChange={(e) => setBanReason(e.target.value)}
+              placeholder="Reason (optional)"
+              className="min-w-[12rem] flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] px-3 py-2 text-sm"
+            />
+          )}
+          <button
+            type="button"
+            onClick={toggleBan}
+            disabled={banBusy}
+            className="rounded-xl border border-[var(--color-danger)] px-4 py-2 text-sm font-semibold text-[var(--color-danger)] disabled:opacity-50"
+          >
+            {banBusy ? "Working…" : banned ? "Unban" : "Ban"}
+          </button>
+        </div>
+        <p className="mt-2 text-[10px] text-[var(--color-fg-muted)]">
+          Enforced at the session level — a banned user is signed out of every request immediately.
+        </p>
+      </div>
+
+      {/* Refund */}
+      <div className="mb-4 border-b border-[var(--color-border)] pb-4">
+        <p className="mb-2 text-sm font-medium">Refund latest payment</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={refund}
+            disabled={refundBusy || !hasPolarCustomer}
+            className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-sm font-semibold disabled:opacity-50"
+          >
+            {refundBusy ? "Refunding…" : "Refund latest order"}
+          </button>
+          {!hasPolarCustomer && (
+            <span className="text-xs text-[var(--color-fg-muted)]">No Polar customer on file.</span>
+          )}
+          {refundMsg && <span className="text-xs text-[var(--color-fg-muted)]">{refundMsg}</span>}
+        </div>
+      </div>
+
+      {/* Hard delete */}
+      <div>
+        <p className="mb-2 text-sm font-medium text-[var(--color-danger)]">Remove account</p>
+        <p className="mb-2 text-xs text-[var(--color-fg-muted)]">
+          Permanently deletes the user, all projects/renders/subscriptions, on-disk storage, and
+          cancels any Polar subscription. Type <span className="font-mono">{email}</span> to
+          confirm.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            value={delConfirm}
+            onChange={(e) => setDelConfirm(e.target.value)}
+            placeholder={email}
+            className="min-w-[14rem] flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] px-3 py-2 text-sm"
+          />
+          <button
+            type="button"
+            onClick={remove}
+            disabled={delBusy || delConfirm.trim().toLowerCase() !== email.toLowerCase()}
+            className="rounded-xl bg-[var(--color-danger)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {delBusy ? "Deleting…" : "Delete permanently"}
+          </button>
+        </div>
+        {delMsg && <p className="mt-2 text-xs text-[var(--color-danger)]">{delMsg}</p>}
+      </div>
     </section>
   );
 }

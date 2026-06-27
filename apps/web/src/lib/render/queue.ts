@@ -19,9 +19,51 @@ import { sendEmail } from "../email/send";
 import { renderDoneEmail, renderFailedEmail } from "../email/templates";
 import { recordUsage, getUserPlan } from "../billing/usage";
 import { logError } from "../observability/logger";
+import { captureException } from "../observability/sentry";
 
 const MAX_CONCURRENT = Number(process.env.MAX_CONCURRENT_RENDERS || 2);
 const RENDER_MODE = (process.env.RENDER_MODE || "local") as "local" | "docker";
+
+// ── Retry policy ──────────────────────────────────────────────────────────
+// A render attempt that fails for a TRANSIENT reason (network blip, provider
+// 5xx/429, timeout) is retried with exponential backoff. Permanent failures
+// (bad composition, missing input, billing/validation) fail immediately — no
+// amount of retrying fixes them, and retrying wastes compute + delays the
+// user's clear error message.
+const MAX_ATTEMPTS = Number(process.env.RENDER_MAX_ATTEMPTS || 3);
+// attempt 1 fails → wait BASE, attempt 2 fails → wait BASE*factor, …
+const RETRY_BASE_DELAY_MS = Number(process.env.RENDER_RETRY_BASE_MS || 5000);
+const RETRY_FACTOR = 3; // 5s → 15s → 45s …
+const RETRY_MAX_DELAY_MS = Number(process.env.RENDER_RETRY_MAX_MS || 60_000);
+
+function backoffDelayMs(attempt: number): number {
+  // attempt is the number of attempts already made (≥1).
+  const raw = RETRY_BASE_DELAY_MS * RETRY_FACTOR ** (attempt - 1);
+  // Full jitter to avoid thundering-herd when many jobs fail at once.
+  const capped = Math.min(RETRY_MAX_DELAY_MS, raw);
+  return Math.round(capped / 2 + Math.random() * (capped / 2));
+}
+
+// Classify a failure as transient (worth retrying) or permanent. We default to
+// PERMANENT: a render error we don't recognize is more likely a real problem
+// with the composition than a flaky dependency, and retrying an unknown error
+// just delays the user's feedback. Known-transient signatures opt in below.
+const TRANSIENT_PATTERNS: RegExp[] = [
+  /timed out|timeout|etimedout/i,
+  /econnreset|econnrefused|enotfound|eai_again|ehostunreach|enetunreach|socket hang up/i,
+  /network|fetch failed|temporarily unavailable|service unavailable/i,
+  /\b(429|500|502|503|504)\b/, // provider/proxy transient HTTP statuses
+  /rate limit|overloaded|too many requests/i,
+  /\bsigkill\b|\bsigterm\b|killed/i, // OOM-killed / forcibly terminated worker
+];
+
+function isTransientFailure(error: unknown): boolean {
+  const message =
+    error instanceof Error
+      ? `${error.message} ${(error as { code?: string }).code ?? ""}`
+      : String(error);
+  return TRANSIENT_PATTERNS.some((re) => re.test(message));
+}
 
 // Bun does not auto-create node_modules/.bin symlinks for workspace packages,
 // so "hyperframes" is never on PATH in the container. Use the full path to the
@@ -37,6 +79,10 @@ type Job = {
   fps: number;
   quality: "draft" | "standard" | "high";
   priority: number;
+  // Number of attempts already made for this job. Starts at 0; incremented at
+  // the top of each runJob() pass. A transient failure re-enqueues the same
+  // Job object (after a backoff delay) with the bumped count.
+  attempts: number;
 };
 
 const pending: Job[] = [];
@@ -70,6 +116,7 @@ export async function enqueue(opts: {
     fps: opts.fps || 30,
     quality: (opts.quality as Job["quality"]) || "standard",
     priority,
+    attempts: 0,
   };
   const now = new Date();
   db.insert(renderJobs)
@@ -110,11 +157,12 @@ async function runJob(job: Job) {
   mkdirSync(outDir, { recursive: true });
   const outputPath = join(outDir, "output.mp4");
   const startedAt = new Date();
+  job.attempts += 1;
   db.update(renderJobs)
-    .set({ status: "running", startedAt, progress: 0.01 })
+    .set({ status: "running", startedAt, progress: 0.01, attempts: job.attempts })
     .where(eq(renderJobs.id, job.id))
     .run();
-  emitJob(job.id, { status: "running", progress: 0.01 });
+  emitJob(job.id, { status: "running", progress: 0.01, attempts: job.attempts });
 
   try {
     await spawnCli(job, outputPath);
@@ -165,21 +213,75 @@ async function runJob(job: Job) {
       console.error("[render] email notify failed", error),
     );
   } catch (error) {
-    const message = (error as Error).message || String(error);
-    logError("render.queue", error, { jobId: job.id, userId: job.userId });
+    handleJobFailure(job, error);
+  }
+}
+
+// Decide whether a failed attempt should be retried (transient + attempts left)
+// or marked terminally "failed" with a human-readable reason. Always reports to
+// Sentry with full job context so failures are visible regardless of outcome.
+function handleJobFailure(job: Job, error: unknown) {
+  const message = (error as Error).message || String(error);
+  const transient = isTransientFailure(error);
+  const canRetry = transient && job.attempts < MAX_ATTEMPTS;
+
+  logError("render.queue", error, {
+    jobId: job.id,
+    userId: job.userId,
+    attempts: job.attempts,
+    transient,
+    willRetry: canRetry,
+  });
+  captureException(error, {
+    scope: "render.queue",
+    jobId: job.id,
+    userId: job.userId,
+    projectId: job.projectId,
+    attempts: job.attempts,
+    maxAttempts: MAX_ATTEMPTS,
+    transient,
+    willRetry: canRetry,
+  });
+
+  if (canRetry) {
+    const delay = backoffDelayMs(job.attempts);
+    const reason = `${message} — retrying (attempt ${job.attempts + 1}/${MAX_ATTEMPTS}) in ${Math.round(delay / 1000)}s`;
+    // Keep the job in a non-terminal "running" state from the UI's point of
+    // view (the spinner stays, the panel never claims success or final
+    // failure) but stash the last error so it's inspectable.
     db.update(renderJobs)
-      .set({
-        status: "failed",
-        error: message,
-        finishedAt: new Date(),
-      })
+      .set({ status: "queued", progress: 0, lastError: reason, attempts: job.attempts })
       .where(eq(renderJobs.id, job.id))
       .run();
-    emitJob(job.id, { status: "failed", error: message });
-    notifyOutcome(job, "failed", message).catch((notifyError) =>
-      console.error("[render] email notify failed", notifyError),
-    );
+    emitJob(job.id, { status: "queued", progress: 0, attempts: job.attempts, retryReason: reason });
+    // Re-enqueue after the backoff. The job retains its priority slot.
+    setTimeout(() => {
+      pending.push(job);
+      pending.sort((a, b) => b.priority - a.priority || 0);
+      tick();
+    }, delay).unref();
+    return;
   }
+
+  // Terminal failure. Surface a clear reason: distinguish "gave up after N
+  // transient failures" from a permanent error the user must act on.
+  const finalReason = transient
+    ? `Render failed after ${job.attempts} attempts. Last error: ${message}`
+    : message;
+  db.update(renderJobs)
+    .set({
+      status: "failed",
+      error: finalReason,
+      lastError: finalReason,
+      attempts: job.attempts,
+      finishedAt: new Date(),
+    })
+    .where(eq(renderJobs.id, job.id))
+    .run();
+  emitJob(job.id, { status: "failed", error: finalReason, attempts: job.attempts });
+  notifyOutcome(job, "failed", finalReason).catch((notifyError) =>
+    console.error("[render] email notify failed", notifyError),
+  );
 }
 
 async function captureSnapshot(job: Job, durationSeconds: number): Promise<void> {

@@ -1,5 +1,14 @@
 export async function register() {
-  // Only run in the Node.js runtime (not edge). seedAdmin hits the SQLite DB.
+  // Initialize Sentry per-runtime. No-ops when SENTRY_DSN is unset (the config
+  // files guard on the DSN themselves). The server/edge configs live at the
+  // package root, one level up from src/.
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    await import("../sentry.server.config");
+  } else if (process.env.NEXT_RUNTIME === "edge") {
+    await import("../sentry.edge.config");
+  }
+
+  // Only run the rest in the Node.js runtime (not edge). seedAdmin hits SQLite.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const { seedAdmin } = await import("./lib/seed-admin");
   await seedAdmin().catch((error) => {
@@ -18,3 +27,7 @@ export async function register() {
       .catch(() => {});
   }
 }
+
+// Next 15 calls this for uncaught server errors (RSC, route handlers, etc.).
+// Forwards them to Sentry; no-ops when the DSN is unset.
+export { captureRequestError as onRequestError } from "@sentry/nextjs";

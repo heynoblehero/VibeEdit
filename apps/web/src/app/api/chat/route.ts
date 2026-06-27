@@ -8,6 +8,8 @@ import { runAgent, type AgentEvent } from "@/lib/ai/agent";
 import { enqueue } from "@/lib/render/queue";
 import { canChat, recordUsage } from "@/lib/billing/usage";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { captureException } from "@/lib/observability/sentry";
+import { captureEvent, FUNNEL } from "@/lib/observability/posthog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -98,6 +100,11 @@ export async function POST(req: Request) {
     .orderBy(asc(messages.createdAt))
     .all();
   const priorHistory = serializePriorHistory(prior);
+
+  // Funnel: the first chat turn in a project is a key activation signal.
+  if (prior.length === 0) {
+    captureEvent(FUNNEL.firstMessageSent, userId, { projectId });
+  }
 
   db.insert(messages)
     .values({
@@ -208,6 +215,7 @@ export async function POST(req: Request) {
         }
         db.update(projects).set({ updatedAt: new Date() }).where(eq(projects.id, projectId)).run();
       } catch (error) {
+        captureException(error, { source: "api.chat", userId, projectId });
         write({ type: "error", message: (error as Error).message });
       } finally {
         if (RUNNING.get(key) === abortController) RUNNING.delete(key);

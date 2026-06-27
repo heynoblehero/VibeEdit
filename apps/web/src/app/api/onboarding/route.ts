@@ -7,6 +7,7 @@ import { ensureProjectDir } from "@/lib/storage/fs";
 import { requireServerSession } from "@/lib/server-session";
 import { sendEmail } from "@/lib/email/send";
 import { welcomeEmail } from "@/lib/email/templates";
+import { captureEvent, FUNNEL } from "@/lib/observability/posthog";
 
 // Niche → starter prompt seeded into the first project.
 // All prompts reference an uploaded clip so new users immediately see the
@@ -151,6 +152,7 @@ export async function PATCH(req: Request) {
         })
         .run();
       ensureProjectDir(userId, id);
+      captureEvent(FUNNEL.projectCreated, userId, { projectId: id, source: "onboarding" });
       // Chat reads message content as a JSON-encoded string or array.
       // JSON.stringify("foo") → `"foo"` which parses back to "foo" — that
       // matches how the chat route stores user messages.
@@ -165,6 +167,13 @@ export async function PATCH(req: Request) {
         .run();
       firstProjectId = id;
     }
+  }
+
+  // Funnel: first completed onboarding is our "signup" activation event (the
+  // moment a new account finishes setup). Auth itself is handled by better-auth
+  // with no route we own, so this is the cleanest server-side signup signal.
+  if (!wasAlreadyOnboarded && body.onboardingCompleted === true) {
+    captureEvent(FUNNEL.signup, userId, { niche: niche || existing?.niche || null });
   }
 
   // Fire welcome email on first onboarding completion only — fire-and-forget

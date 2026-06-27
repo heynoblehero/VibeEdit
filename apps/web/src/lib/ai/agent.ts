@@ -6,6 +6,8 @@ import { assetSummaryLines } from "../storage/manifests";
 import { db } from "@/lib/db";
 import { creatorInsights, userPreferences, brandKits } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { captureException } from "@/lib/observability/sentry";
+import { captureEvent, FUNNEL } from "@/lib/observability/posthog";
 
 // First-draft compositions need the strongest planner; incremental edits
 // route to Sonnet to cut cost ~3-4× without losing edit quality.
@@ -157,6 +159,32 @@ export async function runAgent(opts: {
   const insights = loadUserInsights(opts.ctx.userId);
   const prefs = loadUserPrefs(opts.ctx.userId);
   const brandKit = loadBrandKit(opts.ctx.userId);
+
+  // Funnel: every agent run is a message the user sent to the AI.
+  captureEvent(FUNNEL.messageSent, opts.ctx.userId, {
+    projectId: opts.ctx.projectId,
+    model,
+  });
+
+  // Wrap the caller's onEvent so we can observe the stream for funnel signals
+  // (plan tools = the user reached the planning step) and surface tool errors
+  // to Sentry — without touching individual tool implementations.
+  let planEmitted = false;
+  const onEvent = (event: AgentEvent) => {
+    if (
+      !planEmitted &&
+      event.type === "tool_use" &&
+      (event.name === "plan_composition" || event.name === "plan_edit")
+    ) {
+      planEmitted = true;
+      captureEvent(FUNNEL.planApproved, opts.ctx.userId, {
+        projectId: opts.ctx.projectId,
+        tool: event.name,
+      });
+    }
+    opts.onEvent(event);
+  };
+
   try {
     const byokKey = opts.ctx.apiKeys?.anthropic;
     const agentEnv: Record<string, string | undefined> = { ...process.env };
@@ -183,16 +211,23 @@ export async function runAgent(opts: {
         env: agentEnv,
       },
     }) as AsyncIterable<SdkMessage>) {
-      handle(message, opts.onEvent);
+      handle(message, onEvent);
     }
-    opts.onEvent({ type: "done", stop_reason: "end_turn" });
+    onEvent({ type: "done", stop_reason: "end_turn" });
   } catch (error) {
     const message = (error as Error).message || "agent error";
     if (message.toLowerCase().includes("abort")) {
-      opts.onEvent({ type: "done", stop_reason: "aborted" });
+      onEvent({ type: "done", stop_reason: "aborted" });
       return;
     }
-    opts.onEvent({ type: "error", message });
+    // Real agent failure (not a user abort) — report it.
+    captureException(error, {
+      source: "ai.agent.run",
+      userId: opts.ctx.userId,
+      projectId: opts.ctx.projectId,
+      model,
+    });
+    onEvent({ type: "error", message });
     throw error;
   }
 }

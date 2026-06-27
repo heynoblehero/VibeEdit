@@ -17,6 +17,8 @@ import {
   recordUsage,
   getUserPlan,
 } from "@/lib/billing/usage";
+import { captureEvent, FUNNEL } from "@/lib/observability/posthog";
+import { captureException } from "@/lib/observability/sentry";
 
 export async function POST(req: Request) {
   const session = await requireServerSession().catch((r) => r);
@@ -101,13 +103,31 @@ export async function POST(req: Request) {
   // Cap quality to what the user's plan supports. Free → draft (480p), creator → standard (1080p), studio → high (4k).
   const requestedQuality = (body.quality || "standard") as "draft" | "standard" | "high";
   const effectiveQuality = capQualityForPlan(userId, requestedQuality);
-  const id = await enqueue({
-    userId,
+  let id: string;
+  try {
+    id = await enqueue({
+      userId,
+      projectId: body.projectId,
+      fps: body.fps,
+      quality: effectiveQuality,
+    });
+  } catch (error) {
+    captureException(error, {
+      source: "api.render.enqueue",
+      userId,
+      projectId: body.projectId,
+    });
+    throw error;
+  }
+  recordUsage(userId, "render", 1, { jobId: id });
+  // Funnel: render kicked off. NOTE FOR RENDER AGENT: render_succeeded /
+  // render_failed are owned by the queue/worker — emit them from there with
+  // captureEvent(FUNNEL.* , userId, { jobId }) once a job finishes.
+  captureEvent(FUNNEL.renderStarted, userId, {
+    jobId: id,
     projectId: body.projectId,
-    fps: body.fps,
     quality: effectiveQuality,
   });
-  recordUsage(userId, "render", 1, { jobId: id });
   return NextResponse.json({ id });
 }
 

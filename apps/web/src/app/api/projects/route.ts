@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { projects, renderJobs } from "@/lib/db/schema";
 import { ensureProjectDir, seedFromIsaacHook } from "@/lib/storage/fs";
 import { requireServerSession } from "@/lib/server-session";
+import { captureEvent, FUNNEL } from "@/lib/observability/posthog";
 
 export async function GET() {
   const session = await requireServerSession().catch((r) => r);
@@ -84,5 +85,11 @@ export async function POST(req: Request) {
   if (body.seed === "isaac") {
     seedFromIsaacHook(userId, id);
   }
+  captureEvent(FUNNEL.projectCreated, userId, {
+    projectId: id,
+    platform,
+    aspectRatio,
+    source: "new",
+  });
   return NextResponse.json({ id });
 }

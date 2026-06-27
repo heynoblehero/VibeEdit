@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { subscriptions, processedWebhooks } from "@/lib/db/schema";
 import { PLANS, type PlanId } from "@/lib/billing/plans";
 import { logError } from "@/lib/observability/logger";
+import { captureException } from "@/lib/observability/sentry";
+import { captureEvent, FUNNEL } from "@/lib/observability/posthog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -86,6 +88,7 @@ export async function POST(req: Request) {
       return new NextResponse("bad signature", { status: 400 });
     }
     logError("polar.webhook.parse", error);
+    captureException(error, { source: "polar.webhook.parse" });
     return new NextResponse("invalid payload", { status: 400 });
   }
 
@@ -113,6 +116,19 @@ export async function POST(req: Request) {
       case "subscription.revoked":
       case "subscription.uncanceled": {
         await applyFromSubscription(event.data);
+        // Funnel: revenue events keyed to the user when present in metadata.
+        const subUserId = event.data?.metadata?.userId as string | undefined;
+        const funnelEvent =
+          event.type === "subscription.created"
+            ? FUNNEL.subscriptionCreated
+            : event.type === "subscription.canceled" || event.type === "subscription.revoked"
+              ? FUNNEL.subscriptionCanceled
+              : FUNNEL.subscriptionUpdated;
+        captureEvent(funnelEvent, subUserId, {
+          polarType: event.type,
+          plan: planIdFromProductId(event.data?.productId),
+          status: event.data?.status,
+        });
         break;
       }
       default:
@@ -124,6 +140,7 @@ export async function POST(req: Request) {
       eventId,
       type: event.type,
     });
+    captureException(error, { source: "polar.webhook.apply", eventId, type: event.type });
     // Don't 5xx — that triggers Polar's retry loop. The dedup row was
     // already written; admin can replay from logs.
   }

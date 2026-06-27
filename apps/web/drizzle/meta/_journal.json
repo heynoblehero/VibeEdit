@@ -141,6 +141,13 @@
       "when": 1782534192660,
       "tag": "0019_saas_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1782588390437,
+      "tag": "0020_admin_suite",
+      "breakpoints": true
     }
   ]
 }

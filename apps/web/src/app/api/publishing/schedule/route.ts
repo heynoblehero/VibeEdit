@@ -3,7 +3,7 @@ import { nanoid } from "nanoid";
 import { eq, and, desc } from "drizzle-orm";
 import { requireServerSession } from "@/lib/server-session";
 import { db } from "@/lib/db";
-import { scheduledPublishes, projects } from "@/lib/db/schema";
+import { scheduledPublishes, projects, renderJobs } from "@/lib/db/schema";
 
 export async function GET() {
   const session = await requireServerSession().catch((r) => r);
@@ -64,6 +64,17 @@ export async function POST(req: Request) {
     .where(and(eq(projects.id, body.projectId), eq(projects.userId, userId)))
     .get();
   if (!project) return new NextResponse("not found", { status: 404 });
+
+  // IDOR guard: if a render is linked, it must belong to this user — otherwise a
+  // user could schedule another user's private render to their own social account.
+  if (body.renderJobId) {
+    const job = db
+      .select({ id: renderJobs.id })
+      .from(renderJobs)
+      .where(and(eq(renderJobs.id, body.renderJobId), eq(renderJobs.userId, userId)))
+      .get();
+    if (!job) return new NextResponse("render job not found", { status: 404 });
+  }
 
   const scheduledAt = new Date(
     typeof body.scheduledAt === "number" ? body.scheduledAt : body.scheduledAt,

@@ -20,6 +20,7 @@ import { renderDoneEmail, renderFailedEmail } from "../email/templates";
 import { recordUsage, getUserPlan } from "../billing/usage";
 import { logError } from "../observability/logger";
 import { captureException } from "../observability/sentry";
+import { captureEvent, FUNNEL } from "../observability/posthog";
 
 const MAX_CONCURRENT = Number(process.env.MAX_CONCURRENT_RENDERS || 2);
 const RENDER_MODE = (process.env.RENDER_MODE || "local") as "local" | "docker";
@@ -209,6 +210,13 @@ async function runJob(job: Job) {
       jobId: job.id,
     });
     emitJob(job.id, { status: "done", progress: 1, outputPath });
+    // Funnel: completes the render_started → render_succeeded leg (the seam the
+    // observability agent left for the queue to close).
+    captureEvent(FUNNEL.renderSucceeded, job.userId, {
+      jobId: job.id,
+      projectId: job.projectId,
+      durationSeconds,
+    });
     notifyOutcome(job, "done").catch((error) =>
       console.error("[render] email notify failed", error),
     );
@@ -279,6 +287,13 @@ function handleJobFailure(job: Job, error: unknown) {
     .where(eq(renderJobs.id, job.id))
     .run();
   emitJob(job.id, { status: "failed", error: finalReason, attempts: job.attempts });
+  // Funnel: terminal render failure (transient retries above don't emit this).
+  captureEvent(FUNNEL.renderFailed, job.userId, {
+    jobId: job.id,
+    projectId: job.projectId,
+    attempts: job.attempts,
+    reason: finalReason,
+  });
   notifyOutcome(job, "failed", finalReason).catch((notifyError) =>
     console.error("[render] email notify failed", notifyError),
   );
@@ -506,7 +521,9 @@ async function processScheduledPublishes(): Promise<void> {
       const job = db
         .select({ outputPath: renderJobs.outputPath, status: renderJobs.status })
         .from(renderJobs)
-        .where(eq(renderJobs.id, schedule.renderJobId))
+        // Defense-in-depth (IDOR): the linked render must belong to the schedule
+        // owner, so a forged renderJobId can't exfiltrate another user's video.
+        .where(and(eq(renderJobs.id, schedule.renderJobId), eq(renderJobs.userId, schedule.userId)))
         .get();
       if (!job || job.status !== "done" || !job.outputPath) {
         // Render not ready yet — skip this tick, try again next minute.

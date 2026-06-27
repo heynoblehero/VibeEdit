@@ -53,7 +53,9 @@ export async function POST(req: Request) {
   }
 
   // Save sample locally first (so we can serve it for playback).
-  const ext = file.name.split(".").pop()?.toLowerCase() || "webm";
+  // Sanitize: ext is concatenated into a filesystem path — strip non-alphanumerics
+  // so a crafted filename can't smuggle in "/" or "..".
+  const ext = (file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "webm").slice(0, 5);
   const dir = join(STORAGE_ROOT, "brand-kits", userId);
   mkdirSync(dir, { recursive: true });
   const sampleFilename = `voice-sample.${ext}`;

@@ -41,7 +41,9 @@ export async function POST(req: Request) {
   const file = form.get("file");
   if (!(file instanceof File) || !["logo", "watermark"].includes(kind))
     return new NextResponse("invalid", { status: 400 });
-  const ext = (file.name.split(".").pop() || "png").toLowerCase().slice(0, 5);
+  // Sanitize: ext is concatenated into a filesystem path, so strip anything that
+  // isn't alphanumeric — a crafted filename can't smuggle in "/" or "..".
+  const ext = ((file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png").slice(0, 5);
   const dir = join(STORAGE_ROOT, "brand-kits", userId);
   mkdirSync(dir, { recursive: true });
   const fname = `${kind}.${ext}`;

@@ -25,6 +25,8 @@ export const FUNNEL = {
   messageSent: "message_sent",
   planApproved: "plan_approved",
   renderStarted: "render_started",
+  renderSucceeded: "render_succeeded",
+  renderFailed: "render_failed",
   subscriptionCreated: "subscription_created",
   subscriptionUpdated: "subscription_updated",
   subscriptionCanceled: "subscription_canceled",

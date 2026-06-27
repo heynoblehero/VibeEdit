@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { requireServerSession } from "@/lib/server-session";
 import { db } from "@/lib/db";
-import { scheduledPublishes } from "@/lib/db/schema";
+import { scheduledPublishes, renderJobs } from "@/lib/db/schema";
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireServerSession().catch((r) => r);
@@ -56,7 +56,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const patch: Partial<typeof row> = {};
   if (typeof body.title === "string") patch.title = body.title || null;
   if (typeof body.description === "string") patch.description = body.description || null;
-  if (body.renderJobId) patch.renderJobId = body.renderJobId;
+  if (body.renderJobId) {
+    // IDOR guard: only allow linking a render the caller owns.
+    const job = db
+      .select({ id: renderJobs.id })
+      .from(renderJobs)
+      .where(and(eq(renderJobs.id, body.renderJobId), eq(renderJobs.userId, userId)))
+      .get();
+    if (!job) return new NextResponse("render job not found", { status: 404 });
+    patch.renderJobId = body.renderJobId;
+  }
   if (body.scheduledAt) {
     const d = new Date(body.scheduledAt);
     if (!Number.isNaN(d.getTime()) && d > new Date()) patch.scheduledAt = d;

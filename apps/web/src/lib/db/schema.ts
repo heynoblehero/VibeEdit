@@ -8,6 +8,12 @@ export const user = sqliteTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: integer("emailVerified", { mode: "boolean" }).notNull().default(false),
   image: text("image"),
+  // Account suspension — set by an admin. When banned=true, getServerSession()
+  // rejects the user at the single auth chokepoint so they cannot act anywhere,
+  // not just in the UI. bannedReason/bannedAt are for the audit trail + UI.
+  banned: integer("banned", { mode: "boolean" }).notNull().default(false),
+  bannedReason: text("bannedReason"),
+  bannedAt: integer("bannedAt", { mode: "timestamp" }),
   createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
 });

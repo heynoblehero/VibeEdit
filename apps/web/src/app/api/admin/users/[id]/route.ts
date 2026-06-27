@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
-import { user, projects, renderJobs, subscriptions, usageEvents } from "@/lib/db/schema";
-import { requireAdmin } from "@/lib/admin";
+import { user, projects, renderJobs, subscriptions, usageEvents, errorLog } from "@/lib/db/schema";
+import { requireAdmin, isAdminEmail } from "@/lib/admin";
 import { planFor } from "@/lib/billing/plans";
+import { cancelPolarSubscription } from "@/lib/billing/polar";
+import { deleteUserStorage } from "@/lib/storage/fs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +28,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       emailVerified: user.emailVerified,
       image: user.image,
       createdAt: user.createdAt,
+      banned: user.banned,
+      bannedReason: user.bannedReason,
+      bannedAt: user.bannedAt,
     })
     .from(user)
     .where(eq(user.id, id))
@@ -86,7 +92,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .all();
 
   return NextResponse.json({
-    user: target,
+    user: { ...target, isAdmin: isAdminEmail(target.email) },
     subscription: sub
       ? {
           plan: sub.plan,
@@ -114,4 +120,91 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     projects: userProjects,
     renders: recentRenders,
   });
+}
+
+// DELETE /api/admin/users/[id] — hard-delete an account.
+// Auth: requireAdmin(). Self/admin-protection: cannot delete yourself or another
+// admin. Requires an explicit confirm signal in the body (confirm === true OR
+// confirmEmail matching the target's email) so a stray request can't wipe a user.
+//
+// Cascade:
+//   1. Cancel any active Polar subscription (best-effort; recorded in audit).
+//   2. Delete the user row. The FK graph uses onDelete: "cascade" (DB runs with
+//      foreign_keys = ON), so projects/renders/subscriptions/messages/etc. go too.
+//   3. Remove the user's on-disk storage tree (projects, personas, brand-kits,
+//      thumbs) plus each render's output directory.
+// Audited to errorLog.
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const admin = await requireAdmin();
+  if (admin instanceof Response) return admin;
+  const { id } = await params;
+
+  const target = db
+    .select({ id: user.id, email: user.email })
+    .from(user)
+    .where(eq(user.id, id))
+    .get();
+  if (!target) return new NextResponse("user not found", { status: 404 });
+
+  if (target.id === admin.user.id) {
+    return new NextResponse("cannot delete yourself", { status: 400 });
+  }
+  if (isAdminEmail(target.email)) {
+    return new NextResponse("cannot delete another admin", { status: 403 });
+  }
+
+  const body = (await req.json().catch(() => null)) as {
+    confirm?: boolean;
+    confirmEmail?: string;
+  } | null;
+  const confirmed =
+    body?.confirm === true ||
+    (typeof body?.confirmEmail === "string" &&
+      body.confirmEmail.trim().toLowerCase() === target.email.toLowerCase());
+  if (!confirmed) {
+    return new NextResponse("confirmation required", { status: 400 });
+  }
+
+  // Gather render job ids before the cascade removes them — render outputs on
+  // disk are keyed by job id, so we need the list to clean them up.
+  const jobIds = db
+    .select({ id: renderJobs.id })
+    .from(renderJobs)
+    .where(eq(renderJobs.userId, id))
+    .all()
+    .map((r) => r.id);
+
+  // 1. Cancel Polar subscription (best-effort).
+  const sub = db
+    .select({ polarSubscriptionId: subscriptions.polarSubscriptionId })
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, id))
+    .get();
+  const cancel = await cancelPolarSubscription(sub?.polarSubscriptionId);
+
+  // 2. Delete the user row — FK cascade removes all dependent rows.
+  db.delete(user).where(eq(user.id, id)).run();
+
+  // 3. Remove on-disk storage.
+  deleteUserStorage(id, jobIds);
+
+  const now = new Date();
+  db.insert(errorLog)
+    .values({
+      id: nanoid(12),
+      source: "admin.users.delete",
+      message: `${admin.user.email} hard-deleted ${target.email}`,
+      stack: null,
+      context: JSON.stringify({
+        adminId: admin.user.id,
+        targetId: id,
+        targetEmail: target.email,
+        renderOutputsRemoved: jobIds.length,
+        polarCancel: cancel,
+      }),
+      createdAt: now,
+    })
+    .run();
+
+  return NextResponse.json({ ok: true, deleted: id, polarCancel: cancel });
 }

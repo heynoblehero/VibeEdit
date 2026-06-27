@@ -11,6 +11,17 @@ export async function getServerSession() {
   const real = await auth.api.getSession({ headers: h });
   if (!real) return real;
 
+  // Ban enforcement — the single chokepoint. A user an admin has banned is
+  // forced out everywhere at once (not merely hidden in the UI): every route
+  // funnels through getServerSession, so returning null here makes the banned
+  // account behave exactly like a logged-out one. We re-read `banned` straight
+  // from the DB rather than trusting the better-auth session payload, so a ban
+  // takes effect on the user's very next request even on a live session.
+  // Impersonation is checked *after* this: an admin's own (non-banned) real
+  // session is what's evaluated, so impersonating a banned user still works for
+  // debugging while the banned user themselves remains locked out.
+  if (isBanned(real.user.id)) return null;
+
   // Admin impersonation: if a valid signed impersonation cookie is present AND
   // the real logged-in user is still an admin whose id matches the token, swap
   // the returned session's user to the target user. This makes every route that
@@ -34,6 +45,16 @@ export async function getServerSession() {
   }
 
   return real;
+}
+
+/** True if the user row is flagged banned. Best-effort: any DB error → false. */
+function isBanned(userId: string): boolean {
+  try {
+    const row = db.select({ banned: user.banned }).from(user).where(eq(user.id, userId)).get();
+    return !!row?.banned;
+  } catch {
+    return false;
+  }
 }
 
 export async function requireServerSession() {

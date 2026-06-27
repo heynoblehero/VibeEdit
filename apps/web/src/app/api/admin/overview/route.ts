@@ -11,17 +11,15 @@ import {
   usageEvents,
   bugReports,
 } from "@/lib/db/schema";
-import { requireServerSession } from "@/lib/server-session";
-import { isAdminEmail } from "@/lib/admin";
+import { requireAdmin } from "@/lib/admin";
 import { PLANS } from "@/lib/billing/plans";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await requireServerSession().catch((r) => r);
-  if (session instanceof Response) return session;
-  if (!isAdminEmail(session.user.email)) return new NextResponse("forbidden", { status: 403 });
+  const admin = await requireAdmin();
+  if (admin instanceof Response) return admin;
 
   const now = Date.now();
   const last24h = new Date(now - 24 * 3600 * 1000);

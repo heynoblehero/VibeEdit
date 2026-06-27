@@ -534,3 +534,63 @@ export const videoAnalytics = sqliteTable(
 
 export type RenderReview = typeof renderReviews.$inferSelect;
 export type VideoAnalytics = typeof videoAnalytics.$inferSelect;
+
+// In-app "chat with us" support threads — a customer↔admin conversation.
+// One open thread per user at a time (new messages reuse the open thread; a
+// closed thread spawns a fresh one). unreadForAdmin/unreadForUser drive the
+// badges on each side: set on the recipient when the other party posts, and
+// cleared when the recipient reads the thread.
+export const supportThreads = sqliteTable(
+  "supportThreads",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    subject: text("subject"),
+    // "open" | "closed"
+    status: text("status").notNull().default("open"),
+    // Unread flags per side — true means that side has messages it hasn't seen.
+    unreadForAdmin: integer("unreadForAdmin", { mode: "boolean" }).notNull().default(false),
+    unreadForUser: integer("unreadForUser", { mode: "boolean" }).notNull().default(false),
+    // Timestamp of the most recent message — used to sort threads newest-first.
+    lastMessageAt: integer("lastMessageAt", { mode: "timestamp" }).notNull(),
+    createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    // Customer view: WHERE userId=? ORDER BY lastMessageAt DESC
+    userLastMessageIdx: index("supportThreads_user_last_message_idx").on(
+      table.userId,
+      table.lastMessageAt,
+    ),
+    // Admin inbox: ORDER BY lastMessageAt DESC (and filter on status)
+    statusLastMessageIdx: index("supportThreads_status_last_message_idx").on(
+      table.status,
+      table.lastMessageAt,
+    ),
+  }),
+);
+
+export const supportMessages = sqliteTable(
+  "supportMessages",
+  {
+    id: text("id").primaryKey(),
+    threadId: text("threadId")
+      .notNull()
+      .references(() => supportThreads.id, { onDelete: "cascade" }),
+    // "user" | "admin"
+    sender: text("sender").notNull(),
+    body: text("body").notNull(),
+    createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    // Conversation load: WHERE threadId=? ORDER BY createdAt
+    threadCreatedIdx: index("supportMessages_thread_created_idx").on(
+      table.threadId,
+      table.createdAt,
+    ),
+  }),
+);
+
+export type SupportThread = typeof supportThreads.$inferSelect;
+export type SupportMessage = typeof supportMessages.$inferSelect;

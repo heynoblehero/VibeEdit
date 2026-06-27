@@ -57,6 +57,17 @@ RUN cd packages/cli \
  && chmod +x /app/packages/cli/dist/cli.js \
  && ln -sf /app/packages/cli/dist/cli.js /app/node_modules/.bin/hyperframes
 
+# Public observability keys must be present at build time so Next.js inlines
+# them into the browser bundle (NEXT_PUBLIC_* are build-time, not runtime).
+# Values are injected by dokku via `docker-options:add ... build --build-arg`;
+# they're public-safe (PostHog write-only key + Sentry DSN are client-exposable).
+ARG NEXT_PUBLIC_SENTRY_DSN=""
+ARG NEXT_PUBLIC_POSTHOG_KEY=""
+ARG NEXT_PUBLIC_POSTHOG_HOST="https://us.i.posthog.com"
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+ENV NEXT_PUBLIC_POSTHOG_KEY=$NEXT_PUBLIC_POSTHOG_KEY
+ENV NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST
+
 # Build the Next.js app.
 RUN cd apps/web && bun run build
 

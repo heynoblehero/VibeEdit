@@ -236,7 +236,9 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
             </div>
             <h2 className="mb-1 text-2xl font-bold">Set your brand once, use it forever.</h2>
             <p className="mb-8 text-sm text-[var(--color-fg-muted)]">
-              The AI will apply these to every video automatically. You can change them anytime.
+              The AI applies these to every video automatically — and we&apos;ll use them to render
+              your first sample video right now, waiting for you in the editor. You can change them
+              anytime.
             </p>
 
             <section className="mb-6">
@@ -305,7 +307,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
                   disabled={saving}
                   className="rounded-md bg-[var(--color-accent)] px-6 py-2.5 font-semibold text-black hover:opacity-90 disabled:opacity-50"
                 >
-                  {saving ? "Saving..." : "Get started"}
+                  {saving ? "Making your first video…" : "Get started"}
                 </button>
               </div>
             </div>

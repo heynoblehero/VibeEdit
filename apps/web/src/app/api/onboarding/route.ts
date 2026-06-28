@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
-import { messages, projects, user, userPreferences } from "@/lib/db/schema";
-import { ensureProjectDir } from "@/lib/storage/fs";
+import { brandKits, messages, projects, user, userPreferences } from "@/lib/db/schema";
+import { ensureProjectDir, writeProjectFile } from "@/lib/storage/fs";
 import { requireServerSession } from "@/lib/server-session";
 import { sendEmail } from "@/lib/email/send";
 import { welcomeEmail } from "@/lib/email/templates";
 import { captureEvent, FUNNEL } from "@/lib/observability/posthog";
+import { enqueue } from "@/lib/render/queue";
+import { buildStarterComposition, type StarterFormat } from "@/lib/onboarding/starter-composition";
 
 // Niche → starter prompt seeded into the first project.
 // All prompts reference an uploaded clip so new users immediately see the
@@ -134,25 +136,68 @@ export async function PATCH(req: Request) {
       .run();
   }
 
-  // On first onboarding completion: auto-create a niche-seeded starter project
-  // so the user lands in an editor with a prompt already queued.
+  // On first onboarding completion: auto-create a starter project so the user
+  // lands in an editor that already has (a) a niche-seeded prompt waiting and
+  // (b) a pre-baked, render-ready composition whose MP4 is ALREADY being made.
+  // This is the "instant first render" — it beats the blank-canvas + slow-first-
+  // render bounce risk by having a finished video waiting on arrival.
+  //
+  // Idempotency: the whole block is gated on
+  // `!wasAlreadyOnboarded && onboardingCompleted === true`, which is true at
+  // most once per account (the first completion flips
+  // userPreferences.onboardingCompleted, computed into wasAlreadyOnboarded
+  // above). Repeat completions skip it, so we never double-create or
+  // double-enqueue.
   let firstProjectId: string | null = null;
   if (!wasAlreadyOnboarded && body.onboardingCompleted === true) {
     const startNiche = niche || existing?.niche || null;
     const starter = startNiche ? STARTER_PROMPTS[startNiche] : null;
+
+    // Resolve format + brand for personalizing the pre-baked composition. The
+    // brand kit may not be persisted yet (the UI PATCHes it after this call),
+    // so treat it as best-effort and fall back to the user's display name.
+    const formatPref = (formatPreference ||
+      existing?.formatPreference ||
+      null) as StarterFormat | null;
+    const brand = db.select().from(brandKits).where(eq(brandKits.userId, userId)).get();
+    const owner = db.select().from(user).where(eq(user.id, userId)).get();
+    const channelName = brand?.channelName || owner?.name || null;
+    const primaryColor = brand?.primaryColor || null;
+
+    const id = nanoid(10);
+    db.insert(projects)
+      .values({
+        id,
+        userId,
+        name: starter?.name || "My first video",
+        aspectRatio: formatPref === "9:16" ? "9:16" : "16:9",
+        platform: formatPref === "9:16" ? "tiktok" : "youtube",
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+    ensureProjectDir(userId, id);
+
+    // Write the pre-baked composition as index.html (the file the renderer and
+    // editor preview both read). buildStarterComposition emits valid Hyperframes
+    // HTML — see lib/onboarding/starter-composition.ts.
+    try {
+      const html = buildStarterComposition({
+        channelName,
+        niche: startNiche,
+        primaryColor,
+        format: formatPref,
+      });
+      writeProjectFile(userId, id, "index.html", html);
+    } catch (error) {
+      console.error("[onboarding] failed to write starter composition:", error);
+    }
+
+    captureEvent(FUNNEL.projectCreated, userId, { projectId: id, source: "onboarding" });
+
+    // Seed the niche prompt (if any) so the user has an obvious next step in
+    // chat once they've watched the sample render.
     if (starter) {
-      const id = nanoid(10);
-      db.insert(projects)
-        .values({
-          id,
-          userId,
-          name: starter.name,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .run();
-      ensureProjectDir(userId, id);
-      captureEvent(FUNNEL.projectCreated, userId, { projectId: id, source: "onboarding" });
       // Chat reads message content as a JSON-encoded string or array.
       // JSON.stringify("foo") → `"foo"` which parses back to "foo" — that
       // matches how the chat route stores user messages.
@@ -165,8 +210,19 @@ export async function PATCH(req: Request) {
           createdAt: now,
         })
         .run();
-      firstProjectId = id;
     }
+
+    // Kick off the first render immediately so a finished MP4 is waiting. This
+    // only enqueues — if render infra is busy or down it simply sits in the
+    // queue; it never blocks onboarding from completing. Draft quality keeps the
+    // very first render fast.
+    try {
+      await enqueue({ userId, projectId: id, quality: "draft" });
+    } catch (error) {
+      console.error("[onboarding] failed to enqueue starter render:", error);
+    }
+
+    firstProjectId = id;
   }
 
   // Funnel: first completed onboarding is our "signup" activation event (the

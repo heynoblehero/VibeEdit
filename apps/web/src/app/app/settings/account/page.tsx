@@ -10,6 +10,8 @@ export default function AccountPage() {
   const router = useRouter();
   const { data: session, isPending } = useSession();
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState<"ok" | "error" | null>(null);
 
@@ -38,13 +40,44 @@ export default function AccountPage() {
     if (!isPending && !session) router.replace("/app/login");
   }, [isPending, session, router]);
 
+  async function exportData() {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const response = await fetch("/api/account/export");
+      if (!response.ok) {
+        setExportError("Export failed — please try again.");
+        return;
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const date = new Date().toISOString().slice(0, 10);
+      link.download = `vibeedit-export-${date}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError("Export failed — please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function deleteAccount() {
+    if (!session?.user.email) return;
     const confirmation = window.prompt(
-      'This will permanently delete your account, all projects, all renders, and all chat history. Type "DELETE" to confirm.',
+      "This will permanently delete your account, all projects, all renders, and all chat history. It also cancels any active subscription. Type your email to confirm:",
     );
-    if (confirmation !== "DELETE") return;
+    if (confirmation?.trim().toLowerCase() !== session.user.email.toLowerCase()) return;
     setDeleting(true);
-    await fetch("/api/account/me", { method: "DELETE" });
+    await fetch("/api/account", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ confirmEmail: session.user.email }),
+    });
     await signOut();
     setDeleting(false);
     router.push("/");
@@ -134,12 +167,32 @@ export default function AccountPage() {
         </dl>
       </section>
 
+      <section className="mb-8 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-6">
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider">Your data</h2>
+        <p className="mb-4 text-sm text-[var(--color-fg-muted)]">
+          Download a copy of everything we hold for your account — profile, projects (including
+          composition HTML), render history, support threads, brand kit, and a usage summary. The
+          export is JSON and never contains your API keys or passwords.
+        </p>
+        <button
+          onClick={exportData}
+          disabled={exporting}
+          className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg-2)] px-4 py-2 text-sm text-[var(--color-fg)] hover:border-[var(--color-accent)] disabled:opacity-50"
+        >
+          {exporting ? "Preparing export…" : "Export my data"}
+        </button>
+        {exportError && (
+          <span className="ml-3 text-xs text-[var(--color-danger)]">✗ {exportError}</span>
+        )}
+      </section>
+
       <section className="rounded-xl border border-[var(--color-danger)] bg-[var(--color-surface)] p-4 sm:p-6">
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--color-danger)]">
           Danger zone
         </h2>
         <p className="mb-4 text-sm text-[var(--color-fg-muted)]">
-          Delete your account, all projects, all renders, all chat history. This cannot be undone.
+          Delete your account, all projects, all renders, all chat history. Any active subscription
+          is cancelled. This cannot be undone — export your data first if you want a copy.
         </p>
         <button
           onClick={deleteAccount}

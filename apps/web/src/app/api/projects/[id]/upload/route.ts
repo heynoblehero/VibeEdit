@@ -5,6 +5,7 @@ import { projects } from "@/lib/db/schema";
 import { requireServerSession } from "@/lib/server-session";
 import { writeProjectFile, listAssets } from "@/lib/storage/fs";
 import { ensureManifest } from "@/lib/storage/manifests";
+import { validateUploadFile } from "@/lib/storage/upload-validator";
 
 export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
   const session = await requireServerSession().catch((r) => r);
@@ -19,9 +20,24 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
   if (!row) return new NextResponse("not found", { status: 404 });
 
   const form = await req.formData();
-  const files: string[] = [];
+  // Validate every uploaded file against the media allowlist + size cap BEFORE
+  // writing anything. Reject the whole request on the first bad file so we never
+  // persist a partially-validated batch (and never write disallowed content).
+  const incoming: File[] = [];
   for (const value of form.values()) {
     if (!(value instanceof File)) continue;
+    const verdict = validateUploadFile(value);
+    if (!verdict.ok) {
+      return new NextResponse(verdict.message, { status: verdict.status });
+    }
+    incoming.push(value);
+  }
+  if (incoming.length === 0) {
+    return new NextResponse("no files in upload", { status: 400 });
+  }
+
+  const files: string[] = [];
+  for (const value of incoming) {
     const safeName = value.name.replace(/[^A-Za-z0-9._-]+/g, "_");
     const buffer = Buffer.from(await value.arrayBuffer());
     writeProjectFile(userId, id, `assets/${safeName}`, buffer);

@@ -216,3 +216,82 @@ function detectMime(path: string): string {
   const ext = path.split(".").pop()?.toLowerCase() || "";
   return MIMES[ext] || "application/octet-stream";
 }
+
+// ---------------------------------------------------------------------------
+// Safe serving of project files over the public file API.
+//
+// The file API serves two very different kinds of file from the same tree:
+//
+//   1. Composition source the app/agent authored (index.html, compositions/*,
+//      and the css/js/json the player needs). These are first-party and must be
+//      served inline with their real content-type so the player runs.
+//
+//   2. Raw assets under `assets/` — these may be USER-UPLOADED. Even though the
+//      upload route now allow-lists media types, the serve side defends in depth:
+//      an uploaded asset must NEVER be served as active content. We map its
+//      content-type from a safe media allowlist (so e.g. a file that slipped
+//      through can't be served as text/html or image/svg+xml with scripting),
+//      and we attach `Content-Disposition: attachment` + a sandbox CSP for
+//      anything that isn't inert playable media.
+// ---------------------------------------------------------------------------
+
+// Inert media types that are safe to serve inline (browsers won't execute these
+// as a document with active scripting). Used for assets/ files. SVG is
+// deliberately absent — SVG can carry inline <script>, so it is never served
+// inline for user content.
+const SAFE_SERVE_MIME: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  mov: "video/quicktime",
+  ogg: "audio/ogg",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  m4a: "audio/mp4",
+  aac: "audio/aac",
+  woff: "font/woff",
+  woff2: "font/woff2",
+  ttf: "font/ttf",
+  otf: "font/otf",
+};
+
+export interface ServePlan {
+  /** Content-Type header to send. */
+  contentType: string;
+  /**
+   * When true, send `Content-Disposition: attachment` so the browser downloads
+   * rather than renders the bytes, plus `Content-Security-Policy: sandbox`. Set
+   * for any asset whose type is not a known-inert inline media type.
+   */
+  attachment: boolean;
+}
+
+/**
+ * Decide how a project file at `relPath` should be served. The route uses this
+ * to set Content-Type / Content-Disposition / CSP safely.
+ *
+ * - Composition source (index.html and other non-`assets/` files): served inline
+ *   with its detected content-type (unchanged behaviour — first-party content).
+ * - Files under `assets/`: content-type forced from the inert-media allowlist;
+ *   recognised inline media served inline, everything else served as a sandboxed
+ *   attachment with `application/octet-stream`.
+ */
+export function serveContentType(relPath: string): ServePlan {
+  const isAsset = relPath === "assets" || relPath.startsWith("assets/");
+  if (!isAsset) {
+    // First-party composition source — keep existing inline behaviour.
+    return { contentType: detectMime(relPath), attachment: false };
+  }
+  const ext = relPath.split(".").pop()?.toLowerCase() || "";
+  const safe = SAFE_SERVE_MIME[ext];
+  if (safe) {
+    // Inert, playable media — safe to serve inline so playback/preview works.
+    return { contentType: safe, attachment: false };
+  }
+  // Unknown / potentially-active type (html, svg, js, …): never serve inline.
+  return { contentType: "application/octet-stream", attachment: true };
+}

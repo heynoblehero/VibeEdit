@@ -30,6 +30,7 @@ on:
       - "apps/web/src/lib/ai/tools.ts"
       - "apps/web/src/lib/ai/ffmpeg-tools.ts"
       - "apps/web/src/lib/ai/agent.ts"
+      - "apps/web/scripts/bench.ts"
       - "apps/web/eval/**"
       - ".github/workflows/eval.yml"
 
@@ -91,4 +92,67 @@ jobs:
         with:
           name: eval-report
           path: apps/web/eval/reports/latest.json
+          if-no-files-found: ignore
+
+  # Agent benchmark gate. Runs the golden prompts through runAgent and fails the
+  # PR if the win-rate (plan + write + lint + screenshot per run) regresses below
+  # the bar. This is the win-rate gate referenced in the task: it wraps the
+  # existing `bench:nightly` script (scripts/bench.ts --ci --min-win-rate ...),
+  # which process.exit(2)s when win-rate < threshold.
+  #
+  # On PRs:        --ci gate at BENCH_MIN_WIN_RATE (repo var) or 0.7 default.
+  # On schedule:   report-only (no --ci) so a nightly dip doesn't fail the run.
+  bench:
+    name: Agent win-rate gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      # Same guard as the eval job: skip (don't fail) when the agent secret is
+      # absent so forks / pre-secret PRs stay green instead of hard-failing.
+      - id: check
+        run: |
+          if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ANTHROPIC_API_KEY not set — skipping bench gate. Add repo secrets to enable."
+          fi
+
+      - if: steps.check.outputs.ready == 'true'
+        run: bun install --frozen-lockfile
+
+      - name: Initialize database schema
+        if: steps.check.outputs.ready == 'true'
+        working-directory: apps/web
+        run: bun run db:migrate
+
+      - name: Run agent bench (gate on PRs, report-only nightly)
+        if: steps.check.outputs.ready == 'true'
+        working-directory: apps/web
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            bun run bench --ci --min-win-rate "${{ vars.BENCH_MIN_WIN_RATE || '0.7' }}"
+          else
+            bun run bench
+          fi
+
+      - name: Upload bench report
+        if: ${{ always() && steps.check.outputs.ready == 'true' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bench-report
+          path: apps/web/bench-output/**
           if-no-files-found: ignore

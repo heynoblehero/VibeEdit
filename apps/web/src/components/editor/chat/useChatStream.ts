@@ -156,7 +156,17 @@ export function useChatStream(): ChatStream {
         }),
       });
       if (!response.ok || !response.body) {
-        setLive([{ kind: "error", message: `error: ${response.statusText}` }]);
+        let message = `error: ${response.statusText}`;
+        if (response.status === 402) {
+          // Graceful paywall: show the server's friendly upgrade copy, not "Payment Required".
+          const body = (await response.json().catch(() => null)) as {
+            title?: string;
+            message?: string;
+          } | null;
+          message =
+            body?.message || body?.title || "You've hit your plan limit — upgrade to continue.";
+        }
+        setLive([{ kind: "error", message }]);
         setBusy(false);
         setActivity(null);
         dispatchAgentStatus(false);

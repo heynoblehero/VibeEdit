@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getMe, type PlanId } from "@/lib/billing/me-client";
+import { Paywall, isPaywall, type PaywallData } from "@/components/Paywall";
 import {
   renderOnClient,
   supportsWebCodecs,
@@ -80,6 +81,7 @@ export function RenderPanel({ projectId }: { projectId: string }) {
   const [clientBlob, setClientBlob] = useState<Blob | null>(null);
   // null = not yet determined, "webcodecs" = device render, "server" = server fallback
   const [lastMethod, setLastMethod] = useState<"webcodecs" | "server" | null>(null);
+  const [paywall, setPaywall] = useState<PaywallData | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -236,6 +238,10 @@ export function RenderPanel({ projectId }: { projectId: string }) {
     setSubmitting(false);
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { message?: string } | null;
+      if (res.status === 402 && isPaywall(data)) {
+        setPaywall(data); // show the full upgrade moment instead of a bare error toast
+        return;
+      }
       notify("error", data?.message || `Render failed (${res.status}). Please try again.`);
       return;
     }
@@ -272,6 +278,17 @@ export function RenderPanel({ projectId }: { projectId: string }) {
 
   return (
     <div className="flex items-center gap-2 text-sm">
+      {paywall && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-md">
+            <Paywall data={paywall} onDismiss={() => setPaywall(null)} />
+          </div>
+        </div>
+      )}
       {/* Method badge */}
       {lastMethod && <RenderMethodBadge method={lastMethod} />}
 

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "@/lib/auth-client";
 import { UsageMeter } from "@/components/UsageMeter";
 import { Onboarding } from "@/components/Onboarding";
 import { Wordmark } from "@/components/Wordmark";
+import { useToast } from "@/components/Toast";
 
 type Project = {
   id: string;
@@ -75,6 +76,7 @@ const NAV_LINKS = [
 
 export default function ProjectsPage() {
   const router = useRouter();
+  const toast = useToast();
   const { data: session, isPending } = useSession();
   const [projects, setProjects] = useState<Project[]>([]);
   const [creating, setCreating] = useState(false);
@@ -133,6 +135,7 @@ export default function ProjectsPage() {
       if (!result.ok) {
         const msg = await result.text().catch(() => "Unknown error");
         setCreateError(msg || `Server error ${result.status}`);
+        toast.error("Couldn't create project. Please try again.");
         return;
       }
       const { id } = (await result.json()) as { id: string };
@@ -149,35 +152,59 @@ export default function ProjectsPage() {
       router.push(`/app/projects/${id}/edit`);
     } catch (err) {
       setCreateError((err as Error).message || "Could not create project — check your connection.");
+      toast.error("Could not create project — check your connection.");
     } finally {
       setCreating(false);
     }
   }
 
   async function rename(id: string) {
-    if (!renameValue.trim()) {
-      setRenamingId(null);
-      return;
-    }
-    await fetch(`/api/projects/${id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: renameValue.trim() }),
-    });
+    const next = renameValue.trim();
     setRenamingId(null);
-    refresh();
+    if (!next) return;
+    const prev = projects;
+    const before = prev.find((p) => p.id === id)?.name;
+    if (next === before) return;
+    // Optimistic: update the name in place, roll back if the request fails.
+    setProjects((current) => current.map((p) => (p.id === id ? { ...p, name: next } : p)));
+    try {
+      const res = await fetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: next }),
+      });
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      toast.success("Project renamed");
+    } catch {
+      setProjects(prev);
+      toast.error("Couldn't rename project — change reverted.");
+    }
   }
 
   async function duplicate(id: string) {
-    const result = await fetch(`/api/projects/${id}/duplicate`, { method: "POST" });
-    if (!result.ok) return;
-    refresh();
+    try {
+      const result = await fetch(`/api/projects/${id}/duplicate`, { method: "POST" });
+      if (!result.ok) throw new Error(`Server error ${result.status}`);
+      await refresh();
+      toast.success("Project duplicated");
+    } catch {
+      toast.error("Couldn't duplicate project. Please try again.");
+    }
   }
 
   async function remove(id: string, projectName: string) {
     if (!confirm(`Delete "${projectName}"? This cannot be undone.`)) return;
-    await fetch(`/api/projects/${id}`, { method: "DELETE" });
-    refresh();
+    const prev = projects;
+    // Optimistic: remove the card immediately, restore it on failure.
+    setProjects((current) => current.filter((p) => p.id !== id));
+    try {
+      const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      toast.success(`Deleted "${projectName}"`);
+    } catch {
+      setProjects(prev);
+      toast.error("Couldn't delete project — it's been restored.");
+    }
   }
 
   const filtered = useMemo(() => {
@@ -186,15 +213,27 @@ export default function ProjectsPage() {
     return projects.filter((p) => p.name.toLowerCase().includes(q));
   }, [projects, search]);
 
-  // Close account menu on outside click
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Close account menu on outside click or Esc; return focus to the trigger.
   useEffect(() => {
     if (!menuOpen) return;
     function onPointer(e: MouseEvent) {
       const target = e.target as HTMLElement;
       if (!target.closest("[data-account-menu]")) setMenuOpen(false);
     }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setMenuOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    }
     window.addEventListener("mousedown", onPointer);
-    return () => window.removeEventListener("mousedown", onPointer);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onPointer);
+      window.removeEventListener("keydown", onKey);
+    };
   }, [menuOpen]);
 
   if (isPending || !session) {
@@ -228,6 +267,7 @@ export default function ProjectsPage() {
                   <Link
                     key={link.href}
                     href={link.href}
+                    aria-current={isActive ? "page" : undefined}
                     className={`rounded-lg px-3 py-1.5 font-medium transition-colors ${
                       isActive
                         ? "bg-[var(--color-surface)] text-[var(--color-fg)]"
@@ -242,19 +282,55 @@ export default function ProjectsPage() {
 
             {/* Right side */}
             <div className="flex items-center gap-2">
+              {/* Command palette discoverability — dispatches ⌘K to the
+                  global listener in CommandPalette. */}
+              <button
+                type="button"
+                onClick={() =>
+                  window.dispatchEvent(
+                    new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
+                  )
+                }
+                aria-label="Open command palette (Command K)"
+                title="Search & commands (⌘K)"
+                className="hidden items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5 text-xs text-[var(--color-fg-muted)] transition-colors hover:border-[var(--color-accent)]/40 hover:text-[var(--color-fg)] sm:flex"
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <kbd className="font-sans">⌘K</kbd>
+              </button>
               <div className="hidden sm:block">
                 <UsageMeter compact />
               </div>
               <div className="relative" data-account-menu="">
                 <button
+                  ref={menuButtonRef}
                   onClick={() => setMenuOpen((v) => !v)}
                   className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] text-xs font-bold text-[var(--color-accent)] transition-colors hover:border-[var(--color-accent)]/50"
                   aria-label="Account menu"
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
                 >
                   {userInitial}
                 </button>
                 {menuOpen && (
-                  <div className="animate-slide-up absolute right-0 top-10 z-30 min-w-[200px] overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl">
+                  <div
+                    role="menu"
+                    aria-label="Account"
+                    className="animate-slide-up absolute right-0 top-10 z-30 min-w-[200px] overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl"
+                  >
                     <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-2)] px-4 py-3">
                       <div className="text-sm font-semibold text-[var(--color-fg)] truncate">
                         {session.user.name}
@@ -271,6 +347,7 @@ export default function ProjectsPage() {
                       <Link
                         key={item.href}
                         href={item.href}
+                        role="menuitem"
                         onClick={() => setMenuOpen(false)}
                         className="block px-4 py-2.5 text-sm text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)]"
                       >
@@ -279,6 +356,7 @@ export default function ProjectsPage() {
                     ))}
                     <div className="border-t border-[var(--color-border)]">
                       <button
+                        role="menuitem"
                         onClick={async () => {
                           await signOut();
                           router.push("/");
@@ -293,6 +371,30 @@ export default function ProjectsPage() {
               </div>
             </div>
           </div>
+
+          {/* Mobile nav — desktop nav is hidden on phones */}
+          <nav
+            aria-label="Primary"
+            className="flex gap-1 overflow-x-auto border-t border-[var(--color-border)] px-2 py-2 text-sm sm:hidden"
+          >
+            {NAV_LINKS.map((link) => {
+              const isActive = link.href === "/app/projects";
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`shrink-0 rounded-lg px-3 py-1.5 font-medium transition-colors ${
+                    isActive
+                      ? "bg-[var(--color-surface)] text-[var(--color-fg)]"
+                      : "text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </nav>
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
@@ -590,8 +692,7 @@ function ProjectCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={`/api/projects/${project.id}/thumb`}
-            alt=""
-            aria-hidden="true"
+            alt={`Latest render thumbnail for ${project.name}`}
             onError={() => setThumbFailed(true)}
             className="absolute inset-0 h-full w-full object-cover"
           />
@@ -657,8 +758,8 @@ function ProjectCard({
             )}
           </div>
 
-          {/* Action buttons — visible on hover */}
-          <div className="flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+          {/* Action buttons — visible on hover or keyboard focus */}
+          <div className="flex gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
             <ActionBtn title="Rename" onClick={() => onSetRename(project.id)}>
               <svg
                 width="12"
@@ -730,8 +831,9 @@ function ActionBtn({
   return (
     <button
       title={title}
+      aria-label={title}
       onClick={onClick}
-      className={`flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
+      className={`flex h-6 w-6 items-center justify-center rounded-md transition-colors focus-visible:opacity-100 ${
         danger
           ? "text-[var(--color-fg-subtle)] hover:bg-red-500/10 hover:text-red-400"
           : "text-[var(--color-fg-subtle)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)]"

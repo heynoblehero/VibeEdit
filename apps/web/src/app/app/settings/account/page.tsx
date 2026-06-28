@@ -5,9 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "@/lib/auth-client";
 import { Wordmark } from "@/components/Wordmark";
+import { useToast } from "@/components/Toast";
 
 export default function AccountPage() {
   const router = useRouter();
+  const toast = useToast();
   const { data: session, isPending } = useSession();
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -29,8 +31,11 @@ export default function AccountPage() {
         }),
       });
       setResent(response.ok ? "ok" : "error");
+      if (response.ok) toast.success("Verification email sent — check your inbox.");
+      else toast.error("Couldn't send verification email. Try again in a minute.");
     } catch {
       setResent("error");
+      toast.error("Couldn't send verification email. Try again in a minute.");
     } finally {
       setResending(false);
     }
@@ -47,6 +52,7 @@ export default function AccountPage() {
       const response = await fetch("/api/account/export");
       if (!response.ok) {
         setExportError("Export failed — please try again.");
+        toast.error("Export failed — please try again.");
         return;
       }
       const blob = await response.blob();
@@ -59,8 +65,10 @@ export default function AccountPage() {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
+      toast.success("Your data export has downloaded.");
     } catch {
       setExportError("Export failed — please try again.");
+      toast.error("Export failed — please try again.");
     } finally {
       setExporting(false);
     }
@@ -73,14 +81,19 @@ export default function AccountPage() {
     );
     if (confirmation?.trim().toLowerCase() !== session.user.email.toLowerCase()) return;
     setDeleting(true);
-    await fetch("/api/account", {
-      method: "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ confirmEmail: session.user.email }),
-    });
-    await signOut();
-    setDeleting(false);
-    router.push("/");
+    try {
+      const response = await fetch("/api/account", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirmEmail: session.user.email }),
+      });
+      if (!response.ok) throw new Error(`Server error ${response.status}`);
+      await signOut();
+      router.push("/");
+    } catch {
+      toast.error("Couldn't delete your account. Please try again or contact support.");
+      setDeleting(false);
+    }
   }
 
   if (isPending || !session) return null;
@@ -91,7 +104,7 @@ export default function AccountPage() {
         <Link href="/app/projects">
           <Wordmark size="md" />
         </Link>
-        <nav className="flex flex-wrap gap-3 text-sm">
+        <nav aria-label="Settings" className="flex flex-wrap gap-3 text-sm">
           <Link
             href="/app/projects"
             className="text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
@@ -104,7 +117,11 @@ export default function AccountPage() {
           >
             Brand kit
           </Link>
-          <Link href="/app/settings/account" className="text-[var(--color-accent)]">
+          <Link
+            href="/app/settings/account"
+            aria-current="page"
+            className="text-[var(--color-accent)]"
+          >
             Account
           </Link>
         </nav>

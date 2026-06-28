@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { Wordmark } from "@/components/Wordmark";
+import { useToast } from "@/components/Toast";
 
 type Job = {
   id: string;
@@ -79,14 +80,14 @@ export default function RendersPage() {
     <main className="mx-auto max-w-5xl p-4 sm:p-8">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-3 sm:mb-10">
         <Wordmark size="md" />
-        <nav className="flex flex-wrap gap-3 text-sm">
+        <nav aria-label="Primary" className="flex flex-wrap gap-3 text-sm">
           <Link
             href="/app/projects"
             className="text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
           >
             Projects
           </Link>
-          <Link href="/app/renders" className="text-[var(--color-accent)]">
+          <Link href="/app/renders" aria-current="page" className="text-[var(--color-accent)]">
             Renders
           </Link>
         </nav>
@@ -208,21 +209,32 @@ function ShowcaseToggle({
   onToggle: (showcased: boolean, slug?: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
   async function toggle() {
     if (busy) return;
     setBusy(true);
-    if (job.showcased) {
-      await fetch(`/api/render/${job.id}/showcase`, { method: "DELETE" });
-      onToggle(false);
-    } else {
-      const response = await fetch(`/api/render/${job.id}/showcase`, { method: "POST" });
-      if (response.ok) {
+    const wasShowcased = job.showcased;
+    try {
+      if (wasShowcased) {
+        const response = await fetch(`/api/render/${job.id}/showcase`, { method: "DELETE" });
+        if (!response.ok) throw new Error("failed");
+        onToggle(false);
+        toast.success("Removed from showcase");
+      } else {
+        const response = await fetch(`/api/render/${job.id}/showcase`, { method: "POST" });
+        if (!response.ok) throw new Error("failed");
         const data = (await response.json()) as { slug: string };
         onToggle(true, data.slug);
+        toast.success("Featured in the public showcase");
       }
+    } catch {
+      toast.error(
+        wasShowcased ? "Couldn't remove from showcase." : "Couldn't feature this render.",
+      );
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }
 
   return (
@@ -290,7 +302,12 @@ function RenderJobRow({
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {job.status === "running" && (
             <>
-              <progress value={job.progress} max={1} className="w-24 sm:w-32" />
+              <progress
+                value={job.progress}
+                max={1}
+                aria-label={`Render progress ${Math.round(job.progress * 100)}%`}
+                className="w-24 sm:w-32"
+              />
               <EtaBadge job={job} />
             </>
           )}
@@ -362,6 +379,7 @@ function EtaBadge({ job }: { job: Job }) {
 function ShareToggle({ job, onChange }: { job: Job; onChange: (slug: string | null) => void }) {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const toast = useToast();
   const shareUrl =
     job.publicShareSlug && typeof window !== "undefined"
       ? `${window.location.origin}/share/${job.publicShareSlug}`
@@ -374,10 +392,12 @@ function ShareToggle({ job, onChange }: { job: Job; onChange: (slug: string | nu
       const response = await fetch(`/api/render/${job.id}/share`, {
         method: "POST",
       });
-      if (response.ok) {
-        const data = (await response.json()) as { slug: string };
-        onChange(data.slug);
-      }
+      if (!response.ok) throw new Error("failed");
+      const data = (await response.json()) as { slug: string };
+      onChange(data.slug);
+      toast.success("Share link created");
+    } catch {
+      toast.error("Couldn't create a share link. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -387,8 +407,12 @@ function ShareToggle({ job, onChange }: { job: Job; onChange: (slug: string | nu
     if (busy) return;
     setBusy(true);
     try {
-      await fetch(`/api/render/${job.id}/share`, { method: "DELETE" });
+      const response = await fetch(`/api/render/${job.id}/share`, { method: "DELETE" });
+      if (!response.ok) throw new Error("failed");
       onChange(null);
+      toast.info("Sharing disabled");
+    } catch {
+      toast.error("Couldn't disable sharing. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -400,8 +424,9 @@ function ShareToggle({ job, onChange }: { job: Job; onChange: (slug: string | nu
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
+      toast.success("Link copied to clipboard");
     } catch {
-      /* */
+      toast.error("Couldn't copy — copy the link manually.");
     }
   }
 
@@ -431,6 +456,7 @@ function ShareToggle({ job, onChange }: { job: Job; onChange: (slug: string | nu
         disabled={busy}
         className="text-[var(--color-fg-muted)] hover:text-[var(--color-danger)]"
         title="Disable sharing"
+        aria-label="Disable sharing"
       >
         ✕
       </button>

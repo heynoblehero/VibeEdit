@@ -27,20 +27,37 @@ function queryRow(slug: string) {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const row = queryRow(slug);
-  if (!row || row.status !== "done") return { title: "Not Found" };
+  if (!row || row.status !== "done") {
+    return { title: "Not Found", robots: { index: false, follow: false } };
+  }
+  const name = row.projectName || "Untitled";
+  const ogImage =
+    "/og?title=" +
+    encodeURIComponent(name) +
+    "&subtitle=" +
+    encodeURIComponent("Made with VibeEdit — from a single chat prompt.") +
+    "&badge=" +
+    encodeURIComponent("Made with VibeEdit");
+  const pageUrl = `/share/${slug}`;
   return {
-    title: `${row.projectName || "Untitled"} — Made with VibeEdit`,
+    title: `${name} — Made with VibeEdit`,
     description: "This video was built from a single chat prompt using the VibeEdit AI agent.",
+    alternates: { canonical: pageUrl },
+    // Share links are meant to be shared, but not indexed in search.
+    robots: { index: false, follow: true },
     openGraph: {
-      title: row.projectName || "Made with VibeEdit",
+      title: `${name} — Made with VibeEdit`,
       description: "Describe the video. Get the MP4. No timeline needed.",
       type: "video.other",
+      url: pageUrl,
       siteName: "VibeEdit",
+      images: [{ url: ogImage, width: 1200, height: 630, alt: `${name} — made with VibeEdit` }],
     },
     twitter: {
       card: "summary_large_image",
-      title: row.projectName || "Made with VibeEdit",
+      title: `${name} — Made with VibeEdit`,
       description: "Built with VibeEdit — AI video editing agent.",
+      images: [ogImage],
     },
   };
 }

@@ -106,9 +106,12 @@ export function MarketingNav() {
             </Link>
           )}
           <button
+            type="button"
             onClick={() => setOpen(true)}
             aria-label="Open menu"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] text-[var(--color-fg-muted)] transition-colors hover:text-[var(--color-fg)]"
+            aria-expanded={open}
+            aria-haspopup="dialog"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] text-[var(--color-fg-muted)] transition-colors hover:text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
           >
             <svg width="16" height="12" viewBox="0 0 16 12" fill="none" aria-hidden="true">
               <path
@@ -130,14 +133,18 @@ export function MarketingNav() {
         >
           <div
             onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Site menu"
             className="animate-slide-up ml-auto flex h-full w-full max-w-xs flex-col border-l border-[var(--color-border)] bg-[var(--color-surface)] p-6"
           >
             <div className="mb-8 flex items-center justify-between">
               <Wordmark size="sm" />
               <button
+                type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close menu"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                   <path

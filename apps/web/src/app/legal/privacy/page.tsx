@@ -1,3 +1,11 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy — VibeEdit",
+  description: "How VibeEdit collects, uses, and protects your data.",
+  alternates: { canonical: "/legal/privacy" },
+};
+
 export default function Privacy() {
   return (
     <>

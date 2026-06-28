@@ -1,6 +1,21 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { HELP_ARTICLES } from "@/lib/help-articles";
 import { Wordmark } from "@/components/Wordmark";
+
+export const metadata: Metadata = {
+  title: "Help — VibeEdit",
+  description:
+    "Short docs for VibeEdit: how prompts work, installing the render worker, billing, and more.",
+  alternates: { canonical: "/help" },
+  openGraph: {
+    title: "VibeEdit Help",
+    description: "Short docs for getting the most out of the VibeEdit AI video agent.",
+    type: "website",
+    url: "/help",
+    siteName: "VibeEdit",
+  },
+};
 
 export default function HelpIndex() {
   return (

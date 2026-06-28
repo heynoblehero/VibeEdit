@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { requireServerSession } from "@/lib/server-session";
-import { readProjectFile } from "@/lib/storage/fs";
+import { readProjectFile, serveContentType } from "@/lib/storage/fs";
 
 export async function GET(
   req: Request,
@@ -22,6 +22,24 @@ export async function GET(
   const relPath = path.join("/");
   try {
     let { content, mime } = readProjectFile(userId, id, relPath);
+    // Decide safe serving headers up front. Composition source (index.html and
+    // other non-assets/ files) is served inline; raw assets/ files get a
+    // sanitized content-type and are forced to download (attachment + sandbox
+    // CSP) unless they are known-inert playable media. This stops a user-uploaded
+    // file from ever being served as active content (HTML/SVG-with-script).
+    const plan = serveContentType(relPath);
+    const serveHeaders: Record<string, string> = {
+      "content-type": plan.contentType,
+      "accept-ranges": "bytes",
+      "cache-control": "no-store",
+    };
+    if (plan.attachment) {
+      const downloadName = relPath.split("/").pop() || "download";
+      serveHeaders["content-disposition"] =
+        `attachment; filename="${downloadName.replace(/[^A-Za-z0-9._-]+/g, "_")}"`;
+      serveHeaders["content-security-policy"] = "sandbox";
+      serveHeaders["x-content-type-options"] = "nosniff";
+    }
     // Inject the CDN Hyperframes runtime into composition HTML so the player
     // uses the runtime adapter (not the direct-GSAP adapter). Without this,
     // the player locks onto the GSAP timeline at probe tick 1 (before the
@@ -69,21 +87,17 @@ export async function GET(
         return new NextResponse(new Uint8Array(chunk), {
           status: 206,
           headers: {
-            "content-type": mime,
+            ...serveHeaders,
             "content-range": `bytes ${start}-${chunkEnd}/${total}`,
             "content-length": String(chunk.length),
-            "accept-ranges": "bytes",
-            "cache-control": "no-store",
           },
         });
       }
     }
     return new NextResponse(new Uint8Array(content), {
       headers: {
-        "content-type": mime,
+        ...serveHeaders,
         "content-length": String(total),
-        "accept-ranges": "bytes",
-        "cache-control": "no-store",
       },
     });
   } catch {

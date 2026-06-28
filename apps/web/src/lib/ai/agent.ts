@@ -42,6 +42,12 @@ export type AgentEvent =
       result: string;
       images?: ToolResultImage[];
     }
+  // Structured tool-lifecycle events for live activity UI. These are emitted
+  // ALONGSIDE the existing tool_use / tool_result events (never instead of
+  // them), so any consumer that ignores them keeps working exactly as before.
+  // `label` is a pre-computed human-readable description ("Searching b-roll…").
+  | { type: "tool_start"; id: string; name: string; label: string }
+  | { type: "tool_end"; id: string; name: string; ok: boolean }
   | { type: "turn_end"; usage?: unknown }
   | { type: "done"; stop_reason: string }
   | { type: "error"; message: string };
@@ -54,6 +60,7 @@ type AssistantContentBlock = {
   id?: string;
   tool_use_id?: string;
   content?: unknown;
+  is_error?: boolean;
 };
 
 type SdkMessage = {
@@ -238,11 +245,16 @@ function handle(message: SdkMessage, emit: (event: AgentEvent) => void) {
       if (block.type === "text" && block.text) {
         emit({ type: "text", text: block.text });
       } else if (block.type === "tool_use" && block.name && block.id) {
+        const name = stripMcpPrefix(block.name);
+        const input = block.input || {};
+        emit({ type: "tool_use", name, input, id: block.id });
+        // Structured lifecycle event for the live activity indicator. Additive:
+        // emitted right after tool_use so legacy consumers are unaffected.
         emit({
-          type: "tool_use",
-          name: stripMcpPrefix(block.name),
-          input: block.input || {},
+          type: "tool_start",
           id: block.id,
+          name,
+          label: friendlyToolLabel(name, input),
         });
       }
     }
@@ -284,6 +296,14 @@ function handle(message: SdkMessage, emit: (event: AgentEvent) => void) {
           result,
           images: images.length ? images : undefined,
         });
+        // Structured lifecycle event for the live activity indicator. Additive:
+        // emitted right after tool_result so legacy consumers are unaffected.
+        emit({
+          type: "tool_end",
+          id: block.tool_use_id,
+          name: stripMcpPrefix(block.name || ""),
+          ok: block.is_error !== true,
+        });
       }
     }
   } else if (message.type === "result") {
@@ -294,4 +314,104 @@ function handle(message: SdkMessage, emit: (event: AgentEvent) => void) {
 function stripMcpPrefix(name: string): string {
   const prefix = `mcp__${MCP_SERVER_NAME}__`;
   return name.startsWith(prefix) ? name.slice(prefix.length) : name;
+}
+
+// Maps a raw tool name (+ its input) to a short, human-readable present-tense
+// label for the live activity indicator, e.g. "Searching b-roll…". Any tool
+// without an explicit entry falls back to a humanized version of its name, so
+// new tools degrade gracefully instead of showing nothing.
+const TOOL_LABELS: Record<string, string> = {
+  plan_composition: "Planning the composition",
+  plan_edit: "Planning the edit",
+  list_files: "Reading project files",
+  read_file: "Reading a file",
+  write_file: "Writing the composition",
+  diff_file: "Editing the composition",
+  lint_composition: "Checking the composition",
+  screenshot_at_time: "Capturing a preview frame",
+  get_brand_kit: "Loading your brand kit",
+  find_stock: "Finding stock media",
+  search_media: "Searching b-roll",
+  list_assets: "Listing assets",
+  list_assets_summary: "Listing assets",
+  list_registry_blocks: "Browsing the block library",
+  read_registry_block: "Loading a building block",
+  analyze_image: "Analyzing an image",
+  caption_asset: "Captioning an asset",
+  generate_captions: "Generating captions",
+  generate_image: "Generating an image",
+  generate_image_variants: "Generating image variants",
+  generate_voiceover: "Recording the voiceover",
+  generate_broll: "Generating b-roll",
+  start_render: "Starting the render",
+  render_edl: "Rendering",
+  build_captions_from_words: "Building captions",
+  build_word_highlight_captions: "Building captions",
+  snap_to_boundary: "Aligning cuts",
+  auto_grade_filter: "Color grading",
+  compute_segment_offsets: "Computing cut points",
+  probe_clip: "Inspecting the clip",
+  trim_clip: "Trimming the clip",
+  concat_clips: "Joining clips",
+  grade_clip: "Color grading the clip",
+  chroma_key: "Keying the green screen",
+  speed_clip: "Adjusting clip speed",
+  overlay_clip: "Compositing an overlay",
+  add_transition: "Adding a transition",
+  mix_audio: "Mixing audio",
+  extract_audio: "Extracting audio",
+  burn_captions: "Burning in captions",
+  transcribe_clip: "Transcribing the clip",
+  pack_footage: "Packing the footage",
+  analyze_clip: "Analyzing the clip",
+  review_render: "Reviewing the render",
+  detect_filler_words: "Finding filler words",
+  apply_noise_reduction: "Cleaning up the audio",
+  analyze_pacing: "Analyzing pacing",
+  detect_beats: "Detecting the beat",
+  quality_check: "Running a quality check",
+  draft_script: "Drafting the script",
+  save_insight: "Saving a note",
+  load_insights: "Loading your preferences",
+  trim_audio: "Trimming audio",
+  download_asset: "Downloading media",
+  design_thumbnail: "Designing the thumbnail",
+  fetch_data_source: "Fetching data",
+  reformat_composition: "Reformatting the composition",
+  visual_critique: "Critiquing the visuals",
+  remove_background: "Removing the background",
+  crop_image: "Cropping an image",
+  get_style_lock: "Loading the style lock",
+  prepare_scene_media: "Preparing scene media",
+  generate_persona: "Creating your persona",
+  get_persona: "Loading the persona",
+  use_persona: "Placing the persona",
+  add_persona_pose: "Posing the persona",
+  update_persona: "Updating the persona",
+  read_manifest: "Reading an asset manifest",
+  upsert_manifest: "Updating an asset manifest",
+  get_project_edit: "Loading edit history",
+  undo_project_edit: "Undoing the last edit",
+  WebSearch: "Searching the web",
+  WebFetch: "Fetching a web page",
+};
+
+function friendlyToolLabel(name: string, input: Record<string, unknown>): string {
+  // A few tools read better with a hint of what they're acting on.
+  if (name === "write_file" && typeof input.path === "string") {
+    return input.path.endsWith("index.html")
+      ? "Writing the composition"
+      : `Writing ${input.path.split("/").pop()}`;
+  }
+  if ((name === "search_media" || name === "find_stock") && typeof input.query === "string") {
+    return `Searching for "${truncateLabel(input.query, 28)}"`;
+  }
+  const base = TOOL_LABELS[name];
+  if (base) return base;
+  // Unknown tool → humanize: strip mcp noise, turn snake_case into words.
+  return name.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
+
+function truncateLabel(text: string, n: number): string {
+  return text.length > n ? text.slice(0, n - 1) + "…" : text;
 }

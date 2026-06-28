@@ -1,29 +1,11 @@
-import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
-import { rmSync } from "node:fs";
-import { resolve, join } from "node:path";
-import { db } from "@/lib/db";
-import { user } from "@/lib/db/schema";
-import { requireServerSession } from "@/lib/server-session";
+import { DELETE as deleteAccount } from "../route";
 
-const STORAGE_ROOT = process.env.STORAGE_ROOT || resolve(process.cwd(), "storage");
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-export async function DELETE() {
-  const session = await requireServerSession().catch((r) => r);
-  if (session instanceof Response) return session;
-  const userId = session.user.id;
-  // Drizzle cascade handles projects/messages/renderJobs/subscriptions/etc.
-  db.delete(user).where(eq(user.id, userId)).run();
-  // Wipe filesystem
-  for (const sub of ["projects", "brand-kits"]) {
-    try {
-      rmSync(join(STORAGE_ROOT, sub, userId), {
-        recursive: true,
-        force: true,
-      });
-    } catch {
-      /* */
-    }
-  }
-  return NextResponse.json({ ok: true });
-}
+// Legacy alias for self-service account deletion. The real implementation —
+// confirm gate, Polar cancellation, FK cascade, full on-disk storage cleanup —
+// lives in ../route.ts (DELETE /api/account). Re-exported here so the older
+// /api/account/me endpoint stays working but shares the hardened code path
+// (previously this duplicated a weaker delete with no confirm gate).
+export const DELETE = deleteAccount;

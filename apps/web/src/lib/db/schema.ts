@@ -389,6 +389,34 @@ export const publishConnections = sqliteTable(
   }),
 );
 
+// BYOK provider API keys stored at rest, server-side (opt-in alternative to the
+// browser-local localStorage flow, so keys survive across devices). The value is
+// ALWAYS encrypted with AES-256-GCM (API_KEYS_SECRET) before insert — never
+// stored or logged in plaintext. One row per (userId, provider).
+export const apiKeys = sqliteTable(
+  "apiKeys",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // "replicate" | "elevenlabs" | "openai" | "anthropic"
+    provider: text("provider").notNull(),
+    // AES-256-GCM ciphertext (enc:v1: prefixed). Decrypted only at point of use.
+    keyEnc: text("keyEnc").notNull(),
+    // Last 4 chars of the plaintext, kept for UI display without decrypting.
+    last4: text("last4"),
+    createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    // Lookup/upsert: WHERE userId=? AND provider=?
+    userProviderIdx: index("apiKeys_user_provider_idx").on(table.userId, table.provider),
+  }),
+);
+
+export type ApiKey = typeof apiKeys.$inferSelect;
+
 // Workspaces — shared project buckets with role-based access.
 export const workspaces = sqliteTable("workspaces", {
   id: text("id").primaryKey(),

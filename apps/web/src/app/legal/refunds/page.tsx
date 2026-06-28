@@ -1,3 +1,11 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Refund Policy — VibeEdit",
+  description: "VibeEdit's refund and cancellation policy for paid plans.",
+  alternates: { canonical: "/legal/refunds" },
+};
+
 export default function Refunds() {
   return (
     <>

@@ -1,6 +1,20 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { CHANGELOG } from "@/lib/changelog";
 import { Wordmark } from "@/components/Wordmark";
+
+export const metadata: Metadata = {
+  title: "Changelog — VibeEdit",
+  description: "What's shipped in VibeEdit, in reverse chronological order.",
+  alternates: { canonical: "/changelog" },
+  openGraph: {
+    title: "VibeEdit Changelog",
+    description: "What's shipped in VibeEdit, in reverse chronological order.",
+    type: "website",
+    url: "/changelog",
+    siteName: "VibeEdit",
+  },
+};
 
 export default function ChangelogPage() {
   return (

@@ -2,10 +2,34 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Wordmark } from "@/components/Wordmark";
 
+const OG_IMAGE =
+  "/og?title=" +
+  encodeURIComponent("Start for free.") +
+  "&subtitle=" +
+  encodeURIComponent("Full AI video agent on every tier. $1 trial on paid plans.") +
+  "&badge=" +
+  encodeURIComponent("Pricing");
+
 export const metadata: Metadata = {
   title: "Pricing — VibeEdit",
   description:
     "Free plan to start. $1 trial on paid plans. Full AI video editing agent on every tier.",
+  alternates: { canonical: "/pricing" },
+  openGraph: {
+    title: "VibeEdit Pricing — Start for free",
+    description:
+      "Free plan to start. $1 trial on paid plans. Full AI video editing agent on every tier.",
+    type: "website",
+    url: "/pricing",
+    siteName: "VibeEdit",
+    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: "VibeEdit pricing" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "VibeEdit Pricing — Start for free",
+    description: "Free plan to start. $1 trial on paid plans.",
+    images: [OG_IMAGE],
+  },
 };
 
 const PLANS = [
@@ -189,18 +213,35 @@ export default function PricingPage() {
       <section className="border-t border-[var(--color-border)] bg-[var(--color-surface)]/30 px-4 py-16 sm:px-6">
         <div className="mx-auto max-w-4xl">
           <h2 className="mb-8 text-center text-2xl font-bold sm:text-3xl">Compare plans</h2>
-          <div className="overflow-hidden rounded-2xl border border-[var(--color-border)]">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-2xl border border-[var(--color-border)]">
+            <table className="w-full min-w-[34rem] text-sm">
+              <caption className="sr-only">
+                Feature comparison across Free, Creator, and Studio plans
+              </caption>
               <thead>
                 <tr className="border-b border-[var(--color-border)] bg-[var(--color-bg-2)]">
-                  <th className="px-4 py-3 text-left font-medium text-[var(--color-fg-muted)]" />
-                  <th className="px-4 py-3 text-center font-medium text-[var(--color-fg-muted)]">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left font-medium text-[var(--color-fg-muted)]"
+                  >
+                    <span className="sr-only">Feature</span>
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-center font-medium text-[var(--color-fg-muted)]"
+                  >
                     Free
                   </th>
-                  <th className="bg-[var(--color-accent)]/5 px-4 py-3 text-center font-semibold text-[var(--color-accent)]">
+                  <th
+                    scope="col"
+                    className="bg-[var(--color-accent)]/5 px-4 py-3 text-center font-semibold text-[var(--color-accent)]"
+                  >
                     Creator
                   </th>
-                  <th className="px-4 py-3 text-center font-medium text-[var(--color-fg-muted)]">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-center font-medium text-[var(--color-fg-muted)]"
+                  >
                     Studio
                   </th>
                 </tr>
@@ -211,7 +252,12 @@ export default function PricingPage() {
                     key={row.feature}
                     className="border-b border-[var(--color-border)] last:border-0"
                   >
-                    <td className="px-4 py-3 text-[var(--color-fg-muted)]">{row.feature}</td>
+                    <th
+                      scope="row"
+                      className="px-4 py-3 text-left font-normal text-[var(--color-fg-muted)]"
+                    >
+                      {row.feature}
+                    </th>
                     <td className="px-4 py-3 text-center text-[var(--color-fg-muted)]">
                       {row.free}
                     </td>

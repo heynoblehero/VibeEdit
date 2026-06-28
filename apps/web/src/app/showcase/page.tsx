@@ -1,9 +1,39 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Wordmark } from "@/components/Wordmark";
 import { MarketingNav } from "@/components/MarketingNav";
 import { DemoCard } from "@/components/DemoCard";
 
 export const dynamic = "force-dynamic";
+
+const OG_IMAGE =
+  "/og?title=" +
+  encodeURIComponent("Real videos. Real creators.") +
+  "&subtitle=" +
+  encodeURIComponent("Every video made with VibeEdit — from a single chat prompt.") +
+  "&badge=" +
+  encodeURIComponent("Creator showcase");
+
+export const metadata: Metadata = {
+  title: "Showcase — Real videos made with VibeEdit",
+  description:
+    "Browse real videos creators made with VibeEdit from a single chat prompt — Shorts, Reels, and long-form. No timeline, no editor.",
+  alternates: { canonical: "/showcase" },
+  openGraph: {
+    title: "VibeEdit Showcase — Real videos. Real creators.",
+    description: "Every video here was made from a single chat prompt with VibeEdit.",
+    type: "website",
+    url: "/showcase",
+    siteName: "VibeEdit",
+    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: "VibeEdit creator showcase" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "VibeEdit Showcase — Real videos. Real creators.",
+    description: "Every video here was made from a single chat prompt with VibeEdit.",
+    images: [OG_IMAGE],
+  },
+};
 
 type ShowcaseEntry = {
   slug: string;
@@ -142,7 +172,8 @@ export default async function ShowcasePage({
           <Link
             key={p ?? "all"}
             href={p ? `/showcase?platform=${p}` : "/showcase"}
-            className={`rounded-full border px-4 py-1.5 text-xs font-medium transition-colors ${
+            aria-current={(platform ?? undefined) === p ? "page" : undefined}
+            className={`rounded-full border px-4 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)] ${
               (platform ?? undefined) === p
                 ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-black"
                 : "border-[var(--color-border)] text-[var(--color-fg-muted)] hover:border-[var(--color-accent)]/50 hover:text-[var(--color-fg)]"
@@ -259,7 +290,7 @@ function ShowcaseCard({ entry }: { entry: ShowcaseEntry }) {
         {entry.thumbUrl && (
           <img
             src={entry.thumbUrl}
-            alt={entry.projectName ?? ""}
+            alt={`Thumbnail for ${entry.projectName || "an untitled video"} made with VibeEdit`}
             className="absolute inset-0 h-full w-full object-cover transition-opacity duration-300 group-hover:opacity-0"
             loading="lazy"
           />
@@ -268,6 +299,7 @@ function ShowcaseCard({ entry }: { entry: ShowcaseEntry }) {
         {/* Video — plays on hover */}
         <video
           src={entry.videoUrl}
+          aria-label={`Preview of ${entry.projectName || "an untitled video"}`}
           muted
           loop
           playsInline
@@ -332,7 +364,7 @@ function ShowcaseCard({ entry }: { entry: ShowcaseEntry }) {
   );
 
   const cls =
-    "group block overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] transition-all hover:border-[var(--color-accent)]/40 hover:shadow-xl";
+    "group block overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] transition-all hover:border-[var(--color-accent)]/40 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)]";
 
   return href ? (
     <Link href={href} className={cls}>

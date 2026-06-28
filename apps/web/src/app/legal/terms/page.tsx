@@ -1,3 +1,11 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Terms of Service — VibeEdit",
+  description: "The terms governing your use of VibeEdit Video.",
+  alternates: { canonical: "/legal/terms" },
+};
+
 export default function Terms() {
   return (
     <>

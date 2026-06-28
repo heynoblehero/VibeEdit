@@ -8,15 +8,15 @@ import { requireServerSession } from "@/lib/server-session";
 import { projectDir } from "@/lib/storage/fs";
 import { enqueue } from "@/lib/render/queue";
 import {
-  canRender,
   canRenderMinutes,
   canUseCloudRender,
   capQualityForPlan,
-  getRenderCredits,
-  spendRenderCredit,
-  recordUsage,
+  trySpendRenderCredit,
+  reserveUsage,
+  refundUsage,
   getUserPlan,
 } from "@/lib/billing/usage";
+import { upgradePaywall } from "@/lib/billing/paywall";
 import { captureEvent, FUNNEL } from "@/lib/observability/posthog";
 import { captureException } from "@/lib/observability/sentry";
 
@@ -60,43 +60,50 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  const gate = canRender(userId);
-  if (!gate.ok) {
-    return NextResponse.json(
-      {
-        error: "render_limit_reached",
-        message: `Render limit reached for your plan (${gate.used}/${gate.limit}). Buy render credits or upgrade at /app/billing.`,
-        credits: getRenderCredits(userId),
-      },
-      { status: 402 },
-    );
-  }
-  // If user is over their plan limit but has credits, spend one now.
+  // Atomic reserve: count + insert the render usage event in one transaction so
+  // two parallel render requests can't both slip past the monthly cap (a free
+  // overage = real money). If the plan limit is exhausted we fall back to
+  // pay-per-render credits, also spent atomically.
   const plan = getUserPlan(userId);
-  if (plan.renderLimit !== -1 && gate.used >= plan.renderLimit && gate.hasCredits) {
-    spendRenderCredit(userId);
+  let reservedRenderUnit = true; // false => paid via a credit, not a usage unit
+  if (plan.renderLimit !== -1) {
+    const reservation = reserveUsage(userId, "render", plan.renderLimit, { jobId: "pending" });
+    if (!reservation.ok) {
+      // Plan exhausted — try a credit before paywalling.
+      if (!trySpendRenderCredit(userId)) {
+        return NextResponse.json(
+          upgradePaywall("render_limit_reached", {
+            used: reservation.used,
+            limit: reservation.limit,
+          }),
+          { status: 402 },
+        );
+      }
+      reservedRenderUnit = false; // credit covered it; don't double-count
+    }
+  } else {
+    // Unlimited plan — still record the event for accurate dashboards.
+    reserveUsage(userId, "render", -1, { jobId: "pending" });
   }
   const minuteGate = canRenderMinutes(userId);
   if (!minuteGate.ok) {
+    if (reservedRenderUnit) refundUsage(userId, "render", 1, { reason: "render_minutes_gate" });
     return NextResponse.json(
-      {
-        error: "render_minutes_exhausted",
-        message: `Render time limit reached (${minuteGate.used}/${minuteGate.limit} minutes this month). Upgrade at /app/billing.`,
+      upgradePaywall("render_minutes_exhausted", {
         used: minuteGate.used,
         limit: minuteGate.limit,
-      },
+      }),
       { status: 402 },
     );
   }
   const cloudGate = canUseCloudRender(userId);
   if (!cloudGate.ok) {
+    if (reservedRenderUnit) refundUsage(userId, "render", 1, { reason: "cloud_render_gate" });
     return NextResponse.json(
-      {
-        error: "cloud_render_exhausted",
-        message: `You've used your free cloud render time (${cloudGate.used}/${cloudGate.limit}s). Install the local worker at /app/settings/worker to keep rendering — or upgrade your plan.`,
+      upgradePaywall("cloud_render_exhausted", {
         used: cloudGate.used,
         limit: cloudGate.limit,
-      },
+      }),
       { status: 402 },
     );
   }
@@ -112,6 +119,9 @@ export async function POST(req: Request) {
       quality: effectiveQuality,
     });
   } catch (error) {
+    // Reservation already consumed a render unit; give it back since the job
+    // never enqueued, so a transient failure doesn't burn the user's quota.
+    if (reservedRenderUnit) refundUsage(userId, "render", 1, { reason: "enqueue_failed" });
     captureException(error, {
       source: "api.render.enqueue",
       userId,
@@ -119,7 +129,6 @@ export async function POST(req: Request) {
     });
     throw error;
   }
-  recordUsage(userId, "render", 1, { jobId: id });
   // Funnel: render kicked off. NOTE FOR RENDER AGENT: render_succeeded /
   // render_failed are owned by the queue/worker — emit them from there with
   // captureEvent(FUNNEL.* , userId, { jobId }) once a job finishes.

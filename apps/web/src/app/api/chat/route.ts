@@ -6,7 +6,8 @@ import { listAssets, markAiAssets, readProjectText } from "@/lib/storage/fs";
 import { requireServerSession } from "@/lib/server-session";
 import { runAgent, type AgentEvent } from "@/lib/ai/agent";
 import { enqueue } from "@/lib/render/queue";
-import { canChat, recordUsage } from "@/lib/billing/usage";
+import { getUserPlan, reserveUsage } from "@/lib/billing/usage";
+import { upgradePaywall } from "@/lib/billing/paywall";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { captureException } from "@/lib/observability/sentry";
 import { captureEvent, FUNNEL } from "@/lib/observability/posthog";
@@ -74,11 +75,18 @@ export async function POST(req: Request) {
     .get();
   if (!owned) return new Response("not found", { status: 404 });
 
-  // Monthly chat-turn cap per plan (hard ceiling).
-  const chatGate = canChat(userId);
-  if (!chatGate.ok) {
-    return new Response(
-      `Chat limit reached for your plan (${chatGate.used}/${chatGate.limit} turns this month). Upgrade at /app/billing.`,
+  // Monthly chat-turn cap per plan (hard ceiling). Reserve atomically: the
+  // count + the usage-event insert happen in one transaction so two parallel
+  // turns can't both pass the gate and overshoot the cap. We reserve BEFORE
+  // doing any agent work; the turn is committed the moment it's allowed.
+  const plan = getUserPlan(userId);
+  const chatReservation = reserveUsage(userId, "chat_turn", plan.chatTurnLimit, { projectId });
+  if (!chatReservation.ok) {
+    return Response.json(
+      upgradePaywall("chat_limit_reached", {
+        used: chatReservation.used,
+        limit: chatReservation.limit,
+      }),
       { status: 402 },
     );
   }
@@ -115,7 +123,8 @@ export async function POST(req: Request) {
       createdAt: new Date(),
     })
     .run();
-  recordUsage(userId, "chat_turn", 1, { projectId });
+  // Usage already reserved atomically above (chatReservation) — do not
+  // double-count here.
 
   const assistantBlocks: Array<{
     type: string;

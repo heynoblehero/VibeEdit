@@ -56,6 +56,30 @@ export async function POST(req: Request) {
   const origin = new URL(req.url).origin;
   try {
     const polar = getPolar();
+
+    // Plan SWITCH (e.g. Creator → Studio) for an already-subscribed user:
+    // update the existing Polar subscription in place so Polar applies
+    // proration, rather than create a second parallel subscription via a new
+    // checkout (which would double-bill and leave the old sub running). We only
+    // do this when there's a live subscription to switch; a canceled/expired
+    // one falls through to a fresh checkout.
+    const existing = db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).get();
+    const switchableStatuses = new Set(["active", "trialing", "past_due"]);
+    if (
+      existing?.polarSubscriptionId &&
+      existing.plan !== planId &&
+      switchableStatuses.has(existing.status)
+    ) {
+      // SDK 0.47.x: subscriptions.update with a new productId triggers a
+      // prorated plan change; the webhook (subscription.updated) reconciles our
+      // DB row afterward, so we don't optimistically write the plan here.
+      await polar.subscriptions.update({
+        id: existing.polarSubscriptionId,
+        subscriptionUpdate: { productId },
+      });
+      return NextResponse.json({ url: `${origin}/app/billing?status=success`, switched: true });
+    }
+
     // Polar Checkouts API: create a hosted checkout session. The success
     // URL is where the user lands after paying; the subscription gets
     // confirmed via the webhook (api/webhooks/polar) before we trust it.

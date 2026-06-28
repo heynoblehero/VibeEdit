@@ -1,8 +1,8 @@
-import { and, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, gte, isNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "../db";
 import { subscriptions, usageEvents, workerTokens, user } from "../db/schema";
-import { planFor, PLANS, type Plan } from "./plans";
+import { planFor, PLANS, type Plan, type PlanId } from "./plans";
 import { isAdminEmail } from "../admin";
 
 export function getRenderCredits(userId: string): number {
@@ -22,6 +22,20 @@ export function spendRenderCredit(userId: string): boolean {
     .where(eq(subscriptions.userId, userId))
     .run();
   return true;
+}
+
+// Atomic credit spend — the read-then-write version above can be raced into a
+// double-spend (two requests both read credits=1, both decrement). The
+// conditional UPDATE decrements only when renderCredits > 0 in a single
+// statement; we check the affected-row count to know whether a credit was
+// actually consumed. Used by the render gate when a user is over plan limit.
+export function trySpendRenderCredit(userId: string): boolean {
+  const result = db
+    .update(subscriptions)
+    .set({ renderCredits: sql`${subscriptions.renderCredits} - 1` })
+    .where(and(eq(subscriptions.userId, userId), gt(subscriptions.renderCredits, 0)))
+    .run();
+  return result.changes > 0;
 }
 
 export type UsageKind = "render" | "chat_turn" | "cloud_render_seconds" | "render_minutes";
@@ -109,6 +123,84 @@ export function recordUsage(
     .run();
 }
 
+// Atomic check-and-increment for a monthly metered quota.
+//
+// The old pattern was: call canRender()/canChat() (a SELECT), then later
+// recordUsage() (an INSERT). Two concurrent requests could BOTH pass the gate
+// before either wrote its usage row, so a free user could exceed the cap by
+// running N renders in parallel — a real money leak (each render costs us
+// cloud + Anthropic spend). This wraps the count + insert in a single
+// better-sqlite3 transaction. better-sqlite3 is synchronous and serializes
+// transactions, so the read used to decide cannot interleave with another
+// transaction's write — the increment is safe against the race.
+//
+// Returns { ok } — when false, NOTHING was written and the caller must reject.
+// `limit === -1` means unlimited: always ok, still records the event so usage
+// dashboards stay accurate.
+export function reserveUsage(
+  userId: string,
+  kind: UsageKind,
+  limit: number,
+  meta?: Record<string, unknown>,
+  amount = 1,
+): { ok: boolean; used: number; limit: number } {
+  const since = startOfMonth();
+  // drizzle (better-sqlite3) runs the callback synchronously inside a real SQL
+  // transaction and returns its value directly. better-sqlite3 serializes
+  // transactions, so the SELECT used to decide cannot interleave with another
+  // transaction's INSERT — that's what makes the check+increment race-safe.
+  return db.transaction((tx) => {
+    const current =
+      tx
+        .select({ total: sql<number>`coalesce(sum(${usageEvents.amount}), 0)` })
+        .from(usageEvents)
+        .where(
+          and(
+            eq(usageEvents.userId, userId),
+            eq(usageEvents.kind, kind),
+            gte(usageEvents.createdAt, since),
+          ),
+        )
+        .get()?.total || 0;
+    if (limit !== -1 && current >= limit) {
+      return { ok: false, used: current, limit };
+    }
+    tx.insert(usageEvents)
+      .values({
+        id: nanoid(12),
+        userId,
+        kind,
+        amount,
+        meta: meta ? JSON.stringify(meta) : null,
+        createdAt: new Date(),
+      })
+      .run();
+    return { ok: true, used: current + amount, limit };
+  });
+}
+
+// Refund a usage unit reserved by reserveUsage when the downstream action
+// could not actually proceed (e.g. enqueue threw after we reserved a render).
+// Records a compensating negative event so monthly sums stay correct rather
+// than deleting rows (keeps an audit trail).
+export function refundUsage(
+  userId: string,
+  kind: UsageKind,
+  amount = 1,
+  meta?: Record<string, unknown>,
+): void {
+  db.insert(usageEvents)
+    .values({
+      id: nanoid(12),
+      userId,
+      kind,
+      amount: -amount,
+      meta: meta ? JSON.stringify({ ...meta, refund: true }) : JSON.stringify({ refund: true }),
+      createdAt: new Date(),
+    })
+    .run();
+}
+
 export function getUserPlan(userId: string): Plan {
   // Admin accounts always get Studio — lets admins test the full product free.
   const userRow = db.select({ email: user.email }).from(user).where(eq(user.id, userId)).get();
@@ -117,6 +209,33 @@ export function getUserPlan(userId: string): Plan {
   }
   const sub = db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).get();
   return planFor(sub?.plan);
+}
+
+// Subscription billing-health status, surfaced to the UI for the dunning
+// banner. "past_due" / "unpaid" come straight from Polar's webhook (a failed
+// renewal charge). We keep serving the paid plan during the grace window — we
+// do NOT instantly downgrade on first failed charge, because Polar retries and
+// a transient decline shouldn't strip a paying customer's access mid-month.
+export type BillingHealth = {
+  status: string;
+  pastDue: boolean;
+  plan: PlanId;
+};
+
+const PAST_DUE_STATUSES = new Set(["past_due", "unpaid"]);
+
+export function getBillingHealth(userId: string): BillingHealth {
+  const sub = db
+    .select({ status: subscriptions.status, plan: subscriptions.plan })
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, userId))
+    .get();
+  const status = sub?.status ?? "active";
+  return {
+    status,
+    pastDue: PAST_DUE_STATUSES.has(status),
+    plan: (sub?.plan as PlanId) ?? "free",
+  };
 }
 
 export function canRender(userId: string): {

@@ -3,7 +3,7 @@
 // many times per session — without this, we'd fetch it per mount.
 //
 // Cache TTL: 60 seconds. Subscription state doesn't shift faster than that
-// outside of an explicit Stripe webhook event. Clients can call refreshMe()
+// outside of an explicit Polar webhook event. Clients can call refreshMe()
 // after a checkout return to force a refetch.
 
 export type PlanId = "free" | "creator" | "studio";

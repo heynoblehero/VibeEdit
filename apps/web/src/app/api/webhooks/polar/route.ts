@@ -42,6 +42,12 @@ type PolarSubscription = {
   metadata: Record<string, string | number | boolean>;
 };
 
+// Polar subscription statuses that mean a renewal charge failed and we're in
+// the dunning grace window. We keep the paid PLAN on the row (so the user
+// isn't instantly downgraded on a transient decline — Polar retries) but the
+// "past_due"/"unpaid" status drives the dunning banner via getBillingHealth().
+const PAST_DUE_STATUSES = new Set(["past_due", "unpaid"]);
+
 async function applyFromSubscription(sub: PolarSubscription): Promise<void> {
   const userId = sub.metadata?.userId as string | undefined;
   if (!userId) return;
@@ -112,12 +118,14 @@ export async function POST(req: Request) {
       case "subscription.created":
       case "subscription.active":
       case "subscription.updated":
+      case "subscription.past_due":
       case "subscription.canceled":
       case "subscription.revoked":
       case "subscription.uncanceled": {
         await applyFromSubscription(event.data);
         // Funnel: revenue events keyed to the user when present in metadata.
         const subUserId = event.data?.metadata?.userId as string | undefined;
+        const pastDue = PAST_DUE_STATUSES.has(event.data?.status);
         const funnelEvent =
           event.type === "subscription.created"
             ? FUNNEL.subscriptionCreated
@@ -128,6 +136,11 @@ export async function POST(req: Request) {
           polarType: event.type,
           plan: planIdFromProductId(event.data?.productId),
           status: event.data?.status,
+          // Dunning signal: a failed renewal charge flips Polar's status to
+          // past_due/unpaid. The DB row now carries that status; the dashboard
+          // dunning banner reads it via getBillingHealth(). Flagged here so the
+          // funnel can alert on involuntary churn risk.
+          pastDue,
         });
         break;
       }

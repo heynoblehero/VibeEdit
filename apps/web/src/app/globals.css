@@ -168,6 +168,29 @@ body {
   }
 }
 
+/* Toast: slide + fade in from the bottom-right corner */
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toastInMobile {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 /* ── Utility classes ────────────────────────────────────────────────────── */
 
 /* Subtle noise/grain texture overlay */
@@ -225,6 +248,17 @@ body {
   animation: shimmer 1.8s linear infinite;
 }
 
+/* Toast entry animation. Mobile toasts come from the top, desktop from
+   bottom-right — match the viewport anchor in Toast.tsx. */
+.toast-enter {
+  animation: toastInMobile 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (min-width: 640px) {
+  .toast-enter {
+    animation-name: toastIn;
+  }
+}
+
 /* Stagger delays */
 .delay-75 {
   animation-delay: 75ms;
@@ -237,4 +271,46 @@ body {
 }
 .delay-300 {
   animation-delay: 300ms;
+}
+
+/* ── Accessibility ──────────────────────────────────────────────────────── */
+
+/* Visible keyboard focus ring for interactive elements that don't already
+   define one. Pointer users never see it (focus-visible), keyboard users do. */
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+[role="menuitem"]:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Respect users who ask for less motion: kill decorative loops (orb drift,
+   shimmer, slow spins, pulse) and collapse all transitions/animations to a
+   near-instant fade so essential state changes still register. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-shimmer {
+    animation: none !important;
+    background: var(--color-bg-2) !important;
+  }
+
+  [style*="orb-drift"],
+  .animate-spin,
+  .animate-pulse {
+    animation: none !important;
+  }
 }

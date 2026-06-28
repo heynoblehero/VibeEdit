@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { Wordmark } from "@/components/Wordmark";
+import { useToast } from "@/components/Toast";
 
 type TokenRow = {
   token: string;
@@ -22,6 +23,7 @@ type Status = {
 
 export default function WorkerSettingsPage() {
   const router = useRouter();
+  const toast = useToast();
   const { data: session, isPending } = useSession();
   const [tokens, setTokens] = useState<TokenRow[]>([]);
   const [showToken, setShowToken] = useState<string | null>(null);
@@ -62,24 +64,36 @@ export default function WorkerSettingsPage() {
       setCreating(false);
       return;
     }
-    const r = await fetch("/api/worker/tokens", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    setCreating(false);
-    if (!r.ok) return;
-    const data = (await r.json()) as { token: string };
-    setShowToken(data.token);
-    refresh();
+    try {
+      const r = await fetch("/api/worker/tokens", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!r.ok) throw new Error(`Server error ${r.status}`);
+      const data = (await r.json()) as { token: string };
+      setShowToken(data.token);
+      refresh();
+      toast.success("Worker token created — copy it now.");
+    } catch {
+      toast.error("Couldn't create a worker token. Please try again.");
+    } finally {
+      setCreating(false);
+    }
   }
 
   async function revoke(prefix: string) {
     if (!confirm("Revoke this worker token? The worker will stop polling.")) return;
-    await fetch(`/api/worker/tokens?prefix=${encodeURIComponent(prefix)}`, {
-      method: "DELETE",
-    });
-    refresh();
+    try {
+      const r = await fetch(`/api/worker/tokens?prefix=${encodeURIComponent(prefix)}`, {
+        method: "DELETE",
+      });
+      if (!r.ok) throw new Error(`Server error ${r.status}`);
+      refresh();
+      toast.success("Worker token revoked");
+    } catch {
+      toast.error("Couldn't revoke the token. Please try again.");
+    }
   }
 
   if (isPending || !session) return null;
@@ -90,14 +104,18 @@ export default function WorkerSettingsPage() {
         <Link href="/app/projects">
           <Wordmark size="md" />
         </Link>
-        <nav className="flex flex-wrap gap-3 text-sm">
+        <nav aria-label="Settings" className="flex flex-wrap gap-3 text-sm">
           <Link
             href="/app/settings/brand"
             className="text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
           >
             Brand
           </Link>
-          <Link href="/app/settings/worker" className="text-[var(--color-accent)]">
+          <Link
+            href="/app/settings/worker"
+            aria-current="page"
+            className="text-[var(--color-accent)]"
+          >
             Render worker
           </Link>
           <Link
@@ -147,7 +165,10 @@ export default function WorkerSettingsPage() {
             </code>
             <button
               onClick={() => {
-                navigator.clipboard.writeText(showToken);
+                navigator.clipboard
+                  .writeText(showToken)
+                  .then(() => toast.success("Token copied to clipboard"))
+                  .catch(() => toast.error("Couldn't copy — copy the token manually."));
                 setShowToken(null);
               }}
               className="mt-3 rounded-md border border-[var(--color-border)] px-3 py-1 text-xs hover:bg-[var(--color-bg)]"

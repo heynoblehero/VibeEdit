@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { Wordmark } from "@/components/Wordmark";
+import { useToast } from "@/components/Toast";
 import { getAllApiKeys } from "@/lib/api-keys/store";
 
 type BrandKit = {
@@ -24,6 +25,7 @@ type BrandKit = {
 
 export default function BrandKitPage() {
   const router = useRouter();
+  const toast = useToast();
   const { data: session, isPending } = useSession();
   const [kit, setKit] = useState<BrandKit | null>(null);
   const [saving, setSaving] = useState(false);
@@ -44,21 +46,34 @@ export default function BrandKitPage() {
 
   async function save(patch: Partial<BrandKit>) {
     setSaving(true);
-    const r = await fetch("/api/brand-kit", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(patch),
-    });
-    setSaving(false);
-    if (r.ok) setKit(await r.json());
+    try {
+      const r = await fetch("/api/brand-kit", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!r.ok) throw new Error(`Server error ${r.status}`);
+      setKit(await r.json());
+      toast.success("Brand kit saved");
+    } catch {
+      toast.error("Couldn't save your brand kit. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function upload(kind: "logo" | "watermark", file: File) {
     const form = new FormData();
     form.append("kind", kind);
     form.append("file", file);
-    const r = await fetch("/api/brand-kit", { method: "POST", body: form });
-    if (r.ok) setKit(await r.json());
+    try {
+      const r = await fetch("/api/brand-kit", { method: "POST", body: form });
+      if (!r.ok) throw new Error(`Server error ${r.status}`);
+      setKit(await r.json());
+      toast.success(`${kind === "logo" ? "Logo" : "Watermark"} uploaded`);
+    } catch {
+      toast.error(`Couldn't upload your ${kind}. Please try again.`);
+    }
   }
 
   if (isPending || !session || !kit) {
@@ -75,14 +90,18 @@ export default function BrandKitPage() {
         <Link href="/app/projects">
           <Wordmark size="md" />
         </Link>
-        <nav className="flex flex-wrap gap-3 text-sm">
+        <nav aria-label="Settings" className="flex flex-wrap gap-3 text-sm">
           <Link
             href="/app/projects"
             className="text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
           >
             Projects
           </Link>
-          <Link href="/app/settings/brand" className="text-[var(--color-accent)]">
+          <Link
+            href="/app/settings/brand"
+            aria-current="page"
+            className="text-[var(--color-accent)]"
+          >
             Brand kit
           </Link>
         </nav>
@@ -247,6 +266,7 @@ function UploadCard({
 }
 
 function VoiceCloneSection({ kit, onUpdate }: { kit: BrandKit; onUpdate: () => void }) {
+  const toast = useToast();
   const [recording, setRecording] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -318,11 +338,14 @@ function VoiceCloneSection({ kit, onUpdate }: { kit: BrandKit; onUpdate: () => v
       const data = (await r.json()) as { ok?: boolean; message?: string };
       if (!r.ok) {
         setError(data.message || "Voice cloning failed.");
+        toast.error(data.message || "Voice cloning failed.");
       } else {
         onUpdate();
+        toast.success("Voice cloned — the agent will use it on voiceovers.");
       }
     } catch {
       setError("Network error — try again.");
+      toast.error("Network error — try again.");
     } finally {
       setUploading(false);
     }
@@ -331,13 +354,20 @@ function VoiceCloneSection({ kit, onUpdate }: { kit: BrandKit; onUpdate: () => v
   async function deleteVoice() {
     setDeleting(true);
     const key = getKey();
-    await fetch("/api/brand-kit/voice", {
-      method: "DELETE",
-      headers: key ? { "x-elevenlabs-key": key } : {},
-    });
-    setDeleting(false);
-    setTestAudioUrl(null);
-    onUpdate();
+    try {
+      const r = await fetch("/api/brand-kit/voice", {
+        method: "DELETE",
+        headers: key ? { "x-elevenlabs-key": key } : {},
+      });
+      if (!r.ok) throw new Error("failed");
+      setTestAudioUrl(null);
+      onUpdate();
+      toast.info("Cloned voice removed");
+    } catch {
+      toast.error("Couldn't remove your cloned voice. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   async function testVoice() {

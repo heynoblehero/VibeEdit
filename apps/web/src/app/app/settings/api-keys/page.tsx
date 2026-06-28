@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { Wordmark } from "@/components/Wordmark";
+import { useToast } from "@/components/Toast";
 import {
   PROVIDERS,
   type ProviderId,
@@ -23,8 +24,13 @@ type TestState = {
   error?: string;
 };
 
+function providerName(id: ProviderId): string {
+  return PROVIDERS.find((p) => p.id === id)?.name ?? "Provider";
+}
+
 export default function ApiKeysSettingsPage() {
   const router = useRouter();
+  const toast = useToast();
   const { data: session, isPending } = useSession();
   const [drafts, setDrafts] = useState<FormState>(emptyForm());
   const [editing, setEditing] = useState<Record<ProviderId, boolean>>(emptyBoolForm());
@@ -51,9 +57,14 @@ export default function ApiKeysSettingsPage() {
   function save(id: ProviderId) {
     const value = drafts[id]?.trim();
     if (!value) return;
-    setApiKey(id, value);
-    setDrafts((current) => ({ ...current, [id]: "" }));
-    setEditing((current) => ({ ...current, [id]: false }));
+    try {
+      setApiKey(id, value);
+      setDrafts((current) => ({ ...current, [id]: "" }));
+      setEditing((current) => ({ ...current, [id]: false }));
+      toast.success(`${providerName(id)} key saved in this browser`);
+    } catch {
+      toast.error("Couldn't save the key — your browser may be blocking storage.");
+    }
   }
 
   function clear(id: ProviderId) {
@@ -61,6 +72,7 @@ export default function ApiKeysSettingsPage() {
     setDrafts((current) => ({ ...current, [id]: "" }));
     setEditing((current) => ({ ...current, [id]: false }));
     setTestStates((current) => ({ ...current, [id]: { status: "idle" } }));
+    toast.info(`${providerName(id)} key removed`);
   }
 
   async function test(id: ProviderId) {
@@ -112,7 +124,7 @@ export default function ApiKeysSettingsPage() {
         <Link href="/app/projects">
           <Wordmark size="md" />
         </Link>
-        <nav className="flex flex-wrap gap-3 text-sm">
+        <nav aria-label="Settings" className="flex flex-wrap gap-3 text-sm">
           <Link
             href="/app/settings/brand"
             className="text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
@@ -125,7 +137,11 @@ export default function ApiKeysSettingsPage() {
           >
             Render worker
           </Link>
-          <Link href="/app/settings/api-keys" className="text-[var(--color-accent)]">
+          <Link
+            href="/app/settings/api-keys"
+            aria-current="page"
+            className="text-[var(--color-accent)]"
+          >
             API keys
           </Link>
           <Link

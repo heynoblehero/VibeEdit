@@ -5257,7 +5257,10 @@ async function runSnapshot(
   // skips the cold Chromium launch + Node/CLI startup the spawn path pays on
   // every call — the dominant cost in the agent's visual-critique loop.
   try {
-    const { captureFrames } = await import("./snapshot/capture");
+    // NOTE: keep the .js extension — making this extensionless makes webpack
+    // follow into capture.ts → @hyperframes/core/compiler and trips a deeper
+    // subpath-bundling failure at `next build`. Tracked as a separate fix.
+    const { captureFrames } = await import("./snapshot/capture.js");
     const paths = await captureFrames(dir, { at: timestamps });
     if (paths.length > 0) {
       return encodeSnapshotsDir(snapshotsDir, timestamps);

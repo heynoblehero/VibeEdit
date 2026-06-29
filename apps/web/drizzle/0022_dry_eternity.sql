@@ -1,0 +1,1 @@
+ALTER TABLE `userPreferences` ADD `modelPreferences` text;

@@ -159,6 +159,10 @@ export const userPreferences = sqliteTable("userPreferences", {
   postFrequency: text("postFrequency"),
   onboardingCompleted: integer("onboardingCompleted", { mode: "boolean" }).notNull().default(false),
   tourCompleted: integer("tourCompleted", { mode: "boolean" }).notNull().default(false),
+  // Auto/Manual multi-model selection. JSON-encoded ModelPreferences
+  // (see lib/ai/model-prefs.ts). Nullable → null means "never set", which the
+  // reader treats as the Auto default.
+  modelPreferences: text("modelPreferences"),
   updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
 });
 

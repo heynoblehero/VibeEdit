@@ -11,7 +11,7 @@ import { captureEvent, FUNNEL } from "@/lib/observability/posthog";
 
 // First-draft compositions need the strongest planner; incremental edits
 // route to Sonnet to cut cost ~3-4× without losing edit quality.
-const FIRST_DRAFT_MODEL = "claude-opus-4-7";
+const FIRST_DRAFT_MODEL = "claude-opus-4-8";
 const EDIT_MODEL = "claude-sonnet-4-6";
 const MODEL_OVERRIDE = process.env.ANTHROPIC_MODEL;
 

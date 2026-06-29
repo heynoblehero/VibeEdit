@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useSession } from "@/lib/auth-client";
 import { Chat } from "@/components/editor/Chat";
 import { FilesDrawer } from "@/components/editor/FilesDrawer";
+import { EditHistory } from "@/components/editor/EditHistory";
 import { HistoryPanel } from "@/components/editor/HistoryPanel";
 import { CodePane } from "@/components/editor/CodePane";
 import { RenderPanel } from "@/components/editor/RenderPanel";
@@ -350,7 +351,10 @@ export default function EditorPage({ params }: PageProps) {
         {/* Panel content */}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {rightTab === "files" ? (
-            <FilesDrawer projectId={id} reloadKey={reloadKey} />
+            <>
+              <EditHistory projectId={id} />
+              <FilesDrawer projectId={id} reloadKey={reloadKey} />
+            </>
           ) : rightTab === "history" ? (
             <HistoryPanel
               projectId={id}

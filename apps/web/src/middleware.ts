@@ -66,12 +66,6 @@ const RULES: Record<string, Rule> = {
     group: "search",
     limit: { limit: num("RL_SEARCH_PER_MIN", 30), windowSec: 60 },
   },
-  // /api/stock — GET hits stock-media providers. Moderate.
-  "/api/stock": {
-    methods: new Set(["GET"]),
-    group: "stock",
-    limit: { limit: num("RL_STOCK_PER_MIN", 30), windowSec: 60 },
-  },
   // /api/auth — POST = sign-in/sign-up/reset → sends verification emails &
   // hashes passwords. Limit POST only; GET (get-session) is called constantly
   // by the app and must never be throttled.
@@ -186,7 +180,6 @@ export const config = {
     "/api/chat/:path*",
     "/api/render/:path*",
     "/api/search/:path*",
-    "/api/stock/:path*",
     "/api/auth/:path*",
     "/api/waitlist/:path*",
     "/api/support/:path*",

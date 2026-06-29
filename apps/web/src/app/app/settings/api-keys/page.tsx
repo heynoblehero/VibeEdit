@@ -132,12 +132,6 @@ export default function ApiKeysSettingsPage() {
             Brand
           </Link>
           <Link
-            href="/app/settings/worker"
-            className="text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
-          >
-            Render worker
-          </Link>
-          <Link
             href="/app/settings/api-keys"
             aria-current="page"
             className="text-[var(--color-accent)]"

@@ -12,11 +12,9 @@ function buildItems(): MenuItem[] {
     { kind: "link", href: "/app/projects", label: "Projects" },
     { kind: "link", href: "/app/renders", label: "Renders" },
     { kind: "link", href: "/app/snippets", label: "Snippets" },
-    { kind: "link", href: "/app/batch", label: "Batch" },
     { kind: "sep" },
     { kind: "link", href: "/app/settings/account", label: "Account" },
     { kind: "link", href: "/app/settings/brand", label: "Brand kit" },
-    { kind: "link", href: "/app/settings/worker", label: "Render worker" },
     { kind: "link", href: "/app/settings/api-keys", label: "API keys" },
     { kind: "link", href: "/app/billing", label: "Billing" },
   ];

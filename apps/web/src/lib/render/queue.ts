@@ -2,17 +2,9 @@ import { mkdirSync } from "node:fs";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { nanoid } from "nanoid";
-import { eq, and, lte } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../db";
-import {
-  renderJobs,
-  user,
-  projects,
-  projectSnapshots,
-  scheduledPublishes,
-  publishConnections,
-} from "../db/schema";
-import { uploadVideo } from "../publish";
+import { renderJobs, user, projects, projectSnapshots } from "../db/schema";
 import { projectDir, renderOutputPath, projectThumbPath } from "../storage/fs";
 import { EventEmitter } from "node:events";
 import { sendEmail } from "../email/send";
@@ -501,93 +493,3 @@ async function applyWatermark(mp4Path: string): Promise<void> {
   });
   fs.renameSync(tmpPath, mp4Path);
 }
-
-// ── Scheduled publish processor ───────────────────────────────────────────────
-// Runs every 60 seconds in the background. Finds pending schedules whose
-// scheduledAt has passed, finds their render output, and uploads to the platform.
-
-async function processScheduledPublishes(): Promise<void> {
-  const now = new Date();
-  const due = db
-    .select()
-    .from(scheduledPublishes)
-    .where(and(eq(scheduledPublishes.status, "pending"), lte(scheduledPublishes.scheduledAt, now)))
-    .all();
-
-  for (const schedule of due) {
-    let videoPath: string | null = null;
-
-    if (schedule.renderJobId) {
-      const job = db
-        .select({ outputPath: renderJobs.outputPath, status: renderJobs.status })
-        .from(renderJobs)
-        // Defense-in-depth (IDOR): the linked render must belong to the schedule
-        // owner, so a forged renderJobId can't exfiltrate another user's video.
-        .where(and(eq(renderJobs.id, schedule.renderJobId), eq(renderJobs.userId, schedule.userId)))
-        .get();
-      if (!job || job.status !== "done" || !job.outputPath) {
-        // Render not ready yet — skip this tick, try again next minute.
-        continue;
-      }
-      videoPath = job.outputPath;
-    }
-
-    if (!videoPath) {
-      db.update(scheduledPublishes)
-        .set({ status: "failed", error: "no render job linked", publishedAt: now })
-        .where(eq(scheduledPublishes.id, schedule.id))
-        .run();
-      continue;
-    }
-
-    // Look up the platform connection.
-    const connection = db
-      .select()
-      .from(publishConnections)
-      .where(
-        and(
-          eq(publishConnections.userId, schedule.userId),
-          eq(publishConnections.platform, schedule.platform),
-        ),
-      )
-      .get();
-
-    if (!connection) {
-      db.update(scheduledPublishes)
-        .set({ status: "failed", error: "no platform connection found", publishedAt: now })
-        .where(eq(scheduledPublishes.id, schedule.id))
-        .run();
-      continue;
-    }
-
-    try {
-      const { decryptToken } = await import("../publish");
-      const accessToken = decryptToken(connection.accessTokenEnc);
-      await uploadVideo({
-        accessToken,
-        platform: schedule.platform,
-        videoPath,
-        title: schedule.title || "My Video",
-        description: schedule.description ?? undefined,
-      });
-      db.update(scheduledPublishes)
-        .set({ status: "published", publishedAt: now })
-        .where(eq(scheduledPublishes.id, schedule.id))
-        .run();
-    } catch (error) {
-      const message = (error as Error).message || String(error);
-      logError("schedule.publish", error, { scheduleId: schedule.id });
-      db.update(scheduledPublishes)
-        .set({ status: "failed", error: message, publishedAt: now })
-        .where(eq(scheduledPublishes.id, schedule.id))
-        .run();
-    }
-  }
-}
-
-// Start the background poller once (singleton — queue.ts is a module, loaded once).
-setInterval(() => {
-  processScheduledPublishes().catch((error) =>
-    console.error("[schedule] publish processor error", error),
-  );
-}, 60 * 1000);

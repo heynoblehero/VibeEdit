@@ -21,7 +21,6 @@ export default function SnippetsPage() {
   const { data: session, isPending } = useSession();
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
-  const [toggling, setToggling] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isPending && !session) router.replace("/app/login");
@@ -53,18 +52,6 @@ export default function SnippetsPage() {
     }
   }
 
-  async function togglePublic(snippet: Snippet) {
-    if (toggling) return;
-    setToggling(snippet.id);
-    await fetch("/api/snippets", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: snippet.id, isPublic: !snippet.isPublic }),
-    });
-    setToggling(null);
-    refresh();
-  }
-
   async function remove(snippet: Snippet) {
     if (!confirm(`Delete snippet "${snippet.label}"?`)) return;
     await fetch(`/api/snippets?id=${snippet.id}`, { method: "DELETE" });
@@ -89,23 +76,12 @@ export default function SnippetsPage() {
           <Link href="/app/snippets" className="text-[var(--color-accent)]">
             Snippets
           </Link>
-          <Link
-            href="/app/marketplace"
-            className="hidden text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] sm:inline"
-          >
-            Marketplace
-          </Link>
         </nav>
       </header>
 
       <h1 className="mb-2 text-2xl font-bold sm:text-3xl">My snippets</h1>
       <p className="mb-8 max-w-2xl text-[var(--color-fg-muted)]">
-        Save any project's composition as a personal starter. Fork it into a fresh project anytime —
-        or share it to the{" "}
-        <Link href="/app/marketplace" className="text-[var(--color-accent)] hover:underline">
-          community marketplace
-        </Link>
-        .
+        Save any project's composition as a personal starter. Fork it into a fresh project anytime.
       </p>
 
       {snippets.length === 0 ? (
@@ -146,35 +122,6 @@ export default function SnippetsPage() {
                   )}
                 </div>
               </div>
-
-              {/* Share to marketplace toggle */}
-              <button
-                onClick={() => togglePublic(snippet)}
-                disabled={toggling === snippet.id}
-                title={snippet.isPublic ? "Remove from marketplace" : "Share to marketplace"}
-                className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
-                  snippet.isPublic
-                    ? "border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20"
-                    : "border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-fg-muted)] hover:border-[var(--color-accent)]/40 hover:text-[var(--color-accent)]"
-                }`}
-              >
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 24 24"
-                  fill={snippet.isPublic ? "currentColor" : "none"}
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-                  <polyline points="16 6 12 2 8 6" />
-                  <line x1="12" y1="2" x2="12" y2="15" />
-                </svg>
-                {toggling === snippet.id ? "…" : snippet.isPublic ? "Public" : "Share"}
-              </button>
 
               <button
                 onClick={() => fork(snippet)}

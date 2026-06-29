@@ -70,7 +70,6 @@ const PLATFORM_META: Record<
 const NAV_LINKS = [
   { href: "/app/projects", label: "Projects" },
   { href: "/app/renders", label: "Renders" },
-  { href: "/app/marketplace", label: "Marketplace" },
   { href: "/app/billing", label: "Billing" },
 ];
 

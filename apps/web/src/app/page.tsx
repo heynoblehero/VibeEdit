@@ -555,7 +555,6 @@ export default function Home() {
               links={[
                 { href: "/app/login", label: "Sign in" },
                 { href: "/app/signup", label: "Sign up" },
-                { href: "/app/affiliate", label: "Affiliate (30%)" },
               ]}
             />
           </div>

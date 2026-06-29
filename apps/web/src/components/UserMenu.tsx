@@ -20,12 +20,6 @@ function buildItems(): MenuItem[] {
     { kind: "link", href: "/app/settings/api-keys", label: "API keys" },
     { kind: "link", href: "/app/billing", label: "Billing" },
   ];
-  if (
-    process.env.NEXT_PUBLIC_AFFILIATE_ENABLED === "1" ||
-    process.env.NEXT_PUBLIC_AFFILIATE_ENABLED === "true"
-  ) {
-    items.push({ kind: "link", href: "/app/affiliate", label: "Affiliate" });
-  }
   items.push(
     { kind: "sep" },
     { kind: "link", href: "/help", label: "Help & docs" },

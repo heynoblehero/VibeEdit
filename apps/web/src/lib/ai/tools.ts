@@ -5253,15 +5253,53 @@ async function runSnapshot(
   const dir = projectDir(userId, projectId);
   const snapshotsDir = path.join(dir, "snapshots");
 
-  // Preferred path: capture in-process against the warm browser pool. This
-  // skips the cold Chromium launch + Node/CLI startup the spawn path pays on
-  // every call — the dominant cost in the agent's visual-critique loop.
+  // Preferred path: capture against the warm browser pool. This skips the cold
+  // Chromium launch the CLI fallback pays on every call — the dominant cost in
+  // the agent's visual-critique loop.
+  //
+  // capture.ts imports @hyperframes/core/compiler + @hyperframes/engine, whose
+  // package `exports` point subpaths at TS SOURCE (./src/*.ts). Node (next
+  // start) can't require that and webpack (next build) can't bundle it, so we
+  // must NOT import capture.ts into the Next bundle. Instead we spawn `bun`
+  // (present in the container, runs .ts natively) on a thin wrapper script that
+  // owns the heavy import. It reads (projectDir, JSON timestamps) and prints a
+  // JSON array of project-relative frame paths to stdout.
   try {
-    // NOTE: keep the .js extension — making this extensionless makes webpack
-    // follow into capture.ts → @hyperframes/core/compiler and trips a deeper
-    // subpath-bundling failure at `next build`. Tracked as a separate fix.
-    const { captureFrames } = await import("./snapshot/capture.js");
-    const paths = await captureFrames(dir, { at: timestamps });
+    const { spawn } = await import("node:child_process");
+    const capture = await new Promise<{ code: number; out: string; err: string }>((resolveP) => {
+      const child = spawn("bun", ["scripts/capture-frames.ts", dir, JSON.stringify(timestamps)], {
+        // The Next server runs from /app/apps/web (Dockerfile CMD: cd apps/web
+        // && bun run start), so scripts/ resolves relative to cwd and bun comes
+        // from PATH.
+        cwd: process.cwd(),
+        stdio: ["ignore", "pipe", "pipe"],
+        env: process.env,
+      });
+      let out = "";
+      let err = "";
+      const timer = setTimeout(() => child.kill("SIGTERM"), 60_000);
+      child.stdout?.on("data", (chunk: Buffer) => {
+        out += chunk.toString();
+        if (out.length > 200_000) out = out.slice(-200_000);
+      });
+      child.stderr?.on("data", (chunk: Buffer) => {
+        err += chunk.toString();
+        if (err.length > 4000) err = err.slice(-4000);
+      });
+      child.on("error", () => {
+        clearTimeout(timer);
+        resolveP({ code: 1, out, err: err || "bun spawn failed" });
+      });
+      child.on("exit", (code) => {
+        clearTimeout(timer);
+        resolveP({ code: code ?? 1, out, err });
+      });
+    });
+
+    if (capture.code !== 0) {
+      throw new Error(`bun capture exited ${capture.code}: ${capture.err.slice(-800)}`);
+    }
+    const paths = JSON.parse(capture.out.trim() || "[]") as string[];
     if (paths.length > 0) {
       return encodeSnapshotsDir(snapshotsDir, timestamps);
     }

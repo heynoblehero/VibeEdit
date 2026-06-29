@@ -5257,7 +5257,7 @@ async function runSnapshot(
   // skips the cold Chromium launch + Node/CLI startup the spawn path pays on
   // every call — the dominant cost in the agent's visual-critique loop.
   try {
-    const { captureFrames } = await import("./snapshot/capture.js");
+    const { captureFrames } = await import("./snapshot/capture");
     const paths = await captureFrames(dir, { at: timestamps });
     if (paths.length > 0) {
       return encodeSnapshotsDir(snapshotsDir, timestamps);

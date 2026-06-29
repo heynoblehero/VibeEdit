@@ -16,6 +16,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl git python3 make g++ \
       ffmpeg \
+      chromium \
       libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
       libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
       libgbm1 libasound2 libpangocairo-1.0-0 libpango-1.0-0 libcairo2 \
@@ -73,6 +74,10 @@ RUN cd apps/web && bun run build
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+# Chromium binary for the snapshot/capture engine (agent visual self-critique).
+# The libs above are the runtime deps; this is the actual browser executable.
+ENV HYPERFRAMES_BROWSER_PATH=/usr/bin/chromium
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 # Dokku will override PORT via $PORT. Next.js obeys it via `next start -p $PORT`.
 ENV PORT=3000
 

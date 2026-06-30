@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { markEditSent } from "@/lib/preview-budget";
 import { AssetPickerModal } from "./AssetPickerModal";
 import { VideoViewerModal } from "./VideoViewerModal";
+import { ModelPicker } from "./chat/ModelPicker";
 import { type AspectRatio, type ChatMessage, extractNextSteps } from "./chat/types";
 import { useChatStream } from "./chat/useChatStream";
 import { ActivityIndicator, LiveLog } from "./chat/LiveActivity";
@@ -199,6 +200,8 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
   const [slashMenuIndex, setSlashMenuIndex] = useState(0);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
   const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [showModelPicker, setShowModelPicker] = useState(false);
+  const [modelMode, setModelMode] = useState<"auto" | "manual">("auto");
   // When set, a fullscreen zoom viewer for a composition (live or a snapshot).
   const [viewer, setViewer] = useState<{ src: string; aspectRatio: AspectRatio } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -206,6 +209,20 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sendRef = useRef<(text?: string) => void>(() => {});
   const loadHistoryRef = useRef<() => void>(() => {});
+
+  // Load the saved model-selection mode so the composer chip reflects it.
+  useEffect(() => {
+    let active = true;
+    fetch("/api/account/model-preferences")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (active && json?.preferences?.mode) setModelMode(json.preferences.mode);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Prefill the chat box with the project description captured at creation
   // (the unified "describe it" step). One-shot — cleared after reading.
@@ -498,6 +515,12 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
           onClose={() => setViewer(null)}
         />
       )}
+      {showModelPicker && (
+        <ModelPicker
+          onClose={() => setShowModelPicker(false)}
+          onModeChange={(mode) => setModelMode(mode)}
+        />
+      )}
       <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2.5">
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
@@ -761,6 +784,29 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
                     >
                       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                     </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowModelPicker(true)}
+                    title="Choose which AI models generate your assets"
+                    className="flex h-9 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-medium text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-surface)] hover:text-[var(--color-fg)]"
+                  >
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <rect x="4" y="4" width="16" height="16" rx="2" />
+                      <rect x="9" y="9" width="6" height="6" />
+                      <path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3" />
+                    </svg>
+                    {modelMode === "manual" ? "Custom models" : "Auto"}
                   </button>
                 </div>
                 {busy ? (

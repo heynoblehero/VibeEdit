@@ -8,6 +8,7 @@ import { creatorInsights, userPreferences, brandKits } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { captureException } from "@/lib/observability/sentry";
 import { captureEvent, FUNNEL } from "@/lib/observability/posthog";
+import { readModelPreferences, resolveModelForTask, type ModelPreferences } from "./model-prefs";
 
 // First-draft compositions need the strongest planner; incremental edits
 // route to Sonnet to cut cost ~3-4× without losing edit quality.
@@ -15,8 +16,16 @@ const FIRST_DRAFT_MODEL = "claude-opus-4-8";
 const EDIT_MODEL = "claude-sonnet-4-6";
 const MODEL_OVERRIDE = process.env.ANTHROPIC_MODEL;
 
-function pickModel(userId: string, projectId: string): string {
+function pickModel(userId: string, projectId: string, prefs: ModelPreferences): string {
   if (MODEL_OVERRIDE) return MODEL_OVERRIDE;
+  // The agent loop runs on the claude-agent-sdk, which only supports Claude
+  // models. In Manual mode, honor a Claude brain choice; a non-Claude brain
+  // pick (gpt-4o / grok) can't drive this runtime, so we fall through to the
+  // auto first-draft/edit routing rather than failing.
+  if (prefs.mode === "manual") {
+    const chosen = resolveModelForTask("brain", prefs);
+    if (chosen && chosen.provider === "anthropic") return chosen.id;
+  }
   try {
     const files = listFiles(userId, projectId);
     const hasComposition = files.some(
@@ -162,7 +171,8 @@ export async function runAgent(opts: {
   const prefix = opts.priorHistory
     ? `Prior conversation context:\n${opts.priorHistory}\n\nNew user message:\n`
     : "";
-  const model = pickModel(opts.ctx.userId, opts.ctx.projectId);
+  const modelPreferences = readModelPreferences(opts.ctx.userId);
+  const model = pickModel(opts.ctx.userId, opts.ctx.projectId, modelPreferences);
   const insights = loadUserInsights(opts.ctx.userId);
   const prefs = loadUserPrefs(opts.ctx.userId);
   const brandKit = loadBrandKit(opts.ctx.userId);
@@ -208,6 +218,7 @@ export async function runAgent(opts: {
           userNiche: prefs.niche,
           formatPreference: prefs.formatPreference,
           postFrequency: prefs.postFrequency,
+          modelPreferences,
         }),
         model,
         mcpServers: { [MCP_SERVER_NAME]: server },
@@ -343,6 +354,7 @@ const TOOL_LABELS: Record<string, string> = {
   generate_image_variants: "Generating image variants",
   generate_voiceover: "Recording the voiceover",
   generate_broll: "Generating b-roll",
+  generate_music: "Composing music",
   start_render: "Starting the render",
   render_edl: "Rendering",
   build_captions_from_words: "Building captions",

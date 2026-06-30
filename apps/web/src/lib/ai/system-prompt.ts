@@ -1,3 +1,13 @@
+import {
+  defaultModelForTask,
+  getModel,
+  isModelConfigured,
+  modelsForTask,
+  type ModelEntry,
+  type ModelTask,
+} from "./models";
+import type { ModelPreferences } from "./model-prefs";
+
 // Curated registry references — quality > quantity. These are the patterns
 // the agent should reach for. Avoid dumping the full 52-block list.
 const CURATED_EXAMPLES: Array<{ name: string; kind: string; why: string }> = [
@@ -279,13 +289,91 @@ export type SystemPromptContext = {
   userNiche?: string;
   formatPreference?: string;
   postFrequency?: string;
+  // Auto/Manual model selection — drives which generation models the agent
+  // should pick (Auto) or which the user pinned (Manual).
+  modelPreferences?: ModelPreferences;
 };
+
+// Maps a model id to a one-line strength hint for the asset-planning guidance.
+const MODEL_STRENGTHS: Record<string, string> = {
+  "flux-schnell": "fast, photoreal stills — the workhorse default",
+  "flux-pro": "premium detail / sharper photoreal",
+  "dall-e-3": "clean compositions, good at following complex prompts",
+  ideogram: "best for legible text, logos, typographic layouts",
+  midjourney: "stylized, illustrative, painterly",
+  luma: "smooth cinematic motion",
+  runway: "dynamic action, camera moves",
+  pika: "short punchy clips",
+  kling: "realistic motion, longer shots",
+  suno: "full songs with structure (and optional vocals)",
+  udio: "high-fidelity songs",
+  riffusion: "instrumental beds / loops",
+  elevenlabs: "expressive narration WITH word-level timestamps for synced captions",
+  "openai-tts": "cheaper narration, no word timestamps",
+};
+
+// The asset tasks that have a generation tool the agent can call.
+const GENERATION_TASKS: Array<{ task: ModelTask; tool: string }> = [
+  { task: "image", tool: "generate_image_variants" },
+  { task: "video", tool: "generate_broll" },
+  { task: "music", tool: "generate_music" },
+  { task: "voice", tool: "generate_voiceover" },
+];
+
+// Pure resolver (no DB) mirroring model-prefs.resolveModelForTask, so this
+// module stays free of server-only imports.
+function resolveModelPure(task: ModelTask, prefs: ModelPreferences): ModelEntry | undefined {
+  if (prefs.mode === "manual") {
+    const id = prefs.choices[task];
+    if (id) {
+      const m = getModel(id);
+      if (m && m.task === task && m.enabled) return m;
+    }
+  }
+  return defaultModelForTask(task);
+}
+
+function buildModelGuidance(prefs: ModelPreferences): string {
+  if (prefs.mode === "manual") {
+    const lines = GENERATION_TASKS.map(({ task, tool }) => {
+      const m = resolveModelPure(task, prefs);
+      return m ? `- ${task} (\`${tool}\`) → **${m.label}**` : "";
+    }).filter(Boolean);
+    return `\n# Model selection — MANUAL mode (user pinned these)\n\nThe user has chosen specific models per asset type. Call the generation tools normally and do NOT pass a \`model\` argument — the pinned model is applied automatically. If a pinned model isn't configured, the tool falls back to the official default on its own.\n\n${lines.join(
+      "\n",
+    )}\n`;
+  }
+
+  // Auto mode — list only configured models so the agent never picks one that
+  // will fail, and tell it to pass the best fit via the tool's `model` arg.
+  const blocks = GENERATION_TASKS.map(({ task, tool }) => {
+    const configured = modelsForTask(task).filter(isModelConfigured);
+    if (configured.length === 0) {
+      return `- ${task} (\`${tool}\`): none configured — this asset type is unavailable; use find_stock or skip it.`;
+    }
+    const opts = configured
+      .map((m) => `\`${m.id}\` (${MODEL_STRENGTHS[m.id] ?? m.label})`)
+      .join(", ");
+    return `- ${task} (\`${tool}\`): ${opts}`;
+  });
+  return `\n# Model selection — AUTO mode (you choose per asset)\n\nThe user trusts you to pick the best model for each generated asset. When you call a generation tool, pass the \`model\` argument with the best fit from the configured list below. If a task lists only one model, just use it (or omit \`model\`). NEVER pass a model id that isn't listed here — it isn't configured and will fail.\n\n${blocks.join(
+    "\n",
+  )}\n\nRules of thumb: legible text/logos → ideogram or dall-e-3; fast photoreal → flux-schnell; premium stills → flux-pro; cinematic video → luma; narration that needs synced word-highlight captions → elevenlabs (it returns timestamps).\n`;
+}
 
 export function buildSystemPrompt(insightsOrCtx?: string | SystemPromptContext): string {
   const ctx: SystemPromptContext =
     typeof insightsOrCtx === "string" ? { insights: insightsOrCtx } : (insightsOrCtx ?? {});
-  const { insights, brandKit, platform, aspectRatio, userNiche, formatPreference, postFrequency } =
-    ctx;
+  const {
+    insights,
+    brandKit,
+    platform,
+    aspectRatio,
+    userNiche,
+    formatPreference,
+    postFrequency,
+    modelPreferences,
+  } = ctx;
   const examplesBlock = CURATED_EXAMPLES.map((e) => `- \`${e.name}\` (${e.kind}) — ${e.why}`).join(
     "\n",
   );
@@ -1405,5 +1493,5 @@ ${(() => {
     insights
       ? `\n# Creator memory — apply without being asked\n\nThis creator has saved preferences. Apply them automatically unless the user overrides:\n\n${insights}\n`
       : ""
-  }`;
+  }${modelPreferences ? buildModelGuidance(modelPreferences) : ""}`;
 }

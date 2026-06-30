@@ -23,11 +23,19 @@ import { readBrandKit } from "../brand-kit";
 import { searchStock, type StockKind } from "../stock/registry";
 import {
   replicateGenerateImage,
-  replicateGenerateVideo,
   replicateRemoveBackground,
   replicateImageFromReference,
 } from "./providers/replicate";
 import { captionImage } from "./providers/vision";
+import {
+  generateImageWithModel,
+  generateVideoWithModel,
+  generateMusicWithModel,
+  openaiSpeech,
+  ProviderNotConfiguredError,
+} from "./providers/dispatch";
+import { defaultModelForTask, getModel, type ModelEntry, type ModelTask } from "./models";
+import { readModelPreferences, resolveModelForTask } from "./model-prefs";
 import { nanoid } from "nanoid";
 import { safeFetch } from "../net/ssrf-guard";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -170,6 +178,43 @@ function ambiguousMatchText(ref: string, candidates: AssetManifest[]): string {
 export const MCP_SERVER_NAME = "hyperframes";
 
 export function buildToolServer(ctx: ToolContext) {
+  // ── Multi-model selection ─────────────────────────────────────────────────
+  // Resolve which model runs an asset task, honoring the user's Auto/Manual
+  // preference. In Manual mode the user's pinned choice wins (or the task
+  // default). In Auto mode the agent may pass an explicit `chosenId` per asset
+  // (validated against the registry); otherwise we use the task default.
+  function resolveTaskModel(task: ModelTask, chosenId?: string): ModelEntry {
+    const prefs = readModelPreferences(ctx.userId);
+    if (prefs.mode === "manual") {
+      return resolveModelForTask(task, prefs) ?? defaultModelForTask(task)!;
+    }
+    if (chosenId) {
+      const m = getModel(chosenId);
+      if (m && m.task === task && m.enabled) return m;
+    }
+    return defaultModelForTask(task)!;
+  }
+
+  // Run `fn` with the resolved model; if that model isn't configured, fall back
+  // to the task's official default so one missing provider can't break a turn.
+  async function withModelFallback<T>(
+    task: ModelTask,
+    model: ModelEntry,
+    fn: (m: ModelEntry) => Promise<T>,
+  ): Promise<{ result: T; usedModel: ModelEntry; fellBack: boolean }> {
+    try {
+      return { result: await fn(model), usedModel: model, fellBack: false };
+    } catch (error) {
+      if (error instanceof ProviderNotConfiguredError) {
+        const fallback = defaultModelForTask(task);
+        if (fallback && fallback.id !== model.id) {
+          return { result: await fn(fallback), usedModel: fallback, fellBack: true };
+        }
+      }
+      throw error;
+    }
+  }
+
   const planCompositionTool = tool(
     "plan_composition",
     "REQUIRED FIRST STEP for any NEW composition (not edits). Emit a structured scene plan — this is a SHOTLIST, not a slide outline: every scene must name the real visual media (photo / b-roll / motion graphic) that anchors it via the `media` field, plus color grade, typography pair, beat-sync, and transitions. After this returns, STOP your turn — say 'Approve this plan and I'll build it' and wait for the user's next message before any write_file call.",
@@ -1289,8 +1334,53 @@ export function buildToolServer(ctx: ToolContext) {
         .max(1)
         .optional()
         .describe("Voice similarity to base model. Default 0.8."),
+      model: z
+        .string()
+        .optional()
+        .describe(
+          "Voice model id (Auto mode only — user's pinned model wins in Manual mode). 'elevenlabs' (default, gives word-level timestamps for synced captions) or 'openai-tts' (cheaper, no timestamps). Omit to use the default.",
+        ),
     },
-    async ({ filename, script, voiceId, stability, style, similarityBoost }) => {
+    async ({ filename, script, voiceId, stability, style, similarityBoost, model }) => {
+      const voiceModel = resolveTaskModel("voice", model);
+      // OpenAI TTS path — cheaper, but no word-level timestamps.
+      if (voiceModel.provider === "openai") {
+        try {
+          const { audio, words } = await openaiSpeech({
+            model: voiceModel,
+            apiKeys: ctx.apiKeys,
+            script,
+            voice: voiceId,
+          });
+          const target = `assets/${filename}`;
+          writeProjectFile(ctx.userId, ctx.projectId, target, audio);
+          const tsTarget = `assets/${filename.replace(/\.mp3$/, ".timestamps.json")}`;
+          writeProjectFile(
+            ctx.userId,
+            ctx.projectId,
+            tsTarget,
+            Buffer.from(JSON.stringify(words, null, 2), "utf8"),
+          );
+          return {
+            content: [
+              {
+                type: "text",
+                text: [
+                  `OK: wrote ${target} (${audio.length}B) via OpenAI TTS.`,
+                  `Note: OpenAI TTS has no word-level timestamps — for synced word-highlight captions, switch the voice model to ElevenLabs.`,
+                  `Reference audio as src="${target}".`,
+                ].join("\n"),
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+            isError: true,
+          };
+        }
+      }
+      // ElevenLabs path (default) — gives exact word timestamps.
       const apiKey = ctx.apiKeys?.elevenlabs || process.env.ELEVENLABS_API_KEY;
       if (!apiKey) {
         return {
@@ -1660,33 +1750,41 @@ export function buildToolServer(ctx: ToolContext) {
         .enum(["1:1", "16:9", "9:16", "4:3", "3:4"])
         .default("16:9")
         .describe("Output aspect ratio."),
+      model: z
+        .string()
+        .optional()
+        .describe(
+          "Image model id to use (Auto mode only — the user's pinned model wins in Manual mode). E.g. 'flux-schnell' (fast/photoreal), 'dall-e-3', 'ideogram' (clean text/logos), 'midjourney'. Omit to use the default.",
+        ),
     },
-    async ({ prompt, sceneSlug, count, aspectRatio }) => {
-      const apiKey = ctx.apiKeys?.replicate;
-      if (!apiKey) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `ERROR: No Replicate key configured. Tell the user to paste their Replicate token at /app/settings/api-keys, then try again.`,
-            },
-          ],
-          isError: true,
-        };
-      }
+    async ({ prompt, sceneSlug, count, aspectRatio, model }) => {
+      const requested = resolveTaskModel("image", model);
       const batchId = nanoid(8);
       const dir = `assets/variants/${sceneSlug}-${batchId}`;
       const generated: Array<{ path: string; index: number }> = [];
       const errors: string[] = [];
-      // Sequential so we surface failures one at a time rather than firing
-      // `count` requests and getting hammered by Replicate's rate limit.
+      // First variant settles which model actually runs (falling back to the
+      // official default if the chosen one isn't configured); the rest reuse it.
+      let effective = requested;
+      let fellBack = false;
       for (let index = 1; index <= (count || 4); index++) {
         try {
-          const buffer = await replicateGenerateImage({
-            apiKey,
-            prompt,
-            aspectRatio,
-          });
+          let buffer: Buffer;
+          if (index === 1) {
+            const r = await withModelFallback("image", requested, (m) =>
+              generateImageWithModel({ model: m, apiKeys: ctx.apiKeys, prompt, aspectRatio }),
+            );
+            buffer = r.result;
+            effective = r.usedModel;
+            fellBack = r.fellBack;
+          } else {
+            buffer = await generateImageWithModel({
+              model: effective,
+              apiKeys: ctx.apiKeys,
+              prompt,
+              aspectRatio,
+            });
+          }
           const target = `${dir}/${index}.png`;
           writeProjectFile(ctx.userId, ctx.projectId, target, buffer);
           generated.push({ path: target, index });
@@ -1719,7 +1817,9 @@ export function buildToolServer(ctx: ToolContext) {
         content: [
           {
             type: "text",
-            text: `OK: generated ${generated.length}/${count} variants in ${dir}. ${
+            text: `OK: generated ${generated.length}/${count} variants in ${dir} via ${effective.label}${
+              fellBack ? ` (fell back from ${requested.label} — not configured)` : ""
+            }. ${
               errors.length ? `Some failed: ${errors.join(" · ")}. ` : ""
             }STOP. Wait for the user to pick one before proceeding — the chat will surface a picker.\n\n<variants>${marker}</variants>`,
           },
@@ -4031,37 +4131,106 @@ ${jsLines.join("\n")}`;
         .enum(["16:9", "9:16", "1:1"])
         .default("16:9")
         .describe("Output aspect ratio — match the composition format."),
+      model: z
+        .string()
+        .optional()
+        .describe(
+          "Video model id to use (Auto mode only — the user's pinned model wins in Manual mode). E.g. 'kling', 'luma' (cinematic), 'runway', 'pika'. Omit to use the default.",
+        ),
     },
-    async ({ prompt, filename, duration, aspectRatio }) => {
-      const apiKey = ctx.apiKeys?.replicate;
-      if (!apiKey) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `ERROR: No Replicate API key configured. Ask the user to add their Replicate token at /app/settings/api-keys, then try again.`,
-            },
-          ],
-          isError: true,
-        };
-      }
+    async ({ prompt, filename, duration, aspectRatio, model }) => {
+      const requested = resolveTaskModel("video", model);
       const safe = filename.replace(/[/\\]/g, "_").replace(/^\.+/, "");
       const dest = `assets/${safe}`;
       try {
-        const buffer = await replicateGenerateVideo({
-          apiKey,
-          prompt,
-          duration,
-          aspectRatio,
-        });
+        const {
+          result: buffer,
+          usedModel,
+          fellBack,
+        } = await withModelFallback("video", requested, (m) =>
+          generateVideoWithModel({
+            model: m,
+            apiKeys: ctx.apiKeys,
+            prompt,
+            duration,
+            aspectRatio,
+          }),
+        );
         writeProjectFile(ctx.userId, ctx.projectId, dest, buffer);
         return {
           content: [
             {
               type: "text",
               text: [
-                `OK: saved ${buffer.length}B → ${dest} (${duration}s, ${aspectRatio}).`,
+                `OK: saved ${buffer.length}B → ${dest} (${duration}s, ${aspectRatio}) via ${usedModel.label}${
+                  fellBack ? ` (fell back from ${requested.label} — not configured)` : ""
+                }.`,
                 `Reference in composition: <video muted playsinline class="clip" src="${dest}" data-start="X" data-duration="${duration}" data-track-index="2">`,
+              ].join("\n"),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Music generation (Suno / Udio / Riffusion)
+  // -------------------------------------------------------------------------
+
+  const generateMusicTool = tool(
+    "generate_music",
+    "Generate an original music track from a text prompt and save it to assets/. Use for a custom score/song when stock music (find_stock) doesn't fit. Returns the saved asset path. The model depends on the user's preference (Auto picks the default; Manual uses their pinned music model). Suno/Udio are unofficial and require a configured proxy; Riffusion runs on Replicate.",
+    {
+      prompt: z
+        .string()
+        .min(4)
+        .max(1000)
+        .describe(
+          "Music description — genre, mood, instruments, tempo, energy. E.g. 'dark cinematic tension, low strings, slow build, 80bpm'.",
+        ),
+      filename: z
+        .string()
+        .regex(/^[A-Za-z0-9._-]+\.mp3$/)
+        .describe("Output filename, e.g. 'score.mp3'."),
+      instrumental: z
+        .boolean()
+        .default(true)
+        .describe("True for an instrumental bed (no vocals) — usually what a video score wants."),
+      model: z
+        .string()
+        .optional()
+        .describe(
+          "Music model id (Auto mode only). 'suno', 'udio', or 'riffusion'. Omit to use the default.",
+        ),
+    },
+    async ({ prompt, filename, instrumental, model }) => {
+      const requested = resolveTaskModel("music", model);
+      const safe = filename.replace(/[/\\]/g, "_").replace(/^\.+/, "");
+      const dest = `assets/${safe}`;
+      try {
+        const {
+          result: buffer,
+          usedModel,
+          fellBack,
+        } = await withModelFallback("music", requested, (m) =>
+          generateMusicWithModel({ model: m, apiKeys: ctx.apiKeys, prompt, instrumental }),
+        );
+        writeProjectFile(ctx.userId, ctx.projectId, dest, buffer);
+        return {
+          content: [
+            {
+              type: "text",
+              text: [
+                `OK: saved ${buffer.length}B → ${dest} via ${usedModel.label}${
+                  fellBack ? ` (fell back from ${requested.label} — not configured)` : ""
+                }.`,
+                `Reference as <audio class="clip" src="${dest}" data-start="0" data-duration="<total>" data-track-index="10" data-volume="0.15">.`,
               ].join("\n"),
             },
           ],
@@ -4976,6 +5145,7 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       loadInsightsTool,
       downloadAssetTool,
       generateBrollTool,
+      generateMusicTool,
       suggestNextStepsTool,
       designThumbnailTool,
       fetchDataSourceTool,
@@ -5053,6 +5223,7 @@ export const ALLOWED_TOOL_NAMES = [
   "trim_audio",
   "download_asset",
   "generate_broll",
+  "generate_music",
   "design_thumbnail",
   "fetch_data_source",
   "reformat_composition",

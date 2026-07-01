@@ -57,6 +57,13 @@ export type ChatStream = {
    * a history reload), true otherwise.
    */
   runStream: (projectId: string, userMessage: string) => Promise<boolean>;
+  /**
+   * Reattach to an agent run that's still executing server-side for this project
+   * (e.g. after the user closed and reopened the tab mid-build). Replays what's
+   * happened so far then streams live. Returns true if a run was attached (so
+   * the caller reloads history when it finishes), false if nothing was running.
+   */
+  resumeStream: (projectId: string) => Promise<boolean>;
 };
 
 export function useChatStream(): ChatStream {
@@ -137,6 +144,43 @@ export function useChatStream(): ChatStream {
     }
   }, []);
 
+  // Parse an SSE response body, dispatching each event through handleEvent until
+  // the stream closes. Shared by runStream (POST) and resumeStream (GET).
+  const consume = useCallback(
+    async (body: ReadableStream<Uint8Array>): Promise<void> => {
+      const reader = body.getReader();
+      const decoder = new TextDecoder();
+      // Cap the inter-chunk buffer so a misbehaving server can't push us into
+      // unbounded memory by streaming without a terminator. 1 MiB is already
+      // 10× larger than any legitimate single SSE frame here.
+      const MAX_BUFFER = 1024 * 1024;
+      let buffer = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        if (buffer.length > MAX_BUFFER) {
+          buffer = buffer.slice(-MAX_BUFFER);
+        }
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+        for (const block of lines) {
+          const dataLine = block.split("\n").find((line) => line.startsWith("data:"));
+          if (!dataLine) continue;
+          const payload = dataLine.slice(5).trim();
+          if (payload === "[DONE]") continue;
+          try {
+            const event = JSON.parse(payload) as AgentEvent;
+            handleEvent(event);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    },
+    [handleEvent],
+  );
+
   const runStream = useCallback(
     async (projectId: string, userMessage: string): Promise<boolean> => {
       setBusy(true);
@@ -173,43 +217,43 @@ export function useChatStream(): ChatStream {
         return false;
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      // Cap the inter-chunk buffer so a misbehaving server can't push us into
-      // unbounded memory by streaming without a terminator. 1 MiB is already
-      // 10× larger than any legitimate single SSE frame here.
-      const MAX_BUFFER = 1024 * 1024;
-      let buffer = "";
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        if (buffer.length > MAX_BUFFER) {
-          buffer = buffer.slice(-MAX_BUFFER);
-        }
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop() || "";
-        for (const block of lines) {
-          const dataLine = block.split("\n").find((line) => line.startsWith("data:"));
-          if (!dataLine) continue;
-          const payload = dataLine.slice(5).trim();
-          if (payload === "[DONE]") continue;
-          try {
-            const event = JSON.parse(payload) as AgentEvent;
-            handleEvent(event);
-          } catch {
-            /* ignore */
-          }
-        }
-      }
+      await consume(response.body);
       setBusy(false);
       setLive([]);
       setActivity(null);
       dispatchAgentStatus(false);
       return true;
     },
-    [handleEvent],
+    [consume],
   );
 
-  return { busy, live, activity, runStream };
+  const resumeStream = useCallback(
+    async (projectId: string): Promise<boolean> => {
+      // 204 = nothing running for this project → caller keeps its loaded history.
+      let response: Response;
+      try {
+        response = await fetch(`/api/chat?projectId=${encodeURIComponent(projectId)}`);
+      } catch {
+        return false;
+      }
+      if (response.status === 204 || !response.ok || !response.body) return false;
+
+      // A run is live — mirror runStream's UI lifecycle so the reconnected tab
+      // shows the in-progress activity, then reloads history on completion.
+      setBusy(true);
+      setLive([]);
+      setActivity(null);
+      inFlightRef.current = 0;
+      dispatchAgentStatus(true, "thinking");
+      await consume(response.body);
+      setBusy(false);
+      setLive([]);
+      setActivity(null);
+      dispatchAgentStatus(false);
+      return true;
+    },
+    [consume],
+  );
+
+  return { busy, live, activity, runStream, resumeStream };
 }

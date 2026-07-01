@@ -17,15 +17,215 @@ export const dynamic = "force-dynamic";
 
 const MAX_HISTORY_CHARS = 14000;
 
-// Keyed by `${userId}:${projectId}` so the same user can have one in-flight
-// chat per project. Lets the client (or HMR) cancel a runaway agent loop
-// via DELETE /api/chat.
-const RUNNING: Map<string, AbortController> =
-  (globalThis as unknown as { __vibeedit_running?: Map<string, AbortController> })
-    .__vibeedit_running ?? new Map();
-(
-  globalThis as unknown as { __vibeedit_running?: Map<string, AbortController> }
-).__vibeedit_running = RUNNING;
+type AssistantBlock = {
+  type: string;
+  text?: string;
+  id?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+  tool_use_id?: string;
+  images?: Array<{ data: string; mimeType: string }>;
+};
+
+// A subscriber is one connected viewer (the POSTing tab, or a reconnecting one).
+type Subscriber = { send: (event: AgentEvent) => void; finish: () => void };
+
+// A detached, in-flight agent run. The run's lifecycle is INDEPENDENT of any
+// HTTP connection: closing the browser detaches the viewer but the agent keeps
+// going server-side and persists its result. Viewers replay `events` on attach
+// then stream live; `done` + the grace-period GC let late reconnects still see
+// the tail before the run is dropped.
+type RunState = {
+  controller: AbortController;
+  events: AgentEvent[];
+  done: boolean;
+  subs: Set<Subscriber>;
+};
+
+// Keyed by `${userId}:${projectId}` — one in-flight chat per project. Backed by
+// globalThis so it survives HMR in dev and module re-eval.
+const RUNS: Map<string, RunState> =
+  (globalThis as unknown as { __vibeedit_runs?: Map<string, RunState> }).__vibeedit_runs ??
+  new Map();
+(globalThis as unknown as { __vibeedit_runs?: Map<string, RunState> }).__vibeedit_runs = RUNS;
+
+// How long to keep a finished run's buffer around so a tab that reconnects just
+// after completion can still replay the final events before we GC it.
+const RUN_GRACE_MS = 120_000;
+
+// Buffered copy of an event for later replay — strip heavy base64 image payloads
+// (they're persisted to the DB assistant message + on disk, so a reconnecting
+// client gets them from history; live viewers still receive the full event).
+function slimEvent(event: AgentEvent): AgentEvent {
+  if (event.type === "tool_result" && event.images && event.images.length) {
+    return { ...event, images: undefined };
+  }
+  return event;
+}
+
+// SSE response that replays a run's buffered events then streams live until the
+// run finishes. Client disconnect detaches this viewer only — never aborts the
+// run (that's what DELETE is for).
+function streamRun(state: RunState, signal: AbortSignal): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      let closed = false;
+      const enqueue = (chunk: string) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(chunk));
+        } catch {
+          closed = true;
+        }
+      };
+      const send = (event: AgentEvent) => enqueue(`data: ${JSON.stringify(event)}\n\n`);
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          /* already closed */
+        }
+      };
+
+      // Replay buffered events, then subscribe — synchronous, so no event can
+      // slip between the two and be lost or duplicated.
+      for (const event of state.events) send(event);
+      if (state.done) {
+        enqueue(`data: [DONE]\n\n`);
+        close();
+        return;
+      }
+      const sub: Subscriber = {
+        send,
+        finish: () => {
+          enqueue(`data: [DONE]\n\n`);
+          close();
+          state.subs.delete(sub);
+        },
+      };
+      state.subs.add(sub);
+      signal.addEventListener("abort", () => {
+        state.subs.delete(sub);
+        close();
+      });
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "content-type": "text/event-stream",
+      "cache-control": "no-store, no-transform",
+      "x-accel-buffering": "no",
+    },
+  });
+}
+
+// Start a detached agent run for this project. Aborts any previous run for the
+// same key first. The agent executes independently of the request that started
+// it and persists its assistant message + snapshot on completion.
+function startRun(params: {
+  key: string;
+  userId: string;
+  projectId: string;
+  userMessage: string;
+  priorHistory: string;
+  platform?: string;
+  aspectRatio?: string;
+  apiKeys: { replicate?: string; elevenlabs?: string; anthropic?: string };
+}): RunState {
+  const previous = RUNS.get(params.key);
+  if (previous) {
+    previous.controller.abort();
+    RUNS.delete(params.key);
+  }
+
+  const controller = new AbortController();
+  const state: RunState = { controller, events: [], done: false, subs: new Set() };
+  RUNS.set(params.key, state);
+
+  const assistantBlocks: AssistantBlock[] = [];
+  const write = (event: AgentEvent) => {
+    state.events.push(slimEvent(event));
+    for (const sub of [...state.subs]) sub.send(event);
+    if (event.type === "text") {
+      assistantBlocks.push({ type: "text", text: event.text });
+    } else if (event.type === "tool_use") {
+      assistantBlocks.push({
+        type: "tool_use",
+        id: event.id,
+        name: event.name,
+        input: event.input,
+      });
+    } else if (event.type === "tool_result" && event.images?.length) {
+      assistantBlocks.push({
+        type: "tool_result",
+        tool_use_id: event.tool_use_id,
+        images: event.images,
+      });
+    }
+  };
+
+  void (async () => {
+    try {
+      const assetsBefore = new Set(listAssets(params.userId, params.projectId));
+      await runAgent({
+        userMessage: params.userMessage,
+        priorHistory: params.priorHistory,
+        ctx: {
+          userId: params.userId,
+          projectId: params.projectId,
+          platform: params.platform,
+          aspectRatio: params.aspectRatio,
+          apiKeys: params.apiKeys,
+          enqueueRender: (opts) =>
+            enqueue({ userId: params.userId, projectId: params.projectId, ...opts }),
+        },
+        onEvent: write,
+        abortController: controller,
+      });
+
+      const newAssets = listAssets(params.userId, params.projectId).filter(
+        (p) => !assetsBefore.has(p),
+      );
+      markAiAssets(params.userId, params.projectId, newAssets);
+
+      if (assistantBlocks.length) {
+        const assistantMessageId = nanoid(10);
+        db.insert(messages)
+          .values({
+            id: assistantMessageId,
+            projectId: params.projectId,
+            role: "assistant",
+            content: JSON.stringify(assistantBlocks),
+            createdAt: new Date(),
+          })
+          .run();
+        captureChatSnapshot(params.userId, params.projectId, assistantMessageId);
+      }
+      db.update(projects)
+        .set({ updatedAt: new Date() })
+        .where(eq(projects.id, params.projectId))
+        .run();
+    } catch (error) {
+      captureException(error, {
+        source: "api.chat",
+        userId: params.userId,
+        projectId: params.projectId,
+      });
+      write({ type: "error", message: (error as Error).message });
+    } finally {
+      state.done = true;
+      for (const sub of [...state.subs]) sub.finish();
+      setTimeout(() => {
+        if (RUNS.get(params.key) === state) RUNS.delete(params.key);
+      }, RUN_GRACE_MS);
+    }
+  })();
+
+  return state;
+}
 
 export async function DELETE(req: Request) {
   const session = await requireServerSession().catch((r) => r);
@@ -34,11 +234,25 @@ export async function DELETE(req: Request) {
   const projectId = url.searchParams.get("projectId");
   if (!projectId) return new Response("projectId required", { status: 400 });
   const key = `${session.user.id}:${projectId}`;
-  const controller = RUNNING.get(key);
-  if (!controller) return new Response("not running", { status: 404 });
-  controller.abort();
-  RUNNING.delete(key);
+  const state = RUNS.get(key);
+  if (!state) return new Response("not running", { status: 404 });
+  state.controller.abort();
   return Response.json({ aborted: true });
+}
+
+// Resume/attach to an in-flight (or just-finished, within grace) run for this
+// project. 204 when nothing is running — the client then just relies on the
+// persisted history it already loaded.
+export async function GET(req: Request) {
+  const session = await requireServerSession().catch((r) => r);
+  if (session instanceof Response) return session;
+  const url = new URL(req.url);
+  const projectId = url.searchParams.get("projectId");
+  if (!projectId) return new Response("projectId required", { status: 400 });
+  const key = `${session.user.id}:${projectId}`;
+  const state = RUNS.get(key);
+  if (!state) return new Response(null, { status: 204 });
+  return streamRun(state, req.signal);
 }
 
 export async function POST(req: Request) {
@@ -126,124 +340,22 @@ export async function POST(req: Request) {
   // Usage already reserved atomically above (chatReservation) — do not
   // double-count here.
 
-  const assistantBlocks: Array<{
-    type: string;
-    text?: string;
-    id?: string;
-    name?: string;
-    input?: Record<string, unknown>;
-    tool_use_id?: string;
-    images?: Array<{ data: string; mimeType: string }>;
-  }> = [];
-
+  // Start the run DETACHED from this request: the agent executes and persists
+  // independently, so closing the browser mid-run no longer loses the work.
+  // This POST just attaches a viewer to the run's live event stream.
   const key = `${userId}:${projectId}`;
-  // If a previous run for the same project is still going, abort it before
-  // starting a new one (handles refresh/HMR/race).
-  const previous = RUNNING.get(key);
-  if (previous) previous.abort();
-  const abortController = new AbortController();
-  RUNNING.set(key, abortController);
-
-  // Cancel the agent if the client closes the SSE stream.
-  req.signal.addEventListener("abort", () => {
-    const current = RUNNING.get(key);
-    if (current === abortController) {
-      abortController.abort();
-      RUNNING.delete(key);
-    }
+  const state = startRun({
+    key,
+    userId,
+    projectId,
+    userMessage,
+    priorHistory,
+    platform: owned.platform ?? undefined,
+    aspectRatio: owned.aspectRatio ?? undefined,
+    apiKeys: apiKeys as { replicate?: string; elevenlabs?: string; anthropic?: string },
   });
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      const encoder = new TextEncoder();
-      const write = (event: AgentEvent) => {
-        try {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
-        } catch {
-          /* closed */
-        }
-        if (event.type === "text") {
-          assistantBlocks.push({ type: "text", text: event.text });
-        } else if (event.type === "tool_use") {
-          assistantBlocks.push({
-            type: "tool_use",
-            id: event.id,
-            name: event.name,
-            input: event.input,
-          });
-        } else if (event.type === "tool_result" && event.images?.length) {
-          assistantBlocks.push({
-            type: "tool_result",
-            tool_use_id: event.tool_use_id,
-            images: event.images,
-          });
-        }
-      };
-
-      try {
-        // Snapshot the asset set so we can tell which files the agent created
-        // this turn (everything new = AI-made; uploads come in via /upload).
-        const assetsBefore = new Set(listAssets(userId, projectId));
-        await runAgent({
-          userMessage,
-          priorHistory,
-          ctx: {
-            userId,
-            projectId,
-            platform: owned.platform ?? undefined,
-            aspectRatio: owned.aspectRatio ?? undefined,
-            apiKeys: apiKeys as {
-              replicate?: string;
-              elevenlabs?: string;
-              anthropic?: string;
-            },
-            enqueueRender: (opts) => enqueue({ userId, projectId, ...opts }),
-          },
-          onEvent: write,
-          abortController,
-        });
-
-        const newAssets = listAssets(userId, projectId).filter((p) => !assetsBefore.has(p));
-        markAiAssets(userId, projectId, newAssets);
-
-        if (assistantBlocks.length) {
-          const assistantMessageId = nanoid(10);
-          db.insert(messages)
-            .values({
-              id: assistantMessageId,
-              projectId,
-              role: "assistant",
-              content: JSON.stringify(assistantBlocks),
-              createdAt: new Date(),
-            })
-            .run();
-          // Snapshot the composition this turn produced so the chat can replay
-          // each past version inline (skipped if nothing changed).
-          captureChatSnapshot(userId, projectId, assistantMessageId);
-        }
-        db.update(projects).set({ updatedAt: new Date() }).where(eq(projects.id, projectId)).run();
-      } catch (error) {
-        captureException(error, { source: "api.chat", userId, projectId });
-        write({ type: "error", message: (error as Error).message });
-      } finally {
-        if (RUNNING.get(key) === abortController) RUNNING.delete(key);
-        try {
-          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-          controller.close();
-        } catch {
-          /* closed */
-        }
-      }
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "content-type": "text/event-stream",
-      "cache-control": "no-store, no-transform",
-      "x-accel-buffering": "no",
-    },
-  });
+  return streamRun(state, req.signal);
 }
 
 // Records the current index.html as a versioned snapshot tied to the assistant

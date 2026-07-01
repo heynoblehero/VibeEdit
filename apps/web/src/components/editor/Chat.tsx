@@ -190,7 +190,7 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
   // Streaming state (busy / live tool log / live activity label) + the SSE
   // read loop live in the useChatStream hook; the thread UI here just consumes
   // them. The protocol degrades gracefully — see chat/useChatStream.ts.
-  const { busy, live, activity, runStream } = useChatStream();
+  const { busy, live, activity, runStream, resumeStream } = useChatStream();
   const [prefs, setPrefs] = useState<UserPrefs | null>(null);
   const [editingAt, setEditingAt] = useState<number | null>(null);
   const [attachedAssets, setAttachedAssets] = useState<string[]>([]);
@@ -308,7 +308,17 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
 
   useEffect(() => {
     loadHistoryRef.current();
-  }, [projectId]);
+    // If an agent run for this project is still executing server-side (tab was
+    // closed mid-build and reopened, or a second tab), reattach and show it
+    // live — then reload history once it finishes so the saved result renders.
+    let cancelled = false;
+    resumeStream(projectId).then((attached) => {
+      if (attached && !cancelled) loadHistoryRef.current();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, resumeStream]);
 
   useEffect(() => {
     fetch("/api/onboarding")

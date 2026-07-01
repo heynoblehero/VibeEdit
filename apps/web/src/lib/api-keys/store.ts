@@ -8,7 +8,7 @@
  * blast radius.
  */
 
-export type ProviderId = "replicate" | "elevenlabs" | "openai" | "anthropic";
+export type ProviderId = "replicate" | "elevenlabs" | "anthropic";
 
 export type ProviderMeta = {
   id: ProviderId;
@@ -32,17 +32,9 @@ export const PROVIDERS: ProviderMeta[] = [
   {
     id: "elevenlabs",
     name: "ElevenLabs",
-    description: "Narration / voiceover. Reads any script into an MP3.",
+    description: "Narration / voiceover (TTS) and speech-to-text transcription for captions.",
     getKeyUrl: "https://elevenlabs.io/app/settings/api-keys",
     placeholder: "sk_xxxxxxxx",
-  },
-  {
-    id: "openai",
-    name: "OpenAI",
-    description: "DALL·E images, gpt-4o audio. Fallback when other providers fail.",
-    getKeyUrl: "https://platform.openai.com/api-keys",
-    placeholder: "sk-xxxxxxxx",
-    keyPrefix: "sk-",
   },
   {
     id: "anthropic",

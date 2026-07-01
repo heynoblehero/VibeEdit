@@ -1,13 +1,14 @@
 /*
- * Minimal OpenAI vision client for image captioning.
+ * Minimal Claude vision client for image captioning.
  *
- * Uses the same OpenAI key the app already requires for transcription. We hit
- * the Chat Completions vision endpoint with gpt-4o-mini and force a strict JSON
- * object so the rest of the app gets a clean { caption, tags } it can use for
- * b-roll selection and reference matching — no SDK, plain fetch.
+ * The product's brain is already Claude (via ANTHROPIC_BASE_URL — a proxy in
+ * prod), so captioning routes through the SAME endpoint/credential rather than
+ * a separate OpenAI key. We hit the Anthropic Messages API with a vision-capable
+ * Claude model and ask for a strict JSON object so the rest of the app gets a
+ * clean { caption, tags } for b-roll selection and reference matching.
  */
 
-const CAPTION_MODEL = process.env.VISION_CAPTION_MODEL || "gpt-4o-mini";
+const CAPTION_MODEL = process.env.VISION_CAPTION_MODEL || "claude-sonnet-4-6";
 const MAX_CAPTION_LENGTH = 240;
 const MAX_TAGS = 8;
 
@@ -17,30 +18,46 @@ const CAPTION_INSTRUCTION =
   'image contents>", "tags": ["3-8", "short", "keywords"]}. The tags should be ' +
   "short lowercase keywords for the main subjects, setting, and mood.";
 
-type ChatCompletion = {
-  choices?: Array<{ message?: { content?: string | null } }>;
+type AnthropicMessage = {
+  content?: Array<{ type?: string; text?: string }>;
 };
 
+// Split "data:image/png;base64,AAAA" into its media type + raw base64 payload.
+function parseDataUri(uri: string): { mediaType: string; data: string } {
+  const match = /^data:([^;]+);base64,(.*)$/s.exec(uri);
+  if (match) return { mediaType: match[1], data: match[2] };
+  // Bare base64 (no data-uri prefix) — assume PNG.
+  return { mediaType: "image/png", data: uri };
+}
+
 export async function captionImage(opts: {
-  apiKey: string;
+  // Optional BYOK Anthropic key; falls back to the server proxy credential.
+  apiKey?: string;
   imageDataUri: string; // e.g. "data:image/png;base64,...."
   signal?: AbortSignal;
 }): Promise<{ caption: string; tags: string[] }> {
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const baseURL = (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(
+    /\/$/,
+    "",
+  );
+  const apiKey = opts.apiKey || process.env.ANTHROPIC_API_KEY || "";
+  const { mediaType, data } = parseDataUri(opts.imageDataUri);
+  const response = await fetch(`${baseURL}/v1/messages`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${opts.apiKey}`,
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
       "content-type": "application/json",
     },
     body: JSON.stringify({
       model: CAPTION_MODEL,
-      response_format: { type: "json_object" },
+      max_tokens: 300,
       messages: [
         {
           role: "user",
           content: [
             { type: "text", text: CAPTION_INSTRUCTION },
-            { type: "image_url", image_url: { url: opts.imageDataUri } },
+            { type: "image", source: { type: "base64", media_type: mediaType, data } },
           ],
         },
       ],
@@ -49,15 +66,22 @@ export async function captionImage(opts: {
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    throw new Error(`openai caption failed: ${response.status} ${text.slice(0, 400)}`);
+    throw new Error(`claude caption failed: ${response.status} ${text.slice(0, 400)}`);
   }
-  const data = (await response.json()) as ChatCompletion;
-  const content = data.choices?.[0]?.message?.content?.trim() || "";
+  const message = (await response.json()) as AnthropicMessage;
+  const content = (message.content?.find((b) => b.type === "text")?.text ?? "").trim();
 
   let caption = "";
   let tags: string[] = [];
+  // Claude may occasionally wrap the JSON in prose/```json fences — extract the
+  // first {...} block before parsing.
+  const jsonSlice = (() => {
+    const start = content.indexOf("{");
+    const end = content.lastIndexOf("}");
+    return start !== -1 && end > start ? content.slice(start, end + 1) : content;
+  })();
   try {
-    const parsed = JSON.parse(content) as { caption?: unknown; tags?: unknown };
+    const parsed = JSON.parse(jsonSlice) as { caption?: unknown; tags?: unknown };
     if (typeof parsed.caption === "string") caption = parsed.caption;
     if (Array.isArray(parsed.tags)) {
       tags = parsed.tags.filter((tag): tag is string => typeof tag === "string");

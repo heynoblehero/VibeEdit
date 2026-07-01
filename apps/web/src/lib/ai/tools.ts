@@ -31,7 +31,6 @@ import {
   generateImageWithModel,
   generateVideoWithModel,
   generateMusicWithModel,
-  openaiSpeech,
   ProviderNotConfiguredError,
 } from "./providers/dispatch";
 import { defaultModelForTask, getModel, type ModelEntry, type ModelTask } from "./models";
@@ -82,7 +81,7 @@ export type ToolContext = {
   // BYOK keys forwarded from the browser's localStorage per chat request.
   // Tools check this map before falling back to process.env (dev-only) and
   // return a friendly error if neither is present.
-  apiKeys?: Partial<Record<"replicate" | "elevenlabs" | "openai" | "anthropic", string>>;
+  apiKeys?: Partial<Record<"replicate" | "elevenlabs" | "anthropic", string>>;
   // Project-level platform context passed from the DB row.
   platform?: string;
   aspectRatio?: string;
@@ -1334,53 +1333,9 @@ export function buildToolServer(ctx: ToolContext) {
         .max(1)
         .optional()
         .describe("Voice similarity to base model. Default 0.8."),
-      model: z
-        .string()
-        .optional()
-        .describe(
-          "Voice model id (Auto mode only — user's pinned model wins in Manual mode). 'elevenlabs' (default, gives word-level timestamps for synced captions) or 'openai-tts' (cheaper, no timestamps). Omit to use the default.",
-        ),
     },
-    async ({ filename, script, voiceId, stability, style, similarityBoost, model }) => {
-      const voiceModel = resolveTaskModel("voice", model);
-      // OpenAI TTS path — cheaper, but no word-level timestamps.
-      if (voiceModel.provider === "openai") {
-        try {
-          const { audio, words } = await openaiSpeech({
-            model: voiceModel,
-            apiKeys: ctx.apiKeys,
-            script,
-            voice: voiceId,
-          });
-          const target = `assets/${filename}`;
-          writeProjectFile(ctx.userId, ctx.projectId, target, audio);
-          const tsTarget = `assets/${filename.replace(/\.mp3$/, ".timestamps.json")}`;
-          writeProjectFile(
-            ctx.userId,
-            ctx.projectId,
-            tsTarget,
-            Buffer.from(JSON.stringify(words, null, 2), "utf8"),
-          );
-          return {
-            content: [
-              {
-                type: "text",
-                text: [
-                  `OK: wrote ${target} (${audio.length}B) via OpenAI TTS.`,
-                  `Note: OpenAI TTS has no word-level timestamps — for synced word-highlight captions, switch the voice model to ElevenLabs.`,
-                  `Reference audio as src="${target}".`,
-                ].join("\n"),
-              },
-            ],
-          };
-        } catch (error) {
-          return {
-            content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
-            isError: true,
-          };
-        }
-      }
-      // ElevenLabs path (default) — gives exact word timestamps.
+    async ({ filename, script, voiceId, stability, style, similarityBoost }) => {
+      // ElevenLabs is the only voice provider — gives exact word timestamps.
       const apiKey = ctx.apiKeys?.elevenlabs || process.env.ELEVENLABS_API_KEY;
       if (!apiKey) {
         return {
@@ -1645,22 +1600,15 @@ export function buildToolServer(ctx: ToolContext) {
           isError: true,
         };
       }
-      const apiKey = ctx.apiKeys?.openai;
-      if (!apiKey) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: "ERROR: No OpenAI key configured. Ask the user to paste their OpenAI API key at /app/settings/api-keys, then try again.",
-            },
-          ],
-          isError: true,
-        };
-      }
       try {
         const file = readProjectFile(ctx.userId, ctx.projectId, m.path);
         const imageDataUri = `data:${file.mime};base64,${file.content.toString("base64")}`;
-        const { caption, tags } = await captionImage({ apiKey, imageDataUri });
+        // Captioning routes through the Claude vision endpoint (the same proxy
+        // the brain uses) — no separate key needed. BYOK anthropic overrides.
+        const { caption, tags } = await captionImage({
+          apiKey: ctx.apiKeys?.anthropic,
+          imageDataUri,
+        });
         await setUnderstanding(ctx.userId, ctx.projectId, m.path, { caption, tags });
         return {
           content: [
@@ -1754,7 +1702,7 @@ export function buildToolServer(ctx: ToolContext) {
         .string()
         .optional()
         .describe(
-          "Image model id to use (Auto mode only — the user's pinned model wins in Manual mode). E.g. 'flux-schnell' (fast/photoreal), 'dall-e-3', 'ideogram' (clean text/logos), 'midjourney'. Omit to use the default.",
+          "Image model id to use (Auto mode only — the user's pinned model wins in Manual mode). E.g. 'flux-schnell' (fast/photoreal), 'flux-pro' (premium), 'ideogram' (clean text/logos), 'midjourney'. Omit to use the default.",
         ),
     },
     async ({ prompt, sceneSlug, count, aspectRatio, model }) => {
@@ -2510,7 +2458,7 @@ export function buildToolServer(ctx: ToolContext) {
 
   const transcribeClipTool = tool(
     "transcribe_clip",
-    "Transcribe speech in a video or audio file using OpenAI Whisper. Returns the full transcript text AND word-level timestamps you can pass directly to generate_captions or burn_captions. Requires a BYOK OpenAI key.",
+    "Transcribe speech in a video or audio file using ElevenLabs Scribe. Returns the full transcript text AND word-level timestamps you can pass directly to generate_captions or burn_captions. Requires a BYOK ElevenLabs key.",
     {
       path: z.string().describe("Relative path to video or audio asset."),
       language: z
@@ -2519,13 +2467,13 @@ export function buildToolServer(ctx: ToolContext) {
         .describe("ISO 639-1 language code (e.g. 'en', 'es', 'fr'). Omit for auto-detect."),
     },
     async ({ path, language }) => {
-      const apiKey = ctx.apiKeys?.openai;
+      const apiKey = ctx.apiKeys?.elevenlabs || process.env.ELEVENLABS_API_KEY;
       if (!apiKey) {
         return {
           content: [
             {
               type: "text",
-              text: "ERROR: No OpenAI key configured. Ask the user to paste their OpenAI API key at /app/settings/api-keys, then try again.",
+              text: "ERROR: No ElevenLabs key configured. Ask the user to paste their ElevenLabs API key at /app/settings/api-keys, then try again.",
             },
           ],
           isError: true,
@@ -2566,7 +2514,7 @@ export function buildToolServer(ctx: ToolContext) {
 
   const packFootageTool = tool(
     "pack_footage",
-    "TEXT-FIRST footage pack — call this FIRST when editing raw footage, before anything else. Transcribes the clip once, then packs the whole timeline into ONE compact text context: duration/resolution/pacing, a timestamped transcript, every filler word + dead pause as CUT candidates, and a ready-to-refine list of KEEP segments (output as EDL-ready JSON). Reason over this text instead of guessing about frames you can't see; tweak the KEEP segments, then feed them straight to render_edl. Requires a BYOK OpenAI key (for transcription).",
+    "TEXT-FIRST footage pack — call this FIRST when editing raw footage, before anything else. Transcribes the clip once, then packs the whole timeline into ONE compact text context: duration/resolution/pacing, a timestamped transcript, every filler word + dead pause as CUT candidates, and a ready-to-refine list of KEEP segments (output as EDL-ready JSON). Reason over this text instead of guessing about frames you can't see; tweak the KEEP segments, then feed them straight to render_edl. Requires a BYOK ElevenLabs key (for transcription).",
     {
       path: z
         .string()
@@ -2579,13 +2527,13 @@ export function buildToolServer(ctx: ToolContext) {
         .describe("Silence ≥ this many seconds is flagged as dead space to cut. Default 0.6."),
     },
     async ({ path, language, minPauseToCut }) => {
-      const apiKey = ctx.apiKeys?.openai;
+      const apiKey = ctx.apiKeys?.elevenlabs || process.env.ELEVENLABS_API_KEY;
       if (!apiKey) {
         return {
           content: [
             {
               type: "text",
-              text: "ERROR: No OpenAI key configured (needed to transcribe). Ask the user to paste their OpenAI API key at /app/settings/api-keys.",
+              text: "ERROR: No ElevenLabs key configured (needed to transcribe). Ask the user to paste their ElevenLabs API key at /app/settings/api-keys.",
             },
           ],
           isError: true,

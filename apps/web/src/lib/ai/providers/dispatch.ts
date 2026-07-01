@@ -27,7 +27,7 @@ import {
   type ReplicateImageOptions,
 } from "./replicate";
 
-export type ApiKeys = Partial<Record<"replicate" | "elevenlabs" | "openai" | "anthropic", string>>;
+export type ApiKeys = Partial<Record<"replicate" | "elevenlabs" | "anthropic", string>>;
 
 export class ProviderNotConfiguredError extends Error {
   constructor(model: ModelEntry) {
@@ -41,13 +41,12 @@ export class ProviderNotConfiguredError extends Error {
 
 type ImageAspect = NonNullable<ReplicateImageOptions["aspectRatio"]>;
 type VideoAspect = "16:9" | "9:16" | "1:1";
-type WordTimestamp = { word: string; start: number; end: number };
 
 // ---------------------------------------------------------------------------
 // Credential helpers
 // ---------------------------------------------------------------------------
 
-const BYOK_PROVIDERS = new Set(["replicate", "openai", "elevenlabs", "anthropic"]);
+const BYOK_PROVIDERS = new Set(["replicate", "elevenlabs", "anthropic"]);
 
 /** Resolve the official-provider API key: BYOK first, then env. */
 function officialKey(model: ModelEntry, apiKeys?: ApiKeys): string {
@@ -104,44 +103,11 @@ export async function generateImageWithModel(opts: {
         model: REPLICATE_IMAGE_ALIASES[model.id],
         signal,
       });
-    case "openai":
-      return openaiGenerateImage(officialKey(model, apiKeys), prompt, aspectRatio, signal);
     case "midjourney-proxy":
       return midjourneyGenerate(model, prompt, signal);
     default:
       throw new Error(`unsupported image provider: ${model.provider}`);
   }
-}
-
-// OpenAI Images (DALL-E 3). b64_json so we get bytes without a second fetch.
-async function openaiGenerateImage(
-  apiKey: string,
-  prompt: string,
-  aspectRatio: ImageAspect,
-  signal?: AbortSignal,
-): Promise<Buffer> {
-  // DALL-E 3 only supports 1024x1024 / 1792x1024 / 1024x1792.
-  const size =
-    aspectRatio === "16:9"
-      ? "1792x1024"
-      : aspectRatio === "9:16" || aspectRatio === "3:4"
-        ? "1024x1792"
-        : "1024x1024";
-  const res = await fetch("https://api.openai.com/v1/images/generations", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-    body: JSON.stringify({ model: "dall-e-3", prompt, n: 1, size, response_format: "b64_json" }),
-    signal,
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`openai image failed: ${res.status} ${text.slice(0, 300)}`);
-  }
-  const json = (await res.json()) as { data?: Array<{ b64_json?: string; url?: string }> };
-  const item = json.data?.[0];
-  if (item?.b64_json) return Buffer.from(item.b64_json, "base64");
-  if (item?.url) return fetchBuffer(item.url, signal);
-  throw new Error("openai image returned no data");
 }
 
 // Midjourney via a self-hosted midjourney-proxy (novelzk/midjourney-proxy API
@@ -390,40 +356,6 @@ async function replicateMusic(
     throw new Error(`riffusion ${pred.status}: ${pred.error ?? "no audio"}`);
   }
   return fetchBuffer(pred.output.audio, signal);
-}
-
-// ---------------------------------------------------------------------------
-// Voice (TTS)
-// ---------------------------------------------------------------------------
-
-export type VoiceResult = { audio: Buffer; words: WordTimestamp[] };
-
-// OpenAI TTS. No word-level timestamps (only ElevenLabs gives those), so `words`
-// is empty — callers that need exact caption timing should prefer ElevenLabs.
-export async function openaiSpeech(opts: {
-  model: ModelEntry;
-  apiKeys?: ApiKeys;
-  script: string;
-  voice?: string;
-  signal?: AbortSignal;
-}): Promise<VoiceResult> {
-  const apiKey = officialKey(opts.model, opts.apiKeys);
-  const res = await fetch("https://api.openai.com/v1/audio/speech", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      model: "tts-1-hd",
-      input: opts.script,
-      voice: opts.voice || "alloy",
-      response_format: "mp3",
-    }),
-    signal: opts.signal,
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`openai tts failed: ${res.status} ${text.slice(0, 300)}`);
-  }
-  return { audio: Buffer.from(await res.arrayBuffer()), words: [] };
 }
 
 // ---------------------------------------------------------------------------

@@ -20,7 +20,7 @@ function pickModel(userId: string, projectId: string, prefs: ModelPreferences): 
   if (MODEL_OVERRIDE) return MODEL_OVERRIDE;
   // The agent loop runs on the claude-agent-sdk, which only supports Claude
   // models. In Manual mode, honor a Claude brain choice; a non-Claude brain
-  // pick (gpt-4o / grok) can't drive this runtime, so we fall through to the
+  // pick (e.g. grok) can't drive this runtime, so we fall through to the
   // auto first-draft/edit routing rather than failing.
   if (prefs.mode === "manual") {
     const chosen = resolveModelForTask("brain", prefs);

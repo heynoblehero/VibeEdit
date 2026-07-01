@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // Server-side BYOK key management. Keys are encrypted at rest (AES-256-GCM,
 // API_KEYS_SECRET) and only ever returned to the client masked (last 4 chars).
 // This is the cross-device alternative to the browser-local localStorage store.
-const ALLOWED_PROVIDERS: ProviderId[] = ["replicate", "elevenlabs", "openai", "anthropic"];
+const ALLOWED_PROVIDERS: ProviderId[] = ["replicate", "elevenlabs", "anthropic"];
 
 // GET — list the caller's stored keys as masked metadata. Never returns full keys.
 export async function GET() {

@@ -73,24 +73,6 @@ async function probeElevenLabs(apiKey: string): Promise<ProbeResult> {
   }
 }
 
-async function probeOpenAi(apiKey: string): Promise<ProbeResult> {
-  try {
-    const response = await fetchWithTimeout("https://api.openai.com/v1/models", {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
-    if (response.status === 401 || response.status === 403)
-      return { ok: false, error: "invalid key" };
-    if (!response.ok) return { ok: false, error: `openai ${response.status}` };
-    const data = (await response.json().catch(() => ({}))) as {
-      data?: Array<{ id: string }>;
-    };
-    const detail = data.data?.length ? `${data.data.length} models accessible` : "ok";
-    return { ok: true, detail };
-  } catch (caught) {
-    return { ok: false, error: (caught as Error).message };
-  }
-}
-
 async function probeAnthropic(apiKey: string): Promise<ProbeResult> {
   try {
     const response = await fetchWithTimeout("https://api.anthropic.com/v1/models", {
@@ -119,8 +101,6 @@ export async function probeKey(provider: ProviderId, apiKey: string): Promise<Pr
       return probeReplicate(apiKey);
     case "elevenlabs":
       return probeElevenLabs(apiKey);
-    case "openai":
-      return probeOpenAi(apiKey);
     case "anthropic":
       return probeAnthropic(apiKey);
     default:

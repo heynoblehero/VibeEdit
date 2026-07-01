@@ -774,7 +774,7 @@ export async function burnCaptions(opts: {
 }
 
 // ---------------------------------------------------------------------------
-// transcribe_clip  (OpenAI Whisper — BYOK)
+// transcribe_clip  (ElevenLabs Scribe STT — BYOK)
 // ---------------------------------------------------------------------------
 
 export interface TranscriptWord {
@@ -839,16 +839,16 @@ export async function transcribeClip(opts: {
     const audioBuffer = readFileSync(audioTmp);
     const blob = new Blob([audioBuffer], { type: "audio/mpeg" });
 
+    // ElevenLabs Scribe STT (BYOK — same ElevenLabs key used for TTS). Returns
+    // word-level timestamps we map to our TranscriptWord shape.
     const formData = new FormData();
     formData.append("file", blob, "audio.mp3");
-    formData.append("model", "whisper-1");
-    formData.append("response_format", "verbose_json");
-    formData.append("timestamp_granularities[]", "word");
-    if (opts.language) formData.append("language", opts.language);
+    formData.append("model_id", "scribe_v1");
+    if (opts.language) formData.append("language_code", opts.language);
 
-    const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    const response = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
       method: "POST",
-      headers: { Authorization: `Bearer ${opts.apiKey}` },
+      headers: { "xi-api-key": opts.apiKey },
       body: formData,
     });
 
@@ -856,19 +856,21 @@ export async function transcribeClip(opts: {
       const text = await response.text();
       return {
         ok: false,
-        error: `Whisper API ${response.status}: ${text.slice(0, 400)}`,
+        error: `ElevenLabs STT ${response.status}: ${text.slice(0, 400)}`,
       };
     }
 
-    type WhisperWord = { word: string; start: number; end: number };
-    type WhisperResponse = { text: string; words?: WhisperWord[] };
-    const data = (await response.json()) as WhisperResponse;
+    type ScribeWord = { text: string; start: number; end: number; type?: string };
+    type ScribeResponse = { text: string; words?: ScribeWord[] };
+    const data = (await response.json()) as ScribeResponse;
 
-    const words: TranscriptWord[] = (data.words ?? []).map((word) => ({
-      word: word.word,
-      start: word.start,
-      end: word.end,
-    }));
+    const words: TranscriptWord[] = (data.words ?? [])
+      .filter((w) => (w.type ?? "word") === "word")
+      .map((word) => ({
+        word: word.text,
+        start: word.start,
+        end: word.end,
+      }));
 
     // Persist to cache so future calls skip the API.
     if (cachePath) {

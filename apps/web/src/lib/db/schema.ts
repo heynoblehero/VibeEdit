@@ -404,7 +404,7 @@ export const apiKeys = sqliteTable(
     userId: text("userId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    // "replicate" | "elevenlabs" | "openai" | "anthropic"
+    // "replicate" | "elevenlabs" | "anthropic"
     provider: text("provider").notNull(),
     // AES-256-GCM ciphertext (enc:v1: prefixed). Decrypted only at point of use.
     keyEnc: text("keyEnc").notNull(),

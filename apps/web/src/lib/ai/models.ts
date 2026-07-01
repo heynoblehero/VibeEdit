@@ -23,7 +23,7 @@ export interface ModelEntry {
   label: string;
   /** Which kind of generation this model performs. */
   task: ModelTask;
-  /** Provider key, e.g. "anthropic" | "openai" | "replicate" | "elevenlabs" | "xai" | "midjourney-proxy" | "grok2api" | "suno" | "udio" | "viggle" | "luma" | "runway" | "pika" | "kling" | "ideogram". */
+  /** Provider key, e.g. "anthropic" | "replicate" | "elevenlabs" | "xai" | "midjourney-proxy" | "grok2api" | "suno" | "udio" | "viggle" | "luma" | "runway" | "pika" | "kling". */
   provider: string;
   /** false for cookie/relay/archived providers. */
   official: boolean;
@@ -63,16 +63,6 @@ export const MODELS: ModelEntry[] = [
     enabled: true,
     costTier: 2,
     credentialEnv: "ANTHROPIC_API_KEY",
-  },
-  {
-    id: "gpt-4o",
-    label: "GPT-4o",
-    task: "brain",
-    provider: "openai",
-    official: true,
-    enabled: true,
-    costTier: 2,
-    credentialEnv: "OPENAI_API_KEY",
   },
   {
     id: "grok-2",
@@ -118,16 +108,6 @@ export const MODELS: ModelEntry[] = [
     enabled: true,
     costTier: 2,
     credentialEnv: "REPLICATE_API_TOKEN",
-  },
-  {
-    id: "dall-e-3",
-    label: "DALL-E 3",
-    task: "image",
-    provider: "openai",
-    official: true,
-    enabled: true,
-    costTier: 2,
-    credentialEnv: "OPENAI_API_KEY",
   },
   {
     id: "ideogram",
@@ -247,16 +227,6 @@ export const MODELS: ModelEntry[] = [
     default: true,
     costTier: 2,
     credentialEnv: "ELEVENLABS_API_KEY",
-  },
-  {
-    id: "openai-tts",
-    label: "OpenAI TTS",
-    task: "voice",
-    provider: "openai",
-    official: true,
-    enabled: true,
-    costTier: 1,
-    credentialEnv: "OPENAI_API_KEY",
   },
 
   // ── motion (character animation / pose transfer) ──────────────────────────────

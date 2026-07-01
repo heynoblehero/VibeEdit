@@ -57,7 +57,7 @@ export async function POST(req: Request) {
 
   // Validate & trim BYOK keys before handing to the agent. Anything unknown
   // is dropped so a malicious caller can't smuggle arbitrary header names.
-  const ALLOWED_KEYS = ["replicate", "elevenlabs", "openai", "anthropic"] as const;
+  const ALLOWED_KEYS = ["replicate", "elevenlabs", "anthropic"] as const;
   const apiKeys: Record<string, string> = {};
   if (body.apiKeys && typeof body.apiKeys === "object") {
     for (const provider of ALLOWED_KEYS) {
@@ -195,7 +195,6 @@ export async function POST(req: Request) {
             apiKeys: apiKeys as {
               replicate?: string;
               elevenlabs?: string;
-              openai?: string;
               anthropic?: string;
             },
             enqueueRender: (opts) => enqueue({ userId, projectId, ...opts }),

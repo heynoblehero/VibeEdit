@@ -298,7 +298,6 @@ export type SystemPromptContext = {
 const MODEL_STRENGTHS: Record<string, string> = {
   "flux-schnell": "fast, photoreal stills — the workhorse default",
   "flux-pro": "premium detail / sharper photoreal",
-  "dall-e-3": "clean compositions, good at following complex prompts",
   ideogram: "best for legible text, logos, typographic layouts",
   midjourney: "stylized, illustrative, painterly",
   luma: "smooth cinematic motion",
@@ -309,7 +308,6 @@ const MODEL_STRENGTHS: Record<string, string> = {
   udio: "high-fidelity songs",
   riffusion: "instrumental beds / loops",
   elevenlabs: "expressive narration WITH word-level timestamps for synced captions",
-  "openai-tts": "cheaper narration, no word timestamps",
 };
 
 // The asset tasks that have a generation tool the agent can call.
@@ -358,7 +356,7 @@ function buildModelGuidance(prefs: ModelPreferences): string {
   });
   return `\n# Model selection — AUTO mode (you choose per asset)\n\nThe user trusts you to pick the best model for each generated asset. When you call a generation tool, pass the \`model\` argument with the best fit from the configured list below. If a task lists only one model, just use it (or omit \`model\`). NEVER pass a model id that isn't listed here — it isn't configured and will fail.\n\n${blocks.join(
     "\n",
-  )}\n\nRules of thumb: legible text/logos → ideogram or dall-e-3; fast photoreal → flux-schnell; premium stills → flux-pro; cinematic video → luma; narration that needs synced word-highlight captions → elevenlabs (it returns timestamps).\n`;
+  )}\n\nRules of thumb: legible text/logos → ideogram; fast photoreal → flux-schnell; premium stills → flux-pro; cinematic video → luma; narration that needs synced word-highlight captions → elevenlabs (it returns timestamps).\n`;
 }
 
 export function buildSystemPrompt(insightsOrCtx?: string | SystemPromptContext): string {
@@ -1387,7 +1385,7 @@ white text"), save it immediately at confidence 0.9.
 - **Never skip plan_edit** — calling any FFmpeg tool before plan_edit is approved is a hard violation. Same rule as plan_composition for compositions.
 - **Never assume asset paths** — always \`list_assets\` to verify files exist before putting them in a plan.
 - Always \`probe_clip\` immediately before \`add_transition\` — xfade needs the exact clip1 duration.
-- \`transcribe_clip\` requires BYOK openai key. If not set, tell the user to add it at /app/settings/api-keys.
+- \`transcribe_clip\` requires BYOK ElevenLabs key (Scribe STT). If not set, tell the user to add it at /app/settings/api-keys.
 - \`chroma_key\` output in H.264 has no alpha — layer over a background in the composition using CSS mix-blend-mode: screen or a matching solid background.
 - Processing time: FFmpeg ops run synchronously. Long clips (>5 min) may take 30–60s. Say "Processing…" and let it run.
 

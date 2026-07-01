@@ -8,6 +8,7 @@ import {
   unlinkSync,
   statSync,
   readFileSync,
+  renameSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
@@ -1169,6 +1170,24 @@ async function applyLoudnorm(
   ]);
 }
 
+// Cap a frame to fit within maxW×maxH WITHOUT upscaling smaller sources.
+// Returns even dimensions (libx264 requires width/height divisible by 2).
+// This is what keeps 4K sources from being re-encoded at native resolution —
+// the #1 cause of render timeouts (a 4K x264 encode blows past the ffmpeg
+// watchdog, which SIGTERMs it → ffmpeg exits 255 → a corrupt partial file).
+export function fitWithin(
+  w: number,
+  h: number,
+  maxW = 1920,
+  maxH = 1080,
+): { w: number; h: number } {
+  if (!w || !h) return { w: maxW, h: maxH };
+  const scale = Math.min(1, maxW / w, maxH / h);
+  const nw = Math.max(2, Math.round((w * scale) / 2) * 2);
+  const nh = Math.max(2, Math.round((h * scale) / 2) * 2);
+  return { w: nw, h: nh };
+}
+
 export async function renderEdl(opts: {
   edl: EditDecisionList;
   projectRootDir: string;
@@ -1176,6 +1195,9 @@ export async function renderEdl(opts: {
   const { edl, projectRootDir: dir } = opts;
   const outputPath = resolveProjectPath(dir, edl.outputPath);
   ensureParentDir(outputPath);
+  // Write the final file to a sibling temp, then atomically rename — so a slow
+  // render that gets killed mid-write can never leave a corrupt output in place.
+  const outTmp = `${outputPath}.part`;
 
   const tmpDir = join(tmpdir(), `vibe_edl_${randomBytes(6).toString("hex")}`);
   mkdirSync(tmpDir, { recursive: true });
@@ -1196,8 +1218,15 @@ export async function renderEdl(opts: {
       const segDuration = segment.end - segment.start;
       const fadeOutStart = Math.max(0, segDuration - 0.03).toFixed(3);
 
-      // Build video filter chain
+      // Cap the render to 1080p — never encode 4K intermediates (they time out
+      // and are thrown away by every platform's upload transcode anyway).
+      const cap = fitWithin(info.width, info.height);
+      const needsDownscale = cap.w < info.width || cap.h < info.height;
+
+      // Build video filter chain. Downscale FIRST so grade/speed run on fewer
+      // pixels.
       const vfParts: string[] = [];
+      if (needsDownscale) vfParts.push(`scale=${cap.w}:${cap.h}`);
       if (segment.grade === "auto") {
         const autoFilter = await autoGradeFilter(sourcePath);
         if (autoFilter) vfParts.push(autoFilter);
@@ -1228,8 +1257,9 @@ export async function renderEdl(opts: {
         // composite the keyed foreground over a new image/video background.
         const bg = segment.background;
         const bgPath = resolveProjectPath(dir, bg.replaceWith);
-        const w = info.width || 1080;
-        const h = info.height || 1920;
+        // Match the capped render size (never the native 4K canvas).
+        const w = cap.w;
+        const h = cap.h;
         const isBgImage = /\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(bg.replaceWith);
         const useKey = bg.chromaKey ?? true;
         const color = (bg.color ?? "00FF00").replace(/^#/, "");
@@ -1270,7 +1300,10 @@ export async function renderEdl(opts: {
         args.push("-c:v", "libx264", "-preset", "fast", "-crf", "18", segPath);
       }
 
-      const segResult = await ffmpegRun(args);
+      // Scale the watchdog with clip length (~8s of budget per source-second),
+      // floored at 3 min, so long legitimate encodes aren't killed mid-write.
+      const segTimeout = Math.max(180_000, Math.ceil(segDuration) * 8_000);
+      const segResult = await ffmpegRun(args, segTimeout);
       if (!segResult.ok) {
         return {
           ok: false,
@@ -1387,30 +1420,38 @@ export async function renderEdl(opts: {
         "18",
         "-c:a",
         "copy",
-        outputPath,
+        outTmp,
       ]);
       if (!captionResult.ok) return captionResult;
     } else {
-      // No captions: copy current to final output path
-      const copyResult = await ffmpegRun(["-i", currentPath, "-c", "copy", outputPath]);
+      // No captions: copy current to the temp output path
+      const copyResult = await ffmpegRun(["-i", currentPath, "-c", "copy", outTmp]);
       if (!copyResult.ok) return copyResult;
     }
 
     // ----------------------------------------------------------------
     // Step 5: Loudness normalization (-14 LUFS social standard)
-    // Runs 2-pass on the final file and overwrites it in place.
+    // Runs 2-pass on the temp file and overwrites it in place.
     // ----------------------------------------------------------------
     if (edl.loudnorm) {
       const normalizedPath = join(tmpDir, "normalized.mp4");
-      const normResult = await applyLoudnorm(outputPath, normalizedPath);
+      const normResult = await applyLoudnorm(outTmp, normalizedPath);
       if (!normResult.ok) return normResult;
-      // Overwrite final output with the normalized version.
-      const replaceResult = await ffmpegRun(["-i", normalizedPath, "-c", "copy", outputPath]);
+      // Overwrite the temp output with the normalized version.
+      const replaceResult = await ffmpegRun(["-i", normalizedPath, "-c", "copy", outTmp]);
       if (!replaceResult.ok) return replaceResult;
     }
 
+    // Atomically publish the finished render (same-filesystem rename), so a
+    // consumer never sees a half-written file.
+    renameSync(outTmp, outputPath);
     return { ok: true };
   } finally {
+    try {
+      if (existsSync(outTmp)) rmSync(outTmp, { force: true });
+    } catch {
+      // ignore — partial temp cleanup
+    }
     try {
       rmSync(tmpDir, { recursive: true, force: true });
     } catch {

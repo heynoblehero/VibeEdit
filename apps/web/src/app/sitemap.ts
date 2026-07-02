@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { HELP_ARTICLES } from "@/lib/help-articles";
+import { liveTools } from "@/lib/tools/catalog";
 
 const SITE_URL = process.env.BETTER_AUTH_URL || "https://vibeedit.video";
 
@@ -12,6 +13,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/changelog",
     "/status",
     "/help",
+    "/tools",
     "/legal/terms",
     "/legal/privacy",
     "/legal/refunds",
@@ -20,6 +22,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
     lastModified: now,
     changeFrequency: "weekly" as const,
     priority: path === "" ? 1 : 0.6,
+  }));
+
+  // Free tools are high-intent SEO landing pages.
+  const toolRoutes = liveTools().map((tool) => ({
+    url: `${SITE_URL}/tools/${tool.slug}`,
+    lastModified: now,
+    changeFrequency: "weekly" as const,
+    priority: 0.7,
   }));
 
   const helpRoutes = HELP_ARTICLES.filter((article) => article.slug !== "runbook").map(
@@ -31,5 +41,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
     }),
   );
 
-  return [...staticRoutes, ...helpRoutes];
+  return [...staticRoutes, ...toolRoutes, ...helpRoutes];
 }

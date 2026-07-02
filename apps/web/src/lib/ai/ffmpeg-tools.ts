@@ -9,9 +9,11 @@ import {
   statSync,
   readFileSync,
   renameSync,
+  copyFileSync,
+  readdirSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -1729,6 +1731,67 @@ export function fitWithin(
   return { w: nw, h: nh };
 }
 
+// Content-addressed segment cache. A re-render after a caption / music /
+// loudnorm tweak re-uses previously encoded segments whose inputs are
+// byte-identical, so e.g. "change the caption style" re-encodes ZERO segments.
+// Lives under the OS temp dir (never in the project, so it can't show up in
+// asset listings), keyed per project.
+function segmentCacheDir(projectRootDir: string): string {
+  const projectHash = createHash("sha1").update(projectRootDir).digest("hex").slice(0, 16);
+  return join(tmpdir(), "vibe-render-cache", projectHash);
+}
+
+function segmentCacheKey(opts: {
+  segment: EdlSegment;
+  sourceStat: { mtimeMs: number; size: number };
+  targetW: number;
+  targetH: number;
+  targetFps: number;
+  crf: string;
+  preset: string;
+}): string {
+  const { segment, sourceStat } = opts;
+  const key = {
+    source: segment.source,
+    mtime: Math.round(sourceStat.mtimeMs),
+    size: sourceStat.size,
+    start: segment.start,
+    end: segment.end,
+    grade: segment.grade ?? null,
+    transform: segment.transform ?? null,
+    speed: segment.speed ?? 1,
+    background: segment.background ?? null,
+    w: opts.targetW,
+    h: opts.targetH,
+    fps: opts.targetFps,
+    crf: opts.crf,
+    preset: opts.preset,
+  };
+  return createHash("sha1").update(JSON.stringify(key)).digest("hex");
+}
+
+// Keep the cache bounded — drop all but the newest `keep` encoded segments.
+function pruneSegmentCache(cacheDir: string, keep = 400): void {
+  try {
+    const entries = readdirSync(cacheDir)
+      .filter((name) => name.endsWith(".mp4"))
+      .map((name) => {
+        const full = join(cacheDir, name);
+        return { full, mtime: statSync(full).mtimeMs };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+    for (const entry of entries.slice(keep)) {
+      try {
+        unlinkSync(entry.full);
+      } catch {
+        // ignore
+      }
+    }
+  } catch {
+    // best-effort
+  }
+}
+
 // Concat-copy a run of format-identical segment files into one file (lossless).
 async function concatCopyFiles(
   files: string[],
@@ -1917,6 +1980,12 @@ export async function renderEdl(opts: {
     // matching audio params (concat requires uniform stream presence).
     const silentAudioInput = "anullsrc=channel_layout=stereo:sample_rate=48000";
 
+    // Persistent per-project segment cache (keyed on every input that affects
+    // the encoded segment). A re-render after a caption/music/loudnorm change
+    // re-uses these instead of re-encoding.
+    const cacheDir = segmentCacheDir(dir);
+    mkdirSync(cacheDir, { recursive: true });
+
     // ----------------------------------------------------------------
     // Step 1: Per-segment extract with grade + speed + 30ms audio fades,
     // conformed to the canonical format. Segments are independent, so encode
@@ -1931,6 +2000,28 @@ export async function renderEdl(opts: {
       const info = probes[index];
       const segDuration = segment.end - segment.start;
       const fadeOutStart = Math.max(0, segDuration - 0.03).toFixed(3);
+
+      // Cache lookup: if this exact segment was encoded before, reuse it.
+      let cachePath: string | null = null;
+      try {
+        const sourceStat = statSync(sourcePath);
+        const hash = segmentCacheKey({
+          segment,
+          sourceStat,
+          targetW,
+          targetH,
+          targetFps,
+          crf,
+          preset,
+        });
+        cachePath = join(cacheDir, `${hash}.mp4`);
+        if (existsSync(cachePath)) {
+          segmentPaths[index] = cachePath;
+          return { ok: true };
+        }
+      } catch {
+        cachePath = null;
+      }
 
       // Video filter chain: grade → speed → normalize (normalize LAST so every
       // segment ends at exactly targetW×targetH / targetFps / yuv420p).
@@ -2021,6 +2112,17 @@ export async function renderEdl(opts: {
           error: `Segment ${index} (${segment.source} ${segment.start}–${segment.end}s): ${segResult.error}`,
         };
       }
+      // Populate the cache (atomic copy so a concurrent reader never sees a
+      // half-written file). Best-effort — a cache failure must not fail render.
+      if (cachePath) {
+        try {
+          const cacheTmp = `${cachePath}.${randomBytes(4).toString("hex")}.tmp`;
+          copyFileSync(segPath, cacheTmp);
+          renameSync(cacheTmp, cachePath);
+        } catch {
+          // ignore cache write failure
+        }
+      }
       return { ok: true };
     };
 
@@ -2040,6 +2142,7 @@ export async function renderEdl(opts: {
       const failed = results.find((result) => !result.ok);
       if (failed) return failed;
     }
+    pruneSegmentCache(cacheDir);
 
     // ----------------------------------------------------------------
     // Step 2: Assemble segments — hard-cut concat (fast, lossless) unless any

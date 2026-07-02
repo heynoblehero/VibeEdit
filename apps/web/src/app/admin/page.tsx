@@ -8,6 +8,7 @@ import { Wordmark } from "@/components/Wordmark";
 import SupportInbox from "@/components/admin/SupportInbox";
 import ObservabilityTiles from "@/components/admin/ObservabilityTiles";
 import ProvidersPanel from "@/components/admin/ProvidersPanel";
+import GrowthPanel from "@/components/admin/GrowthPanel";
 
 type Overview = {
   users: { total: number; last24h: number; last7d: number };
@@ -26,6 +27,7 @@ type Overview = {
 
 type Tab =
   | "overview"
+  | "analytics"
   | "users"
   | "billing"
   | "renders"
@@ -36,6 +38,7 @@ type Tab =
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: "overview", label: "Overview" },
+  { id: "analytics", label: "Analytics" },
   { id: "users", label: "Users" },
   { id: "billing", label: "Billing" },
   { id: "renders", label: "Render ops" },
@@ -122,6 +125,7 @@ export default function AdminPage() {
       </nav>
 
       {tab === "overview" && <OverviewTab />}
+      {tab === "analytics" && <GrowthPanel />}
       {tab === "users" && <UsersTab />}
       {tab === "billing" && <BillingTab />}
       {tab === "renders" && <RendersTab />}

@@ -2268,7 +2268,7 @@ export function buildToolServer(ctx: ToolContext) {
 
   const addTransitionTool = tool(
     "add_transition",
-    "Join two clips with a smooth xfade transition between them. REQUIRED: call probe_clip on clip1 first to get its duration, then pass that as clip1DurationSeconds.",
+    "Standalone two-clip xfade for one-off joins OUTSIDE an EDL. For footage edits use the EDL segment's `transitionAfter` instead — this tool shifts the timeline without updating caption offsets. REQUIRED: call probe_clip on clip1 first, then pass its duration as clip1DurationSeconds.",
     {
       clip1: z.string().describe("Relative path to first clip."),
       clip2: z.string().describe("Relative path to second clip."),
@@ -2873,6 +2873,10 @@ export function buildToolServer(ctx: ToolContext) {
             beat: z.string().optional(),
             grade: z.unknown().optional(),
             speed: z.number().optional(),
+            transitionAfter: z
+              .object({ duration: z.number() })
+              .optional()
+              .describe("Cross-fade into the next segment (duration in seconds)."),
           }),
         )
         .min(1)
@@ -2885,15 +2889,21 @@ export function buildToolServer(ctx: ToolContext) {
         .array(z.object({ word: z.string(), start: z.number(), end: z.number() }))
         .optional()
         .describe("Transcript words for the segments' source — enables mid-word-cut detection."),
+      beats: z
+        .array(z.number())
+        .optional()
+        .describe(
+          "Beat times from detect_beats — enables off-beat cut detection when using music.",
+        ),
     },
-    async ({ segments, captions, words }) => {
+    async ({ segments, captions, words, beats }) => {
       try {
         const { ok, issues } = validateEdl(
           {
             segments: segments as EdlSegment[],
             captions: captions as CaptionCue[] | undefined,
           },
-          { words: words as TranscriptWord[] | undefined },
+          { words: words as TranscriptWord[] | undefined, beats: beats as number[] | undefined },
         );
         if (issues.length === 0) {
           return {
@@ -2917,11 +2927,59 @@ export function buildToolServer(ctx: ToolContext) {
     },
   );
 
+  const xfadeEnum = z.enum([
+    "fade",
+    "fadeblack",
+    "fadewhite",
+    "wipeleft",
+    "wiperight",
+    "wipeup",
+    "wipedown",
+    "slideleft",
+    "slideright",
+    "slideup",
+    "slidedown",
+    "circlecrop",
+    "circleopen",
+    "circleclose",
+    "dissolve",
+    "smoothleft",
+    "smoothright",
+    "smoothup",
+    "smoothdown",
+    "radial",
+    "zoomin",
+    "pixelize",
+    "hlwind",
+    "diagtl",
+    "diagbr",
+  ]);
+
+  const transitionAfterSchema = z
+    .object({
+      type: xfadeEnum.describe("Cross-fade style into the next segment."),
+      duration: z
+        .number()
+        .min(0.1)
+        .max(2)
+        .describe("Overlap length in seconds. Keep short (0.3–0.5s) and motivated."),
+    })
+    .optional()
+    .describe(
+      "Cross-fade from this segment into the next instead of a hard cut. Default to hard cuts; use 1–2 motivated transitions per video. The output shortens by `duration` and caption timing is adjusted automatically.",
+    );
+
   const gradeFieldSchema = z
     .union([
       z.literal("auto").describe("Auto-analyze per clip — recommended default for footage."),
       z.literal("none").describe("Skip grading."),
       z.object({
+        look: z
+          .enum(["teal-orange", "film-warm", "moody-cool", "bw-contrast", "vibrant"])
+          .optional()
+          .describe(
+            "Named cinematic look, applied before manual tweaks. teal-orange = blockbuster; film-warm = nostalgic; moody-cool = thriller; bw-contrast = high-contrast B&W; vibrant = punchy product/hype.",
+          ),
         brightness: z.number().min(-1).max(1).optional(),
         contrast: z.number().min(0).max(2).optional(),
         saturation: z.number().min(0).max(3).optional(),
@@ -2930,7 +2988,9 @@ export function buildToolServer(ctx: ToolContext) {
       }),
     ])
     .optional()
-    .describe("Per-segment color grade. Use 'auto' unless the user specifies a look.");
+    .describe(
+      "Per-segment color grade. Use 'auto' for natural correction, or an object with a `look` for a cinematic style. Keep the look consistent across a video unless a scene calls for contrast.",
+    );
 
   const renderEdlTool = tool(
     "render_edl",
@@ -2995,6 +3055,7 @@ export function buildToolServer(ctx: ToolContext) {
                   .describe(
                     "Replace this segment's background: greenscreen the source and composite over replaceWith. Use for 'put me on a beach', 'change my background', or compositing a persona shot on green over any scene. One conversational, undoable edit.",
                   ),
+                transitionAfter: transitionAfterSchema,
               }),
             )
             .min(1)

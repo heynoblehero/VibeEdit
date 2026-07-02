@@ -537,8 +537,51 @@ export type XfadeType =
   | "wipedown"
   | "slideleft"
   | "slideright"
+  | "slideup"
+  | "slidedown"
   | "circlecrop"
-  | "dissolve";
+  | "circleopen"
+  | "circleclose"
+  | "dissolve"
+  | "smoothleft"
+  | "smoothright"
+  | "smoothup"
+  | "smoothdown"
+  | "radial"
+  | "zoomin"
+  | "pixelize"
+  | "hlwind"
+  | "diagtl"
+  | "diagbr";
+
+// Every xfade type this module accepts — used to validate EDL transitions.
+export const XFADE_TYPES: readonly XfadeType[] = [
+  "fade",
+  "fadeblack",
+  "fadewhite",
+  "wipeleft",
+  "wiperight",
+  "wipeup",
+  "wipedown",
+  "slideleft",
+  "slideright",
+  "slideup",
+  "slidedown",
+  "circlecrop",
+  "circleopen",
+  "circleclose",
+  "dissolve",
+  "smoothleft",
+  "smoothright",
+  "smoothup",
+  "smoothdown",
+  "radial",
+  "zoomin",
+  "pixelize",
+  "hlwind",
+  "diagtl",
+  "diagbr",
+];
 
 export async function addTransition(opts: {
   clip1Path: string;
@@ -1211,12 +1254,57 @@ export async function autoGradeFilter(filePath: string): Promise<string> {
 //   captions LAST (Hard Rule 1)
 // ---------------------------------------------------------------------------
 
+export type FilmLook = "teal-orange" | "film-warm" | "moody-cool" | "bw-contrast" | "vibrant";
+
 export interface EdlGrade {
   brightness?: number;
   contrast?: number;
   saturation?: number;
   gamma?: number;
   temperature?: "warm" | "cool" | "neutral";
+  look?: FilmLook; // named cinematic look, applied before manual tweaks
+}
+
+// Named film looks as ffmpeg filter chains (curves/colorbalance/eq) — richer
+// than a flat eq, and no external .cube files to ship, so they render
+// identically everywhere. Each is a self-contained vf sub-chain.
+const FILM_LOOKS: Record<FilmLook, string> = {
+  // Teal shadows, orange highlights — the blockbuster grade.
+  "teal-orange":
+    "curves=b='0/0.12 0.5/0.46 1/0.86':r='0/0 0.5/0.56 1/1',eq=saturation=1.12:contrast=1.06",
+  // Warm, lifted blacks, gently desaturated — nostalgic film stock.
+  "film-warm":
+    "colorbalance=rs=0.06:rm=0.04:bs=-0.06:bh=-0.04,curves=all='0/0.04 1/0.97',eq=saturation=0.95",
+  // Cool cast, crushed blacks, muted — moody / thriller.
+  "moody-cool":
+    "colorbalance=rs=-0.05:bs=0.08:bh=0.04,curves=all='0/0 0.5/0.45 1/0.95',eq=saturation=0.82:contrast=1.08",
+  // High-contrast black & white.
+  "bw-contrast": "hue=s=0,curves=all='0/0 0.25/0.14 0.75/0.86 1/1'",
+  // Punchy, saturated, crisp — product / hype.
+  vibrant: "eq=saturation=1.3:contrast=1.1,unsharp=3:3:0.4",
+};
+
+// Build the video-filter chain for a grade object (look + manual tweaks).
+// Returns "" when nothing to apply.
+export function buildGradeFilter(grade: EdlGrade): string {
+  const parts: string[] = [];
+  if (grade.look && FILM_LOOKS[grade.look]) parts.push(FILM_LOOKS[grade.look]);
+
+  const hasManualEq =
+    grade.brightness !== undefined ||
+    grade.contrast !== undefined ||
+    grade.saturation !== undefined ||
+    grade.gamma !== undefined;
+  if (hasManualEq) {
+    const { brightness = 0, contrast = 1, saturation = 1, gamma = 1 } = grade;
+    parts.push(
+      `eq=brightness=${brightness}:contrast=${contrast}:saturation=${saturation}:gamma=${gamma}`,
+    );
+  }
+  if (grade.temperature === "warm") parts.push("colorbalance=rs=0.05:gs=0.02:bs=-0.05");
+  else if (grade.temperature === "cool") parts.push("colorbalance=rs=-0.05:gs=-0.01:bs=0.05");
+
+  return parts.join(",");
 }
 
 // "auto" → run autoGradeFilter per-segment (recommended default for footage).
@@ -1245,6 +1333,10 @@ export interface EdlSegment {
   grade?: EdlGradeSpec;
   speed?: number; // default 1.0
   background?: EdlBackground; // replace the segment's background (greenscreen composite)
+  // Cross-fade from this segment into the next one instead of a hard cut. The
+  // two segments overlap by `duration`, shortening the output timeline — the
+  // caption/offset math accounts for this automatically.
+  transitionAfter?: { type: XfadeType; duration: number };
 }
 
 // Background music bed mixed under the whole edit. When duck is true (default),
@@ -1293,6 +1385,9 @@ export function computeSegmentOffsets(segments: EdlSegment[]): number[] {
   for (const seg of segments) {
     offsets.push(cumulative);
     cumulative += (seg.end - seg.start) / (seg.speed ?? 1);
+    // A cross-fade after this segment overlaps it with the next by `duration`,
+    // pulling every later segment (and its captions) earlier in the output.
+    cumulative -= seg.transitionAfter?.duration ?? 0;
   }
   return offsets;
 }
@@ -1351,7 +1446,7 @@ export interface EdlValidationIssue {
 
 export function validateEdl(
   edl: Pick<EditDecisionList, "segments" | "captions">,
-  opts?: { words?: TranscriptWord[] },
+  opts?: { words?: TranscriptWord[]; beats?: number[] },
 ): { ok: boolean; issues: EdlValidationIssue[] } {
   const issues: EdlValidationIssue[] = [];
   const segments = edl.segments ?? [];
@@ -1437,8 +1532,14 @@ export function validateEdl(
     });
   }
 
-  // Captions must sit inside the output timeline.
-  const totalOutput = durations.reduce((sum, duration) => sum + Math.max(0, duration), 0);
+  // Captions must sit inside the output timeline. Cross-fades overlap adjacent
+  // segments, so the real output is shorter than the sum of segment durations.
+  const transitionOverlap = segments.reduce(
+    (sum, segment) => sum + (segment.transitionAfter?.duration ?? 0),
+    0,
+  );
+  const totalOutput =
+    durations.reduce((sum, duration) => sum + Math.max(0, duration), 0) - transitionOverlap;
   const captions = edl.captions ?? [];
   for (let index = 0; index < captions.length; index++) {
     const cue = captions[index];
@@ -1480,6 +1581,31 @@ export function validateEdl(
           message: `Segment ${index} ends at ${segments[index].end}s, inside the word "${endWord.word}". Snap with snap_to_boundary.`,
         });
       }
+    }
+  }
+
+  // Beat sync (best-effort, only with a beat grid from detect_beats). When music
+  // drives the edit, cuts that land off the beat feel loose. Flag output-timeline
+  // cut points that miss every beat by more than ~120ms.
+  const beatGrid = opts?.beats;
+  if (beatGrid && beatGrid.length >= 4) {
+    const offsets = computeSegmentOffsets(segments);
+    let offCount = 0;
+    // Skip the first cut (t=0) and check each interior segment start.
+    for (let index = 1; index < offsets.length; index++) {
+      const cut = offsets[index];
+      const nearest = beatGrid.reduce(
+        (best, beat) => Math.min(best, Math.abs(beat - cut)),
+        Number.POSITIVE_INFINITY,
+      );
+      if (nearest > 0.12) offCount++;
+    }
+    if (offCount > 0) {
+      issues.push({
+        level: "warn",
+        code: "off_beat_cuts",
+        message: `${offCount} cut(s) don't land on a musical beat. With music, align cut points to detect_beats times for a tighter edit.`,
+      });
     }
   }
 
@@ -1569,6 +1695,143 @@ export function fitWithin(
   return { w: nw, h: nh };
 }
 
+// Concat-copy a run of format-identical segment files into one file (lossless).
+async function concatCopyFiles(
+  files: string[],
+  outPath: string,
+  tmpDir: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (files.length === 1) {
+    return ffmpegRun(["-i", files[0], "-c", "copy", "-f", "mp4", outPath]);
+  }
+  const listPath = join(tmpDir, `cc_${randomBytes(4).toString("hex")}.txt`);
+  writeFileSync(listPath, files.map((p) => `file '${p}'`).join("\n"));
+  return ffmpegRun(["-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", outPath]);
+}
+
+// Assemble segments where some seams are cross-fades. Runs of hard-cut segments
+// are concat-copied into blocks; the blocks are then chained with xfade (video)
+// + acrossfade (audio). All segments share the canonical format, which is what
+// xfade requires. Cross-fades overlap adjacent blocks by `duration`, so the
+// output timeline shortens — matched by computeSegmentOffsets.
+async function assembleWithTransitions(opts: {
+  segmentPaths: string[];
+  transitions: Array<{ type: XfadeType; duration: number } | undefined>;
+  tmpDir: string;
+  preset: string;
+  crf: string;
+}): Promise<{ ok: boolean; path?: string; error?: string }> {
+  const { segmentPaths, transitions, tmpDir, preset, crf } = opts;
+
+  // Partition into blocks separated by real (duration > 0) transitions.
+  const blocks: string[][] = [];
+  const between: Array<{ type: XfadeType; duration: number }> = [];
+  let current: string[] = [];
+  for (let index = 0; index < segmentPaths.length; index++) {
+    current.push(segmentPaths[index]);
+    const transition = transitions[index];
+    const isLast = index === segmentPaths.length - 1;
+    if (!isLast && transition && transition.duration > 0) {
+      blocks.push(current);
+      between.push(transition);
+      current = [];
+    }
+  }
+  if (current.length > 0) blocks.push(current);
+
+  // Concat-copy each block into a single file.
+  const blockFiles: string[] = [];
+  for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+    const blockFile = join(tmpDir, `block_${blockIndex}.mp4`);
+    const result = await concatCopyFiles(blocks[blockIndex], blockFile, tmpDir);
+    if (!result.ok) return { ok: false, error: result.error };
+    blockFiles.push(blockFile);
+  }
+
+  if (blockFiles.length === 1) return { ok: true, path: blockFiles[0] };
+
+  // Probe real block durations for xfade offsets.
+  const blockDurations: number[] = [];
+  for (const blockFile of blockFiles) {
+    const info = await probeClip(blockFile);
+    blockDurations.push(info.durationSeconds);
+  }
+
+  // Clamp each transition to fit inside the shorter adjacent block.
+  const clamped = between.map((transition, index) => {
+    const maxDuration = Math.max(
+      0.1,
+      Math.min(blockDurations[index], blockDurations[index + 1]) - 0.05,
+    );
+    return { type: transition.type, duration: Math.min(transition.duration, maxDuration) };
+  });
+
+  // Chain xfade (video, needs an absolute offset) + acrossfade (audio, aligns at
+  // the junction automatically). The accumulator timeline runs continuously
+  // from 0, so each offset is (accumulated length so far) − transition duration.
+  const inputArgs: string[] = [];
+  for (const blockFile of blockFiles) inputArgs.push("-i", blockFile);
+
+  const videoParts: string[] = [];
+  const audioParts: string[] = [];
+  let videoLabel = "[0:v]";
+  let audioLabel = "[0:a]";
+  let accumulatedLength = blockDurations[0];
+
+  for (let index = 0; index < clamped.length; index++) {
+    const transition = clamped[index];
+    const isFinal = index === clamped.length - 1;
+    const nextVideo = `[${index + 1}:v]`;
+    const nextAudio = `[${index + 1}:a]`;
+    const videoOut = isFinal ? "[vout]" : `[vx${index}]`;
+    const audioOut = isFinal ? "[aout]" : `[ax${index}]`;
+    const offset = Math.max(0, accumulatedLength - transition.duration);
+    videoParts.push(
+      `${videoLabel}${nextVideo}xfade=transition=${transition.type}:duration=${transition.duration.toFixed(3)}:offset=${offset.toFixed(3)}${videoOut}`,
+    );
+    audioParts.push(
+      `${audioLabel}${nextAudio}acrossfade=d=${transition.duration.toFixed(3)}${audioOut}`,
+    );
+    videoLabel = videoOut;
+    audioLabel = audioOut;
+    accumulatedLength += blockDurations[index + 1] - transition.duration;
+  }
+
+  const outPath = join(tmpDir, "transitioned.mp4");
+  const timeout = Math.max(300_000, Math.ceil(accumulatedLength) * 10_000);
+  const result = await ffmpegRun(
+    [
+      ...inputArgs,
+      "-filter_complex",
+      [...videoParts, ...audioParts].join(";"),
+      "-map",
+      "[vout]",
+      "-map",
+      "[aout]",
+      "-c:v",
+      "libx264",
+      "-preset",
+      preset,
+      "-crf",
+      crf,
+      "-c:a",
+      "aac",
+      "-b:a",
+      "192k",
+      "-ar",
+      "48000",
+      "-ac",
+      "2",
+      "-f",
+      "mp4",
+      outPath,
+    ],
+    timeout,
+  );
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true, path: outPath };
+}
+
 export async function renderEdl(opts: {
   edl: EditDecisionList;
   projectRootDir: string;
@@ -1642,15 +1905,8 @@ export async function renderEdl(opts: {
         const autoFilter = await autoGradeFilter(sourcePath);
         if (autoFilter) vfParts.push(autoFilter);
       } else if (segment.grade && segment.grade !== "none") {
-        const { brightness = 0, contrast = 1, saturation = 1, gamma = 1 } = segment.grade;
-        vfParts.push(
-          `eq=brightness=${brightness}:contrast=${contrast}:saturation=${saturation}:gamma=${gamma}`,
-        );
-        if (segment.grade.temperature === "warm") {
-          vfParts.push("colorbalance=rs=0.05:gs=0.02:bs=-0.05");
-        } else if (segment.grade.temperature === "cool") {
-          vfParts.push("colorbalance=rs=-0.05:gs=-0.01:bs=0.05");
-        }
+        const gradeFilter = buildGradeFilter(segment.grade);
+        if (gradeFilter) vfParts.push(gradeFilter);
       }
       if (segment.speed && segment.speed !== 1) {
         vfParts.push(`setpts=${(1 / segment.speed).toFixed(6)}*PTS`);
@@ -1748,29 +2004,46 @@ export async function renderEdl(opts: {
     }
 
     // ----------------------------------------------------------------
-    // Step 2: Lossless concat via concat demuxer
+    // Step 2: Assemble segments — hard-cut concat (fast, lossless) unless any
+    // segment declares a transitionAfter, in which case runs of hard cuts are
+    // concat-copied into blocks and the blocks are cross-faded together.
     // ----------------------------------------------------------------
-    const concatListPath = join(tmpDir, "concat.txt");
-    writeFileSync(concatListPath, segmentPaths.map((p) => `file '${p}'`).join("\n"));
+    let currentPath: string;
+    const transitions = edl.segments.map((seg) => seg.transitionAfter);
+    const hasTransitions = transitions.some((t) => t && t.duration > 0);
 
-    let currentPath = join(tmpDir, "concat.mp4");
-
-    if (segmentPaths.length === 1) {
-      // Single segment: just use it directly
-      currentPath = segmentPaths[0];
+    if (!hasTransitions) {
+      const concatListPath = join(tmpDir, "concat.txt");
+      writeFileSync(concatListPath, segmentPaths.map((p) => `file '${p}'`).join("\n"));
+      if (segmentPaths.length === 1) {
+        currentPath = segmentPaths[0];
+      } else {
+        currentPath = join(tmpDir, "concat.mp4");
+        const concatResult = await ffmpegRun([
+          "-f",
+          "concat",
+          "-safe",
+          "0",
+          "-i",
+          concatListPath,
+          "-c",
+          "copy",
+          currentPath,
+        ]);
+        if (!concatResult.ok) return concatResult;
+      }
     } else {
-      const concatResult = await ffmpegRun([
-        "-f",
-        "concat",
-        "-safe",
-        "0",
-        "-i",
-        concatListPath,
-        "-c",
-        "copy",
-        currentPath,
-      ]);
-      if (!concatResult.ok) return concatResult;
+      const assembled = await assembleWithTransitions({
+        segmentPaths,
+        transitions,
+        tmpDir,
+        preset,
+        crf,
+      });
+      if (!assembled.ok || !assembled.path) {
+        return { ok: false, error: assembled.error ?? "transition assembly failed" };
+      }
+      currentPath = assembled.path;
     }
 
     // ----------------------------------------------------------------

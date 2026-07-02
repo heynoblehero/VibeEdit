@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildAssContent,
+  buildGradeFilter,
   type CaptionCue,
   computeSegmentOffsets,
   type EdlSegment,
@@ -44,6 +45,19 @@ describe("computeSegmentOffsets", () => {
 
   test("single segment starts at 0", () => {
     expect(computeSegmentOffsets([{ source: "a.mp4", start: 1, end: 4 }])).toEqual([0]);
+  });
+
+  test("subtracts cross-fade overlap from later segment offsets", () => {
+    const segments: EdlSegment[] = [
+      { source: "a.mp4", start: 0, end: 2, transitionAfter: { type: "fade", duration: 0.5 } },
+      { source: "a.mp4", start: 0, end: 2, transitionAfter: { type: "wipeleft", duration: 0.3 } },
+      { source: "a.mp4", start: 0, end: 2 },
+    ];
+    // seg0 @ 0; seg1 @ 2 - 0.5 = 1.5; seg2 @ 1.5 + 2 - 0.3 = 3.2
+    const offsets = computeSegmentOffsets(segments);
+    expect(offsets[0]).toBeCloseTo(0, 5);
+    expect(offsets[1]).toBeCloseTo(1.5, 5);
+    expect(offsets[2]).toBeCloseTo(3.2, 5);
   });
 });
 
@@ -136,6 +150,27 @@ describe("validateEdl", () => {
     const result = validateEdl({ segments: [{ source: "a.mp4", start: 0, end: 0.5 }] }, { words });
     expect(result.issues.some((issue) => issue.code === "mid_word_cut")).toBe(false);
   });
+
+  const gridSegments: EdlSegment[] = Array.from({ length: 6 }, (_, index) => ({
+    source: "a.mp4",
+    start: index,
+    end: index + 1,
+    beat: "SCENE",
+    grade: index % 2 === 0 ? "auto" : "none",
+  }));
+
+  test("beat-sync: flags cuts that miss the beat grid", () => {
+    // Interior cuts fall at 1,2,3,4,5; these beats miss them all by >0.12s.
+    const beats = [0.4, 1.5, 2.6, 3.7, 10, 11];
+    const result = validateEdl({ segments: gridSegments }, { beats });
+    expect(result.issues.some((issue) => issue.code === "off_beat_cuts")).toBe(true);
+  });
+
+  test("beat-sync: cuts on the beat grid pass", () => {
+    const beats = [0, 1, 2, 3, 4, 5];
+    const result = validateEdl({ segments: gridSegments }, { beats });
+    expect(result.issues.some((issue) => issue.code === "off_beat_cuts")).toBe(false);
+  });
 });
 
 describe("buildAssContent", () => {
@@ -200,5 +235,34 @@ describe("buildAssContent", () => {
     });
     const dialogue = ass.split("\n").find((line) => line.startsWith("Dialogue:"));
     expect(dialogue).toContain("a\\evilb"); // braces removed, no override injected
+  });
+});
+
+describe("buildGradeFilter", () => {
+  test("empty grade object yields no filter", () => {
+    expect(buildGradeFilter({})).toBe("");
+  });
+
+  test("a named look expands to its filter chain", () => {
+    const filter = buildGradeFilter({ look: "teal-orange" });
+    expect(filter).toContain("curves=");
+    expect(filter).toContain("eq=saturation=1.12");
+  });
+
+  test("look combines with manual eq (look first, then eq)", () => {
+    const filter = buildGradeFilter({ look: "vibrant", brightness: 0.1 });
+    const eqIndex = filter.indexOf("eq=brightness=0.1");
+    expect(eqIndex).toBeGreaterThan(-1);
+    // The vibrant look chain appears before the manual eq.
+    expect(filter.indexOf("saturation=1.3")).toBeLessThan(eqIndex);
+  });
+
+  test("temperature adds a colorbalance stage", () => {
+    expect(buildGradeFilter({ temperature: "warm" })).toContain("colorbalance=rs=0.05");
+    expect(buildGradeFilter({ temperature: "cool" })).toContain("colorbalance=rs=-0.05");
+  });
+
+  test("bw-contrast desaturates via hue=s=0", () => {
+    expect(buildGradeFilter({ look: "bw-contrast" })).toContain("hue=s=0");
   });
 });

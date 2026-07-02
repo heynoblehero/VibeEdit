@@ -1317,7 +1317,7 @@ export function buildToolServer(ctx: ToolContext) {
         .max(1)
         .optional()
         .describe(
-          "Voice stability 0–1. High (0.8+) = consistent/calm. Low (0.3–0.5) = expressive/dynamic. Default 0.35.",
+          "LEAVE UNSET by default (house default 0.45). Only pass a value if the user EXPLICITLY asks to change voice dynamics — and keep it in 0.40–0.50.",
         ),
       style: z
         .number()
@@ -1325,14 +1325,16 @@ export function buildToolServer(ctx: ToolContext) {
         .max(1)
         .optional()
         .describe(
-          "Speaking style intensity 0–1. 0 = neutral. 0.4–0.6 = expressive. 0.8+ = very dramatic. Default 0.45.",
+          "LEAVE UNSET — house default is 0 (exaggeration OFF). Do not raise it; expressiveness comes from the SCRIPT (CAPS + punctuation), not this. Only change if the user explicitly asks.",
         ),
       similarityBoost: z
         .number()
         .min(0)
         .max(1)
         .optional()
-        .describe("Voice similarity to base model. Default 0.8."),
+        .describe(
+          "LEAVE UNSET by default (house default 0.75). Only pass a value if the user explicitly asks — keep it in 0.70–0.80.",
+        ),
     },
     async ({ filename, script, voiceId, stability, style, similarityBoost }) => {
       // ElevenLabs is the only voice provider — gives exact word timestamps.
@@ -3747,7 +3749,7 @@ ${jsLines.join("\n")}`;
         .optional()
         .describe("Call to action (final scene). Highly recommended for short-form."),
     },
-    async ({ platform, niche, hook, acts, cta }) => {
+    async ({ platform, hook, acts, cta }) => {
       const PLATFORM_LIMITS: Record<
         string,
         { maxSeconds: number; minSeconds?: number; aspectRatio: string; shortForm: boolean }
@@ -3764,44 +3766,6 @@ ${jsLines.join("\n")}`;
         linkedin: { maxSeconds: 600, aspectRatio: "16:9", shortForm: false },
         twitter: { maxSeconds: 140, aspectRatio: "16:9", shortForm: true },
       };
-      const VOICE_SETTINGS: Array<{ keywords: string[]; settings: string; reason: string }> = [
-        {
-          keywords: ["sleep", "asmr", "meditation", "calm"],
-          settings: "stability=0.82, style=0.12, similarityBoost=0.75",
-          reason: "ultra-steady, zero drama — variance wakes the viewer",
-        },
-        {
-          keywords: ["horror", "scary", "creepy", "dark", "thriller"],
-          settings: "stability=0.60, style=0.55, similarityBoost=0.80",
-          reason: "controlled tension — expressiveness without chaos",
-        },
-        {
-          keywords: ["finance", "money", "invest", "wealth", "business"],
-          settings: "stability=0.55, style=0.60, similarityBoost=0.82",
-          reason: "confident authority with urgency",
-        },
-        {
-          keywords: ["comic", "anime", "gaming", "game", "superhero"],
-          settings: "stability=0.25, style=0.72, similarityBoost=0.85",
-          reason: "maximum expressiveness — punchy, varied delivery",
-        },
-        {
-          keywords: ["history", "documentary", "ancient", "civilization"],
-          settings: "stability=0.72, style=0.42, similarityBoost=0.80",
-          reason: "authoritative warmth — measured, trustworthy",
-        },
-        {
-          keywords: ["tutorial", "tech", "code", "dev", "engineering", "how to"],
-          settings: "stability=0.65, style=0.35, similarityBoost=0.80",
-          reason: "clear, even, professional — zero listener fatigue",
-        },
-        {
-          keywords: ["motivation", "lifestyle", "mindset", "self"],
-          settings: "stability=0.45, style=0.65, similarityBoost=0.82",
-          reason: "warm energy — personal and forward-leaning",
-        },
-      ];
-
       const limits = PLATFORM_LIMITS[platform];
       const WPM = 150;
       const lines: string[] = [];
@@ -3930,21 +3894,11 @@ ${jsLines.join("\n")}`;
         lines.push("");
       }
 
-      // Voice settings recommendation
-      const nicheLC = niche.toLowerCase();
-      const match = VOICE_SETTINGS.find((v) => v.keywords.some((kw) => nicheLC.includes(kw)));
-      if (match) {
-        lines.push(`Recommended voice for "${niche}": ${match.settings} — ${match.reason}`);
-        lines.push(
-          `Use: generate_voiceover(..., ${match.settings
-            .replace(/stability=/, "stability: ")
-            .replace(/style=/, "style: ")
-            .replace(/similarityBoost=/, "similarityBoost: ")
-            .replace(/, /g, ", ")})`,
-        );
-      } else {
-        lines.push(`Voice settings (default): stability=0.35, style=0.45, similarityBoost=0.80`);
-      }
+      // Voice settings — fixed house defaults for EVERY niche. Expressiveness
+      // comes from the SCRIPT (CAPS + punctuation), never from tweaking dials.
+      lines.push(
+        `Voice: call generate_voiceover WITHOUT stability/style/similarityBoost — house defaults (stability 0.45, style 0/off, similarity 0.75) apply automatically. Put emotion in the SCRIPT: CAPS the 1–2 words per sentence to stress; commas + … + — for pacing and drama; ! for punch; ? only for genuine questions. Do NOT change the voice dials unless the user explicitly asks.`,
+      );
 
       const failCount = lines.filter((l) => l.startsWith("FAIL")).length;
       const warnCount = lines.filter((l) => l.startsWith("WARN")).length;
@@ -5605,10 +5559,14 @@ async function synthesizeElevenLabsWithTimestamps(opts: {
     body: JSON.stringify({
       text: opts.script,
       model_id: "eleven_turbo_v2_5",
+      // Fixed house defaults — expressiveness comes from the SCRIPT (caps +
+      // punctuation), NOT from cranking these. stability 0.45 (natural, not
+      // robotic), similarity 0.75, style 0 (exaggeration off — avoids artifacts).
+      // Only overridden when the user explicitly asks to change voice dynamics.
       voice_settings: {
-        stability: opts.stability ?? 0.35,
-        similarity_boost: opts.similarityBoost ?? 0.8,
-        style: opts.style ?? 0.45,
+        stability: opts.stability ?? 0.45,
+        similarity_boost: opts.similarityBoost ?? 0.75,
+        style: opts.style ?? 0,
         use_speaker_boost: opts.useSpeakerBoost ?? true,
       },
     }),

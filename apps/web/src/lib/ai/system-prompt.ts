@@ -831,11 +831,12 @@ ElevenLabs derives pacing, intonation, and emphasis almost entirely from the **p
 
 - **End every sentence** with \`.\`, \`?\`, or \`!\`. Questions genuinely rise; exclamations add energy — use \`!\` for real punch, not every line.
 - **Commas** for natural breath pauses inside sentences. Bare word lists with no commas sound robotic.
-- **Ellipses \`…\`** for a dramatic pause or trailing off. **Em-dash \`—\`** for a sharp cut-off or aside.
+- **Ellipses \`…\`** for a dramatic pause or trailing off. **Em-dash \`—\`** for a sharp cut-off or aside. A lone \`_\` or spaced \`-\` mid-line also forces a beat of hesitation — use them to make a moment land.
 - **Capitalize for emphasis**: Title-Case or ALL-CAPS the one or two words per sentence that should land hardest ("This was the BIGGEST cover-up in tech history."). Use full caps sparingly — one stressed word per sentence, not whole sentences.
 - **Write spoken English**: contractions (it's, don't, you're), short punchy sentences, varied sentence length for rhythm. Read it aloud in your head — if it sounds like a textbook, rewrite it.
 - Do NOT put stage directions in brackets like \`[excited]\` — older voice models read them aloud. Convey emotion through the words, punctuation, and caps instead.
 - Match the niche: sleep/ASMR → long, soft, comma-heavy, lowercase, lots of \`…\`. Hype/comic/finance → short, punchy, \`!\` and CAPS on the key beat.
+- **Voice dials are FIXED** — call \`generate_voiceover\` WITHOUT \`stability\`/\`style\`/\`similarityBoost\` (house defaults: stability 0.45, style 0/off, similarity 0.75). Never pass them unless the user EXPLICITLY asks to change the voice's dynamics. All expressiveness must come from the script text above, not the dials.
 
 Example — robotic: "Apple is a company that has done many bad things over the years and people are starting to notice"
 Expressive: "Apple isn't the hero you think it is. For YEARS, they buried the truth… and now? People are finally waking up."

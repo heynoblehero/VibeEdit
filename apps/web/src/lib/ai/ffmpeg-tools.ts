@@ -1284,6 +1284,29 @@ const FILM_LOOKS: Record<FilmLook, string> = {
   vibrant: "eq=saturation=1.3:contrast=1.1,unsharp=3:3:0.4",
 };
 
+// Build a time-driven crop that animates a zoom (and optional pan) across the
+// segment — a punch-in or Ken Burns push. Returns "" when there's no move.
+// The crop window shrinks (zoom > 1) around a drifting centre; a later scale
+// back to the canvas turns that into a smooth zoom. `t` is seconds into the clip.
+export function buildTransformFilter(transform: EdlTransform, durationSeconds: number): string {
+  const startScale = Math.max(1, transform.startScale ?? 1);
+  const endScale = Math.max(1, transform.endScale ?? startScale);
+  const panX = transform.panX ?? 0;
+  const panY = transform.panY ?? 0;
+  if (startScale === 1 && endScale === 1 && panX === 0 && panY === 0) return "";
+
+  const duration = Math.max(0.05, durationSeconds).toFixed(3);
+  // Linear progress 0→1 across the clip, clamped (escape the comma for ffmpeg).
+  const progress = `min(t/${duration}\\,1)`;
+  const zoom = `(${startScale}+(${(endScale - startScale).toFixed(4)})*${progress})`;
+  const cropW = `iw/${zoom}`;
+  const cropH = `ih/${zoom}`;
+  // Centre by default; drift by pan fraction of the available margin over the clip.
+  const cropX = `(iw-iw/${zoom})*(0.5+${(panX / 2).toFixed(4)}*${progress})`;
+  const cropY = `(ih-ih/${zoom})*(0.5+${(panY / 2).toFixed(4)}*${progress})`;
+  return `crop=w=${cropW}:h=${cropH}:x=${cropX}:y=${cropY}`;
+}
+
 // Build the video-filter chain for a grade object (look + manual tweaks).
 // Returns "" when nothing to apply.
 export function buildGradeFilter(grade: EdlGrade): string {
@@ -1324,6 +1347,16 @@ export interface EdlBackground {
   blend?: number; // chroma edge blend 0.0–1.0. Default 0.10.
 }
 
+// Keyframed camera move over a segment — the "edited" punch-in / Ken Burns push
+// that used to be impossible on real footage in this FFmpeg pipeline. A smooth
+// zoom (and optional pan) animated across the segment via a time-driven crop.
+export interface EdlTransform {
+  startScale?: number; // zoom at segment start. Default 1.0 (no zoom).
+  endScale?: number; // zoom at segment end. Default = startScale (static hold).
+  panX?: number; // horizontal drift over the segment, -1..1 (fraction of margin).
+  panY?: number; // vertical drift over the segment, -1..1.
+}
+
 export interface EdlSegment {
   id?: string; // stable handle so chat can address a specific cut ("drop s3")
   source: string; // relative asset path
@@ -1331,6 +1364,7 @@ export interface EdlSegment {
   end: number; // end time in source (seconds)
   beat?: string; // label e.g. "HOOK", "PROBLEM", "CTA"
   grade?: EdlGradeSpec;
+  transform?: EdlTransform; // punch-in / Ken Burns push
   speed?: number; // default 1.0
   background?: EdlBackground; // replace the segment's background (greenscreen composite)
   // Cross-fade from this segment into the next one instead of a hard cut. The
@@ -1907,6 +1941,10 @@ export async function renderEdl(opts: {
       } else if (segment.grade && segment.grade !== "none") {
         const gradeFilter = buildGradeFilter(segment.grade);
         if (gradeFilter) vfParts.push(gradeFilter);
+      }
+      if (segment.transform) {
+        const transformFilter = buildTransformFilter(segment.transform, segDuration);
+        if (transformFilter) vfParts.push(transformFilter);
       }
       if (segment.speed && segment.speed !== 1) {
         vfParts.push(`setpts=${(1 / segment.speed).toFixed(6)}*PTS`);

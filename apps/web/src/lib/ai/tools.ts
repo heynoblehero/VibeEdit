@@ -3015,6 +3015,27 @@ export function buildToolServer(ctx: ToolContext) {
                   ),
                 beat: z.string().optional().describe("Label e.g. HOOK, PROBLEM, CTA."),
                 grade: gradeFieldSchema,
+                transform: z
+                  .object({
+                    startScale: z
+                      .number()
+                      .min(1)
+                      .max(3)
+                      .optional()
+                      .describe("Zoom at start. 1 = none."),
+                    endScale: z
+                      .number()
+                      .min(1)
+                      .max(3)
+                      .optional()
+                      .describe("Zoom at end. Differ from startScale for a moving push."),
+                    panX: z.number().min(-1).max(1).optional().describe("Horizontal drift, -1..1."),
+                    panY: z.number().min(-1).max(1).optional().describe("Vertical drift, -1..1."),
+                  })
+                  .optional()
+                  .describe(
+                    "Keyframed camera move on real footage. Punch-in: startScale 1 → endScale ~1.15 for emphasis on a hook/reaction. Ken Burns: a slow push (e.g. 1 → 1.12) with a small pan on a static shot or photo. Use sparingly — 1–3 per video on beats that deserve emphasis.",
+                  ),
                 speed: z
                   .number()
                   .min(0.25)

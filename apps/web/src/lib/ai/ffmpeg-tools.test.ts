@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildAssContent,
   buildGradeFilter,
+  buildTransformFilter,
   type CaptionCue,
   computeSegmentOffsets,
   type EdlSegment,
@@ -264,5 +265,29 @@ describe("buildGradeFilter", () => {
 
   test("bw-contrast desaturates via hue=s=0", () => {
     expect(buildGradeFilter({ look: "bw-contrast" })).toContain("hue=s=0");
+  });
+});
+
+describe("buildTransformFilter", () => {
+  test("no move yields no filter", () => {
+    expect(buildTransformFilter({}, 3)).toBe("");
+    expect(buildTransformFilter({ startScale: 1, endScale: 1 }, 3)).toBe("");
+  });
+
+  test("a punch-in produces a time-driven crop with escaped commas", () => {
+    const filter = buildTransformFilter({ startScale: 1, endScale: 1.2 }, 2);
+    expect(filter).toStartWith("crop=");
+    expect(filter).toContain("iw/");
+    // progress term references clip time and escapes the comma for ffmpeg.
+    expect(filter).toContain("min(t/2.000\\,1)");
+    expect(filter).toContain("(0.2000)");
+  });
+
+  test("a static zoom (equal scales, no pan) still emits a crop", () => {
+    expect(buildTransformFilter({ startScale: 1.3, endScale: 1.3 }, 2)).toStartWith("crop=");
+  });
+
+  test("scales below 1 are clamped up to 1", () => {
+    expect(buildTransformFilter({ startScale: 0.5, endScale: 0.5 }, 2)).toBe("");
   });
 });

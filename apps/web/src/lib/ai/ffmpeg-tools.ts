@@ -737,6 +737,196 @@ export interface CaptionCue {
   text: string;
   start: number;
   end: number;
+  style?: CaptionStyle; // per-cue override of the EDL-level captionStyle
+}
+
+// ---------------------------------------------------------------------------
+// Caption styling presets (ASS / libass — already in the pipeline, zero new
+// deps). Replaces the single hard-coded Arial SRT look. Fonts are limited to
+// those guaranteed in the container (Liberation / DejaVu via fonts-liberation);
+// the "pop" that makes social captions feel produced comes from size, outline,
+// and per-cue scale animation, not an exotic typeface.
+// ---------------------------------------------------------------------------
+
+export type CaptionStyle = "clean" | "bold" | "karaoke" | "minimal" | "documentary";
+
+interface CaptionPreset {
+  font: string;
+  fontScale: number; // fraction of video height → font size in px
+  primaryRgb: string; // fill colour, RRGGBB
+  outlineRgb: string; // outline colour, RRGGBB
+  outlineWidth: number;
+  shadow: number;
+  bold: 0 | 1;
+  italic: 0 | 1;
+  alignment: number; // ASS numpad alignment (1=bottom-left … 5=center … 9=top-right)
+  marginVScale: number; // fraction of video height → vertical margin
+  uppercase: boolean;
+  pop: boolean; // scale-in bounce per cue (word-pop look)
+}
+
+const CAPTION_PRESETS: Record<CaptionStyle, CaptionPreset> = {
+  // Improved default: bold white, clean readable outline, bottom-center.
+  clean: {
+    font: "Liberation Sans",
+    fontScale: 0.05,
+    primaryRgb: "FFFFFF",
+    outlineRgb: "000000",
+    outlineWidth: 2.5,
+    shadow: 0,
+    bold: 1,
+    italic: 0,
+    alignment: 2,
+    marginVScale: 0.06,
+    uppercase: false,
+    pop: false,
+  },
+  // Big, punchy, uppercase, thick outline, animated — the "Hormozi" look.
+  // Best with one word per cue (build_captions_from_words chunkSize 1).
+  bold: {
+    font: "Liberation Sans",
+    fontScale: 0.075,
+    primaryRgb: "FFFFFF",
+    outlineRgb: "000000",
+    outlineWidth: 4,
+    shadow: 1,
+    bold: 1,
+    italic: 0,
+    alignment: 2,
+    marginVScale: 0.1,
+    uppercase: true,
+    pop: true,
+  },
+  // Centered yellow word-pop for high-energy social hooks.
+  karaoke: {
+    font: "Liberation Sans",
+    fontScale: 0.072,
+    primaryRgb: "FFDD00",
+    outlineRgb: "000000",
+    outlineWidth: 4,
+    shadow: 1,
+    bold: 1,
+    italic: 0,
+    alignment: 5,
+    marginVScale: 0,
+    uppercase: true,
+    pop: true,
+  },
+  // Small, unobtrusive, bottom-center.
+  minimal: {
+    font: "Liberation Sans",
+    fontScale: 0.038,
+    primaryRgb: "FFFFFF",
+    outlineRgb: "000000",
+    outlineWidth: 1.5,
+    shadow: 0,
+    bold: 0,
+    italic: 0,
+    alignment: 2,
+    marginVScale: 0.05,
+    uppercase: false,
+    pop: false,
+  },
+  // Serif lower-third, bottom-left — documentary / interview feel.
+  documentary: {
+    font: "Liberation Serif",
+    fontScale: 0.042,
+    primaryRgb: "FFFFFF",
+    outlineRgb: "000000",
+    outlineWidth: 2,
+    shadow: 1,
+    bold: 0,
+    italic: 0,
+    alignment: 1,
+    marginVScale: 0.06,
+    uppercase: false,
+    pop: false,
+  },
+};
+
+// ASS colours are &HAABBGGRR (alpha inverted: 00 = opaque). Convert RRGGBB.
+function rgbToAss(rgb: string, alpha = 0): string {
+  const clean = rgb.replace(/^#/, "").padStart(6, "0");
+  const rr = clean.slice(0, 2);
+  const gg = clean.slice(2, 4);
+  const bb = clean.slice(4, 6);
+  const aa = alpha.toString(16).padStart(2, "0").toUpperCase();
+  return `&H${aa}${bb}${gg}${rr}`;
+}
+
+function secondsToAssTimestamp(seconds: number): string {
+  const clamped = Math.max(0, seconds);
+  const hours = Math.floor(clamped / 3600);
+  const minutes = Math.floor((clamped % 3600) / 60);
+  const secs = Math.floor(clamped % 60);
+  const centis = Math.round((clamped % 1) * 100);
+  // centis can round to 100 → roll over.
+  const cc = centis === 100 ? 0 : centis;
+  const carry = centis === 100 ? 1 : 0;
+  return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs + carry).padStart(2, "0")}.${String(cc).padStart(2, "0")}`;
+}
+
+function assStyleLine(name: string, preset: CaptionPreset, videoHeight: number): string {
+  const fontSize = Math.max(12, Math.round(preset.fontScale * videoHeight));
+  const marginV = Math.round(preset.marginVScale * videoHeight);
+  const primary = rgbToAss(preset.primaryRgb);
+  const outline = rgbToAss(preset.outlineRgb);
+  const back = rgbToAss("000000", 128);
+  // Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour,
+  // OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX,
+  // ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL,
+  // MarginR, MarginV, Encoding
+  return `Style: ${name},${preset.font},${fontSize},${primary},${primary},${outline},${back},${preset.bold},${preset.italic},0,0,100,100,0,0,1,${preset.outlineWidth},${preset.shadow},${preset.alignment},40,40,${marginV},1`;
+}
+
+// Escape user text for an ASS Dialogue line.
+function escapeAssText(text: string): string {
+  return text.replace(/[{}]/g, "").replace(/\r?\n/g, "\\N").trim();
+}
+
+export function buildAssContent(
+  cues: CaptionCue[],
+  opts: { videoWidth: number; videoHeight: number; defaultStyle?: CaptionStyle },
+): string {
+  const { videoWidth, videoHeight } = opts;
+  const defaultStyle: CaptionStyle = opts.defaultStyle ?? "clean";
+
+  // Only emit the styles actually used.
+  const usedStyles = new Set<CaptionStyle>([defaultStyle]);
+  for (const cue of cues) if (cue.style) usedStyles.add(cue.style);
+
+  const styleLines = [...usedStyles].map((name) =>
+    assStyleLine(name, CAPTION_PRESETS[name], videoHeight),
+  );
+
+  const events = cues.map((cue) => {
+    const styleName = cue.style ?? defaultStyle;
+    const preset = CAPTION_PRESETS[styleName];
+    const text = preset.uppercase ? cue.text.toUpperCase() : cue.text;
+    // Scale-in bounce for "pop" presets: quick overshoot then settle.
+    const pop = preset.pop
+      ? "{\\fad(50,0)\\t(0,120,\\fscx112\\fscy112)\\t(120,200,\\fscx100\\fscy100)}"
+      : "{\\fad(40,0)}";
+    return `Dialogue: 0,${secondsToAssTimestamp(cue.start)},${secondsToAssTimestamp(cue.end)},${styleName},,0,0,0,,${pop}${escapeAssText(text)}`;
+  });
+
+  return [
+    "[Script Info]",
+    "ScriptType: v4.00+",
+    "WrapStyle: 2",
+    "ScaledBorderAndShadow: yes",
+    `PlayResX: ${videoWidth}`,
+    `PlayResY: ${videoHeight}`,
+    "",
+    "[V4+ Styles]",
+    "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+    ...styleLines,
+    "",
+    "[Events]",
+    "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    ...events,
+    "",
+  ].join("\n");
 }
 
 function secondsToSrtTimestamp(seconds: number): string {
@@ -1071,6 +1261,7 @@ export interface EditDecisionList {
   segments: EdlSegment[];
   overlays?: EdlOverlay[];
   captions?: CaptionCue[]; // applied LAST — Hard Rule 1
+  captionStyle?: CaptionStyle; // default look for all captions (per-cue .style overrides)
   outputPath: string; // relative output path
   loudnorm?: boolean; // 2-pass -14 LUFS normalization on final output
   // "draft" → 480p / ultrafast / crf 28 for fast review cycles.
@@ -1633,18 +1824,26 @@ export async function renderEdl(opts: {
     // Step 4: Burn captions LAST (Hard Rule 1)
     // ----------------------------------------------------------------
     if (edl.captions && edl.captions.length > 0) {
-      const srtPath = join(tmpDir, "master.srt");
-      writeFileSync(srtPath, buildSrtContent(edl.captions), "utf8");
+      // Styled ASS captions (libass) — presets + per-cue word-pop, sized to the
+      // canonical canvas so positioning/scale are exact.
+      const assPath = join(tmpDir, "master.ass");
+      writeFileSync(
+        assPath,
+        buildAssContent(edl.captions, {
+          videoWidth: targetW,
+          videoHeight: targetH,
+          defaultStyle: edl.captionStyle,
+        }),
+        "utf8",
+      );
 
-      const escapedSrt = srtPath.replace(/\\/g, "/").replace(/:/g, "\\:");
-      const style =
-        "FontName=Arial,FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,BorderStyle=3,Outline=2,Alignment=2";
+      const escapedAss = assPath.replace(/\\/g, "/").replace(/:/g, "\\:");
 
       const captionResult = await ffmpegRun([
         "-i",
         currentPath,
         "-vf",
-        `subtitles=${escapedSrt}:force_style='${style}'`,
+        `subtitles=${escapedAss}`,
         "-c:v",
         "libx264",
         "-preset",

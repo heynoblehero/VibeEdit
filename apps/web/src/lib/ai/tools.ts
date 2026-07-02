@@ -3028,11 +3028,21 @@ export function buildToolServer(ctx: ToolContext) {
                   .describe(
                     "Output-timeline end (NOT source timestamp). Use build_captions_from_words.",
                   ),
+                style: z
+                  .enum(["clean", "bold", "karaoke", "minimal", "documentary"])
+                  .optional()
+                  .describe("Override captionStyle for this one cue (e.g. emphasise a hook word)."),
               }),
             )
             .optional()
             .describe(
               "Caption cues in OUTPUT timeline. Applied LAST after all overlays. Build with build_captions_from_words after transcription.",
+            ),
+          captionStyle: z
+            .enum(["clean", "bold", "karaoke", "minimal", "documentary"])
+            .optional()
+            .describe(
+              "Caption look for the whole video (default 'clean'). 'bold'/'karaoke' = big animated word-pop (use build_captions_from_words with chunkSize 1 so each word pops); 'minimal' = small/subtle; 'documentary' = serif lower-third. Persist the user's pick via save_insight.",
             ),
           outputPath: z
             .string()

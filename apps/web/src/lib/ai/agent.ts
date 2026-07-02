@@ -362,6 +362,7 @@ const TOOL_LABELS: Record<string, string> = {
   snap_to_boundary: "Aligning cuts",
   auto_grade_filter: "Color grading",
   compute_segment_offsets: "Computing cut points",
+  validate_edl: "Checking the edit",
   probe_clip: "Inspecting the clip",
   trim_clip: "Trimming the clip",
   concat_clips: "Joining clips",

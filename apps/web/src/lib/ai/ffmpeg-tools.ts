@@ -1055,11 +1055,6 @@ export interface EdlSegment {
   grade?: EdlGradeSpec;
   speed?: number; // default 1.0
   background?: EdlBackground; // replace the segment's background (greenscreen composite)
-  // J/L cut support: audio bleeds across hard video cuts for natural pacing.
-  // audioLeadSeconds: next segment's audio starts this many seconds early.
-  // audioTrailSeconds: this segment's audio continues into the next segment.
-  audioLeadSeconds?: number;
-  audioTrailSeconds?: number;
 }
 
 export interface EdlOverlay {
@@ -1078,6 +1073,10 @@ export interface EditDecisionList {
   captions?: CaptionCue[]; // applied LAST — Hard Rule 1
   outputPath: string; // relative output path
   loudnorm?: boolean; // 2-pass -14 LUFS normalization on final output
+  // "draft" → 480p / ultrafast / crf 28 for fast review cycles.
+  // "final" (default) → 1080p / fast / crf 18. Render draft to check the cut,
+  // then render once at final quality.
+  quality?: "draft" | "final";
 }
 
 // ---------------------------------------------------------------------------
@@ -1133,6 +1132,157 @@ export function buildCaptionsFromWords(
   }
 
   return cues;
+}
+
+// ---------------------------------------------------------------------------
+// validateEdl — deterministic quality/correctness gate, run BEFORE render_edl.
+// Turns the editing quality bar (short varied scenes, narrative arc, clean
+// cuts, captions in range) from prompt prose into a programmatic check, so the
+// plan→render→review loop becomes plan→lint→render. Pure + unit-testable.
+// ---------------------------------------------------------------------------
+
+export interface EdlValidationIssue {
+  level: "error" | "warn";
+  code: string;
+  message: string;
+}
+
+export function validateEdl(
+  edl: Pick<EditDecisionList, "segments" | "captions">,
+  opts?: { words?: TranscriptWord[] },
+): { ok: boolean; issues: EdlValidationIssue[] } {
+  const issues: EdlValidationIssue[] = [];
+  const segments = edl.segments ?? [];
+
+  if (segments.length === 0) {
+    issues.push({ level: "error", code: "no_segments", message: "EDL has no segments." });
+    return { ok: false, issues };
+  }
+
+  // Per-segment window sanity + output durations.
+  const durations: number[] = [];
+  for (let index = 0; index < segments.length; index++) {
+    const segment = segments[index];
+    const duration = (segment.end - segment.start) / (segment.speed ?? 1);
+    durations.push(duration);
+    if (segment.end <= segment.start) {
+      issues.push({
+        level: "error",
+        code: "bad_window",
+        message: `Segment ${index} (${segment.source}) has end ≤ start (${segment.start}–${segment.end}s).`,
+      });
+    } else if (duration < 0.5) {
+      issues.push({
+        level: "warn",
+        code: "too_short",
+        message: `Segment ${index} is ${duration.toFixed(2)}s — under 0.5s reads as a glitch. Merge or extend.`,
+      });
+    }
+  }
+
+  // Pacing bar: 1.5–3.5s scenes ideal; long static shots kill momentum. Warn
+  // (not error) since talking-head continuity legitimately runs longer.
+  const longScenes = durations.filter((duration) => duration > 6).length;
+  if (longScenes > 0) {
+    issues.push({
+      level: "warn",
+      code: "long_scenes",
+      message: `${longScenes} scene(s) exceed 6s. Cut them down, add b-roll, or a punch-in to keep pace.`,
+    });
+  }
+
+  // Quality bar: 6+ varied scenes for a real narrative arc.
+  if (segments.length < 6) {
+    issues.push({
+      level: "warn",
+      code: "few_scenes",
+      message: `Only ${segments.length} scenes. Target 6+ varied scenes for a narrative arc.`,
+    });
+  }
+
+  // Accidental exact-duplicate cuts (same source + window reused verbatim).
+  const seen = new Set<string>();
+  for (let index = 0; index < segments.length; index++) {
+    const key = `${segments[index].source}|${segments[index].start}|${segments[index].end}`;
+    if (seen.has(key)) {
+      issues.push({
+        level: "warn",
+        code: "duplicate_segment",
+        message: `Segment ${index} duplicates an earlier identical cut (${segments[index].source} ${segments[index].start}–${segments[index].end}s). Intentional? Otherwise drop it.`,
+      });
+    }
+    seen.add(key);
+  }
+
+  // Grade variety: a flat edit where every scene shares one grade looks amateur.
+  const gradeKeys = new Set(segments.map((segment) => JSON.stringify(segment.grade ?? null)));
+  if (segments.length >= 6 && gradeKeys.size <= 1) {
+    issues.push({
+      level: "warn",
+      code: "flat_grade",
+      message: `All ${segments.length} scenes share one grade. Vary grades (or use grade:'auto') so cuts feel intentional.`,
+    });
+  }
+
+  // Narrative arc: beat labels (HOOK … CTA) present.
+  const beats = segments.map((segment) => segment.beat ?? "").filter(Boolean);
+  if (segments.length >= 4 && beats.length === 0) {
+    issues.push({
+      level: "warn",
+      code: "no_beats",
+      message:
+        "No beat labels. Tag scenes (HOOK, PROBLEM, PROOF, CTA…) so the edit has a narrative arc.",
+    });
+  }
+
+  // Captions must sit inside the output timeline.
+  const totalOutput = durations.reduce((sum, duration) => sum + Math.max(0, duration), 0);
+  const captions = edl.captions ?? [];
+  for (let index = 0; index < captions.length; index++) {
+    const cue = captions[index];
+    if (cue.start < 0 || cue.end <= cue.start) {
+      issues.push({
+        level: "error",
+        code: "bad_caption",
+        message: `Caption ${index} ("${cue.text.slice(0, 24)}…") has an invalid window (${cue.start}–${cue.end}s).`,
+      });
+    } else if (cue.end > totalOutput + 0.5) {
+      issues.push({
+        level: "warn",
+        code: "caption_past_end",
+        message: `Caption ${index} ends at ${cue.end.toFixed(2)}s but the video is only ${totalOutput.toFixed(2)}s — rebuild with build_captions_from_words.`,
+      });
+    }
+  }
+
+  // Mid-word cuts (best-effort, only when a transcript is supplied). A boundary
+  // that lands inside a spoken word sounds abrupt — snap it to a word gap.
+  const words = opts?.words;
+  if (words && words.length > 0) {
+    const straddles = (boundary: number): TranscriptWord | undefined =>
+      words.find((word) => word.start < boundary - 0.06 && word.end > boundary + 0.06);
+    for (let index = 0; index < segments.length; index++) {
+      const startWord = straddles(segments[index].start);
+      if (startWord) {
+        issues.push({
+          level: "warn",
+          code: "mid_word_cut",
+          message: `Segment ${index} starts at ${segments[index].start}s, inside the word "${startWord.word}". Snap with snap_to_boundary.`,
+        });
+      }
+      const endWord = straddles(segments[index].end);
+      if (endWord) {
+        issues.push({
+          level: "warn",
+          code: "mid_word_cut",
+          message: `Segment ${index} ends at ${segments[index].end}s, inside the word "${endWord.word}". Snap with snap_to_boundary.`,
+        });
+      }
+    }
+  }
+
+  const ok = !issues.some((issue) => issue.level === "error");
+  return { ok, issues };
 }
 
 // 2-pass loudness normalization (-14 LUFS / -1 dBTP / LRA 11).
@@ -1232,30 +1382,60 @@ export async function renderEdl(opts: {
   mkdirSync(tmpDir, { recursive: true });
 
   try {
-    // ----------------------------------------------------------------
-    // Step 1: Per-segment extract with grade + 30ms audio fades
-    // ----------------------------------------------------------------
-    const segmentPaths: string[] = [];
+    // Draft vs final quality knobs. Draft trades resolution/quality for a fast
+    // look at the cut during review; final is the deliverable.
+    const isDraft = edl.quality === "draft";
+    const preset = isDraft ? "ultrafast" : "fast";
+    const crf = isDraft ? "28" : "18";
+    const maxW = isDraft ? 854 : 1920;
+    const maxH = isDraft ? 480 : 1080;
 
-    for (let index = 0; index < edl.segments.length; index++) {
+    // ----------------------------------------------------------------
+    // Canonical output format — computed ONCE, applied to EVERY segment.
+    // Stream-copy-concatenating h264 segments that differ in resolution, fps,
+    // SAR, or audio-stream presence is the classic cause of black frames,
+    // frozen seams, and A/V desync at cut boundaries. Conforming every segment
+    // to one identical format is the fix. Canvas aspect follows the
+    // largest-area source, capped to the quality ceiling; other segments are
+    // letterboxed/pillarboxed into it.
+    // ----------------------------------------------------------------
+    const probes = await Promise.all(
+      edl.segments.map((seg) => probeClip(resolveProjectPath(dir, seg.source))),
+    );
+    let canvasSrc = probes[0];
+    for (const probe of probes) {
+      if (probe.width * probe.height > canvasSrc.width * canvasSrc.height) canvasSrc = probe;
+    }
+    const canvas = fitWithin(canvasSrc.width, canvasSrc.height, maxW, maxH);
+    const targetW = canvas.w;
+    const targetH = canvas.h;
+    const targetFps = 30;
+    // Appended to every segment's video chain so all outputs are byte-compatible
+    // for concat: fit inside the canvas, pad to exact WxH, square pixels,
+    // constant fps, 4:2:0.
+    const normalizeVf = `scale=${targetW}:${targetH}:force_original_aspect_ratio=decrease,pad=${targetW}:${targetH}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${targetFps},format=yuv420p`;
+    // anullsrc gives silent segments a real audio stream so every segment has
+    // matching audio params (concat requires uniform stream presence).
+    const silentAudioInput = "anullsrc=channel_layout=stereo:sample_rate=48000";
+
+    // ----------------------------------------------------------------
+    // Step 1: Per-segment extract with grade + speed + 30ms audio fades,
+    // conformed to the canonical format. Segments are independent, so encode
+    // them with bounded concurrency.
+    // ----------------------------------------------------------------
+    const segmentPaths: string[] = edl.segments.map((_, index) => join(tmpDir, `seg_${index}.mp4`));
+
+    const encodeSegment = async (index: number): Promise<{ ok: boolean; error?: string }> => {
       const segment = edl.segments[index];
       const sourcePath = resolveProjectPath(dir, segment.source);
-      const segPath = join(tmpDir, `seg_${index}.mp4`);
-      segmentPaths.push(segPath);
-
-      const info = await probeClip(sourcePath);
+      const segPath = segmentPaths[index];
+      const info = probes[index];
       const segDuration = segment.end - segment.start;
       const fadeOutStart = Math.max(0, segDuration - 0.03).toFixed(3);
 
-      // Cap the render to 1080p — never encode 4K intermediates (they time out
-      // and are thrown away by every platform's upload transcode anyway).
-      const cap = fitWithin(info.width, info.height);
-      const needsDownscale = cap.w < info.width || cap.h < info.height;
-
-      // Build video filter chain. Downscale FIRST so grade/speed run on fewer
-      // pixels.
+      // Video filter chain: grade → speed → normalize (normalize LAST so every
+      // segment ends at exactly targetW×targetH / targetFps / yuv420p).
       const vfParts: string[] = [];
-      if (needsDownscale) vfParts.push(`scale=${cap.w}:${cap.h}`);
       if (segment.grade === "auto") {
         const autoFilter = await autoGradeFilter(sourcePath);
         if (autoFilter) vfParts.push(autoFilter);
@@ -1286,24 +1466,22 @@ export async function renderEdl(opts: {
         // composite the keyed foreground over a new image/video background.
         const bg = segment.background;
         const bgPath = resolveProjectPath(dir, bg.replaceWith);
-        // Match the capped render size (never the native 4K canvas).
-        const w = cap.w;
-        const h = cap.h;
         const isBgImage = /\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(bg.replaceWith);
         const useKey = bg.chromaKey ?? true;
         const color = (bg.color ?? "00FF00").replace(/^#/, "");
         const similarity = bg.similarity ?? 0.3;
         const blend = bg.blend ?? 0.1;
 
-        // Foreground: grade/speed (vfParts) → chroma key → normalize size.
+        // Foreground: grade/speed (vfParts) → chroma key → fit to canvas.
         const fgFilters = [...vfParts];
         if (useKey) fgFilters.push(`chromakey=0x${color}:${similarity}:${blend}`);
-        fgFilters.push(`scale=${w}:${h}`);
+        fgFilters.push(`scale=${targetW}:${targetH}:force_original_aspect_ratio=decrease`);
         // Background: cover the frame (scale up + center-crop), square pixels.
-        const bgChain = `[1:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},setsar=1[bg]`;
+        const bgChain = `[1:v]scale=${targetW}:${targetH}:force_original_aspect_ratio=increase,crop=${targetW}:${targetH},setsar=1[bg]`;
         // overlay shortest=1 bounds output to the foreground length (handles speed
-        // changes + looped image backgrounds without a duration mismatch).
-        let filterComplex = `[0:v]${fgFilters.join(",")}[fg];${bgChain};[bg][fg]overlay=0:0:shortest=1[v]`;
+        // changes + looped image backgrounds without a duration mismatch). The
+        // trailing normalize makes this segment concat-compatible.
+        let filterComplex = `[0:v]${fgFilters.join(",")}[fg];${bgChain};[bg][fg]overlay=(W-w)/2:(H-h)/2:shortest=1,setsar=1,fps=${targetFps},format=yuv420p[v]`;
 
         args = ["-ss", String(segment.start), "-t", String(segDuration), "-i", sourcePath];
         if (isBgImage) args.push("-loop", "1", "-i", bgPath);
@@ -1312,21 +1490,29 @@ export async function renderEdl(opts: {
         const maps = ["-map", "[v]"];
         if (info.hasAudio) {
           filterComplex += `;[0:a]${audioFadeFilter()}[a]`;
-          maps.push("-map", "[a]", "-c:a", "aac", "-b:a", "192k");
+          maps.push("-map", "[a]");
         } else {
-          maps.push("-an");
+          // input 2 = silent stereo track (inputs 0=source, 1=background).
+          args.push("-f", "lavfi", "-i", silentAudioInput);
+          maps.push("-map", "2:a", "-shortest");
         }
         args.push("-filter_complex", filterComplex, ...maps);
-        args.push("-c:v", "libx264", "-preset", "fast", "-crf", "18", segPath);
+        args.push("-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2");
+        args.push("-c:v", "libx264", "-preset", preset, "-crf", crf, segPath);
       } else {
+        vfParts.push(normalizeVf);
         args = ["-ss", String(segment.start), "-t", String(segDuration), "-i", sourcePath];
-        if (vfParts.length > 0) args.push("-vf", vfParts.join(","));
         if (info.hasAudio) {
-          args.push("-af", audioFadeFilter(), "-c:a", "aac", "-b:a", "192k");
+          args.push("-vf", vfParts.join(","), "-af", audioFadeFilter());
+          args.push("-map", "0:v:0", "-map", "0:a:0");
         } else {
-          args.push("-an");
+          // input 1 = silent stereo track for a source with no audio.
+          args.push("-f", "lavfi", "-i", silentAudioInput);
+          args.push("-vf", vfParts.join(","));
+          args.push("-map", "0:v:0", "-map", "1:a:0", "-shortest");
         }
-        args.push("-c:v", "libx264", "-preset", "fast", "-crf", "18", segPath);
+        args.push("-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2");
+        args.push("-c:v", "libx264", "-preset", preset, "-crf", crf, segPath);
       }
 
       // Scale the watchdog with clip length (~8s of budget per source-second),
@@ -1339,6 +1525,24 @@ export async function renderEdl(opts: {
           error: `Segment ${index} (${segment.source} ${segment.start}–${segment.end}s): ${segResult.error}`,
         };
       }
+      return { ok: true };
+    };
+
+    // Bounded concurrency: x264 is already multi-threaded, so cap at 2 to
+    // overlap process startup / I/O without oversubscribing the shared box.
+    const ENCODE_CONCURRENCY = 2;
+    for (let batchStart = 0; batchStart < edl.segments.length; batchStart += ENCODE_CONCURRENCY) {
+      const batch: Array<Promise<{ ok: boolean; error?: string }>> = [];
+      for (
+        let index = batchStart;
+        index < Math.min(batchStart + ENCODE_CONCURRENCY, edl.segments.length);
+        index++
+      ) {
+        batch.push(encodeSegment(index));
+      }
+      const results = await Promise.all(batch);
+      const failed = results.find((result) => !result.ok);
+      if (failed) return failed;
     }
 
     // ----------------------------------------------------------------
@@ -1414,9 +1618,9 @@ export async function renderEdl(opts: {
         "-c:v",
         "libx264",
         "-preset",
-        "fast",
+        preset,
         "-crf",
-        "18",
+        crf,
         "-c:a",
         "copy",
         overlaidPath,
@@ -1444,17 +1648,22 @@ export async function renderEdl(opts: {
         "-c:v",
         "libx264",
         "-preset",
-        "fast",
+        preset,
         "-crf",
-        "18",
+        crf,
         "-c:a",
         "copy",
+        // Force the container: the atomic temp name ends in ".part", which
+        // ffmpeg can't map to a muxer by extension.
+        "-f",
+        "mp4",
         outTmp,
       ]);
       if (!captionResult.ok) return captionResult;
     } else {
-      // No captions: copy current to the temp output path
-      const copyResult = await ffmpegRun(["-i", currentPath, "-c", "copy", outTmp]);
+      // No captions: copy current to the temp output path (force mp4 muxer —
+      // the ".part" extension is not a recognized container).
+      const copyResult = await ffmpegRun(["-i", currentPath, "-c", "copy", "-f", "mp4", outTmp]);
       if (!copyResult.ok) return copyResult;
     }
 
@@ -1466,8 +1675,17 @@ export async function renderEdl(opts: {
       const normalizedPath = join(tmpDir, "normalized.mp4");
       const normResult = await applyLoudnorm(outTmp, normalizedPath);
       if (!normResult.ok) return normResult;
-      // Overwrite the temp output with the normalized version.
-      const replaceResult = await ffmpegRun(["-i", normalizedPath, "-c", "copy", outTmp]);
+      // Overwrite the temp output with the normalized version (force mp4 muxer
+      // — ".part" is not a recognized container extension).
+      const replaceResult = await ffmpegRun([
+        "-i",
+        normalizedPath,
+        "-c",
+        "copy",
+        "-f",
+        "mp4",
+        outTmp,
+      ]);
       if (!replaceResult.ok) return replaceResult;
     }
 

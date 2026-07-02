@@ -58,6 +58,7 @@ import {
   burnCaptions,
   transcribeClip,
   renderEdl,
+  validateEdl,
   snapToBoundary,
   buildCaptionsFromWords,
   computeSegmentOffsets,
@@ -2859,6 +2860,63 @@ export function buildToolServer(ctx: ToolContext) {
     },
   );
 
+  const validateEdlTool = tool(
+    "validate_edl",
+    "REQUIRED before render_edl. Deterministically lints an EDL against the quality bar — scene durations (1.5–3.5s ideal), 6+ varied scenes, narrative-arc beat labels, grade variety, duplicate cuts, captions inside the output timeline, and (if you pass words) mid-word cuts. Returns errors (must fix) and warnings (should fix). Fix issues here BEFORE rendering instead of rendering and visually re-inspecting.",
+    {
+      segments: z
+        .array(
+          z.object({
+            source: z.string(),
+            start: z.number(),
+            end: z.number(),
+            beat: z.string().optional(),
+            grade: z.unknown().optional(),
+            speed: z.number().optional(),
+          }),
+        )
+        .min(1)
+        .describe("The exact segments that will go into render_edl."),
+      captions: z
+        .array(z.object({ text: z.string(), start: z.number(), end: z.number() }))
+        .optional()
+        .describe("Output-timeline caption cues, if any."),
+      words: z
+        .array(z.object({ word: z.string(), start: z.number(), end: z.number() }))
+        .optional()
+        .describe("Transcript words for the segments' source — enables mid-word-cut detection."),
+    },
+    async ({ segments, captions, words }) => {
+      try {
+        const { ok, issues } = validateEdl(
+          {
+            segments: segments as EdlSegment[],
+            captions: captions as CaptionCue[] | undefined,
+          },
+          { words: words as TranscriptWord[] | undefined },
+        );
+        if (issues.length === 0) {
+          return {
+            content: [{ type: "text", text: "✓ EDL passes all checks — safe to render_edl." }],
+          };
+        }
+        const lines = issues.map(
+          (issue) =>
+            `${issue.level === "error" ? "✗ ERROR" : "⚠ WARN"} [${issue.code}] ${issue.message}`,
+        );
+        const header = ok
+          ? "EDL is renderable but has warnings — address these for a stronger edit:"
+          : "EDL has ERRORS — fix them before render_edl:";
+        return { content: [{ type: "text", text: `${header}\n${lines.join("\n")}` }] };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
   const gradeFieldSchema = z
     .union([
       z.literal("auto").describe("Auto-analyze per clip — recommended default for footage."),
@@ -2985,6 +3043,12 @@ export function buildToolServer(ctx: ToolContext) {
             .describe(
               "2-pass -14 LUFS normalization. Set true for social exports (Reels, Shorts, TikTok).",
             ),
+          quality: z
+            .enum(["draft", "final"])
+            .optional()
+            .describe(
+              "'draft' = 480p/ultrafast/crf28 for a fast look at the cut (use during review iterations). 'final' (default) = 1080p/crf18. Render 'draft' first, then 'final' once approved.",
+            ),
         })
         .describe("Edit Decision List."),
       intent: z
@@ -3083,7 +3147,7 @@ export function buildToolServer(ctx: ToolContext) {
   // --- Feature 2: review_render (self-correction loop) ---
   const reviewRenderTool = tool(
     "review_render",
-    "After render_edl completes, call this to visually verify the output. BEST PRACTICE: pass `cutBoundaries` (the output-timeline cut times from compute_segment_offsets) so it samples the frame right AFTER each cut — that's where black frames, jump cuts, and dropped captions hide. Omit cutBoundaries for a quick even-spaced overview. Fix and re-render if any cut fails; repeat up to 3×.",
+    "After the final render_edl, call this ONCE as a verification pass. BEST PRACTICE: pass `cutBoundaries` (the output-timeline cut times from compute_segment_offsets) so it samples the frame right AFTER each cut. validate_edl already gated pacing/captions and render_edl conforms every segment to one format, so this confirms the result rather than driving a retry loop. If a real defect appears, fix its root cause (re-snap the boundary, adjust the EDL) and re-render — don't blindly re-roll.",
     {
       outputPath: z
         .string()
@@ -5178,6 +5242,7 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       snapToBoundaryTool,
       autoGradeFilterTool,
       computeSegmentOffsetsTool,
+      validateEdlTool,
       renderEdlTool,
       probeClipTool,
       trimClipTool,
@@ -5257,6 +5322,7 @@ export const ALLOWED_TOOL_NAMES = [
   "snap_to_boundary",
   "auto_grade_filter",
   "compute_segment_offsets",
+  "validate_edl",
   "render_edl",
   "probe_clip",
   "trim_clip",

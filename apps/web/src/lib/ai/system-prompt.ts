@@ -1268,11 +1268,13 @@ These FFmpeg tools process uploaded video/audio BEFORE compositing. Use them whe
 3. \`analyze_clip\` — visually inspect uploaded footage before deciding how to edit it. Note lighting, framing, quality issues.
 4. **\`pack_footage\` — the text-first entry point.** It transcribes once and returns ONE compact context: timestamped transcript + every filler/dead-pause CUT candidate + an EDL-ready list of KEEP segments. Reason over that text instead of guessing about frames. This supersedes calling \`transcribe_clip\` + \`detect_filler_words\` + \`analyze_pacing\` separately for an edit. The KEEP segments it returns are your draft EDL — refine them rather than building from scratch. Optionally \`apply_noise_reduction\` if audio is noisy.
 5. **Word-boundary snapping (Hard Rules 6+7):** When building EDL segment times from transcript data, snap every boundary to the nearest word edge. Use \`snap_to_boundary\` with \`direction="after"\` for segment starts, \`direction="before"\` for segment ends. Never cut mid-phoneme.
-6. \`plan_edit\` — emit EDL with real filenames + snapped timestamps. Use \`grade: "auto"\` for every footage segment unless the user specifies a look. STOP and wait for approval.
+6. \`plan_edit\` — emit EDL with real filenames + snapped timestamps. Use \`grade: "auto"\` for every footage segment unless the user specifies a look.
+   - **\`validate_edl\` (REQUIRED before you present the plan).** Pass the segments (+ captions + words if you have them). Fix every ERROR and resolve WARNs before continuing — this is the quality gate (1.5–3.5s scenes, 6+ varied scenes, beat-arc labels, grade variety, captions in range, no mid-word cuts). Do NOT rely on rendering-then-eyeballing to catch these. STOP and wait for approval only after validate_edl is clean.
 7. On approval: call \`build_captions_from_words\` (pass the word timestamps + the exact segments from your EDL) to get output-timeline caption cues. **Never hand-compute caption offsets.**
 8. Call \`render_edl\` with the approved EDL + the captions. Add \`loudnorm: true\` for social exports.
+   - **Draft-then-final:** while still iterating on the cut, set \`quality: "draft"\` (480p, fast) so you and the user see the edit quickly. Once the cut is approved, render once with \`quality: "final"\` (default) for the deliverable.
    - **Background replacement / greenscreen** is an EDL treatment, not a separate tool. When the user says "put me on a beach", "change my background", "remove the green screen", or wants a persona shot on green composited into a scene, set the segment's \`background\` field: \`{ replaceWith: "<bg image or video handle>", chromaKey: true }\` (default green key; pass \`color: "0000FF"\` for blue). The keyed source is composited over the new background in one pass — and because it lives in the EDL it persists and undoes like any other edit. If green fringing remains, raise \`similarity\`; if edges erode, lower it. For NON-green footage, \`remove_background\` the subject first, then overlay.
-9. **Always call \`review_render\`** after render_edl — and pass \`cutBoundaries\` (the output-timeline offsets from \`compute_segment_offsets\`, dropping the leading 0 and final end) so it inspects the frame right after EACH cut, where black frames / jump cuts / dropped captions hide. If any cut fails, re-snap that boundary or add a short crossfade and re-render. Repeat up to 3×.
+9. **Call \`review_render\` once** after the final render as a verification pass — pass \`cutBoundaries\` (the output-timeline offsets from \`compute_segment_offsets\`, dropping the leading 0 and final end) so it inspects the frame right after EACH cut. Since \`validate_edl\` already gated pacing/captions and \`render_edl\` now conforms every segment to one canonical format (no more concat black-frames/seams), this is a confirmation step — not a render-retry loop. If a genuine defect appears, fix its root cause (re-snap the boundary, adjust the EDL) and re-render; do not blindly re-roll.
 10. After the user approves the output, call \`save_insight\` for any style preferences you applied or learned (grade look, caption style, pacing preference, noise reduction level).
 11. Individual clip tools (trim_clip, grade_clip, etc.) only for single-clip preprocessing outside the EDL assembly.
 12. **Always write a previewable \`index.html\`** after a successful render_edl — even when the edit is "just" a processed clip with no motion graphics. The in-app Preview pane and the Render button both load \`index.html\`; if it is missing, the user sees an empty preview and \`start_render\` fails with "No composition found in … No index.html file found". Wrap the output with the single-clip pattern below, then lint → screenshot → verify.
@@ -1305,8 +1307,8 @@ When the composition is a single processed/rendered clip (the common "edit my vi
 
 ## render_edl pipeline (what it does internally)
 
-1. Per-segment: extract with grade (auto-signalstats or manual) + 30ms audio fades in one encode
-2. Lossless concat via concat demuxer (-c copy, no quality loss)
+1. Per-segment: extract with grade (auto-signalstats or manual) + speed + 30ms audio fades, then conform to ONE canonical format (shared resolution/fps/SAR, 4:2:0, and a real audio stream even for silent sources). This normalization is what makes cuts seam-free.
+2. Lossless concat via concat demuxer (-c copy — valid because every segment now shares an identical format)
 3. Overlays with PTS shift (frame 0 of each overlay aligns to startInOutput)
 4. Captions burned LAST — after all overlays, so nothing hides the text
 5. (Optional) 2-pass -14 LUFS loudness normalization when loudnorm: true
@@ -1321,6 +1323,7 @@ transcribe_clip — Whisper → word timestamps; results cached, never re-transc
 snap_to_boundary — snap timestamp to word edge (direction: "after" for start, "before" for end)
 build_captions_from_words — words + segments → output-timeline CaptionCue[] (Hard Rule 5)
 compute_segment_offsets — compute cumulative output start times per segment
+validate_edl — REQUIRED before render_edl: lint the EDL for pacing, scene count, arc, grade variety, captions-in-range, mid-word cuts
 auto_grade_filter — preview the eq filter that grade="auto" would apply to a clip
 probe_clip — duration, resolution, fps, has_audio
 trim_clip — cut [start, end]

@@ -421,6 +421,54 @@ export const apiKeys = sqliteTable(
 
 export type ApiKey = typeof apiKeys.$inferSelect;
 
+// Platform-managed provider credential POOL (admin-managed, not per-user BYOK).
+// The app rotates across enabled rows per provider to spread quota and skip
+// keys that start failing. Secrets are AES-256-GCM encrypted (API_KEYS_SECRET),
+// same as apiKeys. `kind` distinguishes a plain API key from a self-hosted proxy
+// (which also needs `endpoint`).
+export const providerCredentials = sqliteTable(
+  "providerCredentials",
+  {
+    id: text("id").primaryKey(),
+    // "elevenlabs" | "replicate" | "anthropic" | "midjourney" | "suno" | "udio"
+    // | "viggle" | "grok2api"
+    provider: text("provider").notNull(),
+    // "key" (API key) | "proxy" (self-hosted base URL + secret/cookie)
+    kind: text("kind").notNull().default("key"),
+    label: text("label"),
+    // AES-256-GCM ciphertext (enc:v1:) of the API key / proxy secret.
+    secretEnc: text("secretEnc").notNull(),
+    // Base URL for proxy-kind rows (e.g. a Suno/Midjourney proxy). Null for keys.
+    endpoint: text("endpoint"),
+    last4: text("last4"),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    // Higher = preferred; ties broken by least-recently-used.
+    priority: integer("priority").notNull().default(0),
+    usageCount: integer("usageCount").notNull().default(0),
+    lastUsedAt: integer("lastUsedAt", { mode: "timestamp" }),
+    // Set when the pool auto-disables a credential after repeated auth/quota
+    // failures; surfaced in the admin UI. Null = healthy.
+    disabledReason: text("disabledReason"),
+    createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    providerIdx: index("providerCredentials_provider_idx").on(table.provider),
+  }),
+);
+
+export type ProviderCredential = typeof providerCredentials.$inferSelect;
+
+// Editable platform settings (admin-tunable JSON blobs keyed by name) — e.g.
+// generation pricing/credit costs, so prices can change without a deploy.
+export const platformSettings = sqliteTable("platformSettings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(), // JSON-encoded
+  updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
+});
+
+export type PlatformSetting = typeof platformSettings.$inferSelect;
+
 // Workspaces — shared project buckets with role-based access.
 export const workspaces = sqliteTable("workspaces", {
   id: text("id").primaryKey(),

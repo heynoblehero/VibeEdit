@@ -162,6 +162,13 @@
       "when": 1782704186781,
       "tag": "0022_dry_eternity",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1782955976488,
+      "tag": "0023_curved_the_executioner",
+      "breakpoints": true
     }
   ]
 }

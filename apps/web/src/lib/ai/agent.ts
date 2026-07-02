@@ -379,6 +379,7 @@ const TOOL_LABELS: Record<string, string> = {
   review_render: "Reviewing the render",
   detect_filler_words: "Finding filler words",
   apply_noise_reduction: "Cleaning up the audio",
+  remove_background_noise: "Isolating the voice",
   analyze_pacing: "Analyzing pacing",
   detect_beats: "Detecting the beat",
   quality_check: "Running a quality check",

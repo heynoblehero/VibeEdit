@@ -35,9 +35,11 @@ import {
 } from "./providers/dispatch";
 import { defaultModelForTask, getModel, type ModelEntry, type ModelTask } from "./models";
 import { readModelPreferences, resolveModelForTask } from "./model-prefs";
+import { resolveApiKey } from "@/lib/providers/pool";
+import { chargeGeneration } from "@/lib/billing/generation-pricing";
 import { nanoid } from "nanoid";
 import { safeFetch } from "../net/ssrf-guard";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from "node:fs";
 import { resolve, sep, join } from "node:path";
 import {
   resolveProjectPath,
@@ -52,6 +54,7 @@ import {
   addTransition,
   mixAudio,
   extractAudio,
+  replaceAudioTrack,
   burnCaptions,
   transcribeClip,
   renderEdl,
@@ -830,7 +833,7 @@ export function buildToolServer(ctx: ToolContext) {
       catchphrases,
       sampleScripts,
     }) => {
-      const apiKey = ctx.apiKeys?.replicate;
+      const apiKey = resolveApiKey("replicate", "REPLICATE_API_TOKEN", ctx.apiKeys?.replicate);
       if (!apiKey) {
         return {
           content: [
@@ -988,7 +991,7 @@ export function buildToolServer(ctx: ToolContext) {
         ),
     },
     async ({ label, prompt }) => {
-      const apiKey = ctx.apiKeys?.replicate;
+      const apiKey = resolveApiKey("replicate", "REPLICATE_API_TOKEN", ctx.apiKeys?.replicate);
       if (!apiKey) {
         return {
           content: [
@@ -1338,7 +1341,7 @@ export function buildToolServer(ctx: ToolContext) {
     },
     async ({ filename, script, voiceId, stability, style, similarityBoost }) => {
       // ElevenLabs is the only voice provider — gives exact word timestamps.
-      const apiKey = ctx.apiKeys?.elevenlabs || process.env.ELEVENLABS_API_KEY;
+      const apiKey = resolveApiKey("elevenlabs", "ELEVENLABS_API_KEY", ctx.apiKeys?.elevenlabs);
       if (!apiKey) {
         return {
           content: [
@@ -1608,7 +1611,7 @@ export function buildToolServer(ctx: ToolContext) {
         // Captioning routes through the Claude vision endpoint (the same proxy
         // the brain uses) — no separate key needed. BYOK anthropic overrides.
         const { caption, tags } = await captionImage({
-          apiKey: ctx.apiKeys?.anthropic,
+          apiKey: resolveApiKey("anthropic", "ANTHROPIC_API_KEY", ctx.apiKeys?.anthropic),
           imageDataUri,
         });
         await setUnderstanding(ctx.userId, ctx.projectId, m.path, { caption, tags });
@@ -1709,6 +1712,19 @@ export function buildToolServer(ctx: ToolContext) {
     },
     async ({ prompt, sceneSlug, count, aspectRatio, model }) => {
       const requested = resolveTaskModel("image", model);
+      {
+        const credit = chargeGeneration(ctx.userId, requested);
+        if (!credit.ok)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `ERROR: out of generation credits this month (${credit.used}/${credit.limit}). Ask the user to upgrade their plan.`,
+              },
+            ],
+            isError: true,
+          };
+      }
       const batchId = nanoid(8);
       const dir = `assets/variants/${sceneSlug}-${batchId}`;
       const generated: Array<{ path: string; index: number }> = [];
@@ -2469,7 +2485,7 @@ export function buildToolServer(ctx: ToolContext) {
         .describe("ISO 639-1 language code (e.g. 'en', 'es', 'fr'). Omit for auto-detect."),
     },
     async ({ path, language }) => {
-      const apiKey = ctx.apiKeys?.elevenlabs || process.env.ELEVENLABS_API_KEY;
+      const apiKey = resolveApiKey("elevenlabs", "ELEVENLABS_API_KEY", ctx.apiKeys?.elevenlabs);
       if (!apiKey) {
         return {
           content: [
@@ -2529,7 +2545,7 @@ export function buildToolServer(ctx: ToolContext) {
         .describe("Silence ≥ this many seconds is flagged as dead space to cut. Default 0.6."),
     },
     async ({ path, language, minPauseToCut }) => {
-      const apiKey = ctx.apiKeys?.elevenlabs || process.env.ELEVENLABS_API_KEY;
+      const apiKey = resolveApiKey("elevenlabs", "ELEVENLABS_API_KEY", ctx.apiKeys?.elevenlabs);
       if (!apiKey) {
         return {
           content: [
@@ -3226,6 +3242,123 @@ export function buildToolServer(ctx: ToolContext) {
           isError: true,
         };
       }
+    },
+  );
+
+  // --- remove_background_noise (AI voice isolation, anlmdn fallback) ---
+  const removeBackgroundNoiseTool = tool(
+    "remove_background_noise",
+    "Remove background noise from a clip's audio and isolate the voice. Default uses ElevenLabs AI voice isolation (best for real-world noise: traffic, wind, hum, keyboard, room). Falls back to the fast anlmdn filter when AI is unavailable or method='filter'. Works on audio OR video (video keeps its picture, only the audio is cleaned). Use this on noisy uploaded footage/voiceovers before cutting.",
+    {
+      inputPath: z.string().describe("Relative path to the source clip (audio or video)."),
+      outputPath: z
+        .string()
+        .describe("Relative output path, e.g. 'assets/processed/clean.mp4' or '.mp3'."),
+      method: z
+        .enum(["ai", "filter"])
+        .optional()
+        .default("ai")
+        .describe(
+          "'ai' = ElevenLabs voice isolation (best). 'filter' = fast local anlmdn denoise. Default 'ai'.",
+        ),
+      strength: z
+        .number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe("Only for method='filter': denoise strength 0–1. Default 0.5."),
+    },
+    async ({ inputPath, outputPath, method, strength }) => {
+      const dir = projectDir(ctx.userId, ctx.projectId);
+      const absIn = resolveProjectPath(dir, inputPath);
+      const absOut = resolveProjectPath(dir, outputPath);
+      const apiKey = resolveApiKey("elevenlabs", "ELEVENLABS_API_KEY", ctx.apiKeys?.elevenlabs);
+      const wantAi = (method ?? "ai") === "ai";
+
+      if (wantAi && apiKey) {
+        const stem = nanoid(8);
+        const srcRel = `assets/processed/.iso-src-${stem}.mp3`;
+        const cleanRel = `assets/processed/.iso-clean-${stem}.mp3`;
+        const srcAbs = resolveProjectPath(dir, srcRel);
+        const cleanAbs = resolveProjectPath(dir, cleanRel);
+        const cleanup = () => {
+          for (const p of [srcAbs, cleanAbs]) {
+            try {
+              if (existsSync(p)) unlinkSync(p);
+            } catch {
+              /* ignore */
+            }
+          }
+        };
+        try {
+          const info = await probeClip(absIn);
+          const isVideo = info.width > 0 && info.height > 0;
+          let audioBytes: Buffer;
+          if (isVideo) {
+            const ex = await extractAudio({ inputPath: absIn, outputPath: srcAbs });
+            if (!ex.ok) throw new Error(ex.error || "audio extract failed");
+            audioBytes = readFileSync(srcAbs);
+          } else {
+            audioBytes = readFileSync(absIn);
+          }
+          const cleaned = await elevenLabsIsolate(apiKey, audioBytes);
+          if (isVideo) {
+            writeProjectFile(ctx.userId, ctx.projectId, cleanRel, cleaned);
+            const remux = await replaceAudioTrack({
+              videoPath: absIn,
+              audioPath: cleanAbs,
+              outputPath: absOut,
+            });
+            if (!remux.ok) throw new Error(remux.error || "remux failed");
+          } else {
+            writeProjectFile(ctx.userId, ctx.projectId, outputPath, cleaned);
+          }
+          cleanup();
+          return {
+            content: [
+              {
+                type: "text",
+                text: `OK: voice isolated (ElevenLabs AI) → ${outputPath}. Background noise removed.`,
+              },
+            ],
+          };
+        } catch (error) {
+          cleanup();
+          // Fall through to the local filter rather than failing outright.
+          const fb = await applyNoiseReduction({ inputPath: absIn, outputPath: absOut, strength });
+          if (!fb.ok) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `ERROR: AI isolation failed (${(error as Error).message}) and filter fallback failed (${fb.error}).`,
+                },
+              ],
+              isError: true,
+            };
+          }
+          return {
+            content: [
+              {
+                type: "text",
+                text: `OK: AI isolation unavailable (${(error as Error).message}); applied anlmdn filter instead → ${outputPath}.`,
+              },
+            ],
+          };
+        }
+      }
+
+      // method='filter', or no ElevenLabs key configured.
+      const result = await applyNoiseReduction({ inputPath: absIn, outputPath: absOut, strength });
+      if (!result.ok) {
+        return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
+      }
+      const note = wantAi && !apiKey ? " (no ElevenLabs key — used the local filter)" : "";
+      return {
+        content: [
+          { type: "text", text: `OK: background noise reduced (filter)${note} → ${outputPath}` },
+        ],
+      };
     },
   );
 
@@ -4042,6 +4175,19 @@ ${jsLines.join("\n")}`;
     },
     async ({ prompt, filename, duration, aspectRatio, model }) => {
       const requested = resolveTaskModel("video", model);
+      {
+        const credit = chargeGeneration(ctx.userId, requested);
+        if (!credit.ok)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `ERROR: out of generation credits this month (${credit.used}/${credit.limit}). Ask the user to upgrade their plan.`,
+              },
+            ],
+            isError: true,
+          };
+      }
       const safe = filename.replace(/[/\\]/g, "_").replace(/^\.+/, "");
       const dest = `assets/${safe}`;
       try {
@@ -4113,6 +4259,19 @@ ${jsLines.join("\n")}`;
     },
     async ({ prompt, filename, instrumental, model }) => {
       const requested = resolveTaskModel("music", model);
+      {
+        const credit = chargeGeneration(ctx.userId, requested);
+        if (!credit.ok)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `ERROR: out of generation credits this month (${credit.used}/${credit.limit}). Ask the user to upgrade their plan.`,
+              },
+            ],
+            isError: true,
+          };
+      }
       const safe = filename.replace(/[/\\]/g, "_").replace(/^\.+/, "");
       const dest = `assets/${safe}`;
       try {
@@ -4667,7 +4826,7 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
         .describe("Output filename saved to assets/, e.g. 'host-nobg.png'."),
     },
     async ({ imagePath, outputFilename }) => {
-      const apiKey = ctx.apiKeys?.replicate;
+      const apiKey = resolveApiKey("replicate", "REPLICATE_API_TOKEN", ctx.apiKeys?.replicate);
       if (!apiKey) {
         return {
           content: [
@@ -5038,6 +5197,7 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       reviewRenderTool,
       detectFillerWordsTool,
       applyNoiseReductionTool,
+      removeBackgroundNoiseTool,
       analyzePacingTool,
       detectBeatsTool,
       buildWordHighlightCaptionsTool,
@@ -5115,6 +5275,7 @@ export const ALLOWED_TOOL_NAMES = [
   "review_render",
   "detect_filler_words",
   "apply_noise_reduction",
+  "remove_background_noise",
   "analyze_pacing",
   "detect_beats",
   "build_word_highlight_captions",
@@ -5535,6 +5696,24 @@ async function extractPalette(
 
 function toHex(value: number): string {
   return value.toString(16).padStart(2, "0");
+}
+
+// ElevenLabs Audio Isolation — strips background noise and returns clean voice
+// audio (mp3 bytes). https://elevenlabs.io/docs (audio-isolation endpoint).
+async function elevenLabsIsolate(apiKey: string, audio: Buffer): Promise<Buffer> {
+  const form = new FormData();
+  form.append("audio", new Blob([new Uint8Array(audio)], { type: "audio/mpeg" }), "audio.mp3");
+  const res = await fetch("https://api.elevenlabs.io/v1/audio-isolation", {
+    method: "POST",
+    headers: { "xi-api-key": apiKey },
+    body: form,
+  });
+  if (!res.ok) {
+    throw new Error(`ElevenLabs isolation ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  }
+  const out = Buffer.from(await res.arrayBuffer());
+  if (out.length === 0) throw new Error("ElevenLabs isolation returned empty audio");
+  return out;
 }
 
 async function synthesizeElevenLabsWithTimestamps(opts: {

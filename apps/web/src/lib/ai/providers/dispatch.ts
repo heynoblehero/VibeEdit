@@ -21,6 +21,7 @@
  */
 
 import type { ModelEntry } from "../models";
+import { getManagedCredential, resolveApiKey } from "@/lib/providers/pool";
 import {
   replicateGenerateImage,
   replicateGenerateVideo,
@@ -48,19 +49,27 @@ type VideoAspect = "16:9" | "9:16" | "1:1";
 
 const BYOK_PROVIDERS = new Set(["replicate", "elevenlabs", "anthropic"]);
 
-/** Resolve the official-provider API key: BYOK first, then env. */
+/** Resolve the official-provider API key: managed pool → BYOK → env. */
 function officialKey(model: ModelEntry, apiKeys?: ApiKeys): string {
-  let key: string | undefined;
-  if (apiKeys && BYOK_PROVIDERS.has(model.provider)) {
-    key = apiKeys[model.provider as keyof ApiKeys];
-  }
-  if (!key && model.credentialEnv) key = process.env[model.credentialEnv];
+  const byok =
+    apiKeys && BYOK_PROVIDERS.has(model.provider)
+      ? apiKeys[model.provider as keyof ApiKeys]
+      : undefined;
+  const key = resolveApiKey(model.provider, model.credentialEnv, byok);
   if (!key) throw new ProviderNotConfiguredError(model);
   return key;
 }
 
-/** Resolve an unofficial proxy's { base, secret }; both must be present. */
+/**
+ * Resolve an unofficial proxy's { base, secret }: managed pool first (a proxy-
+ * kind credential carries both the endpoint URL and the secret), else the env
+ * pair. Both parts must be present.
+ */
 function proxyConfig(model: ModelEntry): { base: string; secret: string } {
+  const managed = getManagedCredential(model.provider);
+  if (managed?.endpoint && managed.secret) {
+    return { base: managed.endpoint.replace(/\/+$/, ""), secret: managed.secret };
+  }
   const base = model.endpointEnv ? process.env[model.endpointEnv] : undefined;
   const secret = model.credentialEnv ? process.env[model.credentialEnv] : undefined;
   if (!base || !secret) throw new ProviderNotConfiguredError(model);
@@ -172,11 +181,8 @@ export async function generateVideoWithModel(opts: {
   // Models we can serve through Replicate use the Replicate token.
   const replicateAlias = REPLICATE_VIDEO_ALIASES[model.id];
   if (replicateAlias) {
-    // Prefer the user's Replicate BYOK key; fall back to the model's own key env.
-    const apiKey =
-      (apiKeys && apiKeys.replicate) ||
-      process.env.REPLICATE_API_TOKEN ||
-      (model.credentialEnv ? process.env[model.credentialEnv] : undefined);
+    // Managed pool → BYOK → env, all under the "replicate" provider.
+    const apiKey = resolveApiKey("replicate", "REPLICATE_API_TOKEN", apiKeys?.replicate);
     if (!apiKey) throw new ProviderNotConfiguredError(model);
     return replicateGenerateVideo({ apiKey, prompt, aspectRatio, duration, model: replicateAlias });
   }

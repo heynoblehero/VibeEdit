@@ -700,6 +700,35 @@ export async function extractAudio(opts: {
   return ffmpegRun(["-i", opts.inputPath, "-vn", "-c:a", "mp3", "-q:a", "2", opts.outputPath]);
 }
 
+// Replace a video's audio track with a new audio file (keeps the video stream
+// untouched via stream copy). Used to fold cleaned/isolated audio back into a
+// clip after processing it out-of-band.
+export async function replaceAudioTrack(opts: {
+  videoPath: string;
+  audioPath: string;
+  outputPath: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  ensureParentDir(opts.outputPath);
+  return ffmpegRun([
+    "-i",
+    opts.videoPath,
+    "-i",
+    opts.audioPath,
+    "-map",
+    "0:v:0",
+    "-map",
+    "1:a:0",
+    "-c:v",
+    "copy",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "192k",
+    "-shortest",
+    opts.outputPath,
+  ]);
+}
+
 // ---------------------------------------------------------------------------
 // burn_captions
 // ---------------------------------------------------------------------------

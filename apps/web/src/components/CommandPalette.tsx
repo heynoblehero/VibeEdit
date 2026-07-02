@@ -71,13 +71,6 @@ const ACTIONS: Action[] = [
     keywords: "brand kit logo colors voice host persona",
     href: "/app/settings/brand",
   },
-  {
-    id: "go-api-keys",
-    label: "Go to API keys",
-    hint: "Navigate",
-    keywords: "api keys byok replicate elevenlabs anthropic",
-    href: "/app/settings/api-keys",
-  },
 ];
 
 export function CommandPalette() {

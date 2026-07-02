@@ -38,7 +38,12 @@ export function trySpendRenderCredit(userId: string): boolean {
   return result.changes > 0;
 }
 
-export type UsageKind = "render" | "chat_turn" | "cloud_render_seconds" | "render_minutes";
+export type UsageKind =
+  | "render"
+  | "chat_turn"
+  | "cloud_render_seconds"
+  | "render_minutes"
+  | "generation";
 
 // Free-tier cap on render time consumed by our cloud (i.e. by users who have
 // not installed the local worker). Once exhausted, we hard-block and tell

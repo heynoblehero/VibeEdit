@@ -15,7 +15,6 @@ function buildItems(): MenuItem[] {
     { kind: "sep" },
     { kind: "link", href: "/app/settings/account", label: "Account" },
     { kind: "link", href: "/app/settings/brand", label: "Brand kit" },
-    { kind: "link", href: "/app/settings/api-keys", label: "API keys" },
     { kind: "link", href: "/app/billing", label: "Billing" },
   ];
   items.push(

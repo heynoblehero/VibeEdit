@@ -7,6 +7,7 @@ import { useSession } from "@/lib/auth-client";
 import { Wordmark } from "@/components/Wordmark";
 import SupportInbox from "@/components/admin/SupportInbox";
 import ObservabilityTiles from "@/components/admin/ObservabilityTiles";
+import ProvidersPanel from "@/components/admin/ProvidersPanel";
 
 type Overview = {
   users: { total: number; last24h: number; last7d: number };
@@ -23,7 +24,15 @@ type Overview = {
   topUsers: Array<{ userId: string; email: string; turns: number }>;
 };
 
-type Tab = "overview" | "users" | "billing" | "renders" | "moderation" | "support" | "monitoring";
+type Tab =
+  | "overview"
+  | "users"
+  | "billing"
+  | "renders"
+  | "moderation"
+  | "support"
+  | "monitoring"
+  | "providers";
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: "overview", label: "Overview" },
@@ -33,6 +42,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: "moderation", label: "Moderation" },
   { id: "support", label: "Support" },
   { id: "monitoring", label: "Monitoring" },
+  { id: "providers", label: "Providers" },
 ];
 
 export default function AdminPage() {
@@ -118,6 +128,7 @@ export default function AdminPage() {
       {tab === "moderation" && <ModerationTab />}
       {tab === "support" && <SupportInbox />}
       {tab === "monitoring" && <ObservabilityTiles />}
+      {tab === "providers" && <ProvidersPanel />}
     </main>
   );
 }

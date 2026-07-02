@@ -1247,6 +1247,16 @@ export interface EdlSegment {
   background?: EdlBackground; // replace the segment's background (greenscreen composite)
 }
 
+// Background music bed mixed under the whole edit. When duck is true (default),
+// the music is side-chain compressed by the voice track so it drops ~10dB while
+// anyone is talking and swells back in the gaps — the standard "music under
+// narration" polish that otherwise takes manual keyframing.
+export interface EdlMusic {
+  file: string; // relative asset path to the music track
+  gainDb?: number; // music level before ducking, dB. Default -12.
+  duck?: boolean; // side-chain duck under voice. Default true.
+}
+
 export interface EdlOverlay {
   file: string; // relative asset path to animation/clip
   startInOutput: number; // when overlay appears in output timeline (seconds)
@@ -1262,6 +1272,7 @@ export interface EditDecisionList {
   overlays?: EdlOverlay[];
   captions?: CaptionCue[]; // applied LAST — Hard Rule 1
   captionStyle?: CaptionStyle; // default look for all captions (per-cue .style overrides)
+  music?: EdlMusic; // background music bed, ducked under voice by default
   outputPath: string; // relative output path
   loudnorm?: boolean; // 2-pass -14 LUFS normalization on final output
   // "draft" → 480p / ultrafast / crf 28 for fast review cycles.
@@ -1864,6 +1875,52 @@ export async function renderEdl(opts: {
       // the ".part" extension is not a recognized container).
       const copyResult = await ffmpegRun(["-i", currentPath, "-c", "copy", "-f", "mp4", outTmp]);
       if (!copyResult.ok) return copyResult;
+    }
+
+    // ----------------------------------------------------------------
+    // Step 4.5: Background music bed, ducked under voice
+    // ----------------------------------------------------------------
+    if (edl.music?.file) {
+      const musicPath = resolveProjectPath(dir, edl.music.file);
+      const gainDb = edl.music.gainDb ?? -12;
+      const duck = edl.music.duck ?? true;
+      const musicMixed = join(tmpDir, "music_mixed.mp4");
+
+      // [0:a] = the edit's voice/source audio, [1:a] = the looped music bed.
+      // Ducking: side-chain compress the music using the voice as the key, then
+      // mix the (compressed) music back under the untouched voice. amix
+      // duration=first bounds the output to the video length.
+      const filter = duck
+        ? `[1:a]volume=${gainDb}dB[m];[m][0:a]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=350[md];[0:a][md]amix=inputs=2:duration=first:normalize=0[aout]`
+        : `[1:a]volume=${gainDb}dB[m];[0:a][m]amix=inputs=2:duration=first:normalize=0[aout]`;
+
+      const musicResult = await ffmpegRun([
+        "-i",
+        outTmp,
+        "-stream_loop",
+        "-1",
+        "-i",
+        musicPath,
+        "-filter_complex",
+        filter,
+        "-map",
+        "0:v",
+        "-map",
+        "[aout]",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-f",
+        "mp4",
+        musicMixed,
+      ]);
+      if (!musicResult.ok) return musicResult;
+      // Replace the temp output with the music-mixed version.
+      const replaceMusic = await ffmpegRun(["-i", musicMixed, "-c", "copy", "-f", "mp4", outTmp]);
+      if (!replaceMusic.ok) return replaceMusic;
     }
 
     // ----------------------------------------------------------------

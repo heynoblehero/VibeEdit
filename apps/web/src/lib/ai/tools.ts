@@ -3044,6 +3044,24 @@ export function buildToolServer(ctx: ToolContext) {
             .describe(
               "Caption look for the whole video (default 'clean'). 'bold'/'karaoke' = big animated word-pop (use build_captions_from_words with chunkSize 1 so each word pops); 'minimal' = small/subtle; 'documentary' = serif lower-third. Persist the user's pick via save_insight.",
             ),
+          music: z
+            .object({
+              file: z.string().describe("Relative asset path to the music track."),
+              gainDb: z
+                .number()
+                .optional()
+                .describe("Music level before ducking, dB. Default -12 (background bed)."),
+              duck: z
+                .boolean()
+                .optional()
+                .describe(
+                  "Side-chain duck the music under the voice (default true) so it drops while anyone talks and swells in the gaps. Set false for pure-music / no-narration edits.",
+                ),
+            })
+            .optional()
+            .describe(
+              "Background music bed mixed under the whole edit, auto-ducked under voice. One field instead of manual mix_audio keyframing.",
+            ),
           outputPath: z
             .string()
             .describe("Relative output path, e.g. 'assets/processed/final.mp4'."),

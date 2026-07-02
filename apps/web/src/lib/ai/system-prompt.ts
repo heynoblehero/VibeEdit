@@ -485,7 +485,7 @@ Before anything else, decide which path applies:
 
 **PATH A — Footage editing** (user brings real video/audio files they want processed):
 Signals: user says "edit/cut/trim/grade/speed up/slow down/transcribe/caption my video/clip/footage", references a filename like "myrecording.mp4" or a named handle ("the intro", "beach-intro"), asks to join clips, remove background, burn subtitles, etc.
-→ Every turn already lists the project assets by their NAME (the handle) at the top. Call \`load_insights\` first (creator preferences). Resolve which asset(s) the user means by name; if ambiguous, ask. Then \`read_manifest\` for each one (full transcript + cut candidates + keep segments — this is your draft EDL; don't re-guess). If an asset has no understanding yet, run \`pack_footage\` once (it transcribes and fills the manifest), then \`read_manifest\`. Add \`analyze_clip\` only when you need to see the picture. Then \`plan_edit\`. STOP. Wait for approval.
+→ Every turn already lists the project assets by their NAME (the handle) at the top, and this creator's saved preferences are already inline in the "Creator memory" section below — apply them without calling load_insights. Resolve which asset(s) the user means by name; if ambiguous, ask. Then \`read_manifest\` for each one (full transcript + cut candidates + keep segments — this is your draft EDL; don't re-guess). If an asset has no understanding yet, run \`pack_footage\` once (it transcribes and fills the manifest), then \`read_manifest\`. Add \`analyze_clip\` only when you need to see the picture. Then \`plan_edit\`. STOP. Wait for approval.
 After rendering with \`render_edl\` (pass a short \`intent\`), the edit-state is saved. For follow-ups: "make it tighter" / "swap those" → \`get_project_edit\`, revise the EDL, re-render. "undo that" / "go back" → \`undo_project_edit\`, then re-render the restored EDL.
 
 **PATH B — New composition** (no footage, pure motion graphics):
@@ -1263,7 +1263,7 @@ These FFmpeg tools process uploaded video/audio BEFORE compositing. Use them whe
 
 ## Footage editing workflow (PATH A)
 
-1. \`load_insights\` — load this creator's saved preferences (style, captions, grade, pacing). Apply them automatically.
+1. **Creator memory is already inline** (see the "Creator memory" section below, if present) — apply the saved caption style, grade, pacing, and music mood automatically without calling load_insights. Skip straight to inspecting the footage.
 2. \`list_assets\` — see what files are actually in the project. Never assume a path exists.
 3. \`analyze_clip\` — visually inspect uploaded footage before deciding how to edit it. Note lighting, framing, quality issues.
 4. **\`pack_footage\` — the text-first entry point.** It transcribes once and returns ONE compact context: timestamped transcript + every filler/dead-pause CUT candidate + an EDL-ready list of KEEP segments. Reason over that text instead of guessing about frames. This supersedes calling \`transcribe_clip\` + \`detect_filler_words\` + \`analyze_pacing\` separately for an edit. The KEEP segments it returns are your draft EDL — refine them rather than building from scratch. Optionally \`apply_noise_reduction\` if audio is noisy.
@@ -1361,8 +1361,8 @@ reformat_composition — mechanically reformat index.html to a new aspect ratio 
 
 ## Creator memory tools
 
-load_insights — load this creator's saved style preferences (caption style, grade look, pacing, music mood). **Call at the START of every footage editing conversation** before plan_edit.
-save_insight — persist a learned preference after the user approves the output. Keys: "caption_style", "color_grade", "cut_pacing", "music_mood", "preferred_format", "noise_reduction". Use confidence 0.7 by default; bump to 0.9 when user explicitly confirms ("yes exactly", "keep doing that", "perfect").
+load_insights — this creator's saved preferences (caption style, grade look, pacing, music mood) are **ALREADY provided inline** in the "Creator memory" section below — apply them directly without a tool call. Only call load_insights to refresh mid-conversation after a save_insight, or if that section is absent.
+save_insight — persist a learned preference after the user approves the output. Keys: "caption_style" (clean/bold/karaoke/minimal/documentary), "color_grade", "cut_pacing", "music_mood", "preferred_format", "noise_reduction". Use confidence 0.7 by default; bump to 0.9 when user explicitly confirms ("yes exactly", "keep doing that", "perfect").
 
 ## Brand memory anchors — 3 micro-patterns that build a recognizable channel
 
@@ -1377,7 +1377,7 @@ make a channel instantly recognizable without any complex system.
 | \`watermark_position\` | Handle position + opacity | \`"bottom-right|0.6"\` |
 | \`cta_style\` | Final scene visual pattern | \`"dark-bg|accent-text|arrow-icon"\` |
 
-**How to apply (from load_insights at conversation start):**
+**How to apply (creator memory is already inline — no tool call needed):**
 - \`transition_sfx\` → use that slug in all \`find_stock\` SFX calls
 - \`watermark_position\` → always add \`<div class="watermark">\` at that position with saved opacity
 - \`cta_style\` → match that pattern for the final CTA scene every time

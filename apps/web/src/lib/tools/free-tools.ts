@@ -130,13 +130,15 @@ const LIBERATION_FONT = "/usr/share/fonts/truetype/liberation/LiberationSans-Reg
 //
 // delogo reconstructs the box interior by interpolating inward from its border,
 // so the box MUST be kept close to the actual watermark — the bigger the box,
-// the larger the region that gets smeared/softened. The Veo / Gemini watermark
-// is small: a ~48px diamond inset ~72px on 720p (≈ the "Veo" wordmark size),
-// scaling with resolution. So we size the box to that watermark footprint —
-// ~17% of the SHORTER frame dimension near the corner — instead of a big
-// fraction of each axis (the old 24%×14% box covered ~7× the needed area and
-// produced a visible blur patch).
-const WATERMARK_REACH = 0.17; // fraction of the shorter side the watermark spans from a corner
+// the larger the region that gets smeared/softened.
+//
+// Calibrated against a real 1080p Veo clip: the "Veo" wordmark is ~112×70px
+// inset ~10px from the right / ~24px from the bottom. A box of ~13% of the
+// SHORTER side (≈140px on 1080p) fully covers it with a safe margin for
+// position variance across clips, while blurring ~40% less area than the old
+// 0.17 box (and ~5× less than the original 24%×14% frame-fraction box, which
+// smeared a wide strip). Verified: text fully removed, surrounding detail kept.
+const WATERMARK_REACH = 0.13; // fraction of the shorter side the watermark spans from a corner
 const WATERMARK_MIN = 90;
 const WATERMARK_MAX = 280;
 

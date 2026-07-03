@@ -7,6 +7,10 @@
  */
 
 import { spawn } from "node:child_process";
+import { writeFileSync, unlinkSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { randomBytes } from "node:crypto";
 
 // ---------------------------------------------------------------------------
 // Client IP (behind dokku/nginx) — for anonymous per-IP quota.
@@ -175,10 +179,159 @@ function logoBox(
   }
 }
 
-// Remove a corner watermark via ffmpeg delogo, optionally stamping a small
-// "made with VibeEdit" badge (anonymous outputs). Audio is stream-copied.
-// If the badge pass fails (e.g. missing font), retries delogo-only so the badge
-// can never break the core tool.
+// Spawn a process and capture stdout as raw BYTES (run() captures text, which
+// corrupts binary rawvideo). Used to pull grayscale frames for mask derivation.
+function spawnBinary(
+  cmd: string,
+  args: string[],
+  timeoutMs = 60_000,
+): Promise<{ ok: boolean; stdout: Buffer }> {
+  return new Promise((resolve) => {
+    const proc = spawn(cmd, args);
+    const chunks: Buffer[] = [];
+    const timer = setTimeout(() => proc.kill("SIGTERM"), timeoutMs);
+    proc.stdout.on("data", (c: Buffer) => chunks.push(c));
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      resolve({ ok: code === 0, stdout: Buffer.concat(chunks) });
+    });
+    proc.on("error", () => {
+      clearTimeout(timer);
+      resolve({ ok: false, stdout: Buffer.alloc(0) });
+    });
+  });
+}
+
+// Generous square-ish corner region to search for the watermark (larger than
+// the delogo box; the derived mask then isolates only the actual glyph within).
+function analysisBox(corner: WatermarkCorner, W: number, H: number) {
+  const minDim = Math.min(W, H);
+  const s = Math.min(400, Math.max(160, Math.round(minDim * 0.26)));
+  const w = Math.min(s, W - 2);
+  const h = Math.min(s, H - 2);
+  const right = W - w;
+  const bottom = H - h;
+  const centerX = Math.round((W - w) / 2);
+  switch (corner) {
+    case "bottom-left":
+      return { x: 0, y: bottom, w, h };
+    case "bottom-center":
+      return { x: centerX, y: bottom, w, h };
+    case "top-right":
+      return { x: right, y: 0, w, h };
+    case "top-left":
+      return { x: 0, y: 0, w, h };
+    default:
+      return { x: right, y: bottom, w, h };
+  }
+}
+
+/*
+ * Derive a PRECISE watermark mask from the video itself and return a full-frame
+ * PGM path for ffmpeg's removelogo (which interpolates only the masked pixels —
+ * the thin glyph strokes — instead of blurring a whole box like delogo).
+ *
+ * How: a static semi-transparent watermark contributes a constant floor
+ * (alpha*logo) to every frame, while the background varies. So the TEMPORAL
+ * MINIMUM over sampled frames stays bright exactly on the watermark strokes and
+ * drops to ~0 everywhere the background ever went dark. Threshold that floor to
+ * get the glyph, dilate a touch to catch anti-aliased edges, and stamp it into a
+ * full-frame mask. Returns ok:false (→ caller falls back to delogo) whenever the
+ * signal is ambiguous: too few frames, no bright floor, or suspiciously large
+ * coverage (a bright static background, not a watermark).
+ */
+async function deriveWatermarkMask(
+  inputPath: string,
+  corner: WatermarkCorner,
+  W: number,
+  H: number,
+): Promise<{ ok: boolean; maskPath?: string }> {
+  const box = analysisBox(corner, W, H);
+  const frame = box.w * box.h;
+  const res = await spawnBinary("ffmpeg", [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-i",
+    inputPath,
+    "-vf",
+    `crop=${box.w}:${box.h}:${box.x}:${box.y},fps=2,format=gray`,
+    "-f",
+    "rawvideo",
+    "-",
+  ]);
+  const n = Math.floor(res.stdout.length / frame);
+  if (!res.ok || n < 8) return { ok: false }; // need enough frames to separate bg
+
+  const floor = new Uint8Array(frame).fill(255);
+  for (let f = 0; f < n; f++) {
+    const off = f * frame;
+    for (let i = 0; i < frame; i++) {
+      const v = res.stdout[off + i];
+      if (v < floor[i]) floor[i] = v;
+    }
+  }
+  let maxFloor = 0;
+  for (let i = 0; i < frame; i++) if (floor[i] > maxFloor) maxFloor = floor[i];
+  if (maxFloor < 40) return { ok: false }; // no clearly bright static overlay
+
+  const threshold = Math.max(30, Math.round(0.35 * maxFloor));
+  const mask = new Uint8Array(frame);
+  let count = 0;
+  for (let i = 0; i < frame; i++) {
+    if (floor[i] >= threshold) {
+      mask[i] = 1;
+      count++;
+    }
+  }
+  const coverage = count / frame;
+  if (count === 0 || coverage > 0.35) return { ok: false }; // empty or not a watermark
+
+  // Dilate ~2px (two 5x5 passes) so anti-aliased stroke edges are covered.
+  const dilate = (src: Uint8Array): Uint8Array => {
+    const dst = new Uint8Array(frame);
+    for (let y = 0; y < box.h; y++) {
+      for (let x = 0; x < box.w; x++) {
+        let on = 0;
+        for (let dy = -2; dy <= 2 && !on; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const yy = y + dy;
+            const xx = x + dx;
+            if (yy < 0 || yy >= box.h || xx < 0 || xx >= box.w) continue;
+            if (src[yy * box.w + xx]) {
+              on = 1;
+              break;
+            }
+          }
+        }
+        dst[y * box.w + x] = on;
+      }
+    }
+    return dst;
+  };
+  const dilated = dilate(dilate(mask));
+
+  // Stamp into a full-frame P5 (binary) PGM: 0 everywhere, 255 on the glyph.
+  const full = new Uint8Array(W * H);
+  for (let y = 0; y < box.h; y++) {
+    for (let x = 0; x < box.w; x++) {
+      if (dilated[y * box.w + x]) full[(box.y + y) * W + (box.x + x)] = 255;
+    }
+  }
+  const header = Buffer.from(`P5\n${W} ${H}\n255\n`, "ascii");
+  const maskPath = join(tmpdir(), `vibe_wm_mask_${randomBytes(6).toString("hex")}.pgm`);
+  writeFileSync(maskPath, Buffer.concat([header, Buffer.from(full)]));
+  return { ok: true, maskPath };
+}
+
+// Remove a corner watermark, optionally stamping a small "made with VibeEdit"
+// badge (anonymous outputs). Audio is stream-copied.
+//
+// Preferred path: derive a precise glyph mask from the video and interpolate
+// just the watermark strokes with `removelogo` (crisp, no box-blur). Falls back
+// to `delogo` on a fitted box whenever the mask can't be derived confidently.
+// If the badge pass fails (e.g. missing font), retries without the badge so the
+// badge can never break the core tool.
 export async function removeWatermark(opts: {
   inputPath: string;
   outputPath: string;
@@ -187,9 +340,6 @@ export async function removeWatermark(opts: {
   height: number;
   badge: boolean;
 }): Promise<{ ok: boolean; error?: string }> {
-  const box = logoBox(opts.corner, opts.width, opts.height);
-  const delogo = `delogo=x=${box.x}:y=${box.y}:w=${box.w}:h=${box.h}`;
-
   const encode = (vf: string) => [
     "-y",
     "-hide_banner",
@@ -204,7 +354,7 @@ export async function removeWatermark(opts: {
     "-preset",
     "veryfast",
     // Quality-sensitive tool — keep the re-encode near-visually-lossless so we
-    // don't add compression mush on top of the delogo patch.
+    // don't add compression mush on top of the removal patch.
     "-crf",
     "18",
     "-c:a",
@@ -212,16 +362,35 @@ export async function removeWatermark(opts: {
     opts.outputPath,
   ];
 
-  if (opts.badge) {
-    const badge =
-      `drawtext=fontfile=${LIBERATION_FONT}:text='made with VibeEdit':` +
-      `x=w-tw-16:y=h-th-16:fontsize=h/30:fontcolor=white@0.9:` +
-      `box=1:boxcolor=black@0.45:boxborderw=8`;
-    const withBadge = await run("ffmpeg", encode(`${delogo},${badge}`));
-    if (withBadge.ok) return { ok: true };
-    // Badge failed (font/filter) — fall back to delogo only.
+  const badge =
+    `drawtext=fontfile=${LIBERATION_FONT}:text='made with VibeEdit':` +
+    `x=w-tw-16:y=h-th-16:fontsize=h/30:fontcolor=white@0.9:` +
+    `box=1:boxcolor=black@0.45:boxborderw=8`;
+
+  // Run a filter chain, trying with the badge first (anonymous tier) then
+  // without, so a font/filter hiccup can never break the core removal.
+  const runFilter = async (filter: string): Promise<boolean> => {
+    if (opts.badge && (await run("ffmpeg", encode(`${filter},${badge}`))).ok) return true;
+    return (await run("ffmpeg", encode(filter))).ok;
+  };
+
+  // 1) Preferred: precise glyph mask + removelogo (crisp, interpolates only the
+  //    watermark strokes).
+  const derived = await deriveWatermarkMask(opts.inputPath, opts.corner, opts.width, opts.height);
+  if (derived.ok && derived.maskPath) {
+    const ok = await runFilter(`removelogo=filename=${derived.maskPath}`);
+    try {
+      if (existsSync(derived.maskPath)) unlinkSync(derived.maskPath);
+    } catch {
+      /* ignore */
+    }
+    if (ok) return { ok: true };
+    // removelogo failed → fall through to delogo.
   }
 
-  const res = await run("ffmpeg", encode(delogo));
-  return res.ok ? { ok: true } : { ok: false, error: res.stderr.split("\n").slice(-4).join("\n") };
+  // 2) Fallback: delogo on a fitted corner box.
+  const box = logoBox(opts.corner, opts.width, opts.height);
+  const delogo = `delogo=x=${box.x}:y=${box.y}:w=${box.w}:h=${box.h}`;
+  if (await runFilter(delogo)) return { ok: true };
+  return { ok: false, error: "watermark removal failed — try a different clip" };
 }

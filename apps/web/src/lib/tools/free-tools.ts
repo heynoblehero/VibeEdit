@@ -126,19 +126,37 @@ export type WatermarkCorner =
 
 const LIBERATION_FONT = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
 
-// Compute the delogo box (x,y,w,h) for a corner, sized to the frame. delogo
-// interpolates from the box border, so keep it a modest rectangle inset a few px
-// from the edges (delogo requires a 1px+ neighbour margin inside the frame).
+// Compute the delogo box (x,y,w,h) for a corner.
+//
+// delogo reconstructs the box interior by interpolating inward from its border,
+// so the box MUST be kept close to the actual watermark — the bigger the box,
+// the larger the region that gets smeared/softened. The Veo / Gemini watermark
+// is small: a ~48px diamond inset ~72px on 720p (≈ the "Veo" wordmark size),
+// scaling with resolution. So we size the box to that watermark footprint —
+// ~17% of the SHORTER frame dimension near the corner — instead of a big
+// fraction of each axis (the old 24%×14% box covered ~7× the needed area and
+// produced a visible blur patch).
+const WATERMARK_REACH = 0.17; // fraction of the shorter side the watermark spans from a corner
+const WATERMARK_MIN = 90;
+const WATERMARK_MAX = 280;
+
 function logoBox(
   corner: WatermarkCorner,
   W: number,
   H: number,
 ): { x: number; y: number; w: number; h: number } {
-  const w = Math.max(24, Math.round(W * 0.24));
-  const h = Math.max(24, Math.round(H * 0.14));
-  const m = 6; // margin from frame edge
-  const right = Math.min(W - w - m, W - w - 1);
-  const bottom = Math.min(H - h - m, H - h - 1);
+  const minDim = Math.min(W, H);
+  const reach = Math.min(
+    WATERMARK_MAX,
+    Math.max(WATERMARK_MIN, Math.round(minDim * WATERMARK_REACH)),
+  );
+  // Keep the box square-ish (covers both the diamond and the short wordmark) but
+  // never let it exceed 40% of an axis, so tiny/odd frames stay sane.
+  const w = Math.min(reach, Math.round(W * 0.4));
+  const h = Math.min(reach, Math.round(H * 0.4));
+  const m = 4; // small inset so delogo has a clean 1px+ neighbour border
+  const right = Math.max(1, Math.min(W - w - m, W - w - 1));
+  const bottom = Math.max(1, Math.min(H - h - m, H - h - 1));
   const centerX = Math.round((W - w) / 2);
   switch (corner) {
     case "bottom-left":
@@ -183,8 +201,10 @@ export async function removeWatermark(opts: {
     "libx264",
     "-preset",
     "veryfast",
+    // Quality-sensitive tool — keep the re-encode near-visually-lossless so we
+    // don't add compression mush on top of the delogo patch.
     "-crf",
-    "20",
+    "18",
     "-c:a",
     "copy",
     opts.outputPath,

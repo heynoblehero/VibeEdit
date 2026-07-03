@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { markEditSent } from "@/lib/preview-budget";
 import { creditCostLabel } from "@/lib/billing/credit-costs";
+import { Paywall } from "@/components/Paywall";
 import { AssetPickerModal } from "./AssetPickerModal";
 import { VideoViewerModal } from "./VideoViewerModal";
 import { ModelPicker } from "./chat/ModelPicker";
@@ -191,7 +192,8 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
   // Streaming state (busy / live tool log / live activity label) + the SSE
   // read loop live in the useChatStream hook; the thread UI here just consumes
   // them. The protocol degrades gracefully — see chat/useChatStream.ts.
-  const { busy, live, activity, runStream, resumeStream } = useChatStream();
+  const { busy, live, activity, paywall, dismissPaywall, runStream, resumeStream } =
+    useChatStream();
   const [prefs, setPrefs] = useState<UserPrefs | null>(null);
   const [editingAt, setEditingAt] = useState<number | null>(null);
   const [attachedAssets, setAttachedAssets] = useState<string[]>([]);
@@ -510,6 +512,7 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
           Drop image, video, or audio to attach
         </div>
       )}
+      {paywall && <Paywall data={paywall} onDismiss={dismissPaywall} />}
       {showAssetPicker && (
         <AssetPickerModal
           projectId={projectId}

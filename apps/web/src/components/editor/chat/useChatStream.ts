@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { isPaywall, type PaywallData } from "@/components/Paywall";
 import {
   type AgentEvent,
   type LiveEntry,
@@ -51,6 +52,10 @@ export type ChatStream = {
   // structured tool_start / tool_end lifecycle events, falling back to legacy
   // tool_use events so it works even if those events never arrive.
   activity: string | null;
+  // Set when the server returns a 402 with a structured paywall payload (out of
+  // credits / plan limit). The UI shows the full upgrade popup; null otherwise.
+  paywall: PaywallData | null;
+  dismissPaywall: () => void;
   /**
    * Streams one agent turn for `userMessage`. Resolves when the SSE stream
    * closes. Returns false if the request never started (so the caller can skip
@@ -70,6 +75,7 @@ export function useChatStream(): ChatStream {
   const [busy, setBusy] = useState(false);
   const [live, setLive] = useState<LiveEntry[]>([]);
   const [activity, setActivity] = useState<string | null>(null);
+  const [paywall, setPaywall] = useState<PaywallData | null>(null);
   // Tracks the most recent content written to each path so the inline write_file
   // bubble can show a +/- diff against the prior version within a single turn.
   const fileHistoryRef = useRef<Map<string, string>>(new Map());
@@ -202,13 +208,13 @@ export function useChatStream(): ChatStream {
       if (!response.ok || !response.body) {
         let message = `error: ${response.statusText}`;
         if (response.status === 402) {
-          // Graceful paywall: show the server's friendly upgrade copy, not "Payment Required".
-          const body = (await response.json().catch(() => null)) as {
-            title?: string;
-            message?: string;
-          } | null;
+          // Graceful paywall: show the full upgrade popup when the server sends a
+          // structured payload, and a friendly inline line either way.
+          const body = (await response.json().catch(() => null)) as unknown;
+          if (isPaywall(body)) setPaywall(body);
+          const info = body as { title?: string; message?: string } | null;
           message =
-            body?.message || body?.title || "You've hit your plan limit — upgrade to continue.";
+            info?.message || info?.title || "You've hit your plan limit — upgrade to continue.";
         }
         setLive([{ kind: "error", message }]);
         setBusy(false);
@@ -255,5 +261,13 @@ export function useChatStream(): ChatStream {
     [consume],
   );
 
-  return { busy, live, activity, runStream, resumeStream };
+  return {
+    busy,
+    live,
+    activity,
+    paywall,
+    dismissPaywall: () => setPaywall(null),
+    runStream,
+    resumeStream,
+  };
 }

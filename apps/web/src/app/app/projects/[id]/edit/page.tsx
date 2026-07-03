@@ -12,6 +12,7 @@ import { CodePane } from "@/components/editor/CodePane";
 import { RenderPanel } from "@/components/editor/RenderPanel";
 import { Wordmark } from "@/components/Wordmark";
 import { UserMenu } from "@/components/UserMenu";
+import { UsageMeter } from "@/components/UsageMeter";
 import { EditorTour } from "@/components/EditorTour";
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -255,6 +256,7 @@ export default function EditorPage({ params }: PageProps) {
           )}
 
           <RenderPanel projectId={id} />
+          <UsageMeter compact />
           <UserMenu />
         </div>
       </header>

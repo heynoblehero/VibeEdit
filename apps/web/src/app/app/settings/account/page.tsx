@@ -7,6 +7,11 @@ import { signOut, useSession } from "@/lib/auth-client";
 import { Wordmark } from "@/components/Wordmark";
 import { useToast } from "@/components/Toast";
 
+type BillingSummary = {
+  plan: { id: string; name: string };
+  credits?: { monthly: number; used: number; total: number };
+};
+
 export default function AccountPage() {
   const router = useRouter();
   const toast = useToast();
@@ -16,6 +21,14 @@ export default function AccountPage() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState<"ok" | "error" | null>(null);
+  const [billing, setBilling] = useState<BillingSummary | null>(null);
+
+  useEffect(() => {
+    if (!session) return;
+    fetch("/api/billing/me")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => data && setBilling(data as BillingSummary));
+  }, [session]);
 
   async function resendVerification() {
     if (!session?.user.email) return;
@@ -128,6 +141,51 @@ export default function AccountPage() {
       </header>
 
       <h1 className="mb-6 text-2xl font-bold sm:text-3xl">Account</h1>
+
+      {/* Plan & credits summary */}
+      <section className="mb-8 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wider">Plan &amp; credits</h2>
+          <Link
+            href="/app/billing"
+            className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-xs font-semibold text-black hover:opacity-90"
+          >
+            {billing && billing.plan.id !== "free" ? "Manage plan" : "Upgrade"}
+          </Link>
+        </div>
+        {billing ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <div className="text-xs text-[var(--color-fg-muted)]">Plan</div>
+              <div className="mt-0.5 text-lg font-bold">{billing.plan.name}</div>
+            </div>
+            <div>
+              <div className="text-xs text-[var(--color-fg-muted)]">Credits left</div>
+              <div className="mt-0.5 text-lg font-bold">
+                {billing.credits
+                  ? billing.credits.total === -1
+                    ? "∞"
+                    : billing.credits.total.toLocaleString()
+                  : "—"}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-[var(--color-fg-muted)]">Used this month</div>
+              <div className="mt-0.5 text-lg font-bold">
+                {billing.credits
+                  ? `${billing.credits.used.toLocaleString()} / ${
+                      billing.credits.monthly === -1
+                        ? "∞"
+                        : billing.credits.monthly.toLocaleString()
+                    }`
+                  : "—"}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--color-fg-muted)]">Loading…</p>
+        )}
+      </section>
 
       {!session.user.emailVerified && (
         <section className="mb-6 rounded-xl border border-[var(--color-accent)] bg-[var(--color-bg-2)] p-4 sm:p-6">

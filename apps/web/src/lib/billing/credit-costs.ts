@@ -26,6 +26,19 @@ export const DEFAULT_CREDIT_COSTS: CreditCosts = {
   music: 8,
 };
 
+// Vibe Max (Opus brain) is a pricier model to run, so an edit on Vibe Max costs
+// this multiple of the base edit cost. Vibe (Sonnet) edits are 1×.
+export const VIBE_MAX_EDIT_MULTIPLIER = 2;
+
+// Edit cost for a brain tier: base × multiplier on Vibe Max.
+export function editCreditCost(
+  tier: "vibe" | "vibe-max",
+  costs: CreditCosts = DEFAULT_CREDIT_COSTS,
+): number {
+  const base = costs.edit ?? DEFAULT_CREDIT_COSTS.edit;
+  return tier === "vibe-max" ? base * VIBE_MAX_EDIT_MULTIPLIER : base;
+}
+
 // Short human label for an action's cost, e.g. "20 cr" or "10 cr / 30s".
 export function creditCostLabel(
   action: CreditAction,

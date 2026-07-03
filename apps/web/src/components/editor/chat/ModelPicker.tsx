@@ -29,7 +29,7 @@ type PrefsResponse = {
 const TASK_ORDER: ModelTask[] = ["brain", "image", "video", "music", "voice", "motion"];
 
 const TASK_LABEL: Record<ModelTask, string> = {
-  brain: "Brain (the agent)",
+  brain: "AI brain",
   image: "Images",
   video: "Video / b-roll",
   music: "Music",
@@ -38,7 +38,8 @@ const TASK_LABEL: Record<ModelTask, string> = {
 };
 
 const TASK_HINT: Record<ModelTask, string> = {
-  brain: "Plans and writes the composition. Only Claude models drive the agent.",
+  brain:
+    "Vibe is fast and efficient. Vibe Max is the smartest brain for complex edits — it costs ~2× credits per edit. Choose either in Auto or Manual mode.",
   image: "Stills, backgrounds, scene art.",
   video: "Generated b-roll clips.",
   music: "Original score / song beds.",
@@ -92,8 +93,13 @@ export function ModelPicker({
   async function save() {
     setSaving(true);
     setSaveError(null);
-    // In Manual mode, only send choices for models the user actually picked.
-    const body = { mode, choices: mode === "manual" ? choices : {} };
+    // In Manual mode send all picked choices. In Auto mode the per-asset picks
+    // are ignored — but the brain tier (Vibe / Vibe Max) always applies, so
+    // preserve it regardless of mode.
+    const body = {
+      mode,
+      choices: mode === "manual" ? choices : choices.brain ? { brain: choices.brain } : {},
+    };
     try {
       const res = await fetch("/api/account/model-preferences", {
         method: "PUT",
@@ -185,20 +191,26 @@ export function ModelPicker({
                 </button>
               </div>
 
-              {/* Per-task selectors */}
-              <div className={mode === "auto" ? "pointer-events-none opacity-45" : ""}>
+              {/* Per-task selectors. The brain (Vibe / Vibe Max) is always
+                  selectable; per-asset generation models grey out in Auto. */}
+              <div>
                 {TASK_ORDER.map((task) => {
                   const options = data.models[task] ?? [];
                   if (options.length === 0) return null;
+                  const isBrain = task === "brain";
+                  const rowLocked = mode === "auto" && !isBrain;
                   const selected = choices[task] ?? options.find((o) => o.default)?.id ?? "";
                   const picked = options.find((o) => o.id === selected);
                   return (
-                    <div key={task} className="mb-3">
+                    <div
+                      key={task}
+                      className={`mb-3 ${rowLocked ? "pointer-events-none opacity-45" : ""}`}
+                    >
                       <div className="mb-1 flex items-baseline justify-between">
                         <label className="text-xs font-semibold text-[var(--color-fg)]">
                           {TASK_LABEL[task]}
                         </label>
-                        {mode === "auto" && (
+                        {rowLocked && (
                           <span className="text-[10px] text-[var(--color-fg-subtle)]">
                             Auto: {options.find((o) => o.default)?.label ?? "—"}
                           </span>
@@ -206,14 +218,15 @@ export function ModelPicker({
                       </div>
                       <select
                         value={selected}
-                        disabled={mode === "auto"}
+                        disabled={rowLocked}
                         onChange={(e) => setChoices((c) => ({ ...c, [task]: e.target.value }))}
                         className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-2)] px-2.5 py-2 text-xs text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]"
                       >
                         {options.map((o) => (
                           <option key={o.id} value={o.id} disabled={!o.configured}>
-                            {o.label} · {o.official ? "Official" : "Unofficial"} ·{" "}
-                            {tierLabel(o.costTier)}
+                            {isBrain
+                              ? o.label
+                              : `${o.label} · ${o.official ? "Official" : "Unofficial"} · ${tierLabel(o.costTier)}`}
                             {o.configured ? "" : " · needs setup"}
                           </option>
                         ))}

@@ -2,40 +2,25 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import { ALLOWED_TOOL_NAMES, MCP_SERVER_NAME, buildToolServer, type ToolContext } from "./tools";
 import { buildSystemPrompt, type BrandKitContext } from "./system-prompt";
 import { creditBalance, getCreditCosts } from "@/lib/billing/credits";
-import { listFiles } from "../storage/fs";
 import { assetSummaryLines } from "../storage/manifests";
 import { db } from "@/lib/db";
 import { creatorInsights, userPreferences, brandKits } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { captureException } from "@/lib/observability/sentry";
 import { captureEvent, FUNNEL } from "@/lib/observability/posthog";
-import { readModelPreferences, resolveModelForTask, type ModelPreferences } from "./model-prefs";
+import { readModelPreferences, resolveBrainModelId, type ModelPreferences } from "./model-prefs";
 
-// First-draft compositions need the strongest planner; incremental edits
-// route to Sonnet to cut cost ~3-4× without losing edit quality.
-const FIRST_DRAFT_MODEL = "claude-opus-4-8";
-const EDIT_MODEL = "claude-sonnet-4-6";
+// An explicit ANTHROPIC_MODEL still wins as an ops escape hatch, but it should
+// stay UNSET in production so the user's Vibe / Vibe Max choice drives the model.
 const MODEL_OVERRIDE = process.env.ANTHROPIC_MODEL;
 
-function pickModel(userId: string, projectId: string, prefs: ModelPreferences): string {
+// The brain the user talks to is presented as two tiers:
+//   Vibe     → Sonnet (default, standard credit cost)
+//   Vibe Max → Opus   (opt-in, costs more credits per edit)
+// The agent loop only runs on Claude models, so both tiers map to Claude.
+function pickModel(prefs: ModelPreferences): string {
   if (MODEL_OVERRIDE) return MODEL_OVERRIDE;
-  // The agent loop runs on the claude-agent-sdk, which only supports Claude
-  // models. In Manual mode, honor a Claude brain choice; a non-Claude brain
-  // pick (e.g. grok) can't drive this runtime, so we fall through to the
-  // auto first-draft/edit routing rather than failing.
-  if (prefs.mode === "manual") {
-    const chosen = resolveModelForTask("brain", prefs);
-    if (chosen && chosen.provider === "anthropic") return chosen.id;
-  }
-  try {
-    const files = listFiles(userId, projectId);
-    const hasComposition = files.some(
-      (path) => path === "index.html" || path.endsWith("/index.html"),
-    );
-    return hasComposition ? EDIT_MODEL : FIRST_DRAFT_MODEL;
-  } catch {
-    return FIRST_DRAFT_MODEL;
-  }
+  return resolveBrainModelId(prefs);
 }
 
 export type ToolResultImage = {
@@ -173,7 +158,7 @@ export async function runAgent(opts: {
     ? `Prior conversation context:\n${opts.priorHistory}\n\nNew user message:\n`
     : "";
   const modelPreferences = readModelPreferences(opts.ctx.userId);
-  const model = pickModel(opts.ctx.userId, opts.ctx.projectId, modelPreferences);
+  const model = pickModel(modelPreferences);
   const insights = loadUserInsights(opts.ctx.userId);
   const prefs = loadUserPrefs(opts.ctx.userId);
   const brandKit = loadBrandKit(opts.ctx.userId);

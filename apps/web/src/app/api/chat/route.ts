@@ -8,6 +8,8 @@ import { runAgent, type AgentEvent } from "@/lib/ai/agent";
 import { enqueue } from "@/lib/render/queue";
 import { getUserPlan, reserveUsage } from "@/lib/billing/usage";
 import { chargeCredits, creditCostOf } from "@/lib/billing/credits";
+import { VIBE_MAX_EDIT_MULTIPLIER } from "@/lib/billing/credit-costs";
+import { brainTier, readModelPreferences } from "@/lib/ai/model-prefs";
 import { upgradePaywall } from "@/lib/billing/paywall";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { captureException } from "@/lib/observability/sentry";
@@ -306,9 +308,12 @@ export async function POST(req: Request) {
     );
   }
 
-  // Spend unified credits for this AI edit request. Meter-only until
-  // BILLING_ENFORCE is set; then a user out of credits is asked to upgrade.
-  const editCharge = chargeCredits(userId, creditCostOf("edit"), "edit", { projectId });
+  // Spend unified credits for this AI edit request. Vibe Max (Opus) costs more
+  // than Vibe (Sonnet). Meter-only until BILLING_ENFORCE is set; then a user out
+  // of credits is asked to upgrade.
+  const tier = brainTier(readModelPreferences(userId));
+  const editCost = creditCostOf("edit") * (tier === "vibe-max" ? VIBE_MAX_EDIT_MULTIPLIER : 1);
+  const editCharge = chargeCredits(userId, editCost, "edit", { projectId, brain: tier });
   if (!editCharge.ok) {
     return Response.json(
       upgradePaywall("out_of_credits", {

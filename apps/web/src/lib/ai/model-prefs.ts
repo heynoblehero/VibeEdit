@@ -7,7 +7,16 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { userPreferences } from "@/lib/db/schema";
-import { defaultModelForTask, getModel, type ModelEntry, type ModelTask } from "./models";
+import {
+  type BrainTier,
+  brainTierOf,
+  defaultModelForTask,
+  getModel,
+  type ModelEntry,
+  type ModelTask,
+  VIBE_MAX_MODEL_ID,
+  VIBE_MODEL_ID,
+} from "./models";
 
 export type ModelMode = "auto" | "manual";
 
@@ -110,6 +119,21 @@ export function writeModelPreferences(userId: string, prefs: ModelPreferences): 
   } else {
     db.insert(userPreferences).values({ userId, modelPreferences: json, updatedAt: now }).run();
   }
+}
+
+/**
+ * The brain tier (Vibe vs Vibe Max) the user has chosen. Unlike the per-asset
+ * generation choices, the brain tier applies in BOTH Auto and Manual mode — it's
+ * a standalone quality/cost toggle, not part of the Auto/Manual split. Defaults
+ * to Vibe (the standard Sonnet brain).
+ */
+export function brainTier(prefs: ModelPreferences): BrainTier {
+  return brainTierOf(prefs.choices.brain);
+}
+
+/** Concrete brain model id for the user's tier: Vibe → Sonnet, Vibe Max → Opus. */
+export function resolveBrainModelId(prefs: ModelPreferences): string {
+  return brainTier(prefs) === "vibe-max" ? VIBE_MAX_MODEL_ID : VIBE_MODEL_ID;
 }
 
 /**

@@ -5,7 +5,13 @@ import {
   readModelPreferences,
   writeModelPreferences,
 } from "@/lib/ai/model-prefs";
-import { isModelConfigured, type ModelTask, MODELS } from "@/lib/ai/models";
+import {
+  brandLabel,
+  isModelConfigured,
+  type ModelTask,
+  MODELS,
+  VIBE_MAX_MODEL_ID,
+} from "@/lib/ai/models";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,15 +32,20 @@ function availableModelsByTask() {
   for (const task of ALL_TASKS) grouped[task] = [];
   for (const m of MODELS) {
     if (!m.enabled) continue;
+    // The agent brain only runs on Claude — hide non-Claude brains and present
+    // the Claude ones branded as Vibe / Vibe Max (never a raw model name).
+    const isBrain = m.task === "brain";
+    if (isBrain && m.provider !== "anthropic") continue;
+    const isVibeMax = m.id === VIBE_MAX_MODEL_ID;
     grouped[m.task].push({
       id: m.id,
-      label: m.label,
+      label: isBrain ? brandLabel(m) : m.label,
       task: m.task,
       provider: m.provider,
       official: m.official,
       default: m.default === true,
       costTier: m.costTier,
-      note: m.note,
+      note: isBrain && isVibeMax ? "Smartest brain — costs ~2× credits per edit." : m.note,
       configured: isModelConfigured(m),
     });
   }

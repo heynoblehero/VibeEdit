@@ -1532,7 +1532,7 @@ function buildCreditGuidance(credits?: SystemPromptContext["credits"]): string {
 Everything the user does spends credits from one balance. They currently have **${balance}**.
 
 Action costs:
-- AI edit (a request that changes the video): **${c.edit ?? 20} credits**
+- AI edit (a request that changes the video): **${c.edit ?? 20} credits** on Vibe (standard), ~2× on Vibe Max (the smartest brain)
 - Final render: **${c.render_30s ?? 10} credits per 30s** of output (draft/preview renders are FREE — iterate on drafts)
 - AI image: **${c.image ?? 2} credits** each
 - AI b-roll / video clip: **${c.broll ?? 15} credits** each (your most expensive action)

@@ -50,7 +50,6 @@ export const MODELS: ModelEntry[] = [
     provider: "anthropic",
     official: true,
     enabled: true,
-    default: true,
     costTier: 3,
     credentialEnv: "ANTHROPIC_API_KEY",
   },
@@ -61,6 +60,8 @@ export const MODELS: ModelEntry[] = [
     provider: "anthropic",
     official: true,
     enabled: true,
+    // Vibe (Sonnet) is the default brain — Vibe Max (Opus) is an opt-in upgrade.
+    default: true,
     costTier: 2,
     credentialEnv: "ANTHROPIC_API_KEY",
   },
@@ -248,6 +249,30 @@ export const MODELS: ModelEntry[] = [
 /** All enabled-or-not entries for a given task, in registry order. */
 export function modelsForTask(task: ModelTask): ModelEntry[] {
   return MODELS.filter((m) => m.task === task);
+}
+
+// ── Brain branding ──────────────────────────────────────────────────────────
+// Users never see raw model names. The agent brain is presented as two tiers:
+//   Vibe     → the standard brain (Sonnet). Fast, efficient, default.
+//   Vibe Max → the smartest brain (Opus). Opt-in, and it costs more credits per
+//              edit (it's a pricier model to run).
+export const VIBE_MODEL_ID = "claude-sonnet-4-6";
+export const VIBE_MAX_MODEL_ID = "claude-opus-4-8";
+
+export type BrainTier = "vibe" | "vibe-max";
+
+const BRAIN_BRAND: Record<string, string> = {
+  [VIBE_MODEL_ID]: "Vibe",
+  [VIBE_MAX_MODEL_ID]: "Vibe Max",
+};
+
+/** UI label for a model — branded name for the brain, real label otherwise. */
+export function brandLabel(model: Pick<ModelEntry, "id" | "label">): string {
+  return BRAIN_BRAND[model.id] ?? model.label;
+}
+
+export function brainTierOf(modelId: string | undefined): BrainTier {
+  return modelId === VIBE_MAX_MODEL_ID ? "vibe-max" : "vibe";
 }
 
 /** Look up a model by its stable id. */

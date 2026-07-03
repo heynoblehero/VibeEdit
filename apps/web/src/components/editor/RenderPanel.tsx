@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getMe, type PlanId } from "@/lib/billing/me-client";
+import { creditCostLabel } from "@/lib/billing/credit-costs";
 import { Paywall, isPaywall, type PaywallData } from "@/components/Paywall";
 import {
   renderOnClient,
@@ -545,6 +546,9 @@ export function RenderPanel({ projectId }: { projectId: string }) {
                 );
               })}
             </ul>
+            <div className="border-t border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-[10px] text-[var(--color-fg-muted)]">
+              Costs {creditCostLabel("render_30s")} of final video · drafts &amp; previews are free
+            </div>
           </div>
         )}
       </div>

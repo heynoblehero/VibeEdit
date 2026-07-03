@@ -37,6 +37,7 @@ import { defaultModelForTask, getModel, type ModelEntry, type ModelTask } from "
 import { readModelPreferences, resolveModelForTask } from "./model-prefs";
 import { resolveApiKey } from "@/lib/providers/pool";
 import { chargeGeneration } from "@/lib/billing/generation-pricing";
+import { creditBalance, getCreditCosts, type CreditAction } from "@/lib/billing/credits";
 import { nanoid } from "nanoid";
 import { safeFetch } from "../net/ssrf-guard";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from "node:fs";
@@ -2927,6 +2928,54 @@ export function buildToolServer(ctx: ToolContext) {
     },
   );
 
+  const estimateCreditsTool = tool(
+    "estimate_credits",
+    "Estimate the credit cost of a planned set of actions and compare it to the user's balance BEFORE doing them. Use this whenever you're about to render or generate assets so you can tell the user the rough cost first. Costs: edit (per request), render_30s (units = number of 30s blocks of final output, so a 90s render = 3 units; drafts are free — don't count them), image (each), broll (each — most expensive), voiceover_30s (units = 30s blocks), music (each). Captions/transcription are free.",
+    {
+      actions: z
+        .array(
+          z.object({
+            action: z.enum(["edit", "render_30s", "image", "broll", "voiceover_30s", "music"]),
+            units: z
+              .number()
+              .min(1)
+              .default(1)
+              .describe(
+                "Quantity, e.g. 3 for three images. For render_30s / voiceover_30s this is the number of 30-second blocks (ceil).",
+              ),
+          }),
+        )
+        .min(1)
+        .describe("The actions you plan to perform."),
+    },
+    async ({ actions }) => {
+      const costs = getCreditCosts();
+      let total = 0;
+      const lines = actions.map((item) => {
+        const units = Math.max(1, Math.ceil(item.units ?? 1));
+        const each = costs[item.action as CreditAction] ?? 0;
+        const subtotal = each * units;
+        total += subtotal;
+        return `- ${item.action} ×${units}: ${subtotal} cr`;
+      });
+      const balance = creditBalance(ctx.userId);
+      const balanceText =
+        balance.total === -1 ? "unlimited" : `${balance.total.toLocaleString()} credits`;
+      const warning =
+        balance.total !== -1 && total > balance.total
+          ? "\n⚠ This exceeds the user's balance — tell them and suggest a top-up or upgrade before proceeding."
+          : "";
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Estimated cost: ${total} credits\n${lines.join("\n")}\nUser balance: ${balanceText}.${warning}\n\nTell the user this rough cost before you proceed.`,
+          },
+        ],
+      };
+    },
+  );
+
   const xfadeEnum = z.enum([
     "fade",
     "fadeblack",
@@ -5353,6 +5402,7 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       autoGradeFilterTool,
       computeSegmentOffsetsTool,
       validateEdlTool,
+      estimateCreditsTool,
       renderEdlTool,
       probeClipTool,
       trimClipTool,
@@ -5433,6 +5483,7 @@ export const ALLOWED_TOOL_NAMES = [
   "auto_grade_filter",
   "compute_segment_offsets",
   "validate_edl",
+  "estimate_credits",
   "render_edl",
   "probe_clip",
   "trim_clip",

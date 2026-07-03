@@ -292,6 +292,12 @@ export type SystemPromptContext = {
   // Auto/Manual model selection — drives which generation models the agent
   // should pick (Auto) or which the user pinned (Manual).
   modelPreferences?: ModelPreferences;
+  // Credit awareness — the cost table + the user's current balance so the agent
+  // can quote costs before doing expensive actions.
+  credits?: {
+    costs: Record<string, number>;
+    balance: { monthly: number; used: number; total: number };
+  };
 };
 
 // Maps a model id to a one-line strength hint for the asset-planning guidance.
@@ -1508,5 +1514,34 @@ ${(() => {
     insights
       ? `\n# Creator memory — apply without being asked\n\nThis creator has saved preferences. Apply them automatically unless the user overrides:\n\n${insights}\n`
       : ""
-  }${modelPreferences ? buildModelGuidance(modelPreferences) : ""}`;
+  }${modelPreferences ? buildModelGuidance(modelPreferences) : ""}${buildCreditGuidance(ctx.credits)}`;
+}
+
+// Credit awareness: tell the agent what each action costs and how many credits
+// the user has, so it can quote a rough cost before doing expensive work and
+// warn when the balance is low. Costs come from the live cost table.
+function buildCreditGuidance(credits?: SystemPromptContext["credits"]): string {
+  if (!credits) return "";
+  const c = credits.costs;
+  const balance =
+    credits.balance.total === -1
+      ? "unlimited"
+      : `${credits.balance.total.toLocaleString()} credits left (of ${credits.balance.monthly.toLocaleString()}/mo)`;
+  return `\n# Credits — quote costs before spending
+
+Everything the user does spends credits from one balance. They currently have **${balance}**.
+
+Action costs:
+- AI edit (a request that changes the video): **${c.edit ?? 20} credits**
+- Final render: **${c.render_30s ?? 10} credits per 30s** of output (draft/preview renders are FREE — iterate on drafts)
+- AI image: **${c.image ?? 2} credits** each
+- AI b-roll / video clip: **${c.broll ?? 15} credits** each (your most expensive action)
+- AI voiceover: **${c.voiceover_30s ?? 5} credits per 30s**
+- AI music track: **${c.music ?? 8} credits**
+- Auto-captions & transcription: FREE
+
+Rules:
+- Before a plan that will cost a meaningful chunk (a render, or any generation, or multiple), tell the user the rough total first, e.g. "This will cost ~65 credits (1 edit + 90s render + 3 images)." Use estimate_credits to compute exact totals when planning several actions.
+- Prefer the cheapest path that still hits the quality bar: draft renders while iterating, stock footage over generated b-roll when it fits, fewer generations.
+- If their balance is low relative to the plan, say so and suggest a top-up or upgrade before burning it. Never silently exhaust their credits.`;
 }

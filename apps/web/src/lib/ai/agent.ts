@@ -1,6 +1,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { ALLOWED_TOOL_NAMES, MCP_SERVER_NAME, buildToolServer, type ToolContext } from "./tools";
 import { buildSystemPrompt, type BrandKitContext } from "./system-prompt";
+import { creditBalance, getCreditCosts } from "@/lib/billing/credits";
 import { listFiles } from "../storage/fs";
 import { assetSummaryLines } from "../storage/manifests";
 import { db } from "@/lib/db";
@@ -219,6 +220,13 @@ export async function runAgent(opts: {
           formatPreference: prefs.formatPreference,
           postFrequency: prefs.postFrequency,
           modelPreferences,
+          credits: (() => {
+            const balance = creditBalance(opts.ctx.userId);
+            return {
+              costs: getCreditCosts(),
+              balance: { monthly: balance.monthly, used: balance.used, total: balance.total },
+            };
+          })(),
         }),
         model,
         mcpServers: { [MCP_SERVER_NAME]: server },
@@ -363,6 +371,7 @@ const TOOL_LABELS: Record<string, string> = {
   auto_grade_filter: "Color grading",
   compute_segment_offsets: "Computing cut points",
   validate_edl: "Checking the edit",
+  estimate_credits: "Estimating credit cost",
   probe_clip: "Inspecting the clip",
   trim_clip: "Trimming the clip",
   concat_clips: "Joining clips",

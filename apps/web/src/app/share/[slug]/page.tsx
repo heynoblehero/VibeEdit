@@ -126,10 +126,10 @@ export default async function PublicShare({ params }: PageProps) {
             href="/app/signup"
             className="inline-block rounded-md bg-[var(--color-accent)] px-6 py-3 font-semibold text-black hover:opacity-90"
           >
-            Start free — no card required
+            Start your 7-day free trial
           </Link>
           <div className="mt-2 text-xs text-[var(--color-fg-muted)]">
-            $1 trial on paid plans · cancel any time
+            7-day trial on every plan · cancel any time
           </div>
         </div>
       </section>

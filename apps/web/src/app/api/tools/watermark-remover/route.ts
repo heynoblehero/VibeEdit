@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { getServerSession } from "@/lib/server-session";
+import { slidingWindowCheck } from "@/lib/rate-limit";
 import {
   clientIpFrom,
   checkToolQuota,
@@ -38,9 +39,24 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const ip = clientIpFrom(req);
+
+  // Burst rate limit (per-minute) — enforced here, NOT in middleware: Edge
+  // middleware in front of a multipart POST breaks req.formData() in Next 15.
+  const burst = slidingWindowCheck(`tools:${ip}`, {
+    limit: Number(process.env.RL_TOOLS_PER_MIN || 6),
+    windowSec: 60,
+  });
+  if (!burst.ok) {
+    return Response.json(
+      { error: `Too many requests. Retry in ${burst.retryAfterSec}s.` },
+      { status: 429, headers: { "retry-after": String(burst.retryAfterSec) } },
+    );
+  }
+
   const session = await getServerSession().catch(() => null);
   const authed = !!session;
-  const key = authed ? `wm:user:${session!.user.id}` : `wm:ip:${clientIpFrom(req)}`;
+  const key = authed ? `wm:user:${session!.user.id}` : `wm:ip:${ip}`;
   const limit = authed ? USER_DAILY : ANON_DAILY;
 
   // Quota (reserve). Anonymous outputs get our badge; signed-in don't.

@@ -66,13 +66,11 @@ const RULES: Record<string, Rule> = {
     group: "search",
     limit: { limit: num("RL_SEARCH_PER_MIN", 30), windowSec: 60 },
   },
-  // /api/tools — public free-tool uploads (anonymous ffmpeg processing). Burst
-  // limit on top of the per-day quota the route enforces itself.
-  "/api/tools": {
-    methods: new Set(["POST"]),
-    group: "tools",
-    limit: { limit: num("RL_TOOLS_PER_MIN", 6), windowSec: 60 },
-  },
+  // NOTE: /api/tools is deliberately NOT here. Those routes take a multipart
+  // upload, and running Edge middleware in front of a multipart POST breaks the
+  // Node route's request.formData() in Next 15 ("expected multipart form data").
+  // The burst limit for tool uploads is enforced IN the route instead, on top
+  // of its own per-day quota.
   // /api/auth — POST = sign-in/sign-up/reset → sends verification emails &
   // hashes passwords. Limit POST only; GET (get-session) is called constantly
   // by the app and must never be throttled.
@@ -187,7 +185,6 @@ export const config = {
     "/api/chat/:path*",
     "/api/render/:path*",
     "/api/search/:path*",
-    "/api/tools/:path*",
     "/api/auth/:path*",
     "/api/waitlist/:path*",
     "/api/support/:path*",

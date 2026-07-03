@@ -85,7 +85,7 @@ export default function Home() {
                 href="/app/signup"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--color-accent)] px-8 py-4 text-base font-semibold text-black shadow-lg shadow-[var(--color-accent)]/20 transition-all hover:-translate-y-0.5 hover:opacity-95 hover:shadow-xl hover:shadow-[var(--color-accent)]/30"
               >
-                Make your first video — free
+                Start your 7-day free trial
                 <svg
                   width="15"
                   height="15"
@@ -102,7 +102,7 @@ export default function Home() {
               </Link>
             </div>
             <p className="mt-4 text-xs text-[var(--color-fg-subtle)]">
-              Free to start · runs in your browser, no install · no editing skills needed
+              7-day trial · runs in your browser, no install · no editing skills needed
             </p>
           </div>
 
@@ -356,55 +356,55 @@ export default function Home() {
               Pricing
             </p>
             <h2 className="text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight">
-              Start for free.
+              Every tool. Every tier.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-[var(--color-fg-muted)]">
-              Every plan includes the full agent — edit footage or build from scratch.
+              The full editor is unlocked on every plan — 4K, no watermark, every AI tool. One
+              credit currency powers every action. Pick your monthly volume. 7-day trial on all
+              plans.
             </p>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <PricingCard
-              name="Free"
-              price="$0"
-              sub="Forever free"
+              name="Starter"
+              price="$39"
+              sub="per month · 7-day trial"
               features={[
-                "10 renders / month",
-                "Unlimited AI chat",
-                "480p export · watermark",
-                "Footage editing (trim, grade, captions)",
-                "Motion graphics from scratch",
+                "1,000 credits / month",
+                "The full editor — nothing gated",
+                "4K exports · no watermark",
+                "AI edits, images, b-roll, voiceover & music",
+                "Top-up credits any time",
               ]}
-              cta={{ label: "Sign up free", href: "/app/signup" }}
+              cta={{ label: "Start 7-day trial", href: "/app/signup?plan=creator" }}
             />
             <PricingCard
-              name="Creator"
-              price="$19"
+              name="Pro"
+              price="$99"
               sub="per month · most popular"
               highlight
               features={[
-                "100 renders / month",
-                "1,000 AI messages / month",
-                "1080p · no watermark",
-                "Full footage editing + auto-grade",
-                "Local render worker (faster)",
-                "Email support",
+                "3,000 credits / month",
+                "The full editor — nothing gated",
+                "4K exports · no watermark",
+                "3× the volume for serious output",
+                "Top-up credits any time",
               ]}
-              cta={{ label: "Start $1 trial", href: "/app/signup?plan=creator" }}
+              cta={{ label: "Start 7-day trial", href: "/app/signup?plan=pro" }}
             />
             <PricingCard
               name="Studio"
-              price="$49"
-              sub="per month"
+              price="$149"
+              sub="per month · 7-day trial"
               features={[
-                "Unlimited renders",
-                "Unlimited AI messages",
-                "4K · priority queue",
-                "Brand kits (logo, colors, host)",
-                "−14 LUFS loudness normalization",
-                "Priority support",
+                "5,000 credits / month",
+                "The full editor — nothing gated",
+                "4K exports · priority render queue",
+                "Highest volume",
+                "Top-up credits any time",
               ]}
-              cta={{ label: "Start $1 trial", href: "/app/signup?plan=studio" }}
+              cta={{ label: "Start 7-day trial", href: "/app/signup?plan=studio" }}
             />
           </div>
         </div>
@@ -469,7 +469,7 @@ export default function Home() {
           />
           <Faq
             q="Do I have to install anything?"
-            a="No. Free tier renders in the cloud. Paid plans add an optional local worker for faster renders."
+            a="No. Everything renders in the cloud, right in your browser. Paid plans can add an optional local worker for faster renders."
           />
           <Faq
             q="What if the AI gets it wrong?"

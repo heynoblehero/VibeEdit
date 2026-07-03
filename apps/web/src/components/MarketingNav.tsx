@@ -82,7 +82,7 @@ export function MarketingNav() {
                 href="/app/signup"
                 className="ml-2 rounded-lg bg-[var(--color-accent)] px-4 py-2 font-semibold text-black transition-opacity hover:opacity-90"
               >
-                Start free
+                Start free trial
               </Link>
             </>
           )}
@@ -102,7 +102,7 @@ export function MarketingNav() {
               href="/app/signup"
               className="rounded-lg bg-[var(--color-accent)] px-3 py-2 text-sm font-semibold text-black"
             >
-              Start free
+              Start free trial
             </Link>
           )}
           <button
@@ -186,7 +186,7 @@ export function MarketingNav() {
               onClick={() => setOpen(false)}
               className="mt-auto rounded-xl bg-[var(--color-accent)] px-4 py-3.5 text-center font-semibold text-black"
             >
-              {session ? "Open app →" : "Start free — $1 trial on paid plans"}
+              {session ? "Open app →" : "Start your 7-day free trial"}
             </Link>
           </div>
         </div>

@@ -6,8 +6,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { signUp, useSession } from "@/lib/auth-client";
 
 const PLAN_LABELS: Record<string, string> = {
-  creator: "Creator · $19/mo",
-  studio: "Studio · $49/mo",
+  creator: "Starter · $39/mo",
+  pro: "Pro · $99/mo",
+  studio: "Studio · $149/mo",
 };
 
 function SignupForm() {
@@ -105,7 +106,7 @@ function SignupForm() {
         </div>
 
         <p className="text-xs text-[var(--color-fg-muted)]">
-          © 2026 VibeEdit · No credit card on free plan
+          © 2026 VibeEdit · 7-day trial on every plan · cancel anytime
         </p>
       </div>
 
@@ -119,7 +120,7 @@ function SignupForm() {
             <p className="mt-1 text-sm text-[var(--color-fg-muted)]">
               {planLabel
                 ? "You'll be redirected to checkout after signup."
-                : "Free plan — no credit card required."}
+                : "Every plan starts with a 7-day trial."}
             </p>
           </div>
 
@@ -243,15 +244,10 @@ function SignupForm() {
 
 function PlanCompare() {
   const rows = [
-    { feature: "Renders / month", free: "5 (watermarked)", creator: "100", studio: "Unlimited" },
-    { feature: "Resolution", free: "720p", creator: "1080p", studio: "4K" },
-    {
-      feature: "Agent messages",
-      free: "50 / mo",
-      creator: "1,000 / mo",
-      studio: "Unlimited",
-    },
-    { feature: "Brand kit", free: "—", creator: "—", studio: "✓" },
+    { feature: "Price / month", starter: "$39", pro: "$99", studio: "$149" },
+    { feature: "Credits / month", starter: "1,000", pro: "3,000", studio: "5,000" },
+    { feature: "Full editor · 4K · no watermark", starter: "✓", pro: "✓", studio: "✓" },
+    { feature: "Trial", starter: "7-day", pro: "7-day", studio: "7-day" },
   ];
 
   return (
@@ -260,10 +256,10 @@ function PlanCompare() {
         <thead>
           <tr className="border-b border-[var(--color-border)] bg-[var(--color-bg-2)]">
             <th className="px-3 py-2 text-left font-medium text-[var(--color-fg-muted)]" />
-            <th className="px-3 py-2 text-center font-medium text-[var(--color-fg-muted)]">Free</th>
-            <th className="px-3 py-2 text-center font-semibold text-[var(--color-accent)]">
-              Creator
+            <th className="px-3 py-2 text-center font-medium text-[var(--color-fg-muted)]">
+              Starter
             </th>
+            <th className="px-3 py-2 text-center font-semibold text-[var(--color-accent)]">Pro</th>
             <th className="px-3 py-2 text-center font-medium text-[var(--color-fg-muted)]">
               Studio
             </th>
@@ -273,9 +269,9 @@ function PlanCompare() {
           {rows.map((row) => (
             <tr key={row.feature} className="border-b border-[var(--color-border)] last:border-0">
               <td className="px-3 py-2 text-[var(--color-fg-muted)]">{row.feature}</td>
-              <td className="px-3 py-2 text-center text-[var(--color-fg-muted)]">{row.free}</td>
+              <td className="px-3 py-2 text-center text-[var(--color-fg-muted)]">{row.starter}</td>
               <td className="bg-[var(--color-accent)]/5 px-3 py-2 text-center font-medium text-[var(--color-fg)]">
-                {row.creator}
+                {row.pro}
               </td>
               <td className="px-3 py-2 text-center text-[var(--color-fg-muted)]">{row.studio}</td>
             </tr>

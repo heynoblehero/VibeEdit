@@ -8,7 +8,8 @@ export type PaywallReason =
   | "render_limit_reached"
   | "render_minutes_exhausted"
   | "cloud_render_exhausted"
-  | "chat_limit_reached";
+  | "chat_limit_reached"
+  | "out_of_credits";
 
 export type PaywallResponse = {
   // Discriminator the client checks to decide whether to show the upgrade
@@ -43,15 +44,19 @@ export function upgradePaywall(
   const unlocksByPlan: Record<PlanId, string[]> = {
     free: [],
     creator: [
-      `${PLANS.creator.renderLimit} renders / month`,
-      "1080p exports with no watermark",
-      "1,000 AI messages / month",
-      "Local render worker (unmetered cloud time)",
+      `${PLANS.creator.creditsPerMonth.toLocaleString()} credits / month`,
+      "The full editor — 4K exports, no watermark",
+      "Every AI tool: edits, images, b-roll, voiceover, music",
+    ],
+    pro: [
+      `${PLANS.pro.creditsPerMonth.toLocaleString()} credits / month`,
+      "The full editor — 4K exports, no watermark",
+      "3× the volume for serious output",
     ],
     studio: [
-      "Unlimited renders & AI messages",
-      "4K · priority render queue",
-      "Brand kit (logo, colors, locked host persona)",
+      `${PLANS.studio.creditsPerMonth.toLocaleString()} credits / month`,
+      "The full editor — 4K exports, no watermark",
+      "Highest volume · priority render queue",
     ],
   };
 
@@ -75,6 +80,11 @@ export function upgradePaywall(
       title: "You've reached your AI message limit",
       message:
         "You've used every AI message on your plan this month. Upgrade to keep building and editing by chat.",
+    },
+    out_of_credits: {
+      title: "You're out of credits",
+      message:
+        "You've spent all your credits for this month. Upgrade your plan or grab a top-up pack to keep editing, rendering, and generating.",
     },
   };
 

@@ -10,6 +10,7 @@ import { EventEmitter } from "node:events";
 import { sendEmail } from "../email/send";
 import { renderDoneEmail, renderFailedEmail } from "../email/templates";
 import { recordUsage, getUserPlan } from "../billing/usage";
+import { chargeCredits, creditCostOf } from "../billing/credits";
 import { logError } from "../observability/logger";
 import { captureException } from "../observability/sentry";
 import { captureEvent, FUNNEL } from "../observability/posthog";
@@ -200,6 +201,12 @@ async function runJob(job: Job) {
     });
     recordUsage(job.userId, "render_minutes", Math.ceil(durationSeconds / 60), {
       jobId: job.id,
+    });
+    // Spend the unified credit balance for the finished render (per 30s of
+    // output). Meter-only until BILLING_ENFORCE is set.
+    chargeCredits(job.userId, creditCostOf("render_30s", durationSeconds / 30), "render", {
+      jobId: job.id,
+      durationSeconds,
     });
     emitJob(job.id, { status: "done", progress: 1, outputPath });
     // Funnel: completes the render_started → render_succeeded leg (the seam the

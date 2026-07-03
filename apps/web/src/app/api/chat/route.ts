@@ -7,6 +7,7 @@ import { requireServerSession } from "@/lib/server-session";
 import { runAgent, type AgentEvent } from "@/lib/ai/agent";
 import { enqueue } from "@/lib/render/queue";
 import { getUserPlan, reserveUsage } from "@/lib/billing/usage";
+import { chargeCredits, creditCostOf } from "@/lib/billing/credits";
 import { upgradePaywall } from "@/lib/billing/paywall";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { captureException } from "@/lib/observability/sentry";
@@ -300,6 +301,19 @@ export async function POST(req: Request) {
       upgradePaywall("chat_limit_reached", {
         used: chatReservation.used,
         limit: chatReservation.limit,
+      }),
+      { status: 402 },
+    );
+  }
+
+  // Spend unified credits for this AI edit request. Meter-only until
+  // BILLING_ENFORCE is set; then a user out of credits is asked to upgrade.
+  const editCharge = chargeCredits(userId, creditCostOf("edit"), "edit", { projectId });
+  if (!editCharge.ok) {
+    return Response.json(
+      upgradePaywall("out_of_credits", {
+        used: editCharge.balance.used,
+        limit: editCharge.balance.monthly,
       }),
       { status: 402 },
     );

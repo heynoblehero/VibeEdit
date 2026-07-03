@@ -6,15 +6,16 @@
 // outside of an explicit Polar webhook event. Clients can call refreshMe()
 // after a checkout return to force a refetch.
 
-export type PlanId = "free" | "creator" | "studio";
+export type PlanId = "free" | "creator" | "pro" | "studio";
 
 export type BillingMe = {
   plan: {
     id: PlanId;
     name: string;
+    creditsPerMonth: number;
     renderLimit: number;
     chatTurnLimit: number;
-    resolution: "720p" | "1080p" | "4k";
+    resolution: "480p" | "720p" | "1080p" | "4k";
     watermark: boolean;
   };
   subscription: {
@@ -27,6 +28,14 @@ export type BillingMe = {
   usage: {
     renders: { used: number; limit: number };
     chatTurns: { used: number; limit: number };
+  };
+  // Unified credit balance (present once the credits model is live).
+  credits?: {
+    monthly: number;
+    used: number;
+    topups: number;
+    remaining: number;
+    total: number;
   };
 };
 

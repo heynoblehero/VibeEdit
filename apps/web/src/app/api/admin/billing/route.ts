@@ -9,7 +9,7 @@ import { PLANS, type PlanId } from "@/lib/billing/plans";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const VALID_PLANS: PlanId[] = ["free", "creator", "studio"];
+const VALID_PLANS: PlanId[] = ["free", "creator", "pro", "studio"];
 
 // Auth: requireAdmin(). Billing overview — active subs by plan, MRR estimate,
 // trials, and rows whose status indicates a payment problem.

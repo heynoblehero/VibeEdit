@@ -258,11 +258,8 @@ export function RenderPanel({ projectId }: { projectId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submitting, activeJobId, presetIndex, projectId]);
 
-  function planMeets(
-    current: "free" | "creator" | "studio",
-    required: "creator" | "studio",
-  ): boolean {
-    const order = { free: 0, creator: 1, studio: 2 } as const;
+  function planMeets(current: PlanId, required: "creator" | "studio"): boolean {
+    const order = { free: 0, creator: 1, pro: 2, studio: 3 } as const;
     return order[current] >= order[required];
   }
 

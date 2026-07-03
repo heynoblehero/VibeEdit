@@ -13,7 +13,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { platformSettings } from "@/lib/db/schema";
-import { reserveUsage, getUsage, getUserPlan } from "./usage";
+import { chargeCredits, creditBalance } from "./credits";
 import type { PlanId } from "./plans";
 import type { ModelEntry } from "@/lib/ai/models";
 
@@ -26,9 +26,13 @@ export type GenerationPricing = {
   costByTier: { 1: number; 2: number; 3: number };
 };
 
+// creditsByPlan is legacy (generation now spends the unified credit balance —
+// see chargeGeneration below); kept in sync with plans.ts so any code still
+// reading it is sane. costByTier still defines a generation's credit cost:
+// tier 1 (cheap) ≈ image, tier 3 (premium) ≈ b-roll/video-gen.
 export const DEFAULT_GENERATION_PRICING: GenerationPricing = {
-  creditsByPlan: { free: 30, creator: 500, studio: -1 },
-  costByTier: { 1: 1, 2: 3, 3: 8 },
+  creditsByPlan: { free: 0, creator: 1000, pro: 3000, studio: 5000 },
+  costByTier: { 1: 2, 2: 8, 3: 15 },
 };
 
 export function getGenerationPricing(): GenerationPricing {
@@ -65,30 +69,29 @@ export function generationCreditCost(model: ModelEntry): number {
 }
 
 /**
- * Reserve credits for one generation. Race-safe via reserveUsage. Returns
- * { ok:false, ... } when the user is out of monthly credits — the caller should
- * surface a friendly upgrade message rather than proceed.
+ * Charge one generation against the UNIFIED credit balance. The credit cost is
+ * the model's cost-tier value (cheap image ≈ 2, premium b-roll ≈ 15). Race-safe
+ * and meter-only until BILLING_ENFORCE is set. Returns { ok:false, ... } when
+ * credits are exhausted so the caller surfaces a friendly upgrade message.
+ * `used`/`limit` reflect the credit balance for existing UI copy.
  */
 export function chargeGeneration(
   userId: string,
   model: ModelEntry,
 ): { ok: boolean; used: number; limit: number; cost: number } {
-  const pricing = getGenerationPricing();
-  const plan = getUserPlan(userId);
-  const limit = pricing.creditsByPlan[plan.id] ?? DEFAULT_GENERATION_PRICING.creditsByPlan.free;
-  const cost = pricing.costByTier[model.costTier] ?? model.costTier;
-  const res = reserveUsage(
-    userId,
-    "generation",
-    limit,
-    { provider: model.provider, id: model.id },
+  const cost = generationCreditCost(model);
+  const res = chargeCredits(userId, cost, `generation:${model.provider}/${model.id}`, {
+    costTier: model.costTier,
+  });
+  return {
+    ok: res.ok,
+    used: res.balance.used,
+    limit: res.balance.monthly,
     cost,
-  );
-  return { ok: res.ok, used: res.used, limit: res.limit, cost };
+  };
 }
 
 export function getGenerationUsage(userId: string): { used: number; limit: number } {
-  const pricing = getGenerationPricing();
-  const plan = getUserPlan(userId);
-  return { used: getUsage(userId, "generation"), limit: pricing.creditsByPlan[plan.id] ?? 0 };
+  const balance = creditBalance(userId);
+  return { used: balance.used, limit: balance.monthly };
 }

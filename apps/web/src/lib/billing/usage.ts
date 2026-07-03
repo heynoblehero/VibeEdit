@@ -43,7 +43,11 @@ export type UsageKind =
   | "chat_turn"
   | "cloud_render_seconds"
   | "render_minutes"
-  | "generation";
+  | "generation"
+  // Unified credit currency (lib/billing/credits.ts) — the balance every
+  // action now spends against. The other kinds remain for legacy per-action
+  // metering + analytics, but credits are the real limit.
+  | "credit";
 
 // Free-tier cap on render time consumed by our cloud (i.e. by users who have
 // not installed the local worker). Once exhausted, we hard-block and tell

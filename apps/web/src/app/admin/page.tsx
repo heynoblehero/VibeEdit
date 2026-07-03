@@ -508,9 +508,10 @@ function GrantPlan({ userId, current }: { userId: string; current: string }) {
           onChange={(e) => setPlan(e.target.value)}
           className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] px-3 py-2 text-sm"
         >
-          <option value="free">Free</option>
-          <option value="creator">Creator</option>
-          <option value="studio">Studio</option>
+          <option value="free">Locked (no plan)</option>
+          <option value="creator">Starter · $39</option>
+          <option value="pro">Pro · $99</option>
+          <option value="studio">Studio · $149</option>
         </select>
         <button
           type="button"

@@ -22,7 +22,7 @@ type Credential = {
   disabledReason: string | null;
 };
 type Pricing = {
-  creditsByPlan: { free: number; creator: number; studio: number };
+  creditsByPlan: { free: number; creator: number; pro: number; studio: number };
   costByTier: { 1: number; 2: number; 3: number };
 };
 type Data = { providers: ProviderMeta[]; credentials: Credential[]; pricing: Pricing };
@@ -288,7 +288,7 @@ function PricingEditor({
           <div className="mb-1 text-[11px] uppercase text-[var(--color-fg-subtle)]">
             Credits / month
           </div>
-          {(["free", "creator", "studio"] as const).map((plan) => (
+          {(["free", "creator", "pro", "studio"] as const).map((plan) => (
             <label key={plan} className="mb-1 flex items-center gap-2 text-sm">
               <span className="w-16 capitalize">{plan}</span>
               <input

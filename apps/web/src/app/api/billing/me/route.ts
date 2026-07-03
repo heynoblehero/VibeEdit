@@ -11,6 +11,7 @@ import {
   getUserPlan,
 } from "@/lib/billing/usage";
 import { PLANS } from "@/lib/billing/plans";
+import { creditBalance } from "@/lib/billing/credits";
 
 export async function GET() {
   const session = await requireServerSession().catch((r) => r);
@@ -35,6 +36,8 @@ export async function GET() {
       renderMinutes: { used: renderMinutesUsed, limit: plan.renderMinuteLimit },
     },
     renderCredits: getRenderCredits(userId),
+    // Unified credit balance — the real spend limit users see in-app.
+    credits: creditBalance(userId),
     availablePlans: Object.values(PLANS),
   });
 }

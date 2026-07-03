@@ -21,28 +21,9 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { platformSettings, subscriptions } from "@/lib/db/schema";
 import { getUserPlan, getUsage, getRenderCredits, recordUsage, reserveUsage } from "./usage";
+import { type CreditAction, type CreditCosts, DEFAULT_CREDIT_COSTS } from "./credit-costs";
 
-export type CreditAction =
-  | "edit" // one AI edit request (a user message that does work)
-  | "render_30s" // final render, per 30s of output (drafts are free)
-  | "image" // one AI image generation
-  | "broll" // one AI b-roll / video-gen clip
-  | "voiceover_30s" // AI voiceover, per 30s
-  | "music"; // one AI music track
-
-export type CreditCosts = Record<CreditAction, number>;
-
-// Defaults calibrated to ~1¢ real cost per credit. Editable from the admin
-// panel; the "generation" cost-tier map lives here too so all generation
-// routes through the same currency.
-export const DEFAULT_CREDIT_COSTS: CreditCosts = {
-  edit: 20,
-  render_30s: 10,
-  image: 2,
-  broll: 15,
-  voiceover_30s: 5,
-  music: 8,
-};
+export { type CreditAction, type CreditCosts, DEFAULT_CREDIT_COSTS };
 
 const COSTS_KEY = "creditCosts";
 

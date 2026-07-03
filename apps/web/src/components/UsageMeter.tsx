@@ -5,9 +5,18 @@ import Link from "next/link";
 
 type Metric = { used: number; limit: number };
 
+type CreditInfo = {
+  monthly: number;
+  used: number;
+  topups: number;
+  remaining: number;
+  total: number;
+};
+
 type BillingInfo = {
   plan: { id: string; name: string };
   health?: { status: string; pastDue: boolean };
+  credits?: CreditInfo;
   usage: {
     renders: Metric;
     chatTurns: Metric;
@@ -50,8 +59,13 @@ export function UsageMeter({ compact = false }: { compact?: boolean }) {
 
   if (!info) return null;
   const { renders } = info.usage;
+  const credits = info.credits;
+  // Credits are the real currency now — drive the nudges off the credit balance
+  // when present, falling back to the legacy render/chat metrics otherwise.
+  const creditPct =
+    credits && credits.monthly > 0 ? Math.min(100, (credits.used / credits.monthly) * 100) : null;
   const tightest = tightestMetric(info.usage);
-  const pct = tightest.pct;
+  const pct = creditPct ?? tightest.pct;
   // 80% "you're getting close" nudge; 100% = at the wall.
   const warn = pct >= 80 && pct < 100;
   const atLimit = pct >= 100;
@@ -78,7 +92,9 @@ export function UsageMeter({ compact = false }: { compact?: boolean }) {
         title={
           pastDue
             ? "Payment failed — update your card to keep your plan"
-            : `${info.plan.name} plan — ${renders.used} of ${renders.limit === -1 ? "∞" : renders.limit} renders this month`
+            : credits
+              ? `${info.plan.name} plan — ${credits.total.toLocaleString()} credits left`
+              : `${info.plan.name} plan — ${renders.used} of ${renders.limit === -1 ? "∞" : renders.limit} renders this month`
         }
       >
         <span className="font-mono text-[9px] font-bold tracking-wider text-[var(--color-fg-subtle)]">
@@ -88,6 +104,10 @@ export function UsageMeter({ compact = false }: { compact?: boolean }) {
         {pastDue ? (
           <span className="font-mono text-[10px] font-semibold text-[var(--color-accent-2)]">
             Payment failed
+          </span>
+        ) : credits ? (
+          <span className={`font-mono text-[10px] ${accent}`} title="Credits remaining">
+            {credits.total === -1 ? "∞" : credits.total.toLocaleString()} cr
           </span>
         ) : (
           <span className={`font-mono text-[10px] ${accent}`}>
@@ -127,11 +147,35 @@ export function UsageMeter({ compact = false }: { compact?: boolean }) {
         </Link>
       </div>
 
-      <MeterRow label="Renders this month" metric={info.usage.renders} />
-      {info.usage.renderMinutes && (
-        <MeterRow label="Render minutes" metric={info.usage.renderMinutes} suffix="min" />
+      {credits ? (
+        <>
+          <MeterRow
+            label="Credits this month"
+            metric={{ used: credits.used, limit: credits.monthly }}
+            suffix="cr"
+          />
+          <div className="mb-2 flex items-center justify-between text-xs text-[var(--color-fg-muted)]">
+            <span>
+              {credits.total === -1 ? "∞" : credits.total.toLocaleString()} credits left
+              {credits.topups > 0 ? ` · +${credits.topups.toLocaleString()} top-up` : ""}
+            </span>
+            <Link
+              href="/app/billing#credits"
+              className="rounded border border-[var(--color-border)] px-2 py-0.5 hover:bg-[var(--color-bg)]"
+            >
+              Buy credits
+            </Link>
+          </div>
+        </>
+      ) : (
+        <>
+          <MeterRow label="Renders this month" metric={info.usage.renders} />
+          {info.usage.renderMinutes && (
+            <MeterRow label="Render minutes" metric={info.usage.renderMinutes} suffix="min" />
+          )}
+          <MeterRow label="AI messages" metric={info.usage.chatTurns} />
+        </>
       )}
-      <MeterRow label="AI messages" metric={info.usage.chatTurns} />
 
       {/* 80% nudge + one-click upgrade. Hidden once they're already paying the
           top tier (no -1 metric in tightest means a real limit is in play). */}
@@ -142,8 +186,8 @@ export function UsageMeter({ compact = false }: { compact?: boolean }) {
         >
           <span>
             {atLimit
-              ? "You've hit a limit — upgrade to keep going"
-              : "You're at " + Math.round(pct) + "% — upgrade for more"}
+              ? "You're out of credits — upgrade or buy a top-up"
+              : "You're at " + Math.round(pct) + "% of your credits — top up or upgrade"}
           </span>
           <span aria-hidden>→</span>
         </Link>

@@ -30,6 +30,7 @@ export function isPolarConfigured(): boolean {
 
 export function getPolarProductId(planId: string): string | null {
   if (planId === "creator") return process.env.POLAR_PRODUCT_CREATOR || null;
+  if (planId === "pro") return process.env.POLAR_PRODUCT_PRO || null;
   if (planId === "studio") return process.env.POLAR_PRODUCT_STUDIO || null;
   return null;
 }

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { validateEvent, WebhookVerificationError } from "@polar-sh/sdk/webhooks";
 import { db } from "@/lib/db";
 import { subscriptions, processedWebhooks } from "@/lib/db/schema";
 import { PLANS, type PlanId } from "@/lib/billing/plans";
+import { getOrCreateSubscription } from "@/lib/billing/usage";
 import { logError } from "@/lib/observability/logger";
 import { captureException } from "@/lib/observability/sentry";
 import { captureEvent, FUNNEL } from "@/lib/observability/posthog";
@@ -47,6 +48,33 @@ type PolarSubscription = {
 // isn't instantly downgraded on a transient decline — Polar retries) but the
 // "past_due"/"unpaid" status drives the dunning banner via getBillingHealth().
 const PAST_DUE_STATUSES = new Set(["past_due", "unpaid"]);
+
+// One-time order payload (credit top-up purchases). Polar copies the checkout
+// metadata onto the order, so userId + credits ride along.
+type PolarOrder = {
+  id: string;
+  customerId?: string;
+  productId?: string;
+  metadata?: Record<string, string | number | boolean>;
+  product?: { metadata?: Record<string, string | number | boolean> };
+};
+
+// Grant top-up credits from a paid one-time order. Guarded to kind==="topup"
+// so the initial subscription order (which also fires order.paid) is ignored.
+function applyTopupFromOrder(order: PolarOrder): void {
+  if (order.metadata?.kind !== "topup") return;
+  const userId = order.metadata?.userId as string | undefined;
+  const credits = Number(order.metadata?.credits ?? order.product?.metadata?.credits ?? 0);
+  if (!userId || !Number.isFinite(credits) || credits <= 0) return;
+  getOrCreateSubscription(userId);
+  db.update(subscriptions)
+    .set({
+      renderCredits: sql`${subscriptions.renderCredits} + ${Math.floor(credits)}`,
+      updatedAt: new Date(),
+    })
+    .where(eq(subscriptions.userId, userId))
+    .run();
+}
 
 async function applyFromSubscription(sub: PolarSubscription): Promise<void> {
   const userId = sub.metadata?.userId as string | undefined;
@@ -142,6 +170,11 @@ export async function POST(req: Request) {
           // funnel can alert on involuntary churn risk.
           pastDue,
         });
+        break;
+      }
+      case "order.paid": {
+        // Credit top-up fulfillment. event.data is an order, not a subscription.
+        applyTopupFromOrder(event.data as unknown as PolarOrder);
         break;
       }
       default:

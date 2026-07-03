@@ -45,38 +45,43 @@ type Info = {
   };
   availablePlans: Plan[];
   renderCredits?: number;
+  credits?: { monthly: number; used: number; topups: number; remaining: number; total: number };
+};
+
+type CreditData = {
+  balance: { monthly: number; used: number; topups: number; remaining: number; total: number };
+  packs: Array<{ id: string; credits: number; priceLabel: string; popular: boolean }>;
 };
 
 const PLAN_FEATURES: Record<string, string[]> = {
-  free: [
-    "5 watermarked renders / month",
-    "50 AI messages / month",
-    "720p cloud render",
-    "All niche style packs",
-    "Footage editing tools",
-  ],
   creator: [
-    "100 renders / month",
-    "1,000 AI messages / month",
-    "1080p · no watermark",
-    "Auto-grade + loudnorm",
-    "Local render worker",
-    "Email support",
+    "1,000 credits / month",
+    "The full editor — nothing gated",
+    "4K exports · no watermark",
+    "AI edits, images, b-roll, voiceover & music",
+    "Top-up credits any time",
+  ],
+  pro: [
+    "3,000 credits / month",
+    "The full editor — nothing gated",
+    "4K exports · no watermark",
+    "3× the volume for serious output",
+    "Top-up credits any time",
   ],
   studio: [
-    "Unlimited renders",
-    "Unlimited AI messages",
-    "4K · priority queue",
-    "Brand kit (logo, colors, host)",
-    "−14 LUFS loudness normalization",
-    "Priority support",
+    "5,000 credits / month",
+    "The full editor — nothing gated",
+    "4K exports · priority render queue",
+    "Highest volume",
+    "Top-up credits any time",
   ],
 };
 
 const PLAN_PRICES: Record<string, string> = {
   free: "$0",
-  creator: "$19",
-  studio: "$49",
+  creator: "$39",
+  pro: "$99",
+  studio: "$149",
 };
 
 function BillingPage() {
@@ -84,7 +89,7 @@ function BillingPage() {
   const params = useSearchParams();
   const { data: session, isPending } = useSession();
   const [info, setInfo] = useState<Info | null>(null);
-  const [credits, setCredits] = useState<number | null>(null);
+  const [creditData, setCreditData] = useState<CreditData | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -97,25 +102,30 @@ function BillingPage() {
       fetch("/api/billing/credits"),
     ]);
     if (meRes.ok) setInfo(await meRes.json());
-    if (creditsRes.ok) {
-      const d = (await creditsRes.json()) as { credits: number };
-      setCredits(d.credits);
-    }
+    if (creditsRes.ok) setCreditData((await creditsRes.json()) as CreditData);
   }
 
   useEffect(() => {
     if (session) refresh();
   }, [session]);
 
-  async function buyCredits() {
-    setBusy("credits");
-    const r = await fetch("/api/billing/credits", { method: "POST" });
-    const d = (await r.json()) as { error?: string; message?: string; url?: string };
+  async function buyCredits(packId: string) {
+    setBusy(`pack:${packId}`);
+    const r = await fetch("/api/billing/credits", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pack: packId }),
+    });
+    const d = (await r.json().catch(() => ({}))) as {
+      error?: string;
+      message?: string;
+      url?: string;
+    };
     setBusy(null);
     if (d.url) {
       window.location.href = d.url;
     } else {
-      alert(d.message || "Credits purchase not yet configured — set POLAR_PRODUCT_CREDITS.");
+      alert(d.message || "Couldn't start the credit purchase. Please try again.");
     }
   }
 
@@ -211,6 +221,12 @@ function BillingPage() {
             Subscription activated — welcome aboard.
           </div>
         )}
+        {status === "topup_success" && (
+          <div className="mb-6 flex items-center gap-3 rounded-xl border border-[var(--color-success)]/40 bg-[var(--color-success)]/8 px-4 py-3 text-sm text-[var(--color-success)]">
+            <span className="text-base">✓</span>
+            Credits added — they'll appear in your balance momentarily.
+          </div>
+        )}
         {status === "cancelled" && (
           <div className="mb-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-fg-muted)]">
             Checkout cancelled. No charge was made.
@@ -263,61 +279,83 @@ function BillingPage() {
               )}
             </div>
 
-            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <UsageBar
-                label="Renders this month"
-                used={info.usage.renders.used}
-                limit={info.usage.renders.limit}
-              />
-              <UsageBar
-                label="Agent messages this month"
-                used={info.usage.chatTurns.used}
-                limit={info.usage.chatTurns.limit}
-              />
-            </div>
-
-            {/* Render credits */}
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] p-4">
-              <div>
-                <div className="text-sm font-medium text-[var(--color-fg)]">
-                  Render credits
-                  {credits !== null && credits > 0 && (
-                    <span className="ml-2 rounded-full bg-[var(--color-accent)] px-2 py-0.5 text-xs font-semibold text-black">
-                      {credits} available
-                    </span>
-                  )}
-                </div>
-                <div className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
-                  {credits === 0 || credits === null
-                    ? "Buy extra renders when you hit your monthly limit — no subscription needed."
-                    : `${credits} credit${credits === 1 ? "" : "s"} · each unlocks one 1080p render.`}
-                </div>
+            {info.credits && (
+              <div className="mt-5">
+                <UsageBar
+                  label="Credits this month"
+                  used={info.credits.used}
+                  limit={info.credits.monthly}
+                  suffix="cr"
+                />
               </div>
-              <button
-                onClick={buyCredits}
-                disabled={busy === "credits"}
-                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-sm font-medium text-[var(--color-fg-muted)] hover:border-[var(--color-accent)]/40 hover:text-[var(--color-fg)] disabled:opacity-50"
-              >
-                {busy === "credits" ? "Loading…" : "Buy 5 renders · $10"}
-              </button>
+            )}
+
+            {/* Credit balance + top-up packs */}
+            <div
+              id="credits"
+              className="mt-5 scroll-mt-20 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] p-4"
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div className="text-sm font-medium text-[var(--color-fg)]">Buy more credits</div>
+                {creditData && (
+                  <div className="text-xs text-[var(--color-fg-muted)]">
+                    {creditData.balance.total === -1
+                      ? "∞ available"
+                      : `${creditData.balance.total.toLocaleString()} credits available`}
+                    {creditData.balance.topups > 0
+                      ? ` · ${creditData.balance.topups.toLocaleString()} from top-ups`
+                      : ""}
+                  </div>
+                )}
+              </div>
+              <div className="mt-1 text-xs text-[var(--color-fg-muted)]">
+                Top-up credits never expire — they carry over month to month.
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {(creditData?.packs ?? []).map((pack) => (
+                  <button
+                    key={pack.id}
+                    onClick={() => buyCredits(pack.id)}
+                    disabled={busy === `pack:${pack.id}`}
+                    className={`flex flex-col items-start rounded-xl border p-4 text-left transition-colors disabled:opacity-50 ${
+                      pack.popular
+                        ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5"
+                        : "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-accent)]/40"
+                    }`}
+                  >
+                    <div className="text-lg font-black text-[var(--color-fg)]">
+                      {pack.credits.toLocaleString()} cr
+                    </div>
+                    <div className="mt-0.5 text-sm text-[var(--color-fg-muted)]">
+                      {busy === `pack:${pack.id}` ? "Loading…" : pack.priceLabel}
+                    </div>
+                    {pack.popular && (
+                      <span className="mt-2 rounded-full bg-[var(--color-accent)] px-2 py-0.5 text-[10px] font-semibold text-black">
+                        Best value
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {onFree && (
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5 p-4">
                 <div>
                   <div className="text-sm font-medium text-[var(--color-fg)]">
-                    Remove watermark + unlock 1080p
+                    Unlock the full editor
                   </div>
                   <div className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
-                    Creator plan — $1 trial, then $19/mo. Cancel any time.
+                    Every plan is a 7-day trial. Pro is the most popular — $99/mo after. Cancel any
+                    time.
                   </div>
                 </div>
                 <button
-                  onClick={() => startCheckout("creator")}
-                  disabled={busy === "creator"}
+                  onClick={() => startCheckout("pro")}
+                  disabled={busy === "pro"}
                   className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50"
                 >
-                  {busy === "creator" ? "Redirecting…" : "Upgrade · $19/mo"}
+                  {busy === "pro" ? "Redirecting…" : "Start 7-day trial"}
                 </button>
               </div>
             )}
@@ -330,73 +368,75 @@ function BillingPage() {
             All plans
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {info.availablePlans.map((plan) => {
-              const isCurrent = plan.id === info.plan.id;
-              const features = PLAN_FEATURES[plan.id] ?? [];
-              return (
-                <div
-                  key={plan.id}
-                  className={`relative flex flex-col rounded-2xl border p-5 transition-colors ${
-                    isCurrent
-                      ? "border-[var(--color-accent)] bg-[var(--color-accent)]/4"
-                      : "border-[var(--color-border)] bg-[var(--color-surface)]"
-                  }`}
-                >
-                  {isCurrent && (
-                    <div className="absolute -top-px left-4 rounded-b-md bg-[var(--color-accent)] px-2 py-0.5 text-xs font-semibold text-black">
-                      Current
-                    </div>
-                  )}
-                  {plan.id === "creator" && !isCurrent && (
-                    <div className="absolute -top-px left-4 rounded-b-md bg-[var(--color-fg-muted)] px-2 py-0.5 text-xs font-semibold text-black">
-                      Popular
-                    </div>
-                  )}
+            {info.availablePlans
+              .filter((plan) => plan.id !== "free")
+              .map((plan) => {
+                const isCurrent = plan.id === info.plan.id;
+                const features = PLAN_FEATURES[plan.id] ?? [];
+                return (
+                  <div
+                    key={plan.id}
+                    className={`relative flex flex-col rounded-2xl border p-5 transition-colors ${
+                      isCurrent
+                        ? "border-[var(--color-accent)] bg-[var(--color-accent)]/4"
+                        : "border-[var(--color-border)] bg-[var(--color-surface)]"
+                    }`}
+                  >
+                    {isCurrent && (
+                      <div className="absolute -top-px left-4 rounded-b-md bg-[var(--color-accent)] px-2 py-0.5 text-xs font-semibold text-black">
+                        Current
+                      </div>
+                    )}
+                    {plan.id === "pro" && !isCurrent && (
+                      <div className="absolute -top-px left-4 rounded-b-md bg-[var(--color-fg-muted)] px-2 py-0.5 text-xs font-semibold text-black">
+                        Popular
+                      </div>
+                    )}
 
-                  <div className="mb-1 text-base font-bold">{plan.name}</div>
-                  <div className="mb-5 flex items-baseline gap-1">
-                    <span className="text-3xl font-black">
-                      {PLAN_PRICES[plan.id] ?? plan.priceLabel}
-                    </span>
-                    <span className="text-sm text-[var(--color-fg-muted)]">/mo</span>
+                    <div className="mb-1 text-base font-bold">{plan.name}</div>
+                    <div className="mb-5 flex items-baseline gap-1">
+                      <span className="text-3xl font-black">
+                        {PLAN_PRICES[plan.id] ?? plan.priceLabel}
+                      </span>
+                      <span className="text-sm text-[var(--color-fg-muted)]">/mo</span>
+                    </div>
+
+                    <ul className="mb-6 flex-1 space-y-2">
+                      {features.map((feature) => (
+                        <li key={feature} className="flex items-start gap-2 text-sm">
+                          <span className="mt-0.5 text-[var(--color-accent)]">→</span>
+                          <span className="text-[var(--color-fg-muted)]">{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    {isCurrent ? (
+                      <div className="rounded-lg border border-[var(--color-border)] py-2 text-center text-sm text-[var(--color-fg-muted)]">
+                        Your plan
+                      </div>
+                    ) : plan.id === "free" ? (
+                      <button
+                        disabled
+                        className="cursor-not-allowed rounded-lg border border-[var(--color-border)] py-2 text-sm text-[var(--color-fg-muted)]"
+                      >
+                        Downgrade via portal
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => startCheckout(plan.id)}
+                        disabled={busy === plan.id}
+                        className="rounded-lg bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50"
+                      >
+                        {busy === plan.id
+                          ? "Redirecting…"
+                          : onFree
+                            ? `Start 7-day trial → ${plan.name}`
+                            : `Switch to ${plan.name}`}
+                      </button>
+                    )}
                   </div>
-
-                  <ul className="mb-6 flex-1 space-y-2">
-                    {features.map((feature) => (
-                      <li key={feature} className="flex items-start gap-2 text-sm">
-                        <span className="mt-0.5 text-[var(--color-accent)]">→</span>
-                        <span className="text-[var(--color-fg-muted)]">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  {isCurrent ? (
-                    <div className="rounded-lg border border-[var(--color-border)] py-2 text-center text-sm text-[var(--color-fg-muted)]">
-                      Your plan
-                    </div>
-                  ) : plan.id === "free" ? (
-                    <button
-                      disabled
-                      className="cursor-not-allowed rounded-lg border border-[var(--color-border)] py-2 text-sm text-[var(--color-fg-muted)]"
-                    >
-                      Downgrade via portal
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => startCheckout(plan.id)}
-                      disabled={busy === plan.id}
-                      className="rounded-lg bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-50"
-                    >
-                      {busy === plan.id
-                        ? "Redirecting…"
-                        : onFree
-                          ? `Start $1 trial → ${plan.name}`
-                          : `Switch to ${plan.name}`}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         </section>
       </main>
@@ -404,10 +444,21 @@ function BillingPage() {
   );
 }
 
-function UsageBar({ label, used, limit }: { label: string; used: number; limit: number }) {
+function UsageBar({
+  label,
+  used,
+  limit,
+  suffix,
+}: {
+  label: string;
+  used: number;
+  limit: number;
+  suffix?: string;
+}) {
   const pct = limit === -1 ? 0 : Math.min(100, (used / limit) * 100);
   const warn = pct >= 80 && limit !== -1;
   const crit = pct >= 95 && limit !== -1;
+  const unit = suffix ? ` ${suffix}` : "";
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between text-xs">
@@ -421,7 +472,7 @@ function UsageBar({ label, used, limit }: { label: string; used: number; limit: 
                 : "text-[var(--color-fg-muted)]"
           }
         >
-          {used} / {limit === -1 ? "∞" : limit}
+          {used.toLocaleString()} / {limit === -1 ? "∞" : `${limit.toLocaleString()}${unit}`}
         </span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-bg)]">

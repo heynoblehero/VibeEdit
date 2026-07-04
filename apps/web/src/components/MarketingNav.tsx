@@ -8,6 +8,7 @@ import { useSession } from "@/lib/auth-client";
 const LINKS: Array<{ href: string; label: string }> = [
   { href: "/#how", label: "How it works" },
   { href: "/#pricing", label: "Pricing" },
+  { href: "/tools", label: "Free tools" },
   { href: "/showcase", label: "Showcase" },
   { href: "/#faq", label: "FAQ" },
 ];

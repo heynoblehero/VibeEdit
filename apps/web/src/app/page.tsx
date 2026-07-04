@@ -524,7 +524,7 @@ export default function Home() {
       {/* ── FOOTER ────────────────────────────────────────────────────────── */}
       <footer className="border-t border-[var(--color-border)] px-4 py-12 text-sm text-[var(--color-fg-muted)] sm:px-6">
         <div className="mx-auto max-w-6xl">
-          <div className="mb-8 grid grid-cols-2 gap-8 md:grid-cols-4">
+          <div className="mb-8 grid grid-cols-2 gap-8 md:grid-cols-3 lg:grid-cols-5">
             <FooterCol
               title="Product"
               links={[
@@ -532,6 +532,16 @@ export default function Home() {
                 { href: "/showcase", label: "Showcase" },
                 { href: "/changelog", label: "Changelog" },
                 { href: "/early", label: "Waitlist" },
+              ]}
+            />
+            <FooterCol
+              title="Free tools"
+              links={[
+                { href: "/tools/watermark-remover", label: "Watermark remover" },
+                { href: "/tools/video-compressor", label: "Video compressor" },
+                { href: "/tools/video-converter", label: "Video converter" },
+                { href: "/tools/auto-subtitles", label: "Auto subtitles" },
+                { href: "/tools", label: "All free tools →" },
               ]}
             />
             <FooterCol

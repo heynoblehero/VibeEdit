@@ -46,14 +46,14 @@ export const FREE_TOOLS: FreeTool[] = [
     slug: "silence-remover",
     name: "Silence Remover",
     tagline: "Auto-cut dead air and long pauses to tighten up your video.",
-    status: "soon",
+    status: "live",
     tech: "ffmpeg silencedetect + cut/concat (reuses our EDL primitives)",
   },
   {
     slug: "auto-subtitles",
     name: "Auto Subtitle Generator",
     tagline: "AI-transcribed captions, burned straight into your video.",
-    status: "soon",
+    status: "live",
     tech: "ElevenLabs Scribe STT → SRT → ffmpeg subtitles (reuses transcribe + burn)",
   },
   {

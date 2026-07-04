@@ -11,6 +11,7 @@ import { writeFileSync, unlinkSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
+import { transcribeClip, type TranscriptWord } from "@/lib/ai/ffmpeg-tools";
 
 // ---------------------------------------------------------------------------
 // Client IP (behind dokku/nginx) — for anonymous per-IP quota.
@@ -625,5 +626,205 @@ export async function denoiseVideo(opts: {
     ],
     300_000,
   );
+  return res.ok ? { ok: true } : { ok: false, error: tail(res.stderr) };
+}
+
+// Whether the file has at least one audio stream.
+export async function hasAudioStream(path: string): Promise<boolean> {
+  const res = await run("ffprobe", [
+    "-v",
+    "error",
+    "-select_streams",
+    "a",
+    "-show_entries",
+    "stream=index",
+    "-of",
+    "csv=p=0",
+    path,
+  ]);
+  return res.ok && res.stdout.trim().length > 0;
+}
+
+// Auto-cut silent gaps (dead air) from a talking clip, keeping A/V in sync.
+// Detects silence, inverts to the spoken intervals (with a little padding so
+// word onsets aren't clipped), then keeps just those with select/aselect.
+export async function removeSilence(opts: {
+  inputPath: string;
+  outputPath: string;
+  durationSeconds: number;
+}): Promise<{ ok: boolean; error?: string }> {
+  if (!(await hasAudioStream(opts.inputPath))) {
+    return { ok: false, error: "this video has no audio — there's no dead air to trim." };
+  }
+
+  // Detect silence (info-level log carries the markers).
+  const detect = await run("ffmpeg", [
+    "-hide_banner",
+    "-i",
+    opts.inputPath,
+    "-af",
+    "silencedetect=noise=-30dB:d=0.5",
+    "-f",
+    "null",
+    "-",
+  ]);
+  const starts = [...detect.stderr.matchAll(/silence_start:\s*(-?[0-9.]+)/g)].map((m) =>
+    Number(m[1]),
+  );
+  const ends = [...detect.stderr.matchAll(/silence_end:\s*(-?[0-9.]+)/g)].map((m) => Number(m[1]));
+
+  // Invert silence → spoken keep-intervals, with 60ms padding around each cut.
+  const pad = 0.06;
+  const keep: Array<[number, number]> = [];
+  let cursor = 0;
+  for (let i = 0; i < starts.length; i++) {
+    const start = starts[i];
+    const end = ends[i] ?? opts.durationSeconds; // trailing silence has no end marker
+    if (start - cursor > 0.15)
+      keep.push([Math.max(0, cursor), Math.min(opts.durationSeconds, start + pad)]);
+    cursor = Math.max(cursor, end - pad);
+  }
+  if (opts.durationSeconds - cursor > 0.15) keep.push([Math.max(0, cursor), opts.durationSeconds]);
+
+  if (starts.length === 0) return { ok: false, error: "no dead air found — nothing to trim." };
+  if (keep.length === 0) return { ok: false, error: "the whole clip is silent — nothing to keep." };
+  if (keep.length > 400)
+    return { ok: false, error: "too many cuts to process — try a shorter clip." };
+
+  const expr = keep.map(([s, e]) => `between(t,${s.toFixed(3)},${e.toFixed(3)})`).join("+");
+  const filter =
+    `[0:v]select='${expr}',setpts=N/FRAME_RATE/TB[v];` +
+    `[0:a]aselect='${expr}',asetpts=N/SR/TB[a]`;
+  const res = await run(
+    "ffmpeg",
+    [
+      "-y",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      opts.inputPath,
+      "-filter_complex",
+      filter,
+      "-map",
+      "[v]",
+      "-map",
+      "[a]",
+      ...X264_BASE,
+      "-crf",
+      "20",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "192k",
+      ...FASTSTART,
+      opts.outputPath,
+    ],
+    300_000,
+  );
+  return res.ok ? { ok: true } : { ok: false, error: tail(res.stderr) };
+}
+
+// ---------------------------------------------------------------------------
+// Auto-subtitles: transcribe (ElevenLabs Scribe) → SRT → burn into the video.
+// Uses a real STT credit, so the route gates this to signed-in users.
+// ---------------------------------------------------------------------------
+
+function srtTimestamp(seconds: number): string {
+  const clamped = Math.max(0, seconds);
+  const ms = Math.floor((clamped % 1) * 1000);
+  const total = Math.floor(clamped);
+  const s = total % 60;
+  const m = Math.floor(total / 60) % 60;
+  const h = Math.floor(total / 3600);
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  return `${p2(h)}:${p2(m)}:${p2(s)},${String(ms).padStart(3, "0")}`;
+}
+
+// Group word-level timestamps into readable cues (~7 words or ~3s each).
+function buildSrt(words: TranscriptWord[]): string {
+  const cues: Array<{ start: number; end: number; text: string }> = [];
+  let current: TranscriptWord[] = [];
+  let start = words[0]?.start ?? 0;
+  for (const word of words) {
+    if (current.length === 0) start = word.start;
+    current.push(word);
+    if (current.length >= 7 || word.end - start >= 3) {
+      cues.push({
+        start,
+        end: word.end,
+        text: current
+          .map((w) => w.word)
+          .join(" ")
+          .trim(),
+      });
+      current = [];
+    }
+  }
+  if (current.length) {
+    cues.push({
+      start,
+      end: current[current.length - 1].end,
+      text: current
+        .map((w) => w.word)
+        .join(" ")
+        .trim(),
+    });
+  }
+  return cues
+    .map(
+      (cue, index) =>
+        `${index + 1}\n${srtTimestamp(cue.start)} --> ${srtTimestamp(cue.end)}\n${cue.text}\n`,
+    )
+    .join("\n");
+}
+
+export async function burnSubtitles(opts: {
+  inputPath: string;
+  outputPath: string;
+  apiKey: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const transcript = await transcribeClip({ filePath: opts.inputPath, apiKey: opts.apiKey });
+  if (!transcript.ok || !transcript.words || transcript.words.length === 0) {
+    return {
+      ok: false,
+      error: transcript.error || "couldn't find clear speech to transcribe in this clip.",
+    };
+  }
+  const srtPath = join(tmpdir(), `vibe_sub_${randomBytes(6).toString("hex")}.srt`);
+  writeFileSync(srtPath, buildSrt(transcript.words));
+
+  // Bold white captions with a black outline, bottom-centred (SRT ASS override).
+  const style =
+    "FontName=DejaVu Sans,FontSize=18,Bold=1,PrimaryColour=&H00FFFFFF," +
+    "OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=40";
+  const res = await run(
+    "ffmpeg",
+    [
+      "-y",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      opts.inputPath,
+      "-vf",
+      `subtitles=${srtPath}:force_style='${style}'`,
+      ...X264_BASE,
+      "-crf",
+      "20",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "192k",
+      ...FASTSTART,
+      opts.outputPath,
+    ],
+    300_000,
+  );
+  try {
+    if (existsSync(srtPath)) unlinkSync(srtPath);
+  } catch {
+    /* ignore */
+  }
   return res.ok ? { ok: true } : { ok: false, error: tail(res.stderr) };
 }

@@ -394,3 +394,236 @@ export async function removeWatermark(opts: {
   if (await runFilter(delogo)) return { ok: true };
   return { ok: false, error: "watermark removal failed — try a different clip" };
 }
+
+// ---------------------------------------------------------------------------
+// Generic ffmpeg tool operations (compress / convert / extract / resize /
+// denoise). Each takes absolute paths and returns { ok, error? }. Kept simple
+// and dependency-free — same ffmpeg the render pipeline already ships.
+// ---------------------------------------------------------------------------
+
+const X264_BASE = ["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p"];
+const FASTSTART = ["-movflags", "+faststart"];
+
+function tail(stderr: string): string {
+  return stderr.split("\n").slice(-4).join("\n");
+}
+
+// Shrink a video toward a target file size (single-pass bitrate targeting) or,
+// when no target is given, a quality preset. Caps resolution at 1080p.
+export async function compressVideo(opts: {
+  inputPath: string;
+  outputPath: string;
+  durationSeconds: number;
+  targetBytes?: number;
+}): Promise<{ ok: boolean; error?: string }> {
+  const scale = "scale='min(1920,iw)':'-2'"; // cap width; keep aspect, even height
+  let args: string[];
+  if (opts.targetBytes && opts.durationSeconds > 0) {
+    const audioK = 128;
+    const totalK = (opts.targetBytes * 8) / 1000 / opts.durationSeconds; // kbit/s
+    const videoK = Math.max(200, Math.round(totalK - audioK));
+    args = [
+      "-y",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      opts.inputPath,
+      "-vf",
+      scale,
+      ...X264_BASE,
+      "-b:v",
+      `${videoK}k`,
+      "-maxrate",
+      `${Math.round(videoK * 1.5)}k`,
+      "-bufsize",
+      `${videoK * 2}k`,
+      "-c:a",
+      "aac",
+      "-b:a",
+      `${audioK}k`,
+      ...FASTSTART,
+      opts.outputPath,
+    ];
+  } else {
+    args = [
+      "-y",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      opts.inputPath,
+      "-vf",
+      scale,
+      ...X264_BASE,
+      "-crf",
+      "30",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "128k",
+      ...FASTSTART,
+      opts.outputPath,
+    ];
+  }
+  const res = await run("ffmpeg", args, 300_000);
+  return res.ok ? { ok: true } : { ok: false, error: tail(res.stderr) };
+}
+
+export type ConvertFormat = "mp4" | "mov" | "webm" | "gif";
+
+// Convert to another container/codec. GIF uses a two-pass palette for quality.
+export async function convertVideo(opts: {
+  inputPath: string;
+  outputPath: string;
+  format: ConvertFormat;
+}): Promise<{ ok: boolean; error?: string }> {
+  if (opts.format === "gif") {
+    const palette = join(tmpdir(), `vibe_pal_${randomBytes(6).toString("hex")}.png`);
+    const vf = "fps=15,scale=480:-1:flags=lanczos";
+    const gen = await run("ffmpeg", [
+      "-y",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      opts.inputPath,
+      "-vf",
+      `${vf},palettegen`,
+      palette,
+    ]);
+    if (!gen.ok) return { ok: false, error: tail(gen.stderr) };
+    const res = await run("ffmpeg", [
+      "-y",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      opts.inputPath,
+      "-i",
+      palette,
+      "-lavfi",
+      `${vf}[x];[x][1:v]paletteuse`,
+      opts.outputPath,
+    ]);
+    try {
+      if (existsSync(palette)) unlinkSync(palette);
+    } catch {
+      /* ignore */
+    }
+    return res.ok ? { ok: true } : { ok: false, error: tail(res.stderr) };
+  }
+  const codecs =
+    opts.format === "webm"
+      ? ["-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "32", "-c:a", "libopus"]
+      : [...X264_BASE, "-crf", "20", "-c:a", "aac", "-b:a", "192k", ...FASTSTART];
+  const res = await run(
+    "ffmpeg",
+    ["-y", "-hide_banner", "-loglevel", "error", "-i", opts.inputPath, ...codecs, opts.outputPath],
+    300_000,
+  );
+  return res.ok ? { ok: true } : { ok: false, error: tail(res.stderr) };
+}
+
+// Pull the audio track out as an MP3.
+export async function extractAudio(opts: {
+  inputPath: string;
+  outputPath: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const res = await run("ffmpeg", [
+    "-y",
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-i",
+    opts.inputPath,
+    "-vn",
+    "-c:a",
+    "libmp3lame",
+    "-q:a",
+    "2",
+    opts.outputPath,
+  ]);
+  if (res.ok) return { ok: true };
+  // By far the most common failure is a silent video (AI clips often have no
+  // audio track) — give a clear message instead of a raw ffmpeg error.
+  if (/does not contain any stream|Output file is empty/i.test(res.stderr)) {
+    return { ok: false, error: "this video has no audio track — nothing to extract." };
+  }
+  return { ok: false, error: tail(res.stderr) };
+}
+
+export type ReframeAspect = "9:16" | "1:1" | "16:9";
+
+// Reframe to a target aspect with a blurred-cover background fill (no cropping
+// of the subject; the letterbox is filled with a blurred zoom of the video).
+export async function resizeVideo(opts: {
+  inputPath: string;
+  outputPath: string;
+  aspect: ReframeAspect;
+}): Promise<{ ok: boolean; error?: string }> {
+  const dims: Record<ReframeAspect, [number, number]> = {
+    "9:16": [1080, 1920],
+    "1:1": [1080, 1080],
+    "16:9": [1920, 1080],
+  };
+  const [W, H] = dims[opts.aspect];
+  const filter =
+    `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=24[bg];` +
+    `[0:v]scale=${W}:${H}:force_original_aspect_ratio=decrease[fg];` +
+    `[bg][fg]overlay=(W-w)/2:(H-h)/2`;
+  const res = await run(
+    "ffmpeg",
+    [
+      "-y",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      opts.inputPath,
+      "-filter_complex",
+      filter,
+      ...X264_BASE,
+      "-crf",
+      "20",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "192k",
+      ...FASTSTART,
+      opts.outputPath,
+    ],
+    300_000,
+  );
+  return res.ok ? { ok: true } : { ok: false, error: tail(res.stderr) };
+}
+
+// Reduce background noise on the audio track (FFT denoise), keep video as-is.
+export async function denoiseVideo(opts: {
+  inputPath: string;
+  outputPath: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const res = await run(
+    "ffmpeg",
+    [
+      "-y",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      opts.inputPath,
+      "-af",
+      "afftdn=nf=-25,highpass=f=80,lowpass=f=12000",
+      "-c:v",
+      "copy",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "192k",
+      ...FASTSTART,
+      opts.outputPath,
+    ],
+    300_000,
+  );
+  return res.ok ? { ok: true } : { ok: false, error: tail(res.stderr) };
+}

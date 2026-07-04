@@ -25,21 +25,21 @@ export const FREE_TOOLS: FreeTool[] = [
     name: "Video Compressor",
     tagline:
       "Shrink a video's file size for email, Discord, or the web — without wrecking quality.",
-    status: "soon",
+    status: "live",
     tech: "ffmpeg libx264 crf sweep + scale cap",
   },
   {
     slug: "video-converter",
     name: "Video Converter",
     tagline: "MP4, MOV, WebM, GIF — convert between formats in seconds.",
-    status: "soon",
+    status: "live",
     tech: "ffmpeg transcode / palettegen for GIF",
   },
   {
     slug: "background-noise-remover",
     name: "Background Noise Remover",
     tagline: "Isolate the voice and kill the background noise in any clip.",
-    status: "soon",
+    status: "live",
     tech: "ElevenLabs Audio Isolation (already built as an agent tool) + anlmdn fallback",
   },
   {
@@ -60,14 +60,14 @@ export const FREE_TOOLS: FreeTool[] = [
     slug: "video-resizer",
     name: "Video Resizer / Reframer",
     tagline: "Reframe 16:9 ↔ 9:16 ↔ 1:1 for any platform, with a blurred fill.",
-    status: "soon",
+    status: "live",
     tech: "ffmpeg scale + blurred-cover background composite",
   },
   {
     slug: "audio-extractor",
     name: "Audio Extractor",
     tagline: "Pull a clean MP3 out of any video.",
-    status: "soon",
+    status: "live",
     tech: "ffmpeg -vn (reuses extractAudio)",
   },
 ];

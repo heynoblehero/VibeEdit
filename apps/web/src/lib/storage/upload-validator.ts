@@ -43,8 +43,8 @@ const ALLOWED: Record<string, string[]> = {
   otf: ["font/otf", "font/sfnt", "application/x-font-otf"],
 };
 
-/** Largest single uploaded asset we accept (bytes). 200 MB covers long video. */
-export const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
+/** Largest single uploaded asset we accept (bytes). 500 MB covers long/4K video. */
+export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
 
 export interface UploadValidationOk {
   ok: true;

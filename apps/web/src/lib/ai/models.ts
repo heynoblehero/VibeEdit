@@ -23,7 +23,7 @@ export interface ModelEntry {
   label: string;
   /** Which kind of generation this model performs. */
   task: ModelTask;
-  /** Provider key, e.g. "anthropic" | "replicate" | "elevenlabs" | "xai" | "midjourney-proxy" | "grok2api" | "suno" | "udio" | "viggle" | "luma" | "runway" | "pika" | "kling". */
+  /** Provider key, e.g. "anthropic" | "replicate" | "elevenlabs" | "xai" | "midjourney" | "grok2api" | "suno" | "udio" | "viggle" | "luma" | "runway" | "pika" | "kling". */
   provider: string;
   /** false for cookie/relay/archived providers. */
   official: boolean;
@@ -124,7 +124,9 @@ export const MODELS: ModelEntry[] = [
     id: "midjourney",
     label: "Midjourney",
     task: "image",
-    provider: "midjourney-proxy",
+    // provider id must match the pool/admin id ("midjourney") so an admin-added
+    // proxy credential is actually resolved by getManagedCredential.
+    provider: "midjourney",
     official: false,
     enabled: true,
     costTier: 2,
@@ -244,6 +246,41 @@ export const MODELS: ModelEntry[] = [
     credentialEnv: "VIGGLE_TOKEN",
     note: "Unofficial — needs a self-hosted Viggle proxy + an account token. ToS risk.",
   },
+];
+
+/**
+ * Providers whose credentials the platform-managed pool can hold and that the
+ * generation dispatcher actually resolves *by this provider id*. This is the
+ * single source of truth for the admin Providers console — importing it there
+ * (instead of a hand-kept parallel list) is what stops the ids from drifting
+ * out of sync with the registry, which is exactly the bug that silently broke
+ * Midjourney (registry said "midjourney-proxy", the pool stored "midjourney").
+ *
+ * Deliberately NOT every provider in MODELS: luma + kling run *through* the
+ * Replicate token (see REPLICATE_VIDEO_ALIASES in providers/dispatch.ts), so a
+ * pooled "luma"/"kling" credential would never be consulted — listing them here
+ * would be a lie. xai (official Grok 2) is env-only today with no pool lookup.
+ *
+ * kind is derived from `official`: official → plain API key, unofficial → a
+ * self-hosted proxy that also needs an endpoint URL.
+ */
+export interface ManagedProvider {
+  id: string;
+  label: string;
+  kind: "key" | "proxy";
+}
+
+export const MANAGED_PROVIDERS: ManagedProvider[] = [
+  { id: "elevenlabs", label: "ElevenLabs (voice + STT)", kind: "key" },
+  { id: "replicate", label: "Replicate (image/video/music)", kind: "key" },
+  { id: "anthropic", label: "Anthropic / Claude (brain + vision)", kind: "key" },
+  { id: "runway", label: "Runway (video)", kind: "key" },
+  { id: "pika", label: "Pika (video)", kind: "key" },
+  { id: "midjourney", label: "Midjourney (proxy)", kind: "proxy" },
+  { id: "suno", label: "Suno (proxy)", kind: "proxy" },
+  { id: "udio", label: "Udio (proxy)", kind: "proxy" },
+  { id: "viggle", label: "Viggle (proxy)", kind: "proxy" },
+  { id: "grok2api", label: "Grok (grok2api proxy)", kind: "proxy" },
 ];
 
 /** All enabled-or-not entries for a given task, in registry order. */

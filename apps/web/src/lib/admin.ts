@@ -23,6 +23,15 @@ export function isAdminEmail(email: string | null | undefined): boolean {
 }
 
 /*
+ * The admin recipients for operational notifications (new signups, paid trials,
+ * inbound support messages). Same source of truth as access control, so whoever
+ * can see the console also gets alerted. Empty when no admin is configured.
+ */
+export function adminEmails(): string[] {
+  return Array.from(adminList());
+}
+
+/*
  * Shared guard for every /api/admin route. Uses the REAL session (ignoring any
  * impersonation cookie) so an admin who is currently impersonating a user can
  * still reach the admin console and exit. Returns the real session on success,

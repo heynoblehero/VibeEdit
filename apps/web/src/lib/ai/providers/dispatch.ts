@@ -112,7 +112,7 @@ export async function generateImageWithModel(opts: {
         model: REPLICATE_IMAGE_ALIASES[model.id],
         signal,
       });
-    case "midjourney-proxy":
+    case "midjourney":
       return midjourneyGenerate(model, prompt, signal);
     default:
       throw new Error(`unsupported image provider: ${model.provider}`);

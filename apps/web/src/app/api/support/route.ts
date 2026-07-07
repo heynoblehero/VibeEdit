@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { supportMessages, supportThreads } from "@/lib/db/schema";
+import { supportMessages, supportThreads, user } from "@/lib/db/schema";
 import { requireServerSession } from "@/lib/server-session";
+import { notifyAdmin } from "@/lib/email/notify-admin";
 
 const MAX_BODY = 4000;
 const MAX_SUBJECT = 120;
@@ -102,15 +103,36 @@ export async function POST(req: Request) {
   }
 
   const messageId = nanoid(12);
+  const messageBody = body.slice(0, MAX_BODY);
   db.insert(supportMessages)
     .values({
       id: messageId,
       threadId: thread.id,
       sender: "user",
-      body: body.slice(0, MAX_BODY),
+      body: messageBody,
       createdAt: now,
     })
     .run();
+
+  // Admin alert: a customer sent a support message. Fire-and-forget so a mail
+  // failure never breaks the send. The inbox unreadForAdmin flag is still the
+  // source of truth in the console; this is the push notification on top.
+  const owner = db.select().from(user).where(eq(user.id, userId)).get();
+  void notifyAdmin({
+    tag: "support",
+    subject: thread.subject || owner?.email || "New support message",
+    title: "New support message",
+    rows: [
+      { label: "From", value: owner?.email || userId },
+      { label: "Subject", value: thread.subject || "—" },
+      {
+        label: "Message",
+        value: messageBody.length > 500 ? `${messageBody.slice(0, 500)}…` : messageBody,
+      },
+    ],
+    adminTab: "support",
+    ctaLabel: "Open inbox",
+  });
 
   return NextResponse.json({ threadId: thread.id, messageId });
 }

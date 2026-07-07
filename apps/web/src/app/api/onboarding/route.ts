@@ -7,6 +7,7 @@ import { ensureProjectDir, writeProjectFile } from "@/lib/storage/fs";
 import { requireServerSession } from "@/lib/server-session";
 import { sendEmail } from "@/lib/email/send";
 import { welcomeEmail } from "@/lib/email/templates";
+import { notifyAdmin } from "@/lib/email/notify-admin";
 import { captureEvent, FUNNEL } from "@/lib/observability/posthog";
 import { enqueue } from "@/lib/render/queue";
 import { buildStarterComposition, type StarterFormat } from "@/lib/onboarding/starter-composition";
@@ -232,7 +233,8 @@ export async function PATCH(req: Request) {
     captureEvent(FUNNEL.signup, userId, { niche: niche || existing?.niche || null });
   }
 
-  // Fire welcome email on first onboarding completion only — fire-and-forget
+  // Fire welcome email (to the user) + admin new-signup alert on first
+  // onboarding completion only — fire-and-forget, never blocks the response.
   if (!wasAlreadyOnboarded && body.onboardingCompleted === true) {
     void (async () => {
       try {
@@ -244,6 +246,18 @@ export async function PATCH(req: Request) {
             html: welcomeEmail({
               name: owner.name?.split(" ")[0] || "there",
             }),
+          });
+          void notifyAdmin({
+            tag: "signup",
+            subject: owner.email,
+            title: "New signup",
+            rows: [
+              { label: "Name", value: owner.name || "—" },
+              { label: "Email", value: owner.email },
+              { label: "Niche", value: niche || existing?.niche || "—" },
+            ],
+            adminTab: "users",
+            ctaLabel: "View users",
           });
         }
       } catch (error) {

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { providerCredentials } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/admin";
 import { encryptApiKey, decryptApiKey, maskApiKey } from "@/lib/api-keys/crypto";
+import { MANAGED_PROVIDERS } from "@/lib/ai/models";
 import {
   getGenerationPricing,
   setGenerationPricing,
@@ -14,18 +15,10 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Known providers the pool can hold, and whether each is a plain key or a
-// self-hosted proxy (which also needs an endpoint URL).
-const PROVIDERS: Array<{ id: string; label: string; kind: "key" | "proxy" }> = [
-  { id: "elevenlabs", label: "ElevenLabs (voice + STT)", kind: "key" },
-  { id: "replicate", label: "Replicate (image/video/music)", kind: "key" },
-  { id: "anthropic", label: "Anthropic / Claude (brain + vision)", kind: "key" },
-  { id: "midjourney", label: "Midjourney (proxy)", kind: "proxy" },
-  { id: "suno", label: "Suno (proxy)", kind: "proxy" },
-  { id: "udio", label: "Udio (proxy)", kind: "proxy" },
-  { id: "viggle", label: "Viggle (proxy)", kind: "proxy" },
-  { id: "grok2api", label: "Grok (grok2api proxy)", kind: "proxy" },
-];
+// Providers the pool can hold — the single source of truth lives in the model
+// registry (MANAGED_PROVIDERS in lib/ai/models.ts) so the console can never
+// drift out of sync with the ids the dispatcher resolves.
+const PROVIDERS = MANAGED_PROVIDERS;
 
 const VALID_PROVIDERS = new Set(PROVIDERS.map((p) => p.id));
 
@@ -198,12 +191,18 @@ async function testCredential(row: {
         headers: { "x-api-key": secret, "anthropic-version": "2023-06-01" },
         signal: controller.signal,
       });
-    } else {
-      // Proxy: just check the base URL is reachable.
-      res = await fetch((row.endpoint ?? "").replace(/\/+$/, ""), {
+    } else if (row.endpoint) {
+      // Proxy (or any row with an endpoint): just check the base URL responds.
+      res = await fetch(row.endpoint.replace(/\/+$/, ""), {
         method: "GET",
         signal: controller.signal,
       });
+    } else {
+      // A key provider with no first-party probe wired here (e.g. Runway/Pika).
+      // We can't auth-check it without a real API call, so report it as stored
+      // rather than firing fetch("") which would always error.
+      clearTimeout(timer);
+      return { ok: true, detail: "saved — no reachability probe for this provider" };
     }
     clearTimeout(timer);
     if (res.ok || res.status === 401 || res.status === 403) {

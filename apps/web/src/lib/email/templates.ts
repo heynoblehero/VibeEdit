@@ -110,6 +110,52 @@ ${button(`${siteUrl()}/app/billing`, "View billing")}
   return wrap(body);
 }
 
+// Admin-facing operational alerts (new signup, paid trial, support message).
+// Separate wrapper: no "you have an account" footer, no unsubscribe link —
+// these go to the operators, not customers.
+function adminWrap(content: string): string {
+  return `<!doctype html>
+<html><body style="margin:0;padding:0;background:${BG};font-family:Inter,system-ui,sans-serif;color:${FG};">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:${BG};">
+<tr><td align="center" style="padding:32px 16px;">
+<table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px;background:#15151f;border:1px solid ${BORDER};border-radius:16px;padding:32px;">
+<tr><td>
+<div style="font-weight:900;font-size:13px;margin-bottom:24px;letter-spacing:0.08em;text-transform:uppercase;color:${MUTED};">
+vibeedit · admin
+</div>
+${content}
+<div style="margin-top:32px;padding-top:16px;border-top:1px solid ${BORDER};font-size:12px;color:${MUTED};">
+Operational alert · sent to ADMIN_EMAILS
+</div>
+</td></tr></table></td></tr></table>
+</body></html>`;
+}
+
+// One template for every admin alert: a title, a set of label/value detail
+// rows, and an optional deep-link into the admin console.
+export function adminAlertEmail(args: {
+  title: string;
+  rows: Array<{ label: string; value: string }>;
+  ctaHref?: string;
+  ctaLabel?: string;
+}) {
+  const rowsHtml = args.rows
+    .map(
+      (row) =>
+        `<tr><td style="padding:6px 12px 6px 0;color:${MUTED};font-size:13px;white-space:nowrap;vertical-align:top;">${row.label}</td><td style="padding:6px 0;color:${FG};font-size:13px;">${row.value}</td></tr>`,
+    )
+    .join("");
+  const cta = args.ctaHref
+    ? `<div style="margin-top:24px;">${button(args.ctaHref, args.ctaLabel || "Open admin console")}</div>`
+    : "";
+  const body = `
+<h1 style="font-size:20px;margin:0 0 20px;">${args.title}</h1>
+<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;">${rowsHtml}</table>
+${cta}
+`;
+  return adminWrap(body);
+}
+
 export function renderFailedEmail(args: { projectName: string; errorMessage: string }) {
   const body = `
 <h1 style="font-size:22px;margin:0 0 12px;">A render failed.</h1>

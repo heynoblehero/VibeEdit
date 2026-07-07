@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { eq, sql } from "drizzle-orm";
 import { validateEvent, WebhookVerificationError } from "@polar-sh/sdk/webhooks";
 import { db } from "@/lib/db";
-import { subscriptions, processedWebhooks } from "@/lib/db/schema";
+import { subscriptions, processedWebhooks, user } from "@/lib/db/schema";
+import { notifyAdmin } from "@/lib/email/notify-admin";
 import { PLANS, type PlanId } from "@/lib/billing/plans";
 import { getOrCreateSubscription } from "@/lib/billing/usage";
 import { logError } from "@/lib/observability/logger";
@@ -61,19 +62,22 @@ type PolarOrder = {
 
 // Grant top-up credits from a paid one-time order. Guarded to kind==="topup"
 // so the initial subscription order (which also fires order.paid) is ignored.
-function applyTopupFromOrder(order: PolarOrder): void {
-  if (order.metadata?.kind !== "topup") return;
+// Returns the applied grant (for admin alerting) or null when nothing applied.
+function applyTopupFromOrder(order: PolarOrder): { userId: string; credits: number } | null {
+  if (order.metadata?.kind !== "topup") return null;
   const userId = order.metadata?.userId as string | undefined;
   const credits = Number(order.metadata?.credits ?? order.product?.metadata?.credits ?? 0);
-  if (!userId || !Number.isFinite(credits) || credits <= 0) return;
+  if (!userId || !Number.isFinite(credits) || credits <= 0) return null;
   getOrCreateSubscription(userId);
+  const applied = Math.floor(credits);
   db.update(subscriptions)
     .set({
-      renderCredits: sql`${subscriptions.renderCredits} + ${Math.floor(credits)}`,
+      renderCredits: sql`${subscriptions.renderCredits} + ${applied}`,
       updatedAt: new Date(),
     })
     .where(eq(subscriptions.userId, userId))
     .run();
+  return { userId, credits: applied };
 }
 
 async function applyFromSubscription(sub: PolarSubscription): Promise<void> {
@@ -170,11 +174,43 @@ export async function POST(req: Request) {
           // funnel can alert on involuntary churn risk.
           pastDue,
         });
+        // Admin alert: a brand-new subscription is our "paid trial started"
+        // signal (all tiers are card-required trials). Only fire on creation so
+        // we don't spam on every renewal/update webhook.
+        if (event.type === "subscription.created" && subUserId) {
+          const owner = db.select().from(user).where(eq(user.id, subUserId)).get();
+          void notifyAdmin({
+            tag: "trial",
+            subject: owner?.email || subUserId,
+            title: "New paid trial started",
+            rows: [
+              { label: "Email", value: owner?.email || "—" },
+              { label: "Plan", value: planIdFromProductId(event.data?.productId) },
+              { label: "Status", value: event.data?.status || "—" },
+            ],
+            adminTab: "billing",
+            ctaLabel: "View billing",
+          });
+        }
         break;
       }
       case "order.paid": {
         // Credit top-up fulfillment. event.data is an order, not a subscription.
-        applyTopupFromOrder(event.data as unknown as PolarOrder);
+        const topup = applyTopupFromOrder(event.data as unknown as PolarOrder);
+        if (topup) {
+          const owner = db.select().from(user).where(eq(user.id, topup.userId)).get();
+          void notifyAdmin({
+            tag: "payment",
+            subject: `${topup.credits} credits · ${owner?.email || topup.userId}`,
+            title: "Credit top-up purchased",
+            rows: [
+              { label: "Email", value: owner?.email || "—" },
+              { label: "Credits", value: String(topup.credits) },
+            ],
+            adminTab: "billing",
+            ctaLabel: "View billing",
+          });
+        }
         break;
       }
       default:

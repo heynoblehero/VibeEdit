@@ -17,6 +17,13 @@ export type Plan = {
   renderMinuteLimit: number;
   resolution: "480p" | "720p" | "1080p" | "4k";
   watermark: boolean;
+  // Largest single asset a user on this plan may upload (megabytes). Enforced in
+  // the upload route on top of the RAM-safe global MAX_UPLOAD_MB ceiling.
+  maxUploadMb: number;
+  // Total on-disk storage this account may hold (megabytes). Uploads are
+  // rejected once usage + incoming would exceed this. Users/admin free space by
+  // deleting assets. -1 = unlimited.
+  storageLimitMb: number;
   // Env var name holding the Polar product/price id. checkout reads
   // process.env[plan.providerPriceEnv] to get the Polar product UUID.
   providerPriceEnv: string | null;
@@ -46,6 +53,8 @@ export const PLANS: Record<PlanId, Plan> = {
     renderMinuteLimit: -1,
     resolution: "480p",
     watermark: true,
+    maxUploadMb: 500,
+    storageLimitMb: 1024,
     providerPriceEnv: null,
   },
   creator: {
@@ -59,6 +68,8 @@ export const PLANS: Record<PlanId, Plan> = {
     renderMinuteLimit: -1,
     resolution: "4k",
     watermark: false,
+    maxUploadMb: 1024,
+    storageLimitMb: 10240,
     providerPriceEnv: "POLAR_PRODUCT_CREATOR",
   },
   pro: {
@@ -72,6 +83,8 @@ export const PLANS: Record<PlanId, Plan> = {
     renderMinuteLimit: -1,
     resolution: "4k",
     watermark: false,
+    maxUploadMb: 2048,
+    storageLimitMb: 51200,
     providerPriceEnv: "POLAR_PRODUCT_PRO",
   },
   studio: {
@@ -85,6 +98,8 @@ export const PLANS: Record<PlanId, Plan> = {
     renderMinuteLimit: -1,
     resolution: "4k",
     watermark: false,
+    maxUploadMb: 2048,
+    storageLimitMb: 204800,
     providerPriceEnv: "POLAR_PRODUCT_STUDIO",
   },
 };

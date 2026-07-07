@@ -7,9 +7,10 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { requireServerSession } from "@/lib/server-session";
-import { projectFileWriteTarget, listAssets } from "@/lib/storage/fs";
+import { projectFileWriteTarget, listAssets, userStorageBytes } from "@/lib/storage/fs";
 import { ensureManifest } from "@/lib/storage/manifests";
 import { validateUploadFile, MAX_UPLOAD_BYTES } from "@/lib/storage/upload-validator";
+import { checkUploadAllowed } from "@/lib/storage/quota";
 
 export const runtime = "nodejs";
 // Large source uploads take a while to stream in; give them headroom over the
@@ -45,12 +46,22 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
   // writing anything. Reject the whole request on the first bad file so we never
   // persist a partially-validated batch (and never write disallowed content).
   const incoming: File[] = [];
+  // Track running total against the account's storage quota so a multi-file
+  // batch can't slip past the limit one small file at a time.
+  let projectedUsage = userStorageBytes(userId);
   for (const value of form.values()) {
     if (!(value instanceof File)) continue;
     const verdict = validateUploadFile(value);
     if (!verdict.ok) {
       return new NextResponse(verdict.message, { status: verdict.status });
     }
+    // Per-plan single-file cap + total storage quota (on top of the global
+    // RAM-safe ceiling already checked above).
+    const quota = checkUploadAllowed(userId, value.size, projectedUsage);
+    if (!quota.ok) {
+      return new NextResponse(quota.message, { status: quota.status });
+    }
+    projectedUsage += value.size;
     incoming.push(value);
   }
   if (incoming.length === 0) {

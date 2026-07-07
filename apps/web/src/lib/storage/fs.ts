@@ -41,6 +41,51 @@ export function projectDir(userId: string, projectId: string): string {
   return resolve(STORAGE_ROOT, "projects", userId, projectId);
 }
 
+// Root of every project this user owns — the bulk of their storage footprint
+// (uploaded + generated + processed assets, compositions, renders-in-project).
+export function userProjectsRoot(userId: string): string {
+  return resolve(STORAGE_ROOT, "projects", userId);
+}
+
+// Total bytes on disk under a directory (recursive). Best-effort: unreadable
+// entries are skipped rather than throwing, so a transient permission/race on
+// one file never fails a whole usage calculation.
+export function directoryBytes(dir: string): number {
+  let total = 0;
+  const stack: string[] = [dir];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) continue;
+    let entries: string[] = [];
+    try {
+      entries = readdirSync(current);
+    } catch {
+      continue;
+    }
+    for (const name of entries) {
+      const full = join(current, name);
+      try {
+        const st = statSync(full);
+        if (st.isDirectory()) stack.push(full);
+        else if (st.isFile()) total += st.size;
+      } catch {
+        // ignore a single unreadable/removed entry
+      }
+    }
+  }
+  return total;
+}
+
+// A user's total storage footprint in bytes: their whole projects tree plus
+// personas and brand-kit uploads (thumbs/renders are transient/derived).
+export function userStorageBytes(userId: string): number {
+  return (
+    directoryBytes(userProjectsRoot(userId)) +
+    directoryBytes(personaDir(userId)) +
+    directoryBytes(brandKitDir(userId))
+  );
+}
+
 export function renderOutputPath(jobId: string): string {
   return resolve(STORAGE_ROOT, "renders", jobId);
 }

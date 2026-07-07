@@ -518,22 +518,62 @@ interface AudioTrack {
   startSeconds: number;
   durationSeconds: number;
   volume: number;
+  // Offset into the source file to start decoding from (data-media-start).
+  // Processed single-clip footage is pre-trimmed so this is 0, but a raw video
+  // referenced with data-media-start needs it to line up.
+  mediaStartSeconds: number;
 }
 
 function parseAudioTracks(html: string): AudioTrack[] {
-  // Parse <audio class="clip" data-start="..." data-duration="..." data-volume="..." src="...">
-  const trackRe = /<audio[^>]+class="[^"]*clip[^"]*"[^>]*>/gi;
   const tracks: AudioTrack[] = [];
+
+  // Parse <audio class="clip" data-start="..." data-duration="..." data-volume="..." src="...">
+  const audioRe = /<audio[^>]+class="[^"]*clip[^"]*"[^>]*>/gi;
   let m: RegExpExecArray | null;
-  while ((m = trackRe.exec(html)) !== null) {
+  while ((m = audioRe.exec(html)) !== null) {
     const tag = m[0];
     const src = tag.match(/\bsrc="([^"]+)"/)?.[1];
     if (!src) continue;
     const start = parseFloat(tag.match(/data-start="([^"]+)"/)?.[1] ?? "0");
     const dur = parseFloat(tag.match(/data-duration="([^"]+)"/)?.[1] ?? "9999");
     const vol = parseFloat(tag.match(/data-volume="([^"]+)"/)?.[1] ?? "1");
-    tracks.push({ src, startSeconds: start, durationSeconds: dur, volume: vol });
+    const mediaStart = parseFloat(tag.match(/data-media-start="([^"]+)"/)?.[1] ?? "0");
+    tracks.push({
+      src,
+      startSeconds: start,
+      durationSeconds: dur,
+      volume: vol,
+      mediaStartSeconds: mediaStart,
+    });
   }
+
+  // Parse audible <video class="clip"> elements — the footage's ORIGINAL audio.
+  // Mirror the render engine's contract (audioMixer.parseAudioElements): a video
+  // contributes audio unless it is `muted` or explicitly `data-has-audio="false"`.
+  // Without this, the preview pane plays every footage edit SILENT even though
+  // the rendered output has sound — the "there's no audio" report.
+  const videoRe = /<video[^>]+class="[^"]*clip[^"]*"[^>]*>/gi;
+  while ((m = videoRe.exec(html)) !== null) {
+    const tag = m[0];
+    const src = tag.match(/\bsrc="([^"]+)"/)?.[1];
+    if (!src) continue;
+    const isMuted = /\smuted(?:\s|=|>|\/)/i.test(tag);
+    const hasAudioAttr = tag.match(/data-has-audio="([^"]+)"/)?.[1];
+    const audible = hasAudioAttr === "true" || (!isMuted && hasAudioAttr !== "false");
+    if (!audible) continue;
+    const start = parseFloat(tag.match(/data-start="([^"]+)"/)?.[1] ?? "0");
+    const dur = parseFloat(tag.match(/data-duration="([^"]+)"/)?.[1] ?? "9999");
+    const vol = parseFloat(tag.match(/data-volume="([^"]+)"/)?.[1] ?? "1");
+    const mediaStart = parseFloat(tag.match(/data-media-start="([^"]+)"/)?.[1] ?? "0");
+    tracks.push({
+      src,
+      startSeconds: start,
+      durationSeconds: dur,
+      volume: vol,
+      mediaStartSeconds: mediaStart,
+    });
+  }
+
   return tracks;
 }
 
@@ -571,9 +611,10 @@ async function mixAudioTracks(
       source.connect(gainNode);
       gainNode.connect(offlineCtx.destination);
 
-      // Trim to data-duration if specified
-      const startInBuffer = 0;
-      const durInBuffer = Math.min(audioBuffer.duration, track.durationSeconds);
+      // Trim to data-duration, starting from the source's data-media-start
+      // offset (0 for pre-trimmed processed clips).
+      const startInBuffer = Math.max(0, Math.min(audioBuffer.duration, track.mediaStartSeconds));
+      const durInBuffer = Math.min(audioBuffer.duration - startInBuffer, track.durationSeconds);
       source.start(track.startSeconds, startInBuffer, durInBuffer);
       anyLoaded = true;
     } catch (err) {

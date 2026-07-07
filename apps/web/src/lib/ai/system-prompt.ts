@@ -448,8 +448,9 @@ Width/height defaults: **1920×1080 for 16:9 (YouTube long-form), 1080×1920 for
 - Animate visual props only (opacity, x, y, scale, rotation, color). Never \`display\` or \`visibility\`.
 
 ## Media
-- \`<video muted playsinline src="assets/foo.mp4" class="clip" data-start="2" data-duration="3" data-track-index="2">\` — always muted, playsinline, with class="clip" + data-start/duration/track.
-- \`<audio src="assets/sfx.wav" class="clip" data-start="0" data-duration="2" data-track-index="10" data-volume="1">\` — separate track from video.
+- **Primary footage** (the clip being edited — its ORIGINAL audio is the main soundtrack: voices, reactions, on-scene sound): \`<video playsinline class="clip" data-has-audio="true" data-volume="1" src="assets/processed/foo.mp4" data-start="0" data-duration="14" data-track-index="0">\`. Do NOT add \`muted\` — \`data-has-audio="true"\` is what tells the render pipeline to mux the original audio, and the engine mutes the element during frame capture on its own. Adding \`muted\` yourself sets \`data-has-audio="false"\` and SILENTLY DROPS the original audio (the #1 audio bug). Never pair \`muted\` with \`data-has-audio="true"\`.
+- **B-roll / overlay footage** (visual only — should NOT bring its own sound): \`<video muted playsinline class="clip" src="assets/broll.mp4" data-start="2" data-duration="3" data-track-index="2">\` — keep \`muted\` so its audio is intentionally excluded and doesn't fight the primary audio.
+- \`<audio src="assets/sfx.wav" class="clip" data-start="0" data-duration="2" data-track-index="10" data-volume="1">\` — music/SFX on separate tracks.
 - Never embed base64 media.
 
 ## Audio volume balance (critical — do not ignore)
@@ -1305,7 +1306,7 @@ When the composition is a single processed/rendered clip (the common "edit my vi
 
 \`\`\`html
 <body style="margin:0;background:#000">
-  <video class="clip" src="assets/processed/<name>.mp4" muted playsinline
+  <video class="clip" src="assets/processed/<name>.mp4" playsinline data-has-audio="true" data-volume="1"
          data-start="0" data-duration="<CLIP_DURATION>" data-track-index="0"
          style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain"></video>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
@@ -1321,6 +1322,7 @@ When the composition is a single processed/rendered clip (the common "edit my vi
 
 - \`<CLIP_DURATION>\` = the exact \`probe_clip\` duration of the rendered output (e.g. 14.025). Probe it first; never guess.
 - \`class="clip"\` + \`data-start\`/\`data-duration\`/\`data-track-index\` are REQUIRED — that is how the runtime seeks the video to match the timeline clock. A bare \`<video autoplay>\` will NOT advance under frame capture.
+- \`data-has-audio="true"\` + no \`muted\` is REQUIRED so the clip's ORIGINAL audio survives into the render. This is the primary soundtrack — keep it at \`data-volume="1"\`. If you also add a music bed, duck the music to \`data-volume="0.12\`–\`0.15"\`, never the footage. (A \`muted\` primary clip is the most common "there's no audio" bug — do not add it.)
 - Set the composition width/height to the clip's resolution so there is no letterboxing.
 - Overlays (e.g. a centered "NEW COLLECTION" title) go in the SAME timeline with their own tweens, layered above the video — never as a separate unregistered animation.
 

@@ -43,8 +43,27 @@ const ALLOWED: Record<string, string[]> = {
   otf: ["font/otf", "font/sfnt", "application/x-font-otf"],
 };
 
-/** Largest single uploaded asset we accept (bytes). 500 MB covers long/4K video. */
-export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+/**
+ * Largest single uploaded asset we accept (bytes). Tunable at runtime via the
+ * `MAX_UPLOAD_MB` env var (megabytes) so the cap can be raised without a
+ * redeploy — set it with `dokku config:set vibeedit MAX_UPLOAD_MB=2048`.
+ * Default 2 GB covers long-form / 4K source video.
+ *
+ * NOTE: the upload route streams file parts to disk, but `req.formData()` still
+ * buffers the whole request in memory before we see it, so the SAFE ceiling is
+ * bounded by container RAM (roughly: keep the largest expected upload under
+ * ~half of the container's memory). Two other layers must agree with this
+ * number or large uploads 413 at the edge:
+ *   1. nginx `client_max_body_size` on the Dokku host (see docs/CLAUDE notes).
+ *   2. this cap (MAX_UPLOAD_MB).
+ */
+function resolveMaxUploadBytes(): number {
+  const mb = Number(process.env.MAX_UPLOAD_MB);
+  if (Number.isFinite(mb) && mb > 0) return Math.floor(mb) * 1024 * 1024;
+  return 2 * 1024 * 1024 * 1024; // 2 GB default
+}
+
+export const MAX_UPLOAD_BYTES = resolveMaxUploadBytes();
 
 export interface UploadValidationOk {
   ok: true;

@@ -136,6 +136,20 @@ export function writeProjectFile(
   writeFileSync(full, content);
 }
 
+/**
+ * Resolve the sandboxed absolute path for a project asset and ensure its parent
+ * directory exists — for callers that want to STREAM content to disk (large
+ * uploads) instead of buffering a whole Buffer via writeProjectFile. Applies the
+ * same `safeJoin` traversal guard, so the returned path is always inside the
+ * project dir.
+ */
+export function projectFileWriteTarget(userId: string, projectId: string, relPath: string): string {
+  const dir = projectDir(userId, projectId);
+  const full = safeJoin(dir, relPath);
+  mkdirSync(dirname(full), { recursive: true });
+  return full;
+}
+
 export function deleteProjectFile(userId: string, projectId: string, relPath: string): void {
   const dir = projectDir(userId, projectId);
   const full = safeJoin(dir, relPath);

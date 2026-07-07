@@ -215,6 +215,34 @@ export async function runAgent(opts: {
         }),
         model,
         mcpServers: { [MCP_SERVER_NAME]: server },
+        // SECURITY (critical): `tools` is the allowlist of BUILT-IN tools the
+        // agent may load. When omitted, the SDK defaults to the full claude_code
+        // preset — Bash, Read, Write, Edit, Glob, Grep, … — and because we run
+        // in `bypassPermissions` mode (no human approves prompts on a server),
+        // a chat user could get the model to run ANY of them, i.e. arbitrary
+        // shell commands / filesystem access inside the container. We expose
+        // ONLY the two safe web tools here. Every video-editing capability comes
+        // from our own sandboxed MCP server (mcpServers above), which the `tools`
+        // option does not touch — so restricting built-ins can't break editing.
+        tools: ["WebSearch", "WebFetch"],
+        // Defense-in-depth: force-remove the dangerous built-ins from the
+        // model's context even if an upstream preset changes. `tools` already
+        // excludes anything not listed, but this makes the intent explicit and
+        // is the SDK's strongest "cannot be used" guarantee.
+        disallowedTools: [
+          "Bash",
+          "BashOutput",
+          "KillBash",
+          "KillShell",
+          "Read",
+          "Write",
+          "Edit",
+          "MultiEdit",
+          "NotebookEdit",
+          "Glob",
+          "Grep",
+          "Task",
+        ],
         allowedTools: [...ALLOWED_TOOL_NAMES, "WebSearch", "WebFetch"],
         permissionMode: "bypassPermissions",
         maxTurns: MAX_TURNS,

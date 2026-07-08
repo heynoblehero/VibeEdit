@@ -187,6 +187,8 @@ export default function AccountPage() {
         )}
       </section>
 
+      <StoragePanel />
+
       {!session.user.emailVerified && (
         <section className="mb-6 rounded-xl border border-[var(--color-accent)] bg-[var(--color-bg-2)] p-4 sm:p-6">
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--color-accent)]">
@@ -278,5 +280,104 @@ export default function AccountPage() {
         </button>
       </section>
     </main>
+  );
+}
+
+type StorageData = {
+  usedBytes: number;
+  limitBytes: number;
+  fraction: number;
+  projects: Array<{ id: string; name: string; bytes: number }>;
+};
+
+function formatSize(bytes: number): string {
+  if (bytes <= 0) return "0 MB";
+  const gb = bytes / (1024 * 1024 * 1024);
+  if (gb >= 1) return `${gb.toFixed(2)} GB`;
+  return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+}
+
+function StoragePanel() {
+  const [data, setData] = useState<StorageData | null>(null);
+
+  useEffect(() => {
+    fetch("/api/storage")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((value) => value && setData(value as StorageData))
+      .catch(() => {});
+  }, []);
+
+  const unlimited = !data || data.limitBytes < 0;
+  const pct = data && data.limitBytes > 0 ? Math.round(data.fraction * 100) : 0;
+  const near = pct >= 80;
+
+  return (
+    <section className="mb-8 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-6">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wider">Storage</h2>
+        <Link href="/app/projects" className="text-xs text-[var(--color-accent)] hover:underline">
+          Manage projects →
+        </Link>
+      </div>
+
+      {!data ? (
+        <p className="text-sm text-[var(--color-fg-muted)]">Loading…</p>
+      ) : (
+        <>
+          <div className="mb-1 flex items-baseline justify-between text-sm">
+            <span className="font-medium">
+              {formatSize(data.usedBytes)}{" "}
+              <span className="text-[var(--color-fg-muted)]">
+                of {unlimited ? "unlimited" : formatSize(data.limitBytes)}
+              </span>
+            </span>
+            {!unlimited && (
+              <span
+                className={`text-xs ${near ? "text-[var(--color-danger)]" : "text-[var(--color-fg-muted)]"}`}
+              >
+                {pct}% used
+              </span>
+            )}
+          </div>
+          {!unlimited && (
+            <div className="mb-4 h-2 overflow-hidden rounded-full bg-[var(--color-bg-2)]">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${Math.min(100, pct)}%`,
+                  backgroundColor: near ? "var(--color-danger)" : "var(--color-accent)",
+                }}
+              />
+            </div>
+          )}
+          <p className="mb-3 text-xs text-[var(--color-fg-muted)]">
+            Your uploaded footage, images and audio count toward this. Open a project and delete
+            assets from the Files drawer to free space.
+          </p>
+          {data.projects.filter((project) => project.bytes > 0).length === 0 ? (
+            <p className="text-sm text-[var(--color-fg-muted)]">No stored assets yet.</p>
+          ) : (
+            <ul className="divide-y divide-[var(--color-border)] text-sm">
+              {data.projects
+                .filter((project) => project.bytes > 0)
+                .slice(0, 12)
+                .map((project) => (
+                  <li key={project.id} className="flex items-center justify-between py-2">
+                    <Link
+                      href={`/app/projects/${project.id}/edit`}
+                      className="truncate pr-3 hover:text-[var(--color-accent)] hover:underline"
+                    >
+                      {project.name || "Untitled"}
+                    </Link>
+                    <span className="shrink-0 text-xs text-[var(--color-fg-muted)]">
+                      {formatSize(project.bytes)}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </>
+      )}
+    </section>
   );
 }

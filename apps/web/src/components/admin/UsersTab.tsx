@@ -151,7 +151,15 @@ type UserDetailData = {
     error: string | null;
     createdAt: string;
   }>;
+  storage: { usedBytes: number; limitBytes: number; fraction: number };
 };
+
+function formatBytes(bytes: number): string {
+  if (bytes <= 0) return "0 MB";
+  const gb = bytes / (1024 * 1024 * 1024);
+  if (gb >= 1) return `${gb.toFixed(2)} GB`;
+  return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+}
 
 function UserDetail({ userId, onBack }: { userId: string; onBack: () => void }) {
   const [data, setData] = useState<UserDetailData | null>(null);
@@ -239,6 +247,8 @@ function UserDetail({ userId, onBack }: { userId: string; onBack: () => void }) 
         />
       )}
 
+      <StorageCard userId={userId} storage={data.storage} onChange={reload} />
+
       <Card title={`Projects (${data.projects.length})`} className="p-4 sm:p-4">
         {data.projects.length === 0 ? (
           <Empty>No projects.</Empty>
@@ -284,6 +294,90 @@ function UserDetail({ userId, onBack }: { userId: string; onBack: () => void }) 
         )}
       </Card>
     </div>
+  );
+}
+
+function StorageCard({
+  userId,
+  storage,
+  onChange,
+}: {
+  userId: string;
+  storage: { usedBytes: number; limitBytes: number; fraction: number };
+  onChange: () => void;
+}) {
+  const [days, setDays] = useState(30);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const limitLabel = storage.limitBytes < 0 ? "unlimited" : formatBytes(storage.limitBytes);
+  const pct = Math.round(storage.fraction * 100);
+
+  async function purge() {
+    setBusy(true);
+    setResult(null);
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "purge-assets", olderThanDays: days }),
+      });
+      if (!response.ok) throw new Error(await response.text());
+      const data = (await response.json()) as { deletedCount: number; freedBytes: number };
+      setResult(`Removed ${data.deletedCount} files, freed ${formatBytes(data.freedBytes)}.`);
+      onChange();
+    } catch (error) {
+      setResult(`Failed: ${(error as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card title="Storage" className="p-4 sm:p-4">
+      <div className="mb-1 flex items-baseline justify-between text-sm">
+        <span className="font-medium">
+          {formatBytes(storage.usedBytes)} <span className="text-[var(--color-fg-muted)]">of</span>{" "}
+          {limitLabel}
+        </span>
+        {storage.limitBytes > 0 && (
+          <span className="text-xs text-[var(--color-fg-muted)]">{pct}% used</span>
+        )}
+      </div>
+      {storage.limitBytes > 0 && (
+        <div className="mb-3 h-2 overflow-hidden rounded-full bg-[var(--color-bg-2)]">
+          <div
+            className="h-full rounded-full bg-[var(--color-accent)]"
+            style={{ width: `${Math.min(100, pct)}%` }}
+          />
+        </div>
+      )}
+      <div className="flex flex-wrap items-end gap-2 border-t border-[var(--color-border)] pt-3">
+        <label className="flex flex-col text-[11px] text-[var(--color-fg-muted)]">
+          Delete uploads older than (days)
+          <input
+            type="number"
+            min={0}
+            value={days}
+            onChange={(event) => setDays(Number(event.target.value))}
+            className="mt-1 w-24 rounded border border-[var(--color-border)] bg-[var(--color-bg-2)] px-2 py-1 text-sm"
+          />
+        </label>
+        <ConfirmButton
+          label="Free space"
+          confirmLabel="Click again to delete"
+          onConfirm={purge}
+          disabled={busy}
+          busy={busy}
+          className="rounded-lg bg-[var(--color-danger)] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
+        />
+      </div>
+      <p className="mt-2 text-[11px] text-[var(--color-fg-subtle)]">
+        Permanently deletes uploaded asset files older than the chosen age. May break projects that
+        still reference them — use to reclaim disk from abandoned accounts.
+      </p>
+      {result && <p className="mt-2 text-xs text-[var(--color-fg-muted)]">{result}</p>}
+    </Card>
   );
 }
 

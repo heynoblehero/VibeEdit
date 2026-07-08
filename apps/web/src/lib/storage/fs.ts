@@ -86,6 +86,57 @@ export function userStorageBytes(userId: string): number {
   );
 }
 
+// Root under which every user's project tree lives (…/projects/<userId>/…).
+export function allProjectsRoot(): string {
+  return resolve(STORAGE_ROOT, "projects");
+}
+
+export interface PurgeResult {
+  deletedCount: number;
+  freedBytes: number;
+}
+
+// Delete uploaded asset files (…/projects/<userId>/<projectId>/assets/*) whose
+// mtime is older than `olderThanMs`. This is a deliberate space-reclaim action
+// (admin "free space" button + opt-in cron) — it may remove footage a project
+// still references, so callers must warn/confirm. Best-effort: an unreadable or
+// already-removed entry is skipped rather than aborting the whole sweep.
+export function purgeUserAssets(userId: string, olderThanMs: number): PurgeResult {
+  const root = userProjectsRoot(userId);
+  const cutoff = Date.now() - olderThanMs;
+  const result: PurgeResult = { deletedCount: 0, freedBytes: 0 };
+  let projectIds: string[] = [];
+  try {
+    projectIds = readdirSync(root);
+  } catch {
+    return result;
+  }
+  for (const projectId of projectIds) {
+    const assetsDir = join(root, projectId, "assets");
+    let entries: string[] = [];
+    try {
+      entries = readdirSync(assetsDir);
+    } catch {
+      continue;
+    }
+    for (const name of entries) {
+      const full = join(assetsDir, name);
+      try {
+        const stat = statSync(full);
+        if (stat.isFile() && stat.mtimeMs < cutoff) {
+          const size = stat.size;
+          rmSync(full);
+          result.deletedCount += 1;
+          result.freedBytes += size;
+        }
+      } catch {
+        // ignore a single unreadable/removed entry
+      }
+    }
+  }
+  return result;
+}
+
 export function renderOutputPath(jobId: string): string {
   return resolve(STORAGE_ROOT, "renders", jobId);
 }

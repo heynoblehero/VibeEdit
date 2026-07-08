@@ -6,7 +6,8 @@ import { user, projects, renderJobs, subscriptions, usageEvents, errorLog } from
 import { requireAdmin, isAdminEmail } from "@/lib/admin";
 import { planFor } from "@/lib/billing/plans";
 import { cancelPolarSubscription } from "@/lib/billing/polar";
-import { deleteUserStorage } from "@/lib/storage/fs";
+import { deleteUserStorage, userStorageBytes, purgeUserAssets } from "@/lib/storage/fs";
+import { getStorageStatus } from "@/lib/storage/quota";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -119,6 +120,68 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     },
     projects: userProjects,
     renders: recentRenders,
+    storage: (() => {
+      const status = getStorageStatus(id);
+      return {
+        usedBytes: status.usedBytes,
+        limitBytes: status.limitBytes,
+        fraction: status.fraction,
+      };
+    })(),
+  });
+}
+
+// POST /api/admin/users/[id] — admin storage maintenance actions.
+// Auth: requireAdmin(). Body: { action: "purge-assets", olderThanDays?: number }.
+// Deletes the target user's uploaded assets older than N days (default 30) to
+// reclaim disk. Audited. May remove footage a project still references, so the
+// UI warns before calling.
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const admin = await requireAdmin();
+  if (admin instanceof Response) return admin;
+  const { id } = await params;
+
+  const target = db
+    .select({ id: user.id, email: user.email })
+    .from(user)
+    .where(eq(user.id, id))
+    .get();
+  if (!target) return new NextResponse("user not found", { status: 404 });
+
+  const body = (await req.json().catch(() => null)) as {
+    action?: string;
+    olderThanDays?: number;
+  } | null;
+  if (body?.action !== "purge-assets") {
+    return new NextResponse("unknown action", { status: 400 });
+  }
+
+  const olderThanDays =
+    typeof body.olderThanDays === "number" && body.olderThanDays >= 0 ? body.olderThanDays : 30;
+  const before = userStorageBytes(id);
+  const purged = purgeUserAssets(id, olderThanDays * 24 * 60 * 60 * 1000);
+
+  db.insert(errorLog)
+    .values({
+      id: nanoid(12),
+      source: "admin.users.purge-assets",
+      message: `${admin.user.email} purged ${purged.deletedCount} assets (>${olderThanDays}d) from ${target.email}`,
+      stack: null,
+      context: JSON.stringify({
+        adminId: admin.user.id,
+        targetId: id,
+        olderThanDays,
+        ...purged,
+      }),
+      createdAt: new Date(),
+    })
+    .run();
+
+  return NextResponse.json({
+    ok: true,
+    ...purged,
+    storageBefore: before,
+    storageAfter: userStorageBytes(id),
   });
 }
 

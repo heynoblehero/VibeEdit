@@ -24,7 +24,6 @@ export default function EditorPage({ params }: PageProps) {
   const { data: session, isPending } = useSession();
   const [projectName, setProjectName] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [showHelp, setShowHelp] = useState(false);
   const [showTour, setShowTour] = useState(false);
   const [rightTab, setRightTab] = useState<"files" | "history" | "code">("files");
   const [devMode, setDevMode] = useState(false);
@@ -125,25 +124,6 @@ export default function EditorPage({ params }: PageProps) {
       source.close();
     };
   }, [id, session]);
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (!(e.metaKey || e.ctrlKey)) return;
-      if (e.key === "r" || e.key === "R") {
-        e.preventDefault();
-        window.dispatchEvent(new CustomEvent("vibeedit:render"));
-      } else if (e.key === "p" || e.key === "P") {
-        e.preventDefault();
-        window.dispatchEvent(new CustomEvent("vibeedit:toggle-play"));
-      } else if (e.key === "/") {
-        e.preventDefault();
-        setShowHelp((v: boolean) => !v);
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
 
   // Load/save dev mode from localStorage so the preference survives refreshes.
   useEffect(() => {
@@ -430,7 +410,6 @@ export default function EditorPage({ params }: PageProps) {
       </nav>
 
       {/* ── Modals ─────────────────────────────────────────────── */}
-      {showHelp && <ShortcutsModal onClose={() => setShowHelp(false)} />}
       {showTour && <EditorTour onDone={() => setShowTour(false)} />}
       {showSaveSnippet && (
         <SaveSnippetModal
@@ -457,70 +436,6 @@ export default function EditorPage({ params }: PageProps) {
         </div>
       )}
     </main>
-  );
-}
-
-/* ── ShortcutsModal ───────────────────────────────────────────────────────── */
-function ShortcutsModal({ onClose }: { onClose: () => void }) {
-  useEffect(() => {
-    function onEsc(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onEsc);
-    return () => window.removeEventListener("keydown", onEsc);
-  }, [onClose]);
-
-  const shortcuts = [
-    { keys: "⌘ R", label: "Render MP4" },
-    { keys: "⌘ P", label: "Play / Pause preview" },
-    { keys: "⌘ K", label: "Search projects & chats" },
-    { keys: "⌘ /", label: "Keyboard shortcuts" },
-    { keys: "Enter", label: "Send message" },
-    { keys: "⇧ Enter", label: "New line in message" },
-    { keys: "⇧ Click", label: "Edit scene at frame" },
-  ];
-
-  return (
-    <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="animate-scale-in w-full max-w-sm overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl"
-      >
-        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
-          <h2 className="font-semibold text-[var(--color-fg)]">Keyboard shortcuts</h2>
-          <button
-            onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)]"
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 12 12"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <path d="M1 1l10 10M11 1L1 11" />
-            </svg>
-          </button>
-        </div>
-        <ul className="py-2">
-          {shortcuts.map(({ keys, label }) => (
-            <li key={keys} className="flex items-center justify-between px-5 py-2.5">
-              <span className="text-sm text-[var(--color-fg-muted)]">{label}</span>
-              <kbd className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg-2)] px-2 py-0.5 font-mono text-xs text-[var(--color-fg)]">
-                {keys}
-              </kbd>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
   );
 }
 

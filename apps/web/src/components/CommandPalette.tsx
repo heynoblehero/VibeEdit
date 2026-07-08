@@ -86,13 +86,9 @@ export function CommandPalette() {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        // Remember what was focused so we can restore it on close.
-        if (!open) triggerRef.current = document.activeElement as HTMLElement | null;
-        setOpen((value) => !value);
-        return;
-      }
+      // Command-palette open shortcut (⌘K/Ctrl-K) removed per product decision.
+      // Escape-to-close is kept — it's a standard dialog affordance, not an
+      // editor action shortcut.
       if (event.key === "Escape" && open) {
         event.preventDefault();
         setOpen(false);

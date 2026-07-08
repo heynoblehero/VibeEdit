@@ -6,6 +6,7 @@
 // these credentials at generation time.
 
 import { useCallback, useEffect, useState } from "react";
+import { PROVIDER_SETUP } from "@/lib/providers/setup-guides";
 
 type ProviderMeta = { id: string; label: string; kind: "key" | "proxy" };
 type Credential = {
@@ -250,6 +251,9 @@ export default function ProvidersPanel() {
             Add
           </button>
         </div>
+
+        {/* Setup guide for the currently-selected provider */}
+        <SetupGuide provider={provider} label={currentMeta?.label ?? provider} />
       </section>
 
       {/* Pricing */}
@@ -258,6 +262,51 @@ export default function ProvidersPanel() {
         onSave={(p) => post({ action: "pricing", pricing: p }).then(load)}
         busy={busy}
       />
+    </div>
+  );
+}
+
+function SetupGuide({ provider, label }: { provider: string; label: string }) {
+  const guide = PROVIDER_SETUP[provider];
+  if (!guide) return null;
+  return (
+    <div className="mt-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-sm font-semibold text-[var(--color-fg)]">How to set up {label}</span>
+        {guide.docsUrl && (
+          <a
+            href={guide.docsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-[var(--color-accent)] underline"
+          >
+            docs ↗
+          </a>
+        )}
+      </div>
+      <p className="mb-2 text-xs text-[var(--color-fg-muted)]">{guide.powers}</p>
+      {guide.warning && (
+        <p className="mb-2 rounded border border-[var(--color-danger)] bg-[var(--color-danger)]/10 px-2 py-1.5 text-[11px] text-[var(--color-danger)]">
+          ⚠ {guide.warning}
+        </p>
+      )}
+      <ol className="ml-4 list-decimal space-y-1 text-xs text-[var(--color-fg-muted)]">
+        {guide.steps.map((step) => (
+          <li key={step}>{step}</li>
+        ))}
+      </ol>
+      <div className="mt-2 space-y-0.5 text-[11px] text-[var(--color-fg-subtle)]">
+        <div>
+          <span className="font-medium text-[var(--color-fg-muted)]">Secret:</span>{" "}
+          {guide.secretHint}
+        </div>
+        {guide.endpointHint && (
+          <div>
+            <span className="font-medium text-[var(--color-fg-muted)]">Proxy URL:</span>{" "}
+            {guide.endpointHint}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

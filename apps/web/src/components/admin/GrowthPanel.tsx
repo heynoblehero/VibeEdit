@@ -44,7 +44,9 @@ function Tile({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-// A compact CSS bar chart: one bar per day, height scaled to the series max.
+// A dependency-free SVG area+line chart (one point per day). Self-contained so
+// it respects the app CSP — no charting library, no external assets. The area
+// is filled with a soft gradient under a crisp line; hover a point for its value.
 function BarChart({
   title,
   data,
@@ -55,25 +57,64 @@ function BarChart({
   color: string;
 }) {
   const max = Math.max(1, ...data.map((point) => point.value));
+  const total = data.reduce((sum, point) => sum + point.value, 0);
+  const peak = Math.max(0, ...data.map((point) => point.value));
+
+  const width = 100;
+  const height = 40;
+  const count = Math.max(1, data.length - 1);
+  const xFor = (index: number) => (index / count) * width;
+  const yFor = (value: number) => height - (value / max) * (height - 3) - 1;
+
+  const points = data.map((point, index) => ({ x: xFor(index), y: yFor(point.value), point }));
+  const line = points.map((p, index) => `${index === 0 ? "M" : "L"}${p.x} ${p.y}`).join(" ");
+  const area = points.length
+    ? `${line} L${points[points.length - 1].x} ${height} L${points[0].x} ${height} Z`
+    : "";
+  // Stable gradient id per chart so multiple charts on one page don't collide.
+  const gradientId = `growth-fill-${title.replace(/[^a-z0-9]/gi, "")}`;
+
   return (
     <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-6">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--color-fg-muted)]">
-        {title}
-      </h2>
-      <div className="flex h-28 items-end gap-0.5" aria-hidden="true">
-        {data.map((point) => (
-          <div
-            key={point.day}
-            className="flex-1 rounded-t"
-            style={{
-              height: `${Math.max(2, (point.value / max) * 100)}%`,
-              background: color,
-              opacity: point.value === 0 ? 0.25 : 1,
-            }}
-            title={`${point.day}: ${point.value}`}
-          />
-        ))}
+      <div className="mb-3 flex items-baseline justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-fg-muted)]">
+          {title}
+        </h2>
+        <span className="text-xs text-[var(--color-fg-muted)]">
+          {total.toLocaleString()} total · peak {peak.toLocaleString()}
+        </span>
       </div>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        className="h-28 w-full"
+        role="img"
+        aria-label={`${title}: ${total} total over ${data.length} days`}
+      >
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {area && <path d={area} fill={`url(#${gradientId})`} />}
+        {line && (
+          <path
+            d={line}
+            fill="none"
+            stroke={color}
+            strokeWidth="1.2"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+        {points.map(({ x, y, point }) => (
+          <circle key={point.day} cx={x} cy={y} r="1.1" fill={color}>
+            <title>{`${point.day}: ${point.value}`}</title>
+          </circle>
+        ))}
+      </svg>
       <div className="mt-1 flex justify-between text-[10px] text-[var(--color-fg-muted)]">
         <span>{data[0]?.day}</span>
         <span>{data[data.length - 1]?.day}</span>

@@ -27,16 +27,52 @@ type Tab =
   | "monitoring"
   | "providers";
 
-const TABS: Array<{ id: Tab; label: string }> = [
-  { id: "overview", label: "Overview" },
-  { id: "analytics", label: "Analytics" },
-  { id: "users", label: "Users" },
-  { id: "billing", label: "Billing" },
-  { id: "renders", label: "Render ops" },
-  { id: "moderation", label: "Moderation" },
-  { id: "support", label: "Support" },
-  { id: "monitoring", label: "Monitoring" },
-  { id: "providers", label: "Providers" },
+const TABS: Array<{ id: Tab; label: string; hint: string }> = [
+  {
+    id: "overview",
+    label: "Overview",
+    hint: "Today at a glance — signups, active users, revenue and render health. Start here.",
+  },
+  {
+    id: "analytics",
+    label: "Analytics",
+    hint: "Growth over time: daily signups, renders and failures, plus the signup→paid funnel.",
+  },
+  {
+    id: "users",
+    label: "Users",
+    hint: "Search any account. Open one to see plan, usage, projects, storage — grant plans, refund, ban, purge storage or delete.",
+  },
+  {
+    id: "billing",
+    label: "Billing",
+    hint: "Subscriptions, trials and MRR. Who's paying, who's in trial, who churned.",
+  },
+  {
+    id: "renders",
+    label: "Render ops",
+    hint: "The render queue: in-flight, failed and slow jobs with their errors. Retry or investigate stuck renders.",
+  },
+  {
+    id: "moderation",
+    label: "Moderation",
+    hint: "Flagged content and generations to review. Approve or take action.",
+  },
+  {
+    id: "support",
+    label: "Support",
+    hint: "Incoming support messages. Reply here — you're emailed when a new one arrives.",
+  },
+  {
+    id: "monitoring",
+    label: "Monitoring",
+    hint: "System health: recent errors, latency and background-job status.",
+  },
+  {
+    id: "providers",
+    label: "Providers",
+    hint: "Manage AI provider keys/proxies (the credential pool) and generation pricing. Pick a provider to see its setup guide.",
+  },
 ];
 
 const TAB_IDS = new Set<string>(TABS.map((entry) => entry.id));
@@ -114,6 +150,7 @@ export default function AdminPage() {
   }
 
   const Panel = PANELS[tab];
+  const activeHint = TABS.find((entry) => entry.id === tab)?.hint;
 
   return (
     <main className="mx-auto max-w-6xl p-4 sm:p-8">
@@ -145,6 +182,15 @@ export default function AdminPage() {
           </button>
         ))}
       </nav>
+
+      {activeHint && (
+        <div className="mb-5 flex items-start gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-fg-muted)]">
+          <span aria-hidden="true" className="mt-px text-[var(--color-accent)]">
+            ⓘ
+          </span>
+          <span>{activeHint}</span>
+        </div>
+      )}
 
       <Panel />
     </main>

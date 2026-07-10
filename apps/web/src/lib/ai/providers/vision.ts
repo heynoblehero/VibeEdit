@@ -103,6 +103,84 @@ export async function captionImage(opts: {
   return { caption, tags: normalizedTags };
 }
 
+// Vision model for yes/no photo verification. Reuses the caption model by default
+// (same vision-capable Claude) but can be pinned separately via env.
+const VERIFY_MODEL =
+  process.env.VISION_VERIFY_MODEL || process.env.VISION_CAPTION_MODEL || "claude-sonnet-4-6";
+
+/**
+ * Ask the vision model whether a photo clearly shows a free-form target subject
+ * (e.g. "a toothbrush"). Same Claude-via-proxy plumbing as captionImage, returning
+ * a simple { match, reason } verdict. Used by the Rise alarm app's photo-proof
+ * mission through /api/photo-verify, so the model credential stays server-side.
+ */
+export async function verifyPhoto(opts: {
+  // Optional BYOK Anthropic key; falls back to the server proxy credential.
+  apiKey?: string;
+  // Base64 image data, either bare or as a "data:image/...;base64,..." URI.
+  image: string;
+  mediaType?: string;
+  target: string;
+  signal?: AbortSignal;
+}): Promise<{ match: boolean; reason: string }> {
+  const baseURL = (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(
+    /\/$/,
+    "",
+  );
+  const apiKey = opts.apiKey || process.env.ANTHROPIC_API_KEY || "";
+  const { mediaType, data } = opts.image.startsWith("data:")
+    ? parseDataUri(opts.image)
+    : { mediaType: opts.mediaType || "image/jpeg", data: opts.image };
+  const target = opts.target.trim().slice(0, 200);
+  const prompt =
+    `Does this photo clearly show ${target}? Be reasonably lenient about angle, lighting ` +
+    "and framing, but the subject must actually be present. Respond with a STRICT JSON object " +
+    'and nothing else, shaped exactly like: {"match": true|false, "reason": "<short reason>"}';
+
+  const response = await fetch(`${baseURL}/v1/messages`, {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: VERIFY_MODEL,
+      max_tokens: 200,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image", source: { type: "base64", media_type: mediaType, data } },
+          ],
+        },
+      ],
+    }),
+    signal: opts.signal,
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`claude verify failed: ${response.status} ${text.slice(0, 400)}`);
+  }
+  const message = (await response.json()) as AnthropicMessage;
+  const content = (message.content?.find((b) => b.type === "text")?.text ?? "").trim();
+  // Claude may wrap JSON in prose/fences — extract the first {...} block.
+  const start = content.indexOf("{");
+  const end = content.lastIndexOf("}");
+  const jsonSlice = start !== -1 && end > start ? content.slice(start, end + 1) : content;
+  try {
+    const parsed = JSON.parse(jsonSlice) as { match?: unknown; reason?: unknown };
+    return {
+      match: parsed.match === true,
+      reason: typeof parsed.reason === "string" ? parsed.reason.slice(0, 240) : "",
+    };
+  } catch {
+    // Model ignored the JSON instruction — fail safe by NOT asserting a match.
+    return { match: false, reason: content.slice(0, 240) };
+  }
+}
+
 /**
  * Pure heuristic for tagging an audio asset's role from cheap metadata, so the
  * editor can slot it correctly without a network round-trip. Speech wins if

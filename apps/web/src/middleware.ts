@@ -95,6 +95,13 @@ const RULES: Record<string, Rule> = {
     group: "bug-report",
     limit: { limit: num("RL_BUG_PER_MIN", 5), windowSec: 60 },
   },
+  // /api/photo-verify — POST sends an image to the vision model (Anthropic tokens)
+  // for the Rise alarm app. Token-authed in the route; this caps per-IP retries.
+  "/api/photo-verify": {
+    methods: new Set(["POST"]),
+    group: "verify",
+    limit: { limit: num("RL_VERIFY_PER_MIN", 20), windowSec: 60 },
+  },
 };
 
 /** Longest-prefix match so /api/render/[id]/... still resolves to the render rule. */
@@ -189,5 +196,6 @@ export const config = {
     "/api/waitlist/:path*",
     "/api/support/:path*",
     "/api/bug-report/:path*",
+    "/api/photo-verify/:path*",
   ],
 };

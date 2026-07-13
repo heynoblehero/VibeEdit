@@ -3,7 +3,7 @@
 // call POST /api/capture. Keeping the fetch here (not in the content script)
 // avoids page-CSP interference and keeps the token out of page context.
 
-const DEFAULT_BASE = "https://vibeedit.video";
+const DEFAULT_BASE = "https://vibevideoedit.com";
 
 async function getConfig() {
   const { apiBase, token, defaultAction } = await chrome.storage.sync.get([

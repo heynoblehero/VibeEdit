@@ -6,15 +6,15 @@
   padding: 8px 14px;
   border: none;
   border-radius: 18px;
-  background: #7c5cff;
-  color: #fff;
+  background: #d4ff3a;
+  color: #070709;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   font-family: Roboto, Arial, sans-serif;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: filter 0.15s ease;
 }
 
 .vibeedit-send-button:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.05);
 }

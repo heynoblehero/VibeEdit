@@ -7,9 +7,11 @@ trimming, and analysis happens server-side via `POST /api/capture`.
 
 ## How it works
 
-1. In VibeEdit, go to **Settings → Extension** and create a **connection token**.
-2. Load this folder as an unpacked extension (see below) and paste the token
-   (and your VibeEdit URL) into the popup's **Connection settings**.
+1. Load this folder as an unpacked extension (see below).
+2. Open VibeEdit (vibevideoedit.com) — the header shows **Connect extension**.
+   Click it once and the site hands the extension a connection token
+   automatically (no copy/paste). Manual fallback: mint a token in
+   **Settings → Extension** and paste it into the popup's **Connection settings**.
 3. On a video page, either:
    - click the **＋ VibeEdit** button injected under the YouTube player, or
    - open the extension popup, pick an action + optional trim, and **Send current tab**.

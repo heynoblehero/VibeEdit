@@ -7,6 +7,7 @@ import { signOut, useSession } from "@/lib/auth-client";
 import { UsageMeter } from "@/components/UsageMeter";
 import { Onboarding } from "@/components/Onboarding";
 import { Wordmark } from "@/components/Wordmark";
+import { ConnectExtension } from "@/components/ConnectExtension";
 import { useToast } from "@/components/Toast";
 
 type Project = {
@@ -281,6 +282,7 @@ export default function ProjectsPage() {
 
             {/* Right side */}
             <div className="flex items-center gap-2">
+              <ConnectExtension />
               {/* Command palette discoverability — dispatches ⌘K to the
                   global listener in CommandPalette. */}
               <button

@@ -28,7 +28,7 @@ function toggleAttest() {
 
 async function restore() {
   const cfg = await chrome.storage.sync.get(["apiBase", "token", "defaultAction"]);
-  $("apiBase").value = cfg.apiBase || "https://vibeedit.video";
+  $("apiBase").value = cfg.apiBase || "https://vibevideoedit.com";
   $("token").value = cfg.token || "";
   if (cfg.defaultAction) $("action").value = cfg.defaultAction;
   toggleAttest();

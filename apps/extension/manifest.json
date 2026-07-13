@@ -5,7 +5,8 @@
   "description": "Send a clip from any video page to your VibeEdit reference library or a project.",
   "permissions": ["storage", "activeTab", "tabs"],
   "host_permissions": [
-    "https://vibeedit.video/*",
+    "https://vibevideoedit.com/*",
+    "https://www.vibevideoedit.com/*",
     "http://localhost:3000/*",
     "http://localhost:3001/*"
   ],
@@ -32,6 +33,16 @@
       "js": ["content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://vibevideoedit.com/*",
+        "https://www.vibevideoedit.com/*",
+        "http://localhost:3000/*",
+        "http://localhost:3001/*"
+      ],
+      "js": ["site-bridge.js"],
+      "run_at": "document_start"
     }
   ]
 }

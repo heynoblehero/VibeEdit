@@ -680,3 +680,50 @@ export const supportMessages = sqliteTable(
 
 export type SupportThread = typeof supportThreads.$inferSelect;
 export type SupportMessage = typeof supportMessages.$inferSelect;
+
+// Personal reference library — clips/effects a user saved from external videos
+// (or from a project) to reuse or recreate later, across all their projects.
+// The media file itself lives under STORAGE_ROOT/references/<userId>/; this row
+// is the index + provenance. `rightsBasis` mirrors the imported-asset manifest.
+export const references = sqliteTable(
+  "references",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // "clip" = saved footage window; "effect" = a saved composition/style.
+    kind: text("kind").notNull().default("clip"),
+    sourceUrl: text("sourceUrl"),
+    title: text("title").notNull(),
+    uploader: text("uploader"),
+    // Files are stored per-user; these are basenames within referenceDir(userId).
+    thumbFile: text("thumbFile"),
+    clipFile: text("clipFile"),
+    durationSeconds: real("durationSeconds"),
+    // "reference-only" | "owner-attested" | "cc" — see lib/import/rights.ts
+    rightsBasis: text("rightsBasis").notNull().default("reference-only"),
+    notes: text("notes"),
+    createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    // Library list: WHERE userId=? ORDER BY createdAt DESC
+    userCreatedIdx: index("references_user_created_idx").on(table.userId, table.createdAt),
+  }),
+);
+
+// Per-user tokens the browser extension carries to authenticate capture calls.
+// Modeled on workerTokens: minted in Settings, sent as `x-vibe-token`, revocable.
+export const extensionTokens = sqliteTable("extensionTokens", {
+  token: text("token").primaryKey(),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull().default("browser extension"),
+  lastSeenAt: integer("lastSeenAt", { mode: "timestamp" }),
+  createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+  revokedAt: integer("revokedAt", { mode: "timestamp" }),
+});
+
+export type Reference = typeof references.$inferSelect;
+export type ExtensionToken = typeof extensionTokens.$inferSelect;

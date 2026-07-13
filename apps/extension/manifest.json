@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "VibeEdit — Send to editor",
+  "version": "0.1.0",
+  "description": "Send a clip from any video page to your VibeEdit reference library or a project.",
+  "permissions": ["storage", "activeTab", "tabs"],
+  "host_permissions": [
+    "https://vibeedit.video/*",
+    "http://localhost:3000/*",
+    "http://localhost:3001/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Send to VibeEdit"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/watch*", "https://youtube.com/watch*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+.vibeedit-send-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 18px;
+  background: #7c5cff;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: Roboto, Arial, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.vibeedit-send-button:hover {
+  filter: brightness(1.08);
+}

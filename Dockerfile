@@ -13,6 +13,7 @@ WORKDIR /app
 #  - ffmpeg for the render pipeline + audio mux
 #  - chromium runtime libs for hyperframes/engine's headless captures
 #  - fonts so server-rendered text doesn't fall back to boxes
+#  - python3 also backs the yt-dlp zipapp installed below (URL video import)
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl git python3 make g++ \
       ffmpeg \
@@ -22,6 +23,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libgbm1 libasound2 libpangocairo-1.0-0 libpango-1.0-0 libcairo2 \
       fonts-liberation fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
+
+# yt-dlp — resolves external video URLs (YouTube etc.) to a downloadable stream
+# for the "Import from URL" + browser-extension capture flows. Standalone binary
+# (python3 zipapp) pinned so builds are reproducible; bump deliberately.
+ARG YT_DLP_VERSION=2025.06.09
+RUN curl -fSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YT_DLP_VERSION}/yt-dlp" \
+      -o /usr/local/bin/yt-dlp \
+    && chmod a+rx /usr/local/bin/yt-dlp \
+    && /usr/local/bin/yt-dlp --version
 
 # Bun is the package manager + runtime (bun.lock is the source of truth).
 RUN npm install -g bun@1.2.5

@@ -62,18 +62,30 @@ export interface AssetUsage {
   at: string;
 }
 
+// Where an imported asset came from + the legal basis under which the user may
+// use it. Present only when `source === "import"`. `rightsBasis` gates whether
+// the actual footage may be re-hosted in a render (see lib/import/rights.ts).
+export interface AssetProvenance {
+  sourceUrl: string;
+  sourceTitle?: string;
+  uploader?: string;
+  rightsBasis: "reference-only" | "owner-attested" | "cc";
+  importedAt: string;
+}
+
 export interface AssetManifest {
   version: 1;
   path: string; // canonical project-relative path, e.g. "assets/beach-intro.mp4"
   name: string; // chat handle (user-given or AI-suggested)
   aliases: string[]; // AI-maintained fuzzy handles
-  source: "upload" | "ai";
+  source: "upload" | "ai" | "import";
   kind: AssetKind;
   addedAt: string;
   contentHash: string; // invalidates `understanding` when the file changes
   facts: ManifestFacts;
   understanding?: ManifestUnderstanding;
   usage?: AssetUsage[];
+  provenance?: AssetProvenance; // set for source === "import"
 }
 
 const MANIFEST_DIR = "assets/.manifests";
@@ -174,7 +186,7 @@ export async function ensureManifest(
   userId: string,
   projectId: string,
   assetRelPath: string,
-  opts?: { source?: "upload" | "ai" },
+  opts?: { source?: "upload" | "ai" | "import"; provenance?: AssetProvenance },
 ): Promise<AssetManifest> {
   const absPath = abs(userId, projectId, assetRelPath);
   const hash = existsSync(absPath) ? hashFile(absPath) : "";
@@ -196,6 +208,9 @@ export async function ensureManifest(
     // Drop stale understanding when the file changed; keep it otherwise.
     understanding: existing && existing.contentHash === hash ? existing.understanding : undefined,
     usage: existing?.usage,
+    // Provenance is set once at import time; never overwrite it with undefined
+    // on a later refresh.
+    provenance: opts?.provenance ?? existing?.provenance,
   };
   writeManifest(userId, projectId, manifest);
   return manifest;

@@ -26,7 +26,7 @@ import {
   replicateRemoveBackground,
   replicateImageFromReference,
 } from "./providers/replicate";
-import { captionImage } from "./providers/vision";
+import { captionImage, describeForRecreation } from "./providers/vision";
 import {
   generateImageWithModel,
   generateVideoWithModel,
@@ -3303,6 +3303,59 @@ export function buildToolServer(ctx: ToolContext) {
     },
   );
 
+  // Recreate-from-reference: turn a reference clip into a structured style brief
+  // (grade / pacing / typography / effects) the model maps onto registry blocks
+  // and grade/typography presets when building an ORIGINAL composition. Used by
+  // PATH R in the system prompt.
+  const planRecreationTool = tool(
+    "plan_recreation",
+    "Analyze a reference clip the user wants to RECREATE THE STYLE of (an imported clip, source='import') and return a structured brief: color grade, cut pacing, typography, named effects/transitions, and a one-paragraph plan. Use this before plan_composition when the user asks to recreate/copy the vibe of a reference video. You then rebuild it as an ORIGINAL composition using registry blocks + grade/typography presets — never re-host the source footage.",
+    {
+      filePath: z
+        .string()
+        .describe("Relative path to the reference clip, e.g. 'assets/reference.mp4'."),
+      frameCount: z
+        .number()
+        .int()
+        .min(1)
+        .max(4)
+        .optional()
+        .describe("Frames to sample for the analysis (default 4, max 4)."),
+    },
+    async ({ filePath, frameCount }) => {
+      try {
+        const dir = projectDir(ctx.userId, ctx.projectId);
+        const abs = resolveProjectPath(dir, filePath);
+        const { frames, error } = await extractClipFrames(abs, frameCount ?? 4);
+        if (frames.length === 0) {
+          return {
+            content: [{ type: "text", text: `ERROR: ${error ?? "no frames extracted"}` }],
+            isError: true,
+          };
+        }
+        const brief = await describeForRecreation({
+          frames: frames.map((frame) => `data:image/jpeg;base64,${frame}`),
+        });
+        const text = [
+          "RECREATION BRIEF (rebuild as an original composition — do not reuse the source footage):",
+          `• Grade: ${brief.grade || "—"}`,
+          `• Pacing: ${brief.pacing || "—"}`,
+          `• Typography: ${brief.typography || "—"}`,
+          `• Effects: ${brief.effects.length ? brief.effects.join(", ") : "—"}`,
+          `• Layout: ${brief.layout || "—"}`,
+          "",
+          brief.summary,
+        ].join("\n");
+        return { content: [{ type: "text", text }] };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
   // --- Feature 2: review_render (self-correction loop) ---
   const reviewRenderTool = tool(
     "review_render",
@@ -5419,6 +5472,7 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       transcribeClipTool,
       packFootageTool,
       analyzeClipTool,
+      planRecreationTool,
       reviewRenderTool,
       detectFillerWordsTool,
       applyNoiseReductionTool,
@@ -5499,6 +5553,7 @@ export const ALLOWED_TOOL_NAMES = [
   "transcribe_clip",
   "pack_footage",
   "analyze_clip",
+  "plan_recreation",
   "review_render",
   "detect_filler_words",
   "apply_noise_reduction",

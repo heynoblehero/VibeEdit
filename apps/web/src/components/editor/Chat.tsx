@@ -6,6 +6,7 @@ import { markEditSent } from "@/lib/preview-budget";
 import { creditCostLabel } from "@/lib/billing/credit-costs";
 import { Paywall } from "@/components/Paywall";
 import { AssetPickerModal } from "./AssetPickerModal";
+import { ImportUrlModal } from "./ImportUrlModal";
 import { VideoViewerModal } from "./VideoViewerModal";
 import { ModelPicker } from "./chat/ModelPicker";
 import { type AspectRatio, type ChatMessage, extractNextSteps } from "./chat/types";
@@ -203,10 +204,18 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
   const [slashMenuIndex, setSlashMenuIndex] = useState(0);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
   const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [modelMode, setModelMode] = useState<"auto" | "manual">("auto");
   // When set, a fullscreen zoom viewer for a composition (live or a snapshot).
   const [viewer, setViewer] = useState<{ src: string; aspectRatio: AspectRatio } | null>(null);
+  // Agent liveness — probed on chat open so the header reflects whether the
+  // backing account/proxy is actually responding (not just "is the app up").
+  const [agentStatus, setAgentStatus] = useState<{
+    state: "checking" | "online" | "offline";
+    latencyMs?: number;
+    detail?: string;
+  }>({ state: "checking" });
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -222,6 +231,30 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
         if (active && json?.preferences?.mode) setModelMode(json.preferences.mode);
       })
       .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // On chat open, quickly probe whether the agent's backing account/proxy is
+  // responding. Runs in the background — never blocks the composer. The server
+  // caches the probe (~30s) so re-opens don't each bill a real proxy call.
+  useEffect(() => {
+    let active = true;
+    setAgentStatus({ state: "checking" });
+    fetch("/api/health/ai")
+      .then((response) => response.json().then((json) => ({ ok: response.ok, json })))
+      .then(({ json }) => {
+        if (!active) return;
+        setAgentStatus({
+          state: json?.agent === "online" ? "online" : "offline",
+          latencyMs: typeof json?.latencyMs === "number" ? json.latencyMs : undefined,
+          detail: typeof json?.error === "string" ? json.error : undefined,
+        });
+      })
+      .catch(() => {
+        if (active) setAgentStatus({ state: "offline", detail: "unreachable" });
+      });
     return () => {
       active = false;
     };
@@ -470,6 +503,29 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
   const showSamples = messages.length === 0 && !busy;
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
   const showChips = !busy && lastAssistant !== undefined;
+
+  // Header status dot. "busy" (agent actively working) always wins; otherwise
+  // reflect the liveness probe so users see when the backing proxy is down.
+  const statusDot = busy
+    ? { dot: "bg-[var(--color-accent)]", ping: "animate-ping bg-[var(--color-accent)] opacity-75" }
+    : agentStatus.state === "online"
+      ? { dot: "bg-emerald-500", ping: "" }
+      : agentStatus.state === "offline"
+        ? { dot: "bg-red-500", ping: "" }
+        : { dot: "bg-[var(--color-fg-subtle)]", ping: "animate-pulse bg-[var(--color-fg-subtle)]" };
+  const statusLabel = busy
+    ? "Agent working…"
+    : agentStatus.state === "online"
+      ? "Agent online"
+      : agentStatus.state === "offline"
+        ? "Agent offline"
+        : "Checking agent…";
+  const statusTitle =
+    agentStatus.state === "online" && agentStatus.latencyMs !== undefined
+      ? `Agent responded in ${agentStatus.latencyMs}ms`
+      : agentStatus.state === "offline"
+        ? `Agent unreachable${agentStatus.detail ? `: ${agentStatus.detail}` : ""}`
+        : undefined;
   // Context-aware follow-ups the agent suggested at the end of its last turn.
   // Falls back to the generic quick-edits when the agent didn't emit any.
   const nextSteps = extractNextSteps(lastAssistant);
@@ -522,6 +578,19 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
           onClose={() => setShowAssetPicker(false)}
         />
       )}
+      {showImportModal && (
+        <ImportUrlModal
+          projectId={projectId}
+          onClose={() => setShowImportModal(false)}
+          onImported={() =>
+            window.dispatchEvent(
+              new CustomEvent("vibeedit:notify", {
+                detail: { kind: "ok", text: "Clip imported." },
+              }),
+            )
+          }
+        />
+      )}
       {viewer && (
         <VideoViewerModal
           src={viewer.src}
@@ -536,18 +605,16 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
         />
       )}
       <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2.5">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" title={statusTitle}>
           <span className="relative flex h-2 w-2">
-            <span
-              className={`absolute inline-flex h-full w-full rounded-full ${busy ? "animate-ping bg-[var(--color-accent)] opacity-75" : "bg-[var(--color-fg-subtle)]"}`}
-            />
-            <span
-              className={`relative inline-flex h-2 w-2 rounded-full ${busy ? "bg-[var(--color-accent)]" : "bg-[var(--color-fg-subtle)]"}`}
-            />
+            {statusDot.ping && (
+              <span
+                className={`absolute inline-flex h-full w-full rounded-full ${statusDot.ping}`}
+              />
+            )}
+            <span className={`relative inline-flex h-2 w-2 rounded-full ${statusDot.dot}`} />
           </span>
-          <span className="text-xs font-semibold text-[var(--color-fg-muted)]">
-            {busy ? "Agent working…" : "Agent"}
-          </span>
+          <span className="text-xs font-semibold text-[var(--color-fg-muted)]">{statusLabel}</span>
         </div>
         {editingAt !== null && (
           <span className="flex items-center gap-1.5 rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/8 px-2.5 py-1 text-[10px] font-medium text-[var(--color-accent)]">
@@ -797,6 +864,27 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
                       aria-hidden="true"
                     >
                       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowImportModal(true)}
+                    title="Import a clip from a video URL"
+                    className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-surface)] hover:text-[var(--color-fg)]"
+                  >
+                    <svg
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
                     </svg>
                   </button>
                   <button

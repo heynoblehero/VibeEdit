@@ -102,6 +102,14 @@ const RULES: Record<string, Rule> = {
     group: "verify",
     limit: { limit: num("RL_VERIFY_PER_MIN", 20), windowSec: 60 },
   },
+  // /api/capture — POST from the browser extension triggers a yt-dlp download.
+  // Token-authed in the route; this caps per-IP abuse. JSON body, so Edge
+  // middleware in front is safe (unlike the multipart /api/tools routes).
+  "/api/capture": {
+    methods: new Set(["POST"]),
+    group: "capture",
+    limit: { limit: num("RL_CAPTURE_PER_MIN", 10), windowSec: 60 },
+  },
 };
 
 /** Longest-prefix match so /api/render/[id]/... still resolves to the render rule. */
@@ -197,5 +205,6 @@ export const config = {
     "/api/support/:path*",
     "/api/bug-report/:path*",
     "/api/photo-verify/:path*",
+    "/api/capture/:path*",
   ],
 };

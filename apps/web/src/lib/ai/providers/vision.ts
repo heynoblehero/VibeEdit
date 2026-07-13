@@ -103,6 +103,102 @@ export async function captionImage(opts: {
   return { caption, tags: normalizedTags };
 }
 
+export interface RecreationBrief {
+  grade: string; // color grade / look, e.g. "warm teal-orange, crushed blacks"
+  pacing: string; // cut rhythm, e.g. "fast 0.4–0.8s cuts, beat-synced"
+  typography: string; // on-screen text style
+  effects: string[]; // named techniques, e.g. ["speed ramp", "whip pan", "zoom punch-in"]
+  layout: string; // framing / composition notes
+  summary: string; // one-paragraph recreation plan
+}
+
+const RECREATION_INSTRUCTION =
+  "You are a motion-design director. These frames are sampled from a reference " +
+  "video the user wants to RECREATE the STYLE of (not copy the footage). Describe " +
+  "the technique so it can be rebuilt from scratch. Respond with a STRICT JSON " +
+  'object and nothing else, shaped exactly like: {"grade": "<color grade/look>", ' +
+  '"pacing": "<cut rhythm/speed>", "typography": "<on-screen text style>", ' +
+  '"effects": ["named", "techniques"], "layout": "<framing/composition>", ' +
+  '"summary": "<one-paragraph plan to recreate this as an original video>"}. ' +
+  "Be concrete and name transitions/effects a video editor would use.";
+
+/**
+ * Analyze reference frames and return a structured brief the agent maps onto
+ * registry blocks + grade/typography presets when recreating a style. Mirrors
+ * captionImage's Claude-vision plumbing but takes several frames at once.
+ */
+export async function describeForRecreation(opts: {
+  apiKey?: string;
+  frames: string[]; // image data URIs (or bare base64), up to 4 used
+  signal?: AbortSignal;
+}): Promise<RecreationBrief> {
+  const baseURL = (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(
+    /\/$/,
+    "",
+  );
+  const apiKey = opts.apiKey || process.env.ANTHROPIC_API_KEY || "";
+  const imageBlocks = opts.frames.slice(0, 4).map((frame) => {
+    const { mediaType, data } = parseDataUri(frame);
+    return {
+      type: "image" as const,
+      source: { type: "base64" as const, media_type: mediaType, data },
+    };
+  });
+
+  const response = await fetch(`${baseURL}/v1/messages`, {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: CAPTION_MODEL,
+      max_tokens: 700,
+      messages: [
+        {
+          role: "user",
+          content: [{ type: "text", text: RECREATION_INSTRUCTION }, ...imageBlocks],
+        },
+      ],
+    }),
+    signal: opts.signal,
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`claude recreation brief failed: ${response.status} ${text.slice(0, 400)}`);
+  }
+  const message = (await response.json()) as AnthropicMessage;
+  const content = (message.content?.find((b) => b.type === "text")?.text ?? "").trim();
+  const start = content.indexOf("{");
+  const end = content.lastIndexOf("}");
+  const jsonSlice = start !== -1 && end > start ? content.slice(start, end + 1) : content;
+
+  const fallback: RecreationBrief = {
+    grade: "",
+    pacing: "",
+    typography: "",
+    effects: [],
+    layout: "",
+    summary: content.slice(0, 600),
+  };
+  try {
+    const parsed = JSON.parse(jsonSlice) as Partial<RecreationBrief>;
+    return {
+      grade: typeof parsed.grade === "string" ? parsed.grade : "",
+      pacing: typeof parsed.pacing === "string" ? parsed.pacing : "",
+      typography: typeof parsed.typography === "string" ? parsed.typography : "",
+      effects: Array.isArray(parsed.effects)
+        ? parsed.effects.filter((e): e is string => typeof e === "string")
+        : [],
+      layout: typeof parsed.layout === "string" ? parsed.layout : "",
+      summary: typeof parsed.summary === "string" ? parsed.summary : fallback.summary,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 // Vision model for yes/no photo verification. Reuses the caption model by default
 // (same vision-capable Claude) but can be pinned separately via env.
 const VERIFY_MODEL =

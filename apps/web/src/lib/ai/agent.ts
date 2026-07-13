@@ -405,6 +405,7 @@ const TOOL_LABELS: Record<string, string> = {
   transcribe_clip: "Transcribing the clip",
   pack_footage: "Packing the footage",
   analyze_clip: "Analyzing the clip",
+  plan_recreation: "Studying the reference",
   review_render: "Reviewing the render",
   detect_filler_words: "Finding filler words",
   apply_noise_reduction: "Cleaning up the audio",

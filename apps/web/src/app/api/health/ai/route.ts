@@ -1,11 +1,22 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const TIMEOUT_MS = 15000;
 
-export async function GET() {
+// The chat UI probes this on every open. The probe makes a real (billed)
+// Messages call through the agent proxy, so we cache the last result briefly:
+// rapid re-opens / editor reloads reuse it instead of each hitting the proxy.
+// A caller can force a live probe with `?fresh=1`.
+const CACHE_TTL_MS = 30_000;
+
+type ProbeResult = { payload: Record<string, unknown>; httpStatus: number };
+
+let cached: { at: number; result: ProbeResult } | null = null;
+let inflight: Promise<ProbeResult> | null = null;
+
+async function probeAgent(): Promise<ProbeResult> {
   const start = Date.now();
   const baseURL = (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(
     /\/$/,
@@ -39,8 +50,9 @@ export async function GET() {
 
     if (!response.ok) {
       const body = await response.text();
-      return NextResponse.json(
-        {
+      return {
+        httpStatus: 503,
+        payload: {
           status: "error",
           agent: "offline",
           httpStatus: response.status,
@@ -49,8 +61,7 @@ export async function GET() {
           baseURL,
           timestamp: new Date().toISOString(),
         },
-        { status: 503 },
-      );
+      };
     }
 
     const data = (await response.json()) as {
@@ -59,15 +70,18 @@ export async function GET() {
     };
     const text = data.content?.[0]?.type === "text" ? (data.content[0].text ?? "").trim() : "";
 
-    return NextResponse.json({
-      status: "ok",
-      agent: "online",
-      reply: text,
-      latencyMs,
-      model: data.model ?? model,
-      baseURL,
-      timestamp: new Date().toISOString(),
-    });
+    return {
+      httpStatus: 200,
+      payload: {
+        status: "ok",
+        agent: "online",
+        reply: text,
+        latencyMs,
+        model: data.model ?? model,
+        baseURL,
+        timestamp: new Date().toISOString(),
+      },
+    };
   } catch (error) {
     const latencyMs = Date.now() - start;
     const message =
@@ -75,8 +89,9 @@ export async function GET() {
         ? `timeout after ${TIMEOUT_MS}ms`
         : (error as Error).message;
 
-    return NextResponse.json(
-      {
+    return {
+      httpStatus: 503,
+      payload: {
         status: "error",
         agent: "offline",
         error: message,
@@ -84,7 +99,29 @@ export async function GET() {
         baseURL,
         timestamp: new Date().toISOString(),
       },
-      { status: 503 },
+    };
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const fresh = request.nextUrl.searchParams.get("fresh") === "1";
+
+  if (!fresh && cached && Date.now() - cached.at < CACHE_TTL_MS) {
+    return NextResponse.json(
+      { ...cached.result.payload, cached: true, cachedAgeMs: Date.now() - cached.at },
+      { status: cached.result.httpStatus },
     );
   }
+
+  // Coalesce concurrent probes (e.g. two tabs opening chat at once) so only one
+  // real call goes to the proxy.
+  if (!inflight) {
+    inflight = probeAgent().finally(() => {
+      inflight = null;
+    });
+  }
+  const result = await inflight;
+  cached = { at: Date.now(), result };
+
+  return NextResponse.json({ ...result.payload, cached: false }, { status: result.httpStatus });
 }

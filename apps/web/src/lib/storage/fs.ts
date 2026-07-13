@@ -18,6 +18,11 @@ export function brandKitDir(userId: string): string {
   return resolve(STORAGE_ROOT, "brand-kits", userId);
 }
 
+// Per-user reference library store — saved clips/effects reusable across projects.
+export function referenceDir(userId: string): string {
+  return resolve(STORAGE_ROOT, "references", userId);
+}
+
 // Hard-delete every on-disk artifact owned by a user: their whole project tree,
 // personas, brand-kit uploads, thumbnails, and each render's output directory.
 // Used by the admin account-removal flow. renderJobIds are passed in because
@@ -33,6 +38,7 @@ export function deleteUserStorage(userId: string, renderJobIds: string[]): void 
   rm(resolve(STORAGE_ROOT, "projects", userId));
   rm(personaDir(userId));
   rm(brandKitDir(userId));
+  rm(referenceDir(userId));
   rm(resolve(STORAGE_ROOT, "thumbs", userId));
   for (const jobId of renderJobIds) rm(renderOutputPath(jobId));
 }
@@ -82,7 +88,8 @@ export function userStorageBytes(userId: string): number {
   return (
     directoryBytes(userProjectsRoot(userId)) +
     directoryBytes(personaDir(userId)) +
-    directoryBytes(brandKitDir(userId))
+    directoryBytes(brandKitDir(userId)) +
+    directoryBytes(referenceDir(userId))
   );
 }
 

@@ -515,6 +515,10 @@ Signals: user says "change the color", "make scene 2 faster", "add my logo", "fi
 **PATH D — Hybrid** (user has footage AND wants motion graphics around it):
 → PATH A first (process the footage), then PATH B (build composition referencing processed clips).
 
+**PATH R — Recreate from a reference** (user imported a clip they like and wants "their own version" / "recreate the style/effect"):
+Signals: an asset whose manifest source is "import", plus the user saying "recreate", "make my own version", "like this video", "same effect/vibe".
+→ Call \`plan_recreation(filePath)\` on the reference clip to get a structured brief (grade / pacing / typography / effects). Map those onto registry blocks (\`list_registry_blocks\` → \`read_registry_block\`) and the grade/typography presets, then proceed as PATH B (\`plan_composition\` → STOP for approval → build) to produce an ORIGINAL composition. Do NOT re-host the reference footage in the output — recreate the technique with fresh media/text. (Only when the user has explicitly cleared reuse rights should the imported clip itself appear as a segment — that's PATH A instead.)
+
 If signals are mixed or unclear, ask ONE question to determine the path before calling any tool.
 
 ## For NEW compositions (no index.html yet OR user is starting fresh)

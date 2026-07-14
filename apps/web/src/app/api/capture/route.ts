@@ -7,6 +7,7 @@ import { resolveAndDownload, ImportError } from "@/lib/import/fetch-video";
 import { ingestDownloadedVideo } from "@/lib/import/ingest";
 import { saveDownloadToLibrary } from "@/lib/import/library";
 import { resolveRightsBasis, RightsError, type ImportAction } from "@/lib/import/rights";
+import { extractThumbnailDataUri } from "@/lib/import/thumbnail";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -66,6 +67,14 @@ export async function POST(req: Request) {
       license: download.metadata.license,
     });
 
+    // Grab a preview frame BEFORE ingest (which deletes the temp download).
+    // Sampled near the chosen in-point so the overlay shows what was captured.
+    const previewDataUri = await extractThumbnailDataUri(
+      download.filePath,
+      Math.max(0, startSeconds ?? 0),
+    ).catch(() => null);
+    const title = download.metadata.title;
+
     // With a valid, owned projectId → land it in that project. Otherwise the
     // clip goes to the user's reference library.
     if (projectId) {
@@ -81,7 +90,15 @@ export async function POST(req: Request) {
         endSeconds,
         rightsBasis,
       });
-      return json({ target: "project", projectId, asset: ingest.assetPath, rightsBasis });
+      return json({
+        target: "project",
+        projectId,
+        asset: ingest.assetPath,
+        rightsBasis,
+        title,
+        previewDataUri,
+        editorPath: `/app/projects/${projectId}/edit`,
+      });
     }
 
     const libraryId = await saveDownloadToLibrary(userId, download, {
@@ -90,7 +107,14 @@ export async function POST(req: Request) {
       endSeconds,
       rightsBasis,
     });
-    return json({ target: "library", libraryId, rightsBasis });
+    return json({
+      target: "library",
+      libraryId,
+      rightsBasis,
+      title,
+      previewDataUri,
+      editorPath: "/app/references",
+    });
   } catch (error) {
     if (error instanceof RightsError)
       return json({ error: "rights_required", message: error.message }, 403);

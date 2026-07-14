@@ -1,20 +1,217 @@
-.vibeedit-send-button {
+/* VibeEdit capture UI injected into YouTube. Dark + lime, matching the app. */
+
+#vibeedit-capture-button {
+  position: fixed;
+  right: 20px;
+  bottom: 84px;
+  z-index: 2147483000;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-right: 8px;
-  padding: 8px 14px;
+  padding: 10px 16px;
   border: none;
-  border-radius: 18px;
+  border-radius: 22px;
   background: #d4ff3a;
   color: #070709;
   font-size: 13px;
   font-weight: 700;
   font-family: Roboto, Arial, sans-serif;
   cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
   transition: filter 0.15s ease;
 }
-
-.vibeedit-send-button:hover {
+#vibeedit-capture-button:hover {
   filter: brightness(1.05);
+}
+
+/* Markers on YouTube's own progress bar */
+.vibeedit-timeline-mark {
+  position: absolute;
+  top: -3px;
+  width: 3px;
+  height: 11px;
+  transform: translateX(-50%);
+  z-index: 60;
+  pointer-events: none;
+}
+.vibeedit-mark-in {
+  background: #d4ff3a;
+}
+.vibeedit-mark-out {
+  background: #ff5f5f;
+}
+
+/* Panel */
+.vibeedit-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 84px;
+  z-index: 2147483001;
+  width: 340px;
+  max-height: 78vh;
+  overflow-y: auto;
+  background: #070709;
+  color: #eeeef2;
+  border: 1px solid #1e1e2c;
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  font-family: Inter, Roboto, Arial, sans-serif;
+  font-size: 13px;
+}
+.vibeedit-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #1e1e2c;
+}
+.vibeedit-brand {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.vibeedit-brand .accent {
+  color: #d4ff3a;
+}
+.vibeedit-x {
+  background: none;
+  border: none;
+  color: #8888a0;
+  cursor: pointer;
+  font-size: 14px;
+}
+.vibeedit-panel-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.vibeedit-vidtitle {
+  font-weight: 600;
+  color: #eeeef2;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.vibeedit-marks {
+  display: flex;
+  gap: 8px;
+}
+.vibeedit-mini {
+  flex: 1;
+  padding: 7px;
+  border: 1px solid #1e1e2c;
+  border-radius: 8px;
+  background: #12121a;
+  color: #eeeef2;
+  font-weight: 600;
+  cursor: pointer;
+}
+.vibeedit-mini:hover {
+  border-color: #d4ff3a;
+}
+.vibeedit-readout {
+  font-variant-numeric: tabular-nums;
+  color: #8888a0;
+  font-size: 12px;
+}
+.vibeedit-mini-timeline {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: #1a1a25;
+}
+.vibeedit-mini-mark {
+  position: absolute;
+  top: -2px;
+  width: 3px;
+  height: 10px;
+  border-radius: 2px;
+  transform: translateX(-50%);
+}
+.vibeedit-mini-mark.in {
+  background: #d4ff3a;
+}
+.vibeedit-mini-mark.out {
+  background: #ff5f5f;
+}
+.vibeedit-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.vibeedit-radio,
+.vibeedit-attest {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border: 1px solid #1e1e2c;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.vibeedit-attest {
+  color: #8888a0;
+  font-size: 12px;
+}
+.vibeedit-status {
+  min-height: 16px;
+  color: #8888a0;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.vibeedit-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #2a2a3a;
+  border-top-color: #d4ff3a;
+  border-radius: 50%;
+  animation: vibeedit-spin 0.7s linear infinite;
+}
+@keyframes vibeedit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.vibeedit-primary {
+  padding: 10px;
+  border: none;
+  border-radius: 9px;
+  background: #d4ff3a;
+  color: #070709;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+.vibeedit-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.vibeedit-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vibeedit-preview {
+  width: 100%;
+  border-radius: 9px;
+  border: 1px solid #1e1e2c;
+}
+.vibeedit-done {
+  color: #d4ff3a;
+  font-weight: 600;
+}
+.vibeedit-open {
+  display: inline-block;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #12121a;
+  border: 1px solid #d4ff3a;
+  color: #d4ff3a;
+  text-decoration: none;
+  font-weight: 700;
+  text-align: center;
 }

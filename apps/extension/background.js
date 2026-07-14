@@ -45,6 +45,8 @@ async function capture(payload) {
     if (!response.ok) {
       return { ok: false, error: data.message || data.error || `HTTP ${response.status}` };
     }
+    // Absolutize the editor link so the content script can open it directly.
+    if (data.editorPath) data.editorUrl = `${apiBase}${data.editorPath}`;
     return { ok: true, data };
   } catch (error) {
     return { ok: false, error: String(error) };
@@ -55,6 +57,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "capture") {
     capture(message.payload).then(sendResponse);
     return true; // async response
+  }
+  if (message?.type === "getConfig") {
+    getConfig().then((cfg) =>
+      sendResponse({
+        apiBase: cfg.apiBase,
+        hasToken: Boolean(cfg.token),
+        defaultAction: cfg.defaultAction,
+      }),
+    );
+    return true;
   }
   return false;
 });

@@ -79,6 +79,59 @@ function runYtDlp(
   });
 }
 
+// Shared yt-dlp args applied to every invocation. YouTube blocks automated
+// downloads from datacenter IPs ("Sign in to confirm you're not a bot"); the
+// operator can supply cookies (from a logged-in account) and/or a residential
+// proxy via env to get past it. These are the two reliable server-side fixes.
+function commonYtDlpArgs(): string[] {
+  const args: string[] = ["--no-warnings", "--no-playlist", "--retries", "3"];
+  const cookiesFile = process.env.YTDLP_COOKIES_FILE;
+  if (cookiesFile) args.push("--cookies", cookiesFile);
+  const proxy = process.env.YTDLP_PROXY;
+  if (proxy) args.push("--proxy", proxy);
+  // Optional override, e.g. "tv,web_safari,android". Left unset by default so we
+  // use yt-dlp's own current best-guess client order.
+  const clients = process.env.YTDLP_PLAYER_CLIENTS;
+  if (clients) args.push("--extractor-args", `youtube:player_client=${clients}`);
+  return args;
+}
+
+// Turn yt-dlp stderr into a specific, honest user message + HTTP status instead
+// of a vague catch-all. The bot-check in particular needs its own message so the
+// operator knows to configure cookies/proxy rather than thinking the link is bad.
+function classifyYtDlpError(stderr: string): ImportError {
+  const s = stderr || "";
+  if (/Sign in to confirm you.?re not a bot|confirm you're not a bot/i.test(s)) {
+    return new ImportError(
+      "YouTube is blocking automated downloads from our servers. This needs a cookies " +
+        "file or a proxy configured on the server (YTDLP_COOKIES_FILE / YTDLP_PROXY).",
+      502,
+    );
+  }
+  if (/Private video|This video is private/i.test(s)) {
+    return new ImportError("That video is private.", 422);
+  }
+  if (/members-only|join this channel/i.test(s)) {
+    return new ImportError("That video is members-only.", 422);
+  }
+  if (/age|inappropriate|Sign in to confirm your age/i.test(s)) {
+    return new ImportError("That video is age-restricted and can't be imported.", 422);
+  }
+  if (/is not available|unavailable|has been removed|no longer available|deleted/i.test(s)) {
+    return new ImportError("That video is unavailable or has been removed.", 422);
+  }
+  if (/Unsupported URL|Unable to extract|is not a valid URL/i.test(s)) {
+    return new ImportError("That link isn't a supported video URL.", 422);
+  }
+  if (/geo|not available in your country|region/i.test(s)) {
+    return new ImportError("That video is region-locked.", 422);
+  }
+  return new ImportError(
+    "Couldn't read that link — it may be private, region-locked, or unsupported.",
+    422,
+  );
+}
+
 function assertPublicHttpUrl(url: string): void {
   let parsed: URL;
   try {
@@ -98,15 +151,12 @@ function assertPublicHttpUrl(url: string): void {
 export async function resolveMetadata(url: string): Promise<VideoMetadata> {
   assertPublicHttpUrl(url);
   const result = await runYtDlp(
-    ["--dump-json", "--no-playlist", "--no-warnings", "--skip-download", url],
+    ["--dump-json", "--skip-download", ...commonYtDlpArgs(), url],
     META_TIMEOUT_MS,
   );
   if (result.timedOut) throw new ImportError("Timed out reading that link.", 504);
   if (result.code !== 0 || !result.stdout.trim()) {
-    throw new ImportError(
-      "Couldn't read that link — it may be private, region-locked, or unsupported.",
-      422,
-    );
+    throw classifyYtDlpError(result.stderr);
   }
   let data: Record<string, unknown>;
   try {
@@ -170,10 +220,9 @@ export async function resolveAndDownload(
       "-f",
       // Prefer a single progressive mp4; fall back to best available.
       "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best",
-      "--no-playlist",
-      "--no-warnings",
       "--max-filesize",
       String(maxBytes),
+      ...commonYtDlpArgs(),
       "-o",
       outTemplate,
       url,
@@ -186,7 +235,7 @@ export async function resolveAndDownload(
     if (/max-filesize|larger than/i.test(result.stderr)) {
       throw new ImportError("That video is larger than your upload limit.", 413);
     }
-    throw new ImportError("Download failed for that link.", 422);
+    throw classifyYtDlpError(result.stderr);
   }
 
   const files = readdirSync(dir);

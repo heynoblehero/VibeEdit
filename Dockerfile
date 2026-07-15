@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # yt-dlp — resolves external video URLs (YouTube etc.) to a downloadable stream
 # for the "Import from URL" + browser-extension capture flows. Standalone binary
 # (python3 zipapp) pinned so builds are reproducible; bump deliberately.
-ARG YT_DLP_VERSION=2025.06.09
+ARG YT_DLP_VERSION=2026.07.04
 RUN curl -fSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YT_DLP_VERSION}/yt-dlp" \
       -o /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp \

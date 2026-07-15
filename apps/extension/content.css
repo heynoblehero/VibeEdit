@@ -155,6 +155,11 @@
   color: #8888a0;
   font-size: 12px;
 }
+.vibeedit-hint {
+  font-size: 11px;
+  color: #55556a;
+  line-height: 1.35;
+}
 .vibeedit-status {
   min-height: 16px;
   color: #8888a0;

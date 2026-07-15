@@ -35,6 +35,12 @@
       "run_at": "document_idle"
     },
     {
+      "matches": ["https://www.youtube.com/watch*", "https://youtube.com/watch*"],
+      "js": ["recorder.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    },
+    {
       "matches": [
         "https://vibevideoedit.com/*",
         "https://www.vibevideoedit.com/*",

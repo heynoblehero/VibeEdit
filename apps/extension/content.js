@@ -14,6 +14,16 @@
   const BUTTON_ID = "vibeedit-capture-button";
   const PANEL_ID = "vibeedit-panel";
   const state = { inMark: null, outMark: null, action: "recreate", open: false };
+  const config = { apiBase: "", token: "", hasToken: false };
+
+  function loadConfig() {
+    chrome.runtime.sendMessage({ type: "getConfig" }, (cfg) => {
+      if (chrome.runtime.lastError || !cfg) return;
+      config.apiBase = cfg.apiBase || "";
+      config.token = cfg.token || "";
+      config.hasToken = Boolean(cfg.hasToken);
+    });
+  }
 
   const fmt = (seconds) => {
     if (seconds == null || !Number.isFinite(seconds)) return "—";
@@ -152,7 +162,14 @@
     // Status + primary button + result area
     body.append(el("div", "vibeedit-status"));
     const result = el("div", "vibeedit-result");
-    const capture = el("button", "vibeedit-primary", "Capture clip");
+    body.append(
+      el(
+        "div",
+        "vibeedit-hint",
+        "Recording plays the clip in real time to capture it privately in your browser.",
+      ),
+    );
+    const capture = el("button", "vibeedit-primary", "Record & capture");
     capture.addEventListener("click", () => runCapture(panel, capture, result, attest.checked));
     body.append(capture, result);
 
@@ -161,48 +178,80 @@
     renderTimelineMarkers();
   }
 
+  function statusWithSpinner(panel, text) {
+    const status = panel.querySelector(".vibeedit-status");
+    status.textContent = text;
+    status.prepend(el("span", "vibeedit-spinner"));
+  }
+
+  // Records the in→out window client-side (recorder.js, main world) then uploads
+  // the recorded file to the token-authed capture-upload endpoint. Nothing but
+  // the final clip leaves the browser — no cookies, no server-side download.
   function runCapture(panel, button, result, attested) {
+    if (!config.hasToken) {
+      setStatus(panel, "Not connected — open the extension and click Get a token.");
+      return;
+    }
+    if (state.inMark == null) {
+      setStatus(panel, "Set an in-point first (Set in), then a Set out.");
+      return;
+    }
     button.disabled = true;
     result.innerHTML = "";
-    setStatus(panel, "");
-    const stages = ["Downloading the clip…", "Processing the clip…", "Almost there…"];
-    let stage = 0;
-    setStatus(panel, stages[0]);
-    const spinner = el("span", "vibeedit-spinner");
-    panel.querySelector(".vibeedit-status").prepend(spinner);
-    const ticker = setInterval(() => {
-      stage = Math.min(stage + 1, stages.length - 1);
-      const status = panel.querySelector(".vibeedit-status");
-      status.textContent = stages[stage];
-      status.prepend(spinner);
-    }, 4000);
+    statusWithSpinner(panel, "Recording… plays in real time");
 
-    chrome.runtime.sendMessage(
-      {
-        type: "capture",
-        payload: {
-          url: location.href,
-          action: state.action,
-          startSeconds: state.inMark ?? undefined,
-          endSeconds: state.outMark ?? undefined,
-          attested,
-        },
-      },
-      (response) => {
-        clearInterval(ticker);
+    const onMessage = (event) => {
+      if (event.source !== window) return;
+      const data = event.data;
+      if (!data || data.source !== "vibeedit-rec-main") return;
+      if (data.type === "progress") {
+        statusWithSpinner(panel, `Recording… ${Math.round((data.pct || 0) * 100)}%`);
+      } else if (data.type === "error") {
+        window.removeEventListener("message", onMessage);
         button.disabled = false;
-        if (chrome.runtime.lastError || !response) {
-          setStatus(panel, "Failed — is the extension connected?");
-          return;
-        }
-        if (!response.ok) {
-          setStatus(panel, response.error || "Capture failed.");
-          return;
-        }
-        setStatus(panel, "");
-        renderResult(result, response.data);
-      },
+        setStatus(panel, data.message || "Recording failed.");
+      } else if (data.type === "done") {
+        window.removeEventListener("message", onMessage);
+        uploadRecording(panel, button, result, data, attested);
+      }
+    };
+    window.addEventListener("message", onMessage);
+
+    window.postMessage(
+      { source: "vibeedit-rec", type: "start", inSec: state.inMark, outSec: state.outMark },
+      location.origin,
     );
+  }
+
+  async function uploadRecording(panel, button, result, data, attested) {
+    statusWithSpinner(panel, "Processing the clip…");
+    try {
+      const blob = new Blob([data.buffer], { type: data.mime || "video/webm" });
+      const form = new FormData();
+      form.append("file", blob, "capture.webm");
+      form.append("action", state.action);
+      form.append("attested", attested ? "true" : "false");
+      form.append("sourceUrl", location.href);
+      form.append("title", document.title.replace(/\s*-\s*YouTube\s*$/, "").trim());
+
+      const response = await fetch(`${config.apiBase}/api/capture-upload`, {
+        method: "POST",
+        headers: { "x-vibe-token": config.token },
+        body: form,
+      });
+      const json = await response.json().catch(() => ({}));
+      button.disabled = false;
+      if (!response.ok) {
+        setStatus(panel, json.message || json.error || "Upload failed.");
+        return;
+      }
+      setStatus(panel, "");
+      if (json.editorPath) json.editorUrl = `${config.apiBase}${json.editorPath}`;
+      renderResult(result, json);
+    } catch (error) {
+      button.disabled = false;
+      setStatus(panel, `Upload failed: ${error.message}`);
+    }
   }
 
   function renderResult(result, data) {
@@ -234,6 +283,7 @@
     document.body.appendChild(button);
   }
 
+  loadConfig();
   ensureButton();
   const observer = new MutationObserver(() => {
     ensureButton();

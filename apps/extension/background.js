@@ -73,6 +73,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     getConfig().then((cfg) =>
       sendResponse({
         apiBase: cfg.apiBase,
+        token: cfg.token,
         hasToken: Boolean(cfg.token),
         defaultAction: cfg.defaultAction,
       }),

@@ -78,6 +78,15 @@
         min-height: 16px;
         color: #8888a0;
       }
+      .conn {
+        margin: 4px 0 8px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #8888a0;
+      }
+      .conn.ok {
+        color: #d4ff3a;
+      }
       details {
         margin-top: 12px;
         font-size: 12px;
@@ -90,6 +99,9 @@
   </head>
   <body>
     <h1>vibe<span class="accent">edit</span> — send clip</h1>
+
+    <div id="connState" class="conn"></div>
+    <button id="getToken" class="secondary">Get a token on VibeEdit →</button>
 
     <label for="action">What to do</label>
     <select id="action">

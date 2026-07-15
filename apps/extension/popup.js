@@ -26,13 +26,43 @@ function toggleAttest() {
   $("attestLabel").style.display = $("action").value === "recreate" ? "none" : "block";
 }
 
+function renderConnState(hasToken) {
+  const conn = $("connState");
+  conn.textContent = hasToken ? "Connected ✓" : "Not connected — click below to get a token";
+  conn.classList.toggle("ok", Boolean(hasToken));
+  // Sending is only useful once connected; keep the button enabled but the
+  // status will explain if it isn't.
+  $("send").style.opacity = hasToken ? "1" : "0.6";
+}
+
+function currentApiBase() {
+  return ($("apiBase").value.trim() || "https://vibevideoedit.com").replace(/\/+$/, "");
+}
+
 async function restore() {
   const cfg = await chrome.storage.sync.get(["apiBase", "token", "defaultAction"]);
   $("apiBase").value = cfg.apiBase || "https://vibevideoedit.com";
   $("token").value = cfg.token || "";
   if (cfg.defaultAction) $("action").value = cfg.defaultAction;
+  renderConnState(Boolean(cfg.token));
   toggleAttest();
 }
+
+// "Get a token" → open the site's connect page (first-party, logged in). The
+// site hands the token back to the extension automatically via the site-bridge
+// content script, so the user never copies anything.
+$("getToken").addEventListener("click", () => {
+  chrome.tabs.create({ url: `${currentApiBase()}/app/settings/extension` });
+});
+
+// Live-update connection state if the site hands off a token while the popup is
+// open (e.g. the user clicked Connect on the site page).
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "sync" && changes.token) {
+    $("token").value = changes.token.newValue || "";
+    renderConnState(Boolean(changes.token.newValue));
+  }
+});
 
 $("action").addEventListener("change", toggleAttest);
 

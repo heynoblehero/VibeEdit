@@ -53,6 +53,17 @@ async function capture(payload) {
   }
 }
 
+// Toolbar-icon badge = live connection confirmation. A lime "✓" means a token
+// is stored (connected); cleared means not connected.
+function updateBadge(hasToken) {
+  chrome.action.setBadgeText({ text: hasToken ? "✓" : "" });
+  chrome.action.setBadgeBackgroundColor({ color: "#d4ff3a" });
+}
+chrome.storage.sync.get(["token"], ({ token }) => updateBadge(Boolean(token)));
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "sync" && changes.token) updateBadge(Boolean(changes.token.newValue));
+});
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "capture") {
     capture(message.payload).then(sendResponse);

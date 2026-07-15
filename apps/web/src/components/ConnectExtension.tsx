@@ -13,11 +13,17 @@ import { useToast } from "@/components/Toast";
  * same-origin postMessage — no copy/paste. When not installed, it links to the
  * install instructions.
  */
-export function ConnectExtension() {
+export function ConnectExtension({ prominent = false }: { prominent?: boolean }) {
   const toast = useToast();
   const [installed, setInstalled] = useState(false);
   const [connected, setConnected] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // Compact = a small header chip (hidden on mobile). Prominent = a full-width
+  // banner used on the Settings → Extension page.
+  const base = prominent
+    ? "flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold"
+    : "hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs sm:flex";
 
   useEffect(() => {
     // Attribute is set synchronously by the content script at document_start.
@@ -97,11 +103,11 @@ export function ConnectExtension() {
     return (
       <a
         href="/app/settings/extension"
-        className="hidden items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-fg-muted)] transition-colors hover:border-[var(--color-accent)]/40 hover:text-[var(--color-fg)] sm:flex"
+        className={`${base} border border-[var(--color-border)] bg-[var(--color-surface)] font-medium text-[var(--color-fg-muted)] transition-colors hover:border-[var(--color-accent)]/40 hover:text-[var(--color-fg)]`}
         title="Grab the VibeEdit browser extension"
       >
         <ExtensionIcon />
-        Get extension
+        {prominent ? "Install the extension, then reload this page" : "Get extension"}
       </a>
     );
   }
@@ -109,11 +115,11 @@ export function ConnectExtension() {
   if (connected) {
     return (
       <span
-        className="hidden items-center gap-1.5 rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 px-2.5 py-1.5 text-xs font-semibold text-[var(--color-accent)] sm:flex"
+        className={`${base} border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 font-semibold text-[var(--color-accent)]`}
         title="The browser extension is connected to your account"
       >
         <ExtensionIcon />
-        Extension connected
+        Extension connected ✓
       </span>
     );
   }
@@ -123,7 +129,7 @@ export function ConnectExtension() {
       type="button"
       onClick={connect}
       disabled={busy}
-      className="hidden items-center gap-1.5 rounded-lg border border-[var(--color-accent)]/50 bg-[var(--color-accent)] px-2.5 py-1.5 text-xs font-bold text-black transition-opacity hover:opacity-90 disabled:opacity-60 sm:flex"
+      className={`${base} border border-[var(--color-accent)]/50 bg-[var(--color-accent)] font-bold text-black transition-opacity hover:opacity-90 disabled:opacity-60`}
       title="Connect the installed extension to your account"
     >
       <ExtensionIcon />

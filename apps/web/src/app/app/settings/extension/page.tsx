@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { Wordmark } from "@/components/Wordmark";
 import { useToast } from "@/components/Toast";
+import { ConnectExtension } from "@/components/ConnectExtension";
 
 type TokenRow = {
   token: string; // masked
@@ -98,10 +99,16 @@ export default function ExtensionSettingsPage() {
       </header>
 
       <h1 className="mb-2 text-2xl font-bold sm:text-3xl">Browser extension</h1>
-      <p className="mb-6 max-w-2xl text-sm text-[var(--color-fg-muted)]">
-        Install the VibeEdit browser extension, then paste a connection token below into it. On any
-        video page, the extension can send a clip straight to your reference library or a project.
+      <p className="mb-4 max-w-2xl text-sm text-[var(--color-fg-muted)]">
+        Install the VibeEdit browser extension, then click connect below — we hand it a token
+        automatically, no copy/paste. On any video page, the extension can send a clip straight to
+        your reference library or a project.
       </p>
+
+      {/* One-click connect + live confirmation (also reflected in the extension). */}
+      <div className="mb-6 max-w-md">
+        <ConnectExtension prominent />
+      </div>
 
       <button
         onClick={mint}

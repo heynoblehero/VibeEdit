@@ -16,20 +16,8 @@ import { MessageBubble, VideoMessageCard } from "./chat/MessageView";
 
 // One queued chat instruction. `message` is the fully composed prompt (with any
 // attachment notes) that gets POSTed; `display` is the short user-typed text
-// shown on the queue chip. `sceneHint` (a timeline time in seconds), when set,
-// marks the instruction as targeting one scene — the dispatcher batches distinct
-// scene-targeted items to run them in parallel (Phase 2b).
-type QueuedInstruction = {
-  id: string;
-  message: string;
-  display: string;
-  sceneHint?: number;
-  // Explicit scene agent target (from roster focus). Wins over sceneHint.
-  sceneId?: string | null;
-};
-
-// Max scenes built at once in one parallel batch — mirrors the server cap.
-const MAX_BATCH_LANES = 3;
+// shown on the queue chip.
+type QueuedInstruction = { id: string; message: string; display: string };
 
 const SAMPLE_PROMPTS: Array<{
   tag: string;
@@ -203,37 +191,15 @@ const REGENERATE_CHIPS: Array<{ label: string; prompt: string }> = [
   },
 ];
 
-export function Chat({
-  projectId,
-  reloadKey,
-  activeSceneId = null,
-  onExitAgent,
-}: {
-  projectId: string;
-  reloadKey: number;
-  // Editor Team: when set, the chat is scoped to one scene agent — the thread
-  // filters to that agent's messages and the composer routes to it.
-  activeSceneId?: string | null;
-  onExitAgent?: () => void;
-}) {
+export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: number }) {
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   // Streaming state (busy / live tool log / live activity label) + the SSE
   // read loop live in the useChatStream hook; the thread UI here just consumes
   // them. The protocol degrades gracefully — see chat/useChatStream.ts.
-  const {
-    busy,
-    live,
-    activity,
-    laneActivity,
-    paywall,
-    dismissPaywall,
-    runStream,
-    runBatch,
-    resumeStream,
-    takePendingDelegation,
-  } = useChatStream();
+  const { busy, live, activity, paywall, dismissPaywall, runStream, resumeStream } =
+    useChatStream();
   const [prefs, setPrefs] = useState<UserPrefs | null>(null);
   const [editingAt, setEditingAt] = useState<number | null>(null);
   const [attachedAssets, setAttachedAssets] = useState<string[]>([]);
@@ -560,70 +526,16 @@ export function Chat({
     drainingRef.current = true;
     try {
       while (queueRef.current.length > 0) {
-        // A queued item's target scene is its explicit agent (sceneId) or its
-        // timeline hint; null = whole-composition/global.
-        const targetOf = (item: QueuedInstruction): string | null =>
-          item.sceneId ?? (item.sceneHint != null ? `t:${item.sceneHint}` : null);
-        // Build the next unit of work: a single item, or a parallel BATCH of the
-        // longest prefix of scene-targeted items with DISTINCT scenes. A batch
-        // stops at the first untargeted item, a repeated scene, or the cap — so
-        // whole-composition and same-scene (same-agent) edits stay serial.
-        const group = [queueRef.current[0]];
-        const headTarget = targetOf(group[0]);
-        if (headTarget != null) {
-          const seen = new Set<string>([headTarget]);
-          for (let i = 1; i < queueRef.current.length && group.length < MAX_BATCH_LANES; i += 1) {
-            const candidate = queueRef.current[i];
-            const key = targetOf(candidate);
-            if (key == null || seen.has(key)) break;
-            seen.add(key);
-            group.push(candidate);
-          }
-        }
-        syncQueue(queueRef.current.slice(group.length));
-        setMessages((prev) => [
-          ...prev,
-          ...group.map((entry) => ({
-            role: "user" as const,
-            content: entry.message,
-            sceneId: entry.sceneId,
-          })),
-        ]);
-        const started =
-          group.length > 1
-            ? await runBatch(
-                projectId,
-                group.map((entry) => ({
-                  message: entry.message,
-                  sceneHint: entry.sceneHint,
-                  sceneId: entry.sceneId,
-                })),
-              )
-            : await runStream(projectId, group[0].message, group[0].sceneId);
-        // The group is already off the queue and shown in the thread; any error
+        const [item, ...rest] = queueRef.current;
+        syncQueue(rest);
+        setMessages((prev) => [...prev, { role: "user", content: item.message }]);
+        const started = await runStream(projectId, item.message);
+        // The item is already off the queue and shown in the thread; any error
         // (paywall / failure) is surfaced by the run. If it never started, stop
         // draining so we don't spam failing POSTs — the rest stays queued and
         // resumes on the next send.
         if (!started) break;
         await loadHistory();
-
-        // If the lead just delegated scenes to the team, enqueue one build task
-        // per scene at the FRONT of the queue — the next loop iterations batch
-        // them (MAX_BATCH_LANES at a time) so the scenes build in parallel.
-        const delegated = takePendingDelegation();
-        if (delegated && delegated.length > 0) {
-          const buildTasks: QueuedInstruction[] = delegated.map((scene) => ({
-            id: crypto.randomUUID(),
-            message:
-              `Build scene ${scene.sceneId} ("${scene.name}"). ${scene.brief}\n\n` +
-              `The scaffold, shared style-lock (in <head>), and your empty scene container already exist. ` +
-              `Use read_scene then edit_scene to fill ONLY your own <div data-scene-id="${scene.sceneId}"> — never touch other scenes or the <head>. ` +
-              `Match the style-lock (fonts/colors/type scale). Register this scene's motion under window.__timelines["${scene.sceneId}"] positioned in GLOBAL composition time (entrance at data-scene-start, exit before its end), and keep the container absolutely positioned + full-frame so scenes stack cleanly.`,
-            display: `Build ${scene.name} (${scene.sceneId})`,
-            sceneId: scene.sceneId,
-          }));
-          syncQueue([...buildTasks, ...queueRef.current]);
-        }
       }
     } finally {
       drainingRef.current = false;
@@ -666,38 +578,17 @@ export function Chat({
     setSlashMenuActive(false);
     markEditSent();
 
-    // A scene-targeted instruction carries a scene target so the dispatcher can
-    // run it in parallel with edits to OTHER scenes. Explicit agent focus (from
-    // the roster) wins; otherwise the "Edit the scene at Xs" timeline affordance
-    // supplies a time hint. Attachments force whole-composition reasoning, so an
-    // instruction with attachments is never scene-targeted.
-    const sceneMatch = hasAttachments
-      ? null
-      : userMessageRaw.match(/^Edit the scene at ([\d.]+)s/i);
-    const sceneHint = sceneMatch ? Number(sceneMatch[1]) : undefined;
-    const sceneId = hasAttachments ? null : activeSceneId;
-
     // Always go through the queue: when idle, drainQueue runs it immediately;
     // when a run is in flight, it waits its turn. The composer is already reset
     // above, so the user can keep firing instructions without blocking.
     const display = userMessageRaw || `${attachedAssets.length} attachment(s)`;
-    syncQueue([
-      ...queueRef.current,
-      { id: crypto.randomUUID(), message: userMessage, display, sceneHint, sceneId },
-    ]);
+    syncQueue([...queueRef.current, { id: crypto.randomUUID(), message: userMessage, display }]);
     drainQueue();
   }
   sendRef.current = send;
 
-  // Editor Team scoping: when an agent is focused, show only its scoped thread
-  // (its own messages + the shared lead/global brief), so it reads as a
-  // conversation with that one agent. Global view shows everything.
-  const visibleMessages = activeSceneId
-    ? messages.filter((m) => m.sceneId === activeSceneId || m.sceneId == null)
-    : messages;
-
-  const showSamples = visibleMessages.length === 0 && !busy;
-  const lastAssistant = [...visibleMessages].reverse().find((m) => m.role === "assistant");
+  const showSamples = messages.length === 0 && !busy;
+  const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
   const showChips = !busy && lastAssistant !== undefined;
 
   // Header status dot. "busy" (agent actively working) always wins; otherwise
@@ -836,7 +727,7 @@ export function Chat({
       >
         <div className="mx-auto w-full min-w-0 max-w-3xl space-y-2">
           {showSamples && <SamplePromptCards prefs={prefs} onPick={(text) => send(text)} />}
-          {visibleMessages.map((message, index) => {
+          {messages.map((message, index) => {
             const versionSnapshotId = message.role === "assistant" ? message.snapshotId : null;
             const isLatestVersion = !!versionSnapshotId && versionSnapshotId === latestSnapshotId;
             return (
@@ -867,27 +758,9 @@ export function Chat({
               </div>
             );
           })}
-          {(live.length > 0 || activity || Object.values(laneActivity).some(Boolean)) && (
+          {(live.length > 0 || activity) && (
             <div className="max-w-[90%] space-y-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs shadow-sm">
               <ActivityIndicator label={activity} />
-              {/* One line per scene building in parallel (Phase 2b). */}
-              {Object.entries(laneActivity)
-                .filter(([, label]) => label)
-                .map(([lane, label]) => (
-                  <div
-                    key={lane}
-                    className="flex items-center gap-2 text-[11px] font-medium text-[var(--color-fg-muted)]"
-                  >
-                    <span
-                      className="inline-block h-3 w-3 animate-spin rounded-full border border-[var(--color-border)] border-t-[var(--color-accent)]"
-                      aria-hidden="true"
-                    />
-                    <span className="rounded bg-[var(--color-bg-2)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-fg)]">
-                      {lane}
-                    </span>
-                    <span aria-live="polite">{label}…</span>
-                  </div>
-                ))}
               <LiveLog live={live} projectId={projectId} />
             </div>
           )}
@@ -917,25 +790,6 @@ export function Chat({
 
       <div className="border-t border-[var(--color-border)] bg-[var(--color-bg)] p-2.5 sm:p-3">
         <div className="mx-auto w-full max-w-3xl">
-          {activeSceneId && (
-            <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/8 px-2.5 py-1.5 text-[11px]">
-              <span className="flex items-center gap-1.5 font-medium text-[var(--color-fg)]">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
-                Talking to agent{" "}
-                <span className="font-mono text-[var(--color-accent)]">{activeSceneId}</span>
-              </span>
-              <button
-                onClick={() => onExitAgent?.()}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") onExitAgent?.();
-                }}
-                className="rounded px-1.5 py-0.5 text-[var(--color-fg-muted)] transition-colors hover:text-[var(--color-fg)]"
-                title="Back to all scenes"
-              >
-                All scenes ✕
-              </button>
-            </div>
-          )}
           {queue.length > 0 && (
             <div className="mb-2 flex flex-col gap-1">
               {queue.map((item) => (
@@ -1068,11 +922,9 @@ export function Chat({
                   }
                 }}
                 placeholder={
-                  activeSceneId
-                    ? `Instruct agent ${activeSceneId}…`
-                    : busy
-                      ? "Queue another instruction…"
-                      : "Describe the video — or type / for commands…"
+                  busy
+                    ? "Queue another instruction…"
+                    : "Describe the video — or type / for commands…"
                 }
                 rows={2}
                 className="max-h-40 w-full resize-none bg-transparent px-3.5 pt-3 pb-1 text-base text-[var(--color-fg)] outline-none placeholder:text-[var(--color-fg-subtle)] disabled:opacity-50 md:text-sm"

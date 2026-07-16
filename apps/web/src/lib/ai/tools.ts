@@ -10,14 +10,7 @@ import {
   personaDir,
 } from "../storage/fs";
 import { listRegistry, readRegistryBlock } from "./registry";
-import {
-  getScene,
-  parseScenes,
-  resolveSceneAtTime,
-  replaceScene,
-  sceneSummary,
-} from "./scene-manifest";
-import { withProjectLock } from "./project-lock";
+import { getScene, resolveSceneAtTime, replaceScene, sceneSummary } from "./scene-manifest";
 import {
   ensureManifest,
   readManifest,
@@ -495,42 +488,38 @@ export function buildToolServer(ctx: ToolContext) {
     },
     async ({ path, old_text, new_text }) => {
       try {
-        // Read-modify-write under the per-project lock so a concurrent scene edit
-        // (Phase 2b batch) can't lose-update this file between our read and write.
-        return await withProjectLock(ctx.userId, ctx.projectId, () => {
-          const current = readProjectText(ctx.userId, ctx.projectId, path);
-          const occurrences = current.split(old_text).length - 1;
-          if (occurrences === 0)
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: `ERROR: old_text not found in ${path}. Try a more specific snippet.`,
-                },
-              ],
-              isError: true,
-            };
-          if (occurrences > 1)
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: `ERROR: old_text appears ${occurrences} times in ${path}. Need a unique snippet — add surrounding context.`,
-                },
-              ],
-              isError: true,
-            };
-          const updated = current.replace(old_text, new_text);
-          writeProjectFile(ctx.userId, ctx.projectId, path, updated);
+        const current = readProjectText(ctx.userId, ctx.projectId, path);
+        const occurrences = current.split(old_text).length - 1;
+        if (occurrences === 0)
           return {
             content: [
               {
                 type: "text",
-                text: `OK: ${path} updated (${old_text.length}B → ${new_text.length}B).`,
+                text: `ERROR: old_text not found in ${path}. Try a more specific snippet.`,
               },
             ],
+            isError: true,
           };
-        });
+        if (occurrences > 1)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `ERROR: old_text appears ${occurrences} times in ${path}. Need a unique snippet — add surrounding context.`,
+              },
+            ],
+            isError: true,
+          };
+        const updated = current.replace(old_text, new_text);
+        writeProjectFile(ctx.userId, ctx.projectId, path, updated);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OK: ${path} updated (${old_text.length}B → ${new_text.length}B).`,
+            },
+          ],
+        };
       } catch (error) {
         return {
           content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
@@ -608,11 +597,7 @@ export function buildToolServer(ctx: ToolContext) {
     },
     async ({ path, content }) => {
       try {
-        // Serialize with concurrent scene edits so a whole-file write and an
-        // in-flight scene RMW can't clobber each other (Phase 2b).
-        await withProjectLock(ctx.userId, ctx.projectId, () => {
-          writeProjectFile(ctx.userId, ctx.projectId, path, content);
-        });
+        writeProjectFile(ctx.userId, ctx.projectId, path, content);
         return {
           content: [
             {
@@ -723,90 +708,27 @@ export function buildToolServer(ctx: ToolContext) {
           ],
           isError: true,
         };
-      // Read-modify-write under the per-project lock: two concurrent scene edits
-      // (Phase 2b batch) each read the LATEST index.html inside the lock and
-      // replace only their own scene, so neither loses the other's change.
-      return withProjectLock(ctx.userId, ctx.projectId, () => {
-        let html: string;
-        try {
-          html = readProjectText(ctx.userId, ctx.projectId, "index.html");
-        } catch {
-          return {
-            content: [{ type: "text", text: "No index.html yet — build the composition first." }],
-            isError: true,
-          };
-        }
-        const updated = replaceScene(html, scene_id, trimmed);
-        if (updated === null)
-          return {
-            content: [
-              { type: "text", text: `Scene '${scene_id}' not found. ${sceneSummary(html)}` },
-            ],
-            isError: true,
-          };
-        writeProjectFile(ctx.userId, ctx.projectId, "index.html", updated);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `OK: replaced scene ${scene_id} (index.html now ${updated.length} bytes). Lint + screenshot to verify.`,
-            },
-          ],
-        };
-      });
-    },
-  );
-
-  // Editor Team delegation. The lead calls this AFTER writing the scaffold to
-  // hand each scene to its own agent; the client sees this tool call and fans the
-  // scenes out as a parallel batch (one agent per scene, each editing only its
-  // own div under the write lock). The tool itself just validates + acknowledges.
-  const delegateScenesTool = tool(
-    "delegate_scenes",
-    "Delegate the per-scene build to the Editor Team — call this ONCE, right after writing the scaffold index.html (style-lock + empty scene containers). Each scene runs as its own agent IN PARALLEL, filling only its own <div data-scene-id> and registering its within-scene motion under window.__timelines['<sceneId>']. Provide one entry per scene with its id, short name, and a concrete brief (content + beats + media). After this returns, END your turn — the team takes over and the scenes build concurrently.",
-    {
-      scenes: z
-        .array(
-          z.object({
-            sceneId: z.string().describe("The scene's data-scene-id, e.g. 'scene-1'."),
-            name: z.string().describe("Short role name, e.g. 'Hook' or 'Reveal'."),
-            brief: z
-              .string()
-              .describe("Concrete build brief for this scene: content, beats, media, motion."),
-          }),
-        )
-        .min(1)
-        .describe("One entry per scene to build, in timeline order."),
-    },
-    async ({ scenes }) => {
-      // Validate the scenes exist in the scaffold so we don't dispatch dead lanes.
-      let known = new Set<string>();
+      let html: string;
       try {
-        known = new Set(
-          parseScenes(readProjectText(ctx.userId, ctx.projectId, "index.html")).map((s) => s.id),
-        );
+        html = readProjectText(ctx.userId, ctx.projectId, "index.html");
       } catch {
-        // no scaffold yet — the lead must write it before delegating
-      }
-      const missing = scenes.map((s) => s.sceneId).filter((id) => !known.has(id));
-      if (missing.length > 0) {
         return {
-          content: [
-            {
-              type: "text",
-              text: `ERROR: these scene ids are not in the scaffold: ${missing.join(", ")}. Write the scaffold (empty scene <div>s with matching data-scene-id) BEFORE delegating.`,
-            },
-          ],
+          content: [{ type: "text", text: "No index.html yet — build the composition first." }],
           isError: true,
         };
       }
+      const updated = replaceScene(html, scene_id, trimmed);
+      if (updated === null)
+        return {
+          content: [{ type: "text", text: `Scene '${scene_id}' not found. ${sceneSummary(html)}` }],
+          isError: true,
+        };
+      writeProjectFile(ctx.userId, ctx.projectId, "index.html", updated);
       return {
         content: [
           {
             type: "text",
-            text: `Delegating ${scenes.length} scene(s) to the team: ${scenes
-              .map((s) => `${s.sceneId} (${s.name})`)
-              .join(", ")}. Each will build in parallel now.`,
+            text: `OK: replaced scene ${scene_id} (index.html now ${updated.length} bytes). Lint + screenshot to verify.`,
           },
         ],
       };
@@ -5709,7 +5631,6 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       listScenesTool,
       readSceneTool,
       editSceneTool,
-      delegateScenesTool,
     ],
   });
 }
@@ -5794,7 +5715,6 @@ export const ALLOWED_TOOL_NAMES = [
   "list_scenes",
   "read_scene",
   "edit_scene",
-  "delegate_scenes",
 ].map((n) => `mcp__${MCP_SERVER_NAME}__${n}`);
 
 type MediaResult = { url: string; source: string; license?: string; title?: string };

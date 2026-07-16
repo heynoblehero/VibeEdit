@@ -5,7 +5,6 @@ import { messages, projects, projectSnapshots } from "@/lib/db/schema";
 import { listAssets, markAiAssets, readProjectText } from "@/lib/storage/fs";
 import { requireServerSession } from "@/lib/server-session";
 import { runAgent, type AgentEvent } from "@/lib/ai/agent";
-import { resolveSceneAtTime } from "@/lib/ai/scene-manifest";
 import { enqueue } from "@/lib/render/queue";
 import { getUserPlan, reserveUsage } from "@/lib/billing/usage";
 import { chargeCredits, creditCostOf } from "@/lib/billing/credits";
@@ -135,9 +134,6 @@ function startRun(params: {
   projectId: string;
   userMessage: string;
   priorHistory: string;
-  // When set, this run belongs to one scene agent — its assistant message is
-  // persisted to that agent's scoped thread (the "Editor Team"). null = global.
-  sceneId?: string | null;
   platform?: string;
   aspectRatio?: string;
   apiKeys: { replicate?: string; elevenlabs?: string; anthropic?: string };
@@ -206,7 +202,6 @@ function startRun(params: {
             projectId: params.projectId,
             role: "assistant",
             content: JSON.stringify(assistantBlocks),
-            sceneId: params.sceneId ?? null,
             createdAt: new Date(),
           })
           .run();
@@ -271,196 +266,6 @@ function tryChargeTurn(
   return { ok: true };
 }
 
-// Resolve a batch item to the scene agent it targets. An explicit sceneId wins;
-// otherwise a string sceneHint is a scene id, and a number is a timeline time
-// resolved to the scene playing then. `sceneId` is null when it can't be pinned
-// to a real scene (used for the UI lane label but not for scoped persistence).
-function resolveAgent(
-  userId: string,
-  projectId: string,
-  item: { sceneId?: string; sceneHint?: string | number },
-  index: number,
-): { sceneId: string | null; lane: string } {
-  if (typeof item.sceneId === "string" && item.sceneId.trim()) {
-    const id = item.sceneId.trim();
-    return { sceneId: id, lane: id };
-  }
-  const hint = item.sceneHint;
-  if (typeof hint === "string" && hint.trim()) return { sceneId: hint.trim(), lane: hint.trim() };
-  if (typeof hint === "number" && Number.isFinite(hint)) {
-    try {
-      const scene = resolveSceneAtTime(readProjectText(userId, projectId, "index.html"), hint);
-      if (scene) return { sceneId: scene.id, lane: scene.id };
-    } catch {
-      // no composition yet — fall through to a positional label
-    }
-    return { sceneId: null, lane: `${hint}s` };
-  }
-  return { sceneId: null, lane: `edit-${index + 1}` };
-}
-
-// Serialize prior history for a run, scoped to the agent when sceneId is set:
-// the scene's own thread PLUS the global/lead thread (brief, plan, whole-video),
-// so an agent remembers its scene AND knows the overall video. Global runs
-// (sceneId null) see everything.
-function loadScopedHistory(
-  rows: Array<{ role: string; content: string; sceneId: string | null }>,
-  sceneId: string | null,
-): string {
-  const scoped = sceneId
-    ? rows.filter((row) => row.sceneId === sceneId || row.sceneId == null)
-    : rows;
-  return serializePriorHistory(scoped);
-}
-
-// Each concurrent lane in a batch: its instruction, a UI lane label, the scene
-// agent it belongs to (for scoped-thread persistence), and that agent's own
-// scoped prior history.
-type BatchRunItem = {
-  message: string;
-  lane: string;
-  sceneId: string | null;
-  priorHistory: string;
-};
-
-// Runs several sub-agents CONCURRENTLY inside one detached run (Phase 2b). Each
-// item edits a different scene; events are tagged with the item's lane so the
-// client shows one live-activity line per scene. The file writes serialize via
-// the per-project lock in the editing tools, so parallel scene edits can't
-// lose-update index.html. Billing is per item; the shared AbortController lets a
-// single Stop abort every lane. One snapshot is taken after all lanes settle.
-function startBatchRun(params: {
-  key: string;
-  userId: string;
-  projectId: string;
-  items: BatchRunItem[];
-  platform?: string;
-  aspectRatio?: string;
-  apiKeys: { replicate?: string; elevenlabs?: string; anthropic?: string };
-}): RunState {
-  const previous = RUNS.get(params.key);
-  if (previous) {
-    previous.controller.abort();
-    RUNS.delete(params.key);
-  }
-
-  const controller = new AbortController();
-  const state: RunState = { controller, events: [], done: false, subs: new Set() };
-  RUNS.set(params.key, state);
-
-  const stream = (event: AgentEvent) => {
-    state.events.push(slimEvent(event));
-    for (const sub of [...state.subs]) sub.send(event);
-  };
-
-  void (async () => {
-    let lastAssistantId: string | null = null;
-    try {
-      const assetsBefore = new Set(listAssets(params.userId, params.projectId));
-      await Promise.allSettled(
-        params.items.map(async (item) => {
-          // Tag everything this sub-agent emits with its lane so the UI can split
-          // concurrent activity by scene, and accumulate its own assistant blocks.
-          const blocks: AssistantBlock[] = [];
-          const onEvent = (event: AgentEvent) => {
-            stream({ ...event, lane: item.lane });
-            if (event.type === "text") {
-              blocks.push({ type: "text", text: event.text });
-            } else if (event.type === "tool_use") {
-              blocks.push({ type: "tool_use", id: event.id, name: event.name, input: event.input });
-            } else if (event.type === "tool_result" && event.images?.length) {
-              blocks.push({
-                type: "tool_result",
-                tool_use_id: event.tool_use_id,
-                images: event.images,
-              });
-            }
-          };
-
-          const gate = tryChargeTurn(params.userId, params.projectId);
-          if (!gate.ok) {
-            onEvent({
-              type: "error",
-              message: "Out of credits or plan limit — upgrade to run this edit.",
-            });
-            return;
-          }
-
-          try {
-            await runAgent({
-              userMessage: item.message,
-              priorHistory: item.priorHistory,
-              ctx: {
-                userId: params.userId,
-                projectId: params.projectId,
-                platform: params.platform,
-                aspectRatio: params.aspectRatio,
-                apiKeys: params.apiKeys,
-                enqueueRender: (opts) =>
-                  enqueue({ userId: params.userId, projectId: params.projectId, ...opts }),
-              },
-              onEvent,
-              abortController: controller,
-            });
-          } catch (error) {
-            captureException(error, {
-              source: "api.chat.batch",
-              userId: params.userId,
-              projectId: params.projectId,
-            });
-            onEvent({ type: "error", message: (error as Error).message });
-          }
-
-          if (blocks.length) {
-            const assistantMessageId = nanoid(10);
-            db.insert(messages)
-              .values({
-                id: assistantMessageId,
-                projectId: params.projectId,
-                role: "assistant",
-                content: JSON.stringify(blocks),
-                sceneId: item.sceneId,
-                createdAt: new Date(),
-              })
-              .run();
-            lastAssistantId = assistantMessageId;
-          }
-        }),
-      );
-
-      const newAssets = listAssets(params.userId, params.projectId).filter(
-        (p) => !assetsBefore.has(p),
-      );
-      markAiAssets(params.userId, params.projectId, newAssets);
-      // One snapshot after every lane settles — the file is consistent thanks to
-      // the per-project write lock, so this captures the merged result once.
-      if (lastAssistantId) captureChatSnapshot(params.userId, params.projectId, lastAssistantId);
-      db.update(projects)
-        .set({ updatedAt: new Date() })
-        .where(eq(projects.id, params.projectId))
-        .run();
-    } catch (error) {
-      captureException(error, {
-        source: "api.chat.batch",
-        userId: params.userId,
-        projectId: params.projectId,
-      });
-      stream({ type: "error", message: (error as Error).message });
-    } finally {
-      state.done = true;
-      for (const sub of [...state.subs]) sub.finish();
-      setTimeout(() => {
-        if (RUNS.get(params.key) === state) RUNS.delete(params.key);
-      }, RUN_GRACE_MS);
-    }
-  })();
-
-  return state;
-}
-
-// How many scenes may build at once in one batch — bounds token/cost blow-up.
-const MAX_BATCH_LANES = 3;
-
 export async function DELETE(req: Request) {
   const session = await requireServerSession().catch((r) => r);
   if (session instanceof Response) return session;
@@ -496,25 +301,12 @@ export async function POST(req: Request) {
   const body = (await req.json()) as {
     projectId: string;
     message?: string;
-    // Editor Team: when set, this single message is scoped to one scene agent —
-    // persisted to its thread, and the agent sees only its scene + global history.
-    sceneId?: string;
-    // Phase 2b: several scene-targeted instructions to run CONCURRENTLY. When
-    // present (and non-empty) this takes precedence over `message`. Each item may
-    // carry an explicit sceneId (roster/delegation) or a sceneHint (timeline time).
-    batch?: Array<{ message: string; sceneHint?: string | number; sceneId?: string }>;
     apiKeys?: Record<string, string>;
   };
   const projectId = body.projectId;
-  const batchInput = Array.isArray(body.batch)
-    ? body.batch
-        .filter((item) => item && typeof item.message === "string" && item.message.trim())
-        .slice(0, MAX_BATCH_LANES)
-    : [];
-  const isBatch = batchInput.length > 0;
   const userMessage = body.message;
-  if (!projectId || (!isBatch && !userMessage))
-    return new Response("projectId and message (or batch) required", { status: 400 });
+  if (!projectId || !userMessage)
+    return new Response("projectId and message required", { status: 400 });
 
   // Validate & trim BYOK keys before handing to the agent. Anything unknown
   // is dropped so a malicious caller can't smuggle arbitrary header names.
@@ -561,55 +353,17 @@ export async function POST(req: Request) {
 
   const key = `${userId}:${projectId}`;
 
-  // --- Batch path: run several scene edits concurrently. Billing happens
-  // per lane inside startBatchRun (a paywalled lane shows an inline error);
-  // insert one user-message row per item so the thread reads naturally.
-  if (isBatch) {
-    const items: BatchRunItem[] = batchInput.map((item, index) => {
-      const { sceneId, lane } = resolveAgent(userId, projectId, item, index);
-      db.insert(messages)
-        .values({
-          id: nanoid(10),
-          projectId,
-          role: "user",
-          content: JSON.stringify(item.message),
-          sceneId,
-          createdAt: new Date(),
-        })
-        .run();
-      return {
-        message: item.message,
-        lane,
-        sceneId,
-        priorHistory: loadScopedHistory(prior, sceneId),
-      };
-    });
-    const batchState = startBatchRun({
-      key,
-      userId,
-      projectId,
-      items,
-      platform: owned.platform ?? undefined,
-      aspectRatio: owned.aspectRatio ?? undefined,
-      apiKeys: typedApiKeys,
-    });
-    return streamRun(batchState, req.signal);
-  }
-
-  // --- Single path: reserve the turn + charge credits up front so a paywall
-  // returns a 402 (→ upgrade popup) before any agent work starts.
+  // Reserve the turn + charge credits up front so a paywall returns a 402
+  // (→ upgrade popup) before any agent work starts.
   const gate = tryChargeTurn(userId, projectId);
   if (!gate.ok) return Response.json(gate.body, { status: gate.status });
 
-  const sceneId =
-    typeof body.sceneId === "string" && body.sceneId.trim() ? body.sceneId.trim() : null;
   db.insert(messages)
     .values({
       id: nanoid(10),
       projectId,
       role: "user",
       content: JSON.stringify(userMessage),
-      sceneId,
       createdAt: new Date(),
     })
     .run();
@@ -621,9 +375,8 @@ export async function POST(req: Request) {
     key,
     userId,
     projectId,
-    userMessage: userMessage as string,
-    priorHistory: loadScopedHistory(prior, sceneId),
-    sceneId,
+    userMessage,
+    priorHistory: serializePriorHistory(prior),
     platform: owned.platform ?? undefined,
     aspectRatio: owned.aspectRatio ?? undefined,
     apiKeys: typedApiKeys,

@@ -135,6 +135,9 @@ function startRun(params: {
   projectId: string;
   userMessage: string;
   priorHistory: string;
+  // When set, this run belongs to one scene agent — its assistant message is
+  // persisted to that agent's scoped thread (the "Editor Team"). null = global.
+  sceneId?: string | null;
   platform?: string;
   aspectRatio?: string;
   apiKeys: { replicate?: string; elevenlabs?: string; anthropic?: string };
@@ -203,6 +206,7 @@ function startRun(params: {
             projectId: params.projectId,
             role: "assistant",
             content: JSON.stringify(assistantBlocks),
+            sceneId: params.sceneId ?? null,
             createdAt: new Date(),
           })
           .run();
@@ -267,29 +271,57 @@ function tryChargeTurn(
   return { ok: true };
 }
 
-// Resolve a batch item's scene hint to a stable lane label for the UI. A string
-// hint is a scene id; a number is a timeline time resolved to the scene playing
-// then; anything else falls back to a positional label.
-function resolveLane(
+// Resolve a batch item to the scene agent it targets. An explicit sceneId wins;
+// otherwise a string sceneHint is a scene id, and a number is a timeline time
+// resolved to the scene playing then. `sceneId` is null when it can't be pinned
+// to a real scene (used for the UI lane label but not for scoped persistence).
+function resolveAgent(
   userId: string,
   projectId: string,
-  hint: string | number | undefined,
+  item: { sceneId?: string; sceneHint?: string | number },
   index: number,
-): string {
-  if (typeof hint === "string" && hint.trim()) return hint.trim();
+): { sceneId: string | null; lane: string } {
+  if (typeof item.sceneId === "string" && item.sceneId.trim()) {
+    const id = item.sceneId.trim();
+    return { sceneId: id, lane: id };
+  }
+  const hint = item.sceneHint;
+  if (typeof hint === "string" && hint.trim()) return { sceneId: hint.trim(), lane: hint.trim() };
   if (typeof hint === "number" && Number.isFinite(hint)) {
     try {
       const scene = resolveSceneAtTime(readProjectText(userId, projectId, "index.html"), hint);
-      if (scene) return scene.id;
+      if (scene) return { sceneId: scene.id, lane: scene.id };
     } catch {
-      // no composition yet — fall through to positional
+      // no composition yet — fall through to a positional label
     }
-    return `${hint}s`;
+    return { sceneId: null, lane: `${hint}s` };
   }
-  return `edit-${index + 1}`;
+  return { sceneId: null, lane: `edit-${index + 1}` };
 }
 
-type BatchRunItem = { message: string; lane: string };
+// Serialize prior history for a run, scoped to the agent when sceneId is set:
+// the scene's own thread PLUS the global/lead thread (brief, plan, whole-video),
+// so an agent remembers its scene AND knows the overall video. Global runs
+// (sceneId null) see everything.
+function loadScopedHistory(
+  rows: Array<{ role: string; content: string; sceneId: string | null }>,
+  sceneId: string | null,
+): string {
+  const scoped = sceneId
+    ? rows.filter((row) => row.sceneId === sceneId || row.sceneId == null)
+    : rows;
+  return serializePriorHistory(scoped);
+}
+
+// Each concurrent lane in a batch: its instruction, a UI lane label, the scene
+// agent it belongs to (for scoped-thread persistence), and that agent's own
+// scoped prior history.
+type BatchRunItem = {
+  message: string;
+  lane: string;
+  sceneId: string | null;
+  priorHistory: string;
+};
 
 // Runs several sub-agents CONCURRENTLY inside one detached run (Phase 2b). Each
 // item edits a different scene; events are tagged with the item's lane so the
@@ -302,7 +334,6 @@ function startBatchRun(params: {
   userId: string;
   projectId: string;
   items: BatchRunItem[];
-  priorHistory: string;
   platform?: string;
   aspectRatio?: string;
   apiKeys: { replicate?: string; elevenlabs?: string; anthropic?: string };
@@ -358,7 +389,7 @@ function startBatchRun(params: {
           try {
             await runAgent({
               userMessage: item.message,
-              priorHistory: params.priorHistory,
+              priorHistory: item.priorHistory,
               ctx: {
                 userId: params.userId,
                 projectId: params.projectId,
@@ -388,6 +419,7 @@ function startBatchRun(params: {
                 projectId: params.projectId,
                 role: "assistant",
                 content: JSON.stringify(blocks),
+                sceneId: item.sceneId,
                 createdAt: new Date(),
               })
               .run();
@@ -464,9 +496,13 @@ export async function POST(req: Request) {
   const body = (await req.json()) as {
     projectId: string;
     message?: string;
+    // Editor Team: when set, this single message is scoped to one scene agent —
+    // persisted to its thread, and the agent sees only its scene + global history.
+    sceneId?: string;
     // Phase 2b: several scene-targeted instructions to run CONCURRENTLY. When
-    // present (and non-empty) this takes precedence over `message`.
-    batch?: Array<{ message: string; sceneHint?: string | number }>;
+    // present (and non-empty) this takes precedence over `message`. Each item may
+    // carry an explicit sceneId (roster/delegation) or a sceneHint (timeline time).
+    batch?: Array<{ message: string; sceneHint?: string | number; sceneId?: string }>;
     apiKeys?: Record<string, string>;
   };
   const projectId = body.projectId;
@@ -517,7 +553,6 @@ export async function POST(req: Request) {
     .where(eq(messages.projectId, projectId))
     .orderBy(asc(messages.createdAt))
     .all();
-  const priorHistory = serializePriorHistory(prior);
 
   // Funnel: the first chat turn in a project is a key activation signal.
   if (prior.length === 0) {
@@ -531,23 +566,29 @@ export async function POST(req: Request) {
   // insert one user-message row per item so the thread reads naturally.
   if (isBatch) {
     const items: BatchRunItem[] = batchInput.map((item, index) => {
+      const { sceneId, lane } = resolveAgent(userId, projectId, item, index);
       db.insert(messages)
         .values({
           id: nanoid(10),
           projectId,
           role: "user",
           content: JSON.stringify(item.message),
+          sceneId,
           createdAt: new Date(),
         })
         .run();
-      return { message: item.message, lane: resolveLane(userId, projectId, item.sceneHint, index) };
+      return {
+        message: item.message,
+        lane,
+        sceneId,
+        priorHistory: loadScopedHistory(prior, sceneId),
+      };
     });
     const batchState = startBatchRun({
       key,
       userId,
       projectId,
       items,
-      priorHistory,
       platform: owned.platform ?? undefined,
       aspectRatio: owned.aspectRatio ?? undefined,
       apiKeys: typedApiKeys,
@@ -560,12 +601,15 @@ export async function POST(req: Request) {
   const gate = tryChargeTurn(userId, projectId);
   if (!gate.ok) return Response.json(gate.body, { status: gate.status });
 
+  const sceneId =
+    typeof body.sceneId === "string" && body.sceneId.trim() ? body.sceneId.trim() : null;
   db.insert(messages)
     .values({
       id: nanoid(10),
       projectId,
       role: "user",
       content: JSON.stringify(userMessage),
+      sceneId,
       createdAt: new Date(),
     })
     .run();
@@ -578,7 +622,8 @@ export async function POST(req: Request) {
     userId,
     projectId,
     userMessage: userMessage as string,
-    priorHistory,
+    priorHistory: loadScopedHistory(prior, sceneId),
+    sceneId,
     platform: owned.platform ?? undefined,
     aspectRatio: owned.aspectRatio ?? undefined,
     apiKeys: typedApiKeys,

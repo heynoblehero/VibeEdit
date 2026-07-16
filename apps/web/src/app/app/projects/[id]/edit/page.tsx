@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/lib/auth-client";
 import { Chat } from "@/components/editor/Chat";
+import { TeamRoster } from "@/components/editor/TeamRoster";
 import { FilesDrawer } from "@/components/editor/FilesDrawer";
 import { EditHistory } from "@/components/editor/EditHistory";
 import { HistoryPanel } from "@/components/editor/HistoryPanel";
@@ -25,7 +26,10 @@ export default function EditorPage({ params }: PageProps) {
   const [projectName, setProjectName] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [showTour, setShowTour] = useState(false);
-  const [rightTab, setRightTab] = useState<"files" | "history" | "code">("files");
+  const [rightTab, setRightTab] = useState<"team" | "files" | "history" | "code">("files");
+  // Editor Team: the focused scene agent (null = lead/global). Selecting one from
+  // the roster scopes the chat to that agent.
+  const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
   const [devMode, setDevMode] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
   const [showSaveSnippet, setShowSaveSnippet] = useState(false);
@@ -245,7 +249,12 @@ export default function EditorPage({ params }: PageProps) {
       <aside
         className={`${mobileTab === "chat" ? "flex" : "hidden"} min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--color-bg)] md:flex`}
       >
-        <Chat projectId={id} reloadKey={reloadKey} />
+        <Chat
+          projectId={id}
+          reloadKey={reloadKey}
+          activeSceneId={activeSceneId}
+          onExitAgent={() => setActiveSceneId(null)}
+        />
       </aside>
 
       {/* ── Right panel: Files + History tabs ──────────────────── */}
@@ -254,6 +263,31 @@ export default function EditorPage({ params }: PageProps) {
       >
         {/* Tab bar */}
         <div className="flex shrink-0 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+          <button
+            onClick={() => setRightTab("team")}
+            className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
+              rightTab === "team"
+                ? "border-b-2 border-[var(--color-accent)] text-[var(--color-fg)]"
+                : "border-b-2 border-transparent text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+            }`}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            Team
+          </button>
           <button
             onClick={() => setRightTab("files")}
             className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
@@ -332,7 +366,18 @@ export default function EditorPage({ params }: PageProps) {
 
         {/* Panel content */}
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {rightTab === "files" ? (
+          {rightTab === "team" ? (
+            <TeamRoster
+              projectId={id}
+              reloadKey={reloadKey}
+              activeSceneId={activeSceneId}
+              onSelectAgent={(sceneId) => {
+                setActiveSceneId(sceneId);
+                // On mobile, jump to the chat so the scoped conversation is visible.
+                if (sceneId) setMobileTab("chat");
+              }}
+            />
+          ) : rightTab === "files" ? (
             <>
               <EditHistory projectId={id} />
               <FilesDrawer projectId={id} reloadKey={reloadKey} />

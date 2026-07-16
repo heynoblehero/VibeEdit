@@ -24,6 +24,8 @@ type QueuedInstruction = {
   message: string;
   display: string;
   sceneHint?: number;
+  // Explicit scene agent target (from roster focus). Wins over sceneHint.
+  sceneId?: string | null;
 };
 
 // Max scenes built at once in one parallel batch — mirrors the server cap.
@@ -201,7 +203,19 @@ const REGENERATE_CHIPS: Array<{ label: string; prompt: string }> = [
   },
 ];
 
-export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: number }) {
+export function Chat({
+  projectId,
+  reloadKey,
+  activeSceneId = null,
+  onExitAgent,
+}: {
+  projectId: string;
+  reloadKey: number;
+  // Editor Team: when set, the chat is scoped to one scene agent — the thread
+  // filters to that agent's messages and the composer routes to it.
+  activeSceneId?: string | null;
+  onExitAgent?: () => void;
+}) {
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -545,18 +559,22 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
     drainingRef.current = true;
     try {
       while (queueRef.current.length > 0) {
+        // A queued item's target scene is its explicit agent (sceneId) or its
+        // timeline hint; null = whole-composition/global.
+        const targetOf = (item: QueuedInstruction): string | null =>
+          item.sceneId ?? (item.sceneHint != null ? `t:${item.sceneHint}` : null);
         // Build the next unit of work: a single item, or a parallel BATCH of the
         // longest prefix of scene-targeted items with DISTINCT scenes. A batch
         // stops at the first untargeted item, a repeated scene, or the cap — so
-        // whole-composition and same-scene edits stay serial.
+        // whole-composition and same-scene (same-agent) edits stay serial.
         const group = [queueRef.current[0]];
-        if (group[0].sceneHint != null) {
-          const seen = new Set<string>([String(group[0].sceneHint)]);
+        const headTarget = targetOf(group[0]);
+        if (headTarget != null) {
+          const seen = new Set<string>([headTarget]);
           for (let i = 1; i < queueRef.current.length && group.length < MAX_BATCH_LANES; i += 1) {
             const candidate = queueRef.current[i];
-            if (candidate.sceneHint == null) break;
-            const key = String(candidate.sceneHint);
-            if (seen.has(key)) break;
+            const key = targetOf(candidate);
+            if (key == null || seen.has(key)) break;
             seen.add(key);
             group.push(candidate);
           }
@@ -564,15 +582,23 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
         syncQueue(queueRef.current.slice(group.length));
         setMessages((prev) => [
           ...prev,
-          ...group.map((entry) => ({ role: "user" as const, content: entry.message })),
+          ...group.map((entry) => ({
+            role: "user" as const,
+            content: entry.message,
+            sceneId: entry.sceneId,
+          })),
         ]);
         const started =
           group.length > 1
             ? await runBatch(
                 projectId,
-                group.map((entry) => ({ message: entry.message, sceneHint: entry.sceneHint })),
+                group.map((entry) => ({
+                  message: entry.message,
+                  sceneHint: entry.sceneHint,
+                  sceneId: entry.sceneId,
+                })),
               )
-            : await runStream(projectId, group[0].message);
+            : await runStream(projectId, group[0].message, group[0].sceneId);
         // The group is already off the queue and shown in the thread; any error
         // (paywall / failure) is surfaced by the run. If it never started, stop
         // draining so we don't spam failing POSTs — the rest stays queued and
@@ -621,14 +647,16 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
     setSlashMenuActive(false);
     markEditSent();
 
-    // A scene-targeted instruction (from the timeline "Edit the scene at Xs"
-    // affordance) carries its time as a sceneHint so the dispatcher can run it in
-    // parallel with edits to OTHER scenes. Attachments force whole-composition
-    // reasoning, so an instruction with attachments is never scene-targeted.
+    // A scene-targeted instruction carries a scene target so the dispatcher can
+    // run it in parallel with edits to OTHER scenes. Explicit agent focus (from
+    // the roster) wins; otherwise the "Edit the scene at Xs" timeline affordance
+    // supplies a time hint. Attachments force whole-composition reasoning, so an
+    // instruction with attachments is never scene-targeted.
     const sceneMatch = hasAttachments
       ? null
       : userMessageRaw.match(/^Edit the scene at ([\d.]+)s/i);
     const sceneHint = sceneMatch ? Number(sceneMatch[1]) : undefined;
+    const sceneId = hasAttachments ? null : activeSceneId;
 
     // Always go through the queue: when idle, drainQueue runs it immediately;
     // when a run is in flight, it waits its turn. The composer is already reset
@@ -636,14 +664,21 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
     const display = userMessageRaw || `${attachedAssets.length} attachment(s)`;
     syncQueue([
       ...queueRef.current,
-      { id: crypto.randomUUID(), message: userMessage, display, sceneHint },
+      { id: crypto.randomUUID(), message: userMessage, display, sceneHint, sceneId },
     ]);
     drainQueue();
   }
   sendRef.current = send;
 
-  const showSamples = messages.length === 0 && !busy;
-  const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+  // Editor Team scoping: when an agent is focused, show only its scoped thread
+  // (its own messages + the shared lead/global brief), so it reads as a
+  // conversation with that one agent. Global view shows everything.
+  const visibleMessages = activeSceneId
+    ? messages.filter((m) => m.sceneId === activeSceneId || m.sceneId == null)
+    : messages;
+
+  const showSamples = visibleMessages.length === 0 && !busy;
+  const lastAssistant = [...visibleMessages].reverse().find((m) => m.role === "assistant");
   const showChips = !busy && lastAssistant !== undefined;
 
   // Header status dot. "busy" (agent actively working) always wins; otherwise
@@ -782,7 +817,7 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
       >
         <div className="mx-auto w-full min-w-0 max-w-3xl space-y-2">
           {showSamples && <SamplePromptCards prefs={prefs} onPick={(text) => send(text)} />}
-          {messages.map((message, index) => {
+          {visibleMessages.map((message, index) => {
             const versionSnapshotId = message.role === "assistant" ? message.snapshotId : null;
             const isLatestVersion = !!versionSnapshotId && versionSnapshotId === latestSnapshotId;
             return (
@@ -863,6 +898,25 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
 
       <div className="border-t border-[var(--color-border)] bg-[var(--color-bg)] p-2.5 sm:p-3">
         <div className="mx-auto w-full max-w-3xl">
+          {activeSceneId && (
+            <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/8 px-2.5 py-1.5 text-[11px]">
+              <span className="flex items-center gap-1.5 font-medium text-[var(--color-fg)]">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
+                Talking to agent{" "}
+                <span className="font-mono text-[var(--color-accent)]">{activeSceneId}</span>
+              </span>
+              <button
+                onClick={() => onExitAgent?.()}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") onExitAgent?.();
+                }}
+                className="rounded px-1.5 py-0.5 text-[var(--color-fg-muted)] transition-colors hover:text-[var(--color-fg)]"
+                title="Back to all scenes"
+              >
+                All scenes ✕
+              </button>
+            </div>
+          )}
           {queue.length > 0 && (
             <div className="mb-2 flex flex-col gap-1">
               {queue.map((item) => (
@@ -995,9 +1049,11 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
                   }
                 }}
                 placeholder={
-                  busy
-                    ? "Queue another instruction…"
-                    : "Describe the video — or type / for commands…"
+                  activeSceneId
+                    ? `Instruct agent ${activeSceneId}…`
+                    : busy
+                      ? "Queue another instruction…"
+                      : "Describe the video — or type / for commands…"
                 }
                 rows={2}
                 className="max-h-40 w-full resize-none bg-transparent px-3.5 pt-3 pb-1 text-base text-[var(--color-fg)] outline-none placeholder:text-[var(--color-fg-subtle)] disabled:opacity-50 md:text-sm"

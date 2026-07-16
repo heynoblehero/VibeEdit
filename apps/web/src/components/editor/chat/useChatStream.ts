@@ -68,14 +68,14 @@ export type ChatStream = {
    * closes. Returns false if the request never started (so the caller can skip
    * a history reload), true otherwise.
    */
-  runStream: (projectId: string, userMessage: string) => Promise<boolean>;
+  runStream: (projectId: string, userMessage: string, sceneId?: string | null) => Promise<boolean>;
   /**
    * Run several scene-targeted instructions CONCURRENTLY (Phase 2b). Streams one
    * SSE connection whose events are lane-tagged; resolves when the batch closes.
    */
   runBatch: (
     projectId: string,
-    items: Array<{ message: string; sceneHint?: string | number }>,
+    items: Array<{ message: string; sceneHint?: string | number; sceneId?: string | null }>,
   ) => Promise<boolean>;
   /**
    * Reattach to an agent run that's still executing server-side for this project
@@ -276,15 +276,15 @@ export function useChatStream(): ChatStream {
   );
 
   const runStream = useCallback(
-    (projectId: string, userMessage: string): Promise<boolean> =>
-      runRequest({ projectId, message: userMessage }),
+    (projectId: string, userMessage: string, sceneId?: string | null): Promise<boolean> =>
+      runRequest({ projectId, message: userMessage, sceneId: sceneId ?? undefined }),
     [runRequest],
   );
 
   const runBatch = useCallback(
     (
       projectId: string,
-      items: Array<{ message: string; sceneHint?: string | number }>,
+      items: Array<{ message: string; sceneHint?: string | number; sceneId?: string | null }>,
     ): Promise<boolean> => runRequest({ projectId, batch: items }),
     [runRequest],
   );

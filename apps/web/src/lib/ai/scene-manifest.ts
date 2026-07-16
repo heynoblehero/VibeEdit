@@ -15,6 +15,8 @@
 
 export type SceneInfo = {
   id: string;
+  // Human-readable agent/scene name from data-scene-name (e.g. "Hook"), or null.
+  name: string | null;
   // Seconds on the composition timeline. null when the attribute is absent.
   start: number | null;
   duration: number | null;
@@ -34,6 +36,11 @@ function readNumberAttr(openTag: string, attr: string): number | null {
   if (!match) return null;
   const value = Number(match[1]);
   return Number.isFinite(value) ? value : null;
+}
+
+function readStringAttr(openTag: string, attr: string): string | null {
+  const match = openTag.match(new RegExp(`\\b${attr}\\s*=\\s*["']([^"']*)["']`, "i"));
+  return match ? match[1] : null;
 }
 
 // Walks forward from the scene's opening <div (at `fromIndex`) and returns the
@@ -96,6 +103,7 @@ export function parseScenes(html: string): SceneInfo[] {
     claimedUntil = outerEnd;
     scenes.push({
       id,
+      name: readStringAttr(openTag, "data-scene-name"),
       start: readNumberAttr(openTag, "data-scene-start"),
       duration: readNumberAttr(openTag, "data-scene-duration"),
       outerStart,

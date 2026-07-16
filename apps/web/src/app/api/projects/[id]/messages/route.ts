@@ -22,6 +22,7 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
       id: messages.id,
       role: messages.role,
       content: messages.content,
+      sceneId: messages.sceneId,
       createdAt: messages.createdAt,
       snapshotId: projectSnapshots.id,
     })
@@ -35,6 +36,8 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
       id: m.id,
       role: m.role,
       content: JSON.parse(m.content),
+      // null = lead/global thread; a scene id = that agent's scoped thread.
+      sceneId: m.sceneId,
       createdAt: m.createdAt,
       snapshotId: m.snapshotId,
     })),

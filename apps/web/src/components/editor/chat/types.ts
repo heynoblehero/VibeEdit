@@ -24,9 +24,6 @@ export type ChatMessage = {
   // Set on assistant turns that produced a new composition version. Drives the
   // inline per-version player so users can scroll back and replay past versions.
   snapshotId?: string | null;
-  // Which scene agent this message belongs to (Editor Team). null/undefined = the
-  // lead/global thread; a scene id = that agent's own scoped thread.
-  sceneId?: string | null;
 };
 
 export type AspectRatio = "16:9" | "9:16" | "1:1";

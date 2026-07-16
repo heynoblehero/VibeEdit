@@ -86,10 +86,6 @@ export const messages = sqliteTable(
     role: text("role").notNull(),
     // JSON-encoded array of Anthropic content blocks
     content: text("content").notNull(),
-    // Which scene agent this message belongs to (the "Editor Team"). null = the
-    // lead/global thread (brief, plan approval, whole-video changes); a scene id
-    // (e.g. "scene-2") = that agent's own scoped thread.
-    sceneId: text("sceneId"),
     createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
   },
   (table) => ({

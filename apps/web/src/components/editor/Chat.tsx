@@ -14,6 +14,11 @@ import { useChatStream } from "./chat/useChatStream";
 import { ActivityIndicator, LiveLog } from "./chat/LiveActivity";
 import { MessageBubble, VideoMessageCard } from "./chat/MessageView";
 
+// One queued chat instruction. `message` is the fully composed prompt (with any
+// attachment notes) that gets POSTed; `display` is the short user-typed text
+// shown on the queue chip.
+type QueuedInstruction = { id: string; message: string; display: string };
+
 const SAMPLE_PROMPTS: Array<{
   tag: string;
   ratio: "9:16" | "16:9";
@@ -198,6 +203,17 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
   const [prefs, setPrefs] = useState<UserPrefs | null>(null);
   const [editingAt, setEditingAt] = useState<number | null>(null);
   const [attachedAssets, setAttachedAssets] = useState<string[]>([]);
+  // Pending instructions the user fired while a run was in flight. They pipeline
+  // into the (still one-at-a-time) /api/chat endpoint so the composer never
+  // blocks — see the drain loop below. `queue` mirrors `queueRef` for rendering.
+  const [queue, setQueue] = useState<QueuedInstruction[]>([]);
+  const queueRef = useRef<QueuedInstruction[]>([]);
+  const drainingRef = useRef(false);
+  const drainRef = useRef<() => void>(() => {});
+  // Gate draining until the mount-time resume check settles: a POST to /api/chat
+  // ABORTS any in-flight run for the project (route.ts startRun), so we must not
+  // drain into a run we just reattached to via resumeStream.
+  const canDrainRef = useRef(false);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [slashMenuActive, setSlashMenuActive] = useState(false);
@@ -344,17 +360,41 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
 
   useEffect(() => {
     loadHistoryRef.current();
+    // Restore any instructions queued before a reload / reconnect so they aren't
+    // lost. Draining stays gated (canDrainRef) until the resume check below.
+    canDrainRef.current = false;
+    try {
+      const raw = localStorage.getItem(`vibeedit:queue:${projectId}`);
+      const items = raw ? (JSON.parse(raw) as QueuedInstruction[]) : [];
+      if (Array.isArray(items) && items.length > 0) {
+        queueRef.current = items;
+        setQueue(items);
+      }
+    } catch {
+      // malformed / unavailable storage — start with an empty queue
+    }
     // If an agent run for this project is still executing server-side (tab was
     // closed mid-build and reopened, or a second tab), reattach and show it
     // live — then reload history once it finishes so the saved result renders.
     let cancelled = false;
     resumeStream(projectId).then((attached) => {
       if (attached && !cancelled) loadHistoryRef.current();
+      if (cancelled) return;
+      // The reattached run (if any) has finished; safe to drain the queue now.
+      canDrainRef.current = true;
+      drainRef.current();
     });
     return () => {
       cancelled = true;
     };
   }, [projectId, resumeStream]);
+
+  // Drain queued instructions whenever the composer goes idle (a run or a
+  // resumed run just finished). send() also kicks drainQueue directly for the
+  // idle case; this covers the busy→idle transition.
+  useEffect(() => {
+    if (!busy && queueRef.current.length > 0) drainRef.current();
+  }, [busy]);
 
   useEffect(() => {
     fetch("/api/onboarding")
@@ -456,10 +496,57 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
     }
   }
 
-  async function send(text?: string) {
+  // Persist the pending queue so a reload / reconnect (resumeStream) doesn't
+  // drop instructions the user already fired. Best-effort — never throws.
+  function persistQueue() {
+    try {
+      localStorage.setItem(`vibeedit:queue:${projectId}`, JSON.stringify(queueRef.current));
+    } catch {
+      // localStorage unavailable — the in-memory queue still works this session.
+    }
+  }
+
+  function syncQueue(next: QueuedInstruction[]) {
+    queueRef.current = next;
+    setQueue(next);
+    persistQueue();
+  }
+
+  function removeQueued(id: string) {
+    syncQueue(queueRef.current.filter((item) => item.id !== id));
+  }
+
+  // Serially runs whatever is in the queue. The server still allows only one
+  // in-flight run per project, so we drain FIFO: pop the front, stream it, reload
+  // history (which bumps the preview), repeat. `drainingRef` guards against two
+  // loops running at once — refs stay current across re-render closures, so a
+  // loop started earlier still picks up items enqueued later.
+  async function drainQueue() {
+    if (drainingRef.current || busy || !canDrainRef.current) return;
+    drainingRef.current = true;
+    try {
+      while (queueRef.current.length > 0) {
+        const [item, ...rest] = queueRef.current;
+        syncQueue(rest);
+        setMessages((prev) => [...prev, { role: "user", content: item.message }]);
+        const started = await runStream(projectId, item.message);
+        // The current item is already off the queue and shown in the thread; its
+        // error (paywall / failure) is surfaced by runStream. If it never
+        // started, stop draining so we don't spam failing POSTs — the remaining
+        // queued items stay put and resume on the next send.
+        if (!started) break;
+        await loadHistory();
+      }
+    } finally {
+      drainingRef.current = false;
+    }
+  }
+  drainRef.current = drainQueue;
+
+  function send(text?: string) {
     const userMessageRaw = (text ?? input).trim();
     const hasAttachments = attachedAssets.length > 0;
-    if ((!userMessageRaw && !hasAttachments) || busy) return;
+    if (!userMessageRaw && !hasAttachments) return;
     const imageAssets = attachedAssets.filter((p) => /\.(jpe?g|png|gif|webp|svg)$/i.test(p));
     const videoAssets = attachedAssets.filter((p) => /\.(mp4|mov|webm|avi|mkv)$/i.test(p));
     const otherAssets = attachedAssets.filter(
@@ -490,13 +577,13 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
     setAttachedAssets([]);
     setSlashMenuActive(false);
     markEditSent();
-    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
 
-    // The hook owns busy/live/activity, the SSE read loop, and the
-    // agent-status broadcasts. It returns false only when the request never
-    // started, in which case there's nothing new to reload.
-    const started = await runStream(projectId, userMessage);
-    if (started) await loadHistory();
+    // Always go through the queue: when idle, drainQueue runs it immediately;
+    // when a run is in flight, it waits its turn. The composer is already reset
+    // above, so the user can keep firing instructions without blocking.
+    const display = userMessageRaw || `${attachedAssets.length} attachment(s)`;
+    syncQueue([...queueRef.current, { id: crypto.randomUUID(), message: userMessage, display }]);
+    drainQueue();
   }
   sendRef.current = send;
 
@@ -703,6 +790,33 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
 
       <div className="border-t border-[var(--color-border)] bg-[var(--color-bg)] p-2.5 sm:p-3">
         <div className="mx-auto w-full max-w-3xl">
+          {queue.length > 0 && (
+            <div className="mb-2 flex flex-col gap-1">
+              {queue.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-[11px] text-[var(--color-fg-muted)]"
+                >
+                  <span
+                    className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-accent)]"
+                    aria-hidden="true"
+                  />
+                  <span className="min-w-0 flex-1 truncate">{item.display}</span>
+                  <span className="shrink-0 text-[10px] text-[var(--color-fg-subtle)]">queued</span>
+                  <button
+                    onClick={() => removeQueued(item.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") removeQueued(item.id);
+                    }}
+                    className="shrink-0 text-[var(--color-fg-muted)] hover:text-[var(--color-danger)]"
+                    title="Remove from queue"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           {(attachedAssets.length > 0 || uploading) && (
             <div className="mb-2 flex flex-wrap gap-1.5">
               {attachedAssets.map((path) => (
@@ -759,7 +873,7 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
                 onChange={(event) => {
                   const value = event.target.value;
                   setInput(value);
-                  if (value.startsWith("/") && !busy) {
+                  if (value.startsWith("/")) {
                     setSlashMenuActive(true);
                     setSlashMenuIndex(0);
                   } else if (slashMenuActive) {
@@ -807,9 +921,12 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
                     send();
                   }
                 }}
-                placeholder="Describe the video — or type / for commands…"
+                placeholder={
+                  busy
+                    ? "Queue another instruction…"
+                    : "Describe the video — or type / for commands…"
+                }
                 rows={2}
-                disabled={busy}
                 className="max-h-40 w-full resize-none bg-transparent px-3.5 pt-3 pb-1 text-base text-[var(--color-fg)] outline-none placeholder:text-[var(--color-fg-subtle)] disabled:opacity-50 md:text-sm"
               />
               <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5">
@@ -828,7 +945,7 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={busy || uploading}
+                    disabled={uploading}
                     title="Attach an image, video, or audio file"
                     className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-surface)] hover:text-[var(--color-fg)] disabled:opacity-50"
                   >
@@ -918,7 +1035,9 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
                   >
                     {creditCostLabel("edit")}
                   </span>
-                  {busy ? (
+                  {/* While busy, Stop cancels the in-flight run; Send still shows
+                      so the user can queue the next instruction without waiting. */}
+                  {busy && (
                     <button
                       onClick={() => {
                         fetch(`/api/chat?projectId=${projectId}`, { method: "DELETE" }).catch(
@@ -930,29 +1049,28 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
                     >
                       <span className="h-3 w-3 rounded-[2px] bg-current" aria-hidden="true" />
                     </button>
-                  ) : (
-                    <button
-                      onClick={() => send()}
-                      disabled={!input.trim() && attachedAssets.length === 0}
-                      title="Send"
-                      className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-accent)] text-black shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
-                    >
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <line x1="12" y1="19" x2="12" y2="5" />
-                        <polyline points="5 12 12 5 19 12" />
-                      </svg>
-                    </button>
                   )}
+                  <button
+                    onClick={() => send()}
+                    disabled={!input.trim() && attachedAssets.length === 0}
+                    title={busy ? "Queue this instruction" : "Send"}
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-accent)] text-black shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <line x1="12" y1="19" x2="12" y2="5" />
+                      <polyline points="5 12 12 5 19 12" />
+                    </svg>
+                  </button>
                 </div>
               </div>
             </div>

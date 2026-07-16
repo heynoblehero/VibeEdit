@@ -10,6 +10,7 @@ import {
   personaDir,
 } from "../storage/fs";
 import { listRegistry, readRegistryBlock } from "./registry";
+import { getScene, resolveSceneAtTime, replaceScene, sceneSummary } from "./scene-manifest";
 import {
   ensureManifest,
   readManifest,
@@ -611,6 +612,126 @@ export function buildToolServer(ctx: ToolContext) {
           isError: true,
         };
       }
+    },
+  );
+
+  // --- Scene-scoped editing (index.html) ---------------------------------
+  // Scenes are balanced <div data-scene-id=… data-scene-start=… data-scene-duration=…>
+  // containers. These tools let the agent read/replace ONE scene instead of the
+  // whole (possibly very long) composition, cutting latency + tokens per edit.
+  // They no-op gracefully on legacy compositions with no scene markers.
+  const listScenesTool = tool(
+    "list_scenes",
+    "List the addressable scenes in the composition (index.html) — their scene ids, timeline positions (start + duration), and sizes. Call this FIRST when the user asks to change a specific part/moment/scene of an existing composition, so you can read_scene / edit_scene just that scene instead of re-reading the whole file. If it reports no addressable scenes, the composition predates scene markers — fall back to read_file/diff_file.",
+    {},
+    async () => {
+      try {
+        const html = readProjectText(ctx.userId, ctx.projectId, "index.html");
+        return { content: [{ type: "text", text: sceneSummary(html) }] };
+      } catch {
+        return {
+          content: [{ type: "text", text: "No index.html yet — build the composition first." }],
+        };
+      }
+    },
+  );
+
+  const readSceneTool = tool(
+    "read_scene",
+    "Return the full HTML of ONE scene from the composition, addressed either by scene_id (from list_scenes) or by at_seconds (a time on the timeline — resolves to the scene playing then). Use this instead of read_file when the user wants to change a single scene, so you only pull that scene into context.",
+    {
+      scene_id: z.string().optional().describe("The scene id, e.g. 'scene-2'."),
+      at_seconds: z
+        .number()
+        .optional()
+        .describe("A timeline time in seconds; resolves to the scene playing at that moment."),
+    },
+    async ({ scene_id, at_seconds }) => {
+      if (!scene_id && at_seconds == null)
+        return {
+          content: [{ type: "text", text: "ERROR: pass either scene_id or at_seconds." }],
+          isError: true,
+        };
+      let html: string;
+      try {
+        html = readProjectText(ctx.userId, ctx.projectId, "index.html");
+      } catch {
+        return {
+          content: [{ type: "text", text: "No index.html yet — build the composition first." }],
+          isError: true,
+        };
+      }
+      const scene = scene_id
+        ? getScene(html, scene_id)
+        : resolveSceneAtTime(html, at_seconds as number);
+      if (!scene)
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Scene not found. ${sceneSummary(html)}`,
+            },
+          ],
+          isError: true,
+        };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Scene ${scene.id} (start ${scene.start ?? "?"}s, duration ${scene.duration ?? "?"}s):\n\n${scene.html}`,
+          },
+        ],
+      };
+    },
+  );
+
+  const editSceneTool = tool(
+    "edit_scene",
+    'Replace ONE scene in the composition (index.html) with new HTML, leaving every other scene untouched. `content` must be the COMPLETE replacement scene container — a single balanced <div class="scene" data-scene-id="…" data-scene-start="…" data-scene-duration="…">…</div>. Keep the SAME scene_id. Prefer this over write_file for scene changes — it never re-writes the whole file, so it\'s faster and can\'t disturb other scenes. Do NOT change a scene\'s data-scene-duration here unless the user asked to retime it (that shifts the whole timeline — rebuild with write_file for structural retimes). After editing, call lint_composition, then screenshot_at_time at a moment inside the scene.',
+    {
+      scene_id: z.string().describe("The scene id to replace, e.g. 'scene-2'."),
+      content: z
+        .string()
+        .describe(
+          "The full replacement scene container (single balanced <div data-scene-id=…>…</div>).",
+        ),
+    },
+    async ({ scene_id, content }) => {
+      let html: string;
+      try {
+        html = readProjectText(ctx.userId, ctx.projectId, "index.html");
+      } catch {
+        return {
+          content: [{ type: "text", text: "No index.html yet — build the composition first." }],
+          isError: true,
+        };
+      }
+      const trimmed = content.trim();
+      if (!trimmed.startsWith("<div") || !/\bdata-scene-id\s*=/.test(trimmed))
+        return {
+          content: [
+            {
+              type: "text",
+              text: "ERROR: content must be a single <div …data-scene-id=…>…</div> scene container.",
+            },
+          ],
+          isError: true,
+        };
+      const updated = replaceScene(html, scene_id, trimmed);
+      if (updated === null)
+        return {
+          content: [{ type: "text", text: `Scene '${scene_id}' not found. ${sceneSummary(html)}` }],
+          isError: true,
+        };
+      writeProjectFile(ctx.userId, ctx.projectId, "index.html", updated);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `OK: replaced scene ${scene_id} (index.html now ${updated.length} bytes). Lint + screenshot to verify.`,
+          },
+        ],
+      };
     },
   );
 
@@ -5507,6 +5628,9 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       upsertManifestTool,
       getProjectEditTool,
       undoProjectEditTool,
+      listScenesTool,
+      readSceneTool,
+      editSceneTool,
     ],
   });
 }
@@ -5588,6 +5712,9 @@ export const ALLOWED_TOOL_NAMES = [
   "upsert_manifest",
   "get_project_edit",
   "undo_project_edit",
+  "list_scenes",
+  "read_scene",
+  "edit_scene",
 ].map((n) => `mcp__${MCP_SERVER_NAME}__${n}`);
 
 type MediaResult = { url: string; source: string; license?: string; title?: string };

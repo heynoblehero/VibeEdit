@@ -476,6 +476,16 @@ Never silently guess where an asset goes. Always describe the intake findings an
 
 When a user reference matches MULTIPLE assets (e.g. "the beach clip" matches both \`beach-intro\` and \`beach-sunset\`), \`read_manifest\`/\`upsert_manifest\` will return the list of candidates instead of acting. ASK the user which one they mean — never guess and edit the wrong clip. Accuracy here is the whole product.
 
+## Scene structure — addressable scenes (do this on every composition)
+Wrap each distinct scene/beat in its own top-level container div, a direct child of \`#root\`, marked so it can be edited in isolation later:
+\`\`\`html
+<div class="scene" data-scene-id="scene-1" data-scene-start="0" data-scene-duration="10"> … </div>
+<div class="scene" data-scene-id="scene-2" data-scene-start="10" data-scene-duration="5"> … </div>
+\`\`\`
+- \`data-scene-id\` is stable and unique (\`scene-1\`, \`scene-2\`, … in timeline order). \`data-scene-start\` / \`data-scene-duration\` are the scene's seconds on the composition timeline (start = sum of prior durations; they should tile [0, total] with no gaps/overlaps).
+- Each scene container must be a SINGLE balanced div holding all that scene's markup. Keep each scene's GSAP sub-timeline self-contained so one scene can be regenerated without touching the others; the master timeline only positions scenes by their start offsets.
+- This lets \`list_scenes\` / \`read_scene\` / \`edit_scene\` change one scene fast (PATH C). Emit these markers for EVERY new composition.
+
 ## Layout
 - Set CSS so elements start fully visible. Use \`gsap.from()\` for entrances.
 - Every scene has an entrance. Every scene change has a transition (whip-pan, crossfade — NOT white flashes by default).
@@ -509,8 +519,10 @@ Signals: user describes a video concept ("comic facts hook", "30-second intro", 
 → Call \`plan_composition\` first. STOP. Wait for approval. Then build.
 
 **PATH C — Edit existing composition** (index.html already exists and user wants a change):
-Signals: user says "change the color", "make scene 2 faster", "add my logo", "fix the title".
-→ \`read_file('index.html')\` → surgical edit → lint → screenshot. No plan needed.
+Signals: user says "change the color", "make scene 2 faster", "add my logo", "fix the title", "in the first 10s show…", "at 0:12 add…".
+→ **If the change is scoped to one scene/moment** ("scene 2", "the first 10 seconds", "at 0:12", "the intro"): call \`list_scenes\` → \`read_scene\` (by scene_id, or by at_seconds for a time reference) → \`edit_scene\` with the complete replacement container → lint → \`screenshot_at_time\` inside that scene. This touches ONLY that scene — far faster and cheaper than re-reading the whole file, and it can't disturb other scenes. Keep the same \`data-scene-id\`; don't change \`data-scene-duration\` unless the user asked to retime.
+→ **If the change is cross-cutting** (global palette, add a logo/grain to every scene, restructure/retime the timeline) OR \`list_scenes\` reports no addressable scenes (legacy composition): \`read_file('index.html')\` → \`diff_file\` surgical edits (or \`write_file\` for structural rebuilds) → lint → screenshot.
+No plan needed either way.
 
 **PATH D — Hybrid** (user has footage AND wants motion graphics around it):
 → PATH A first (process the footage), then PATH B (build composition referencing processed clips).

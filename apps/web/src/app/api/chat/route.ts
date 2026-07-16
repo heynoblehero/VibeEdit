@@ -5,6 +5,7 @@ import { messages, projects, projectSnapshots } from "@/lib/db/schema";
 import { listAssets, markAiAssets, readProjectText } from "@/lib/storage/fs";
 import { requireServerSession } from "@/lib/server-session";
 import { runAgent, type AgentEvent } from "@/lib/ai/agent";
+import { resolveSceneAtTime } from "@/lib/ai/scene-manifest";
 import { enqueue } from "@/lib/render/queue";
 import { getUserPlan, reserveUsage } from "@/lib/billing/usage";
 import { chargeCredits, creditCostOf } from "@/lib/billing/credits";
@@ -230,6 +231,204 @@ function startRun(params: {
   return state;
 }
 
+// One turn's billing gate: the monthly chat-turn cap (reserved atomically) plus
+// the per-edit credit charge. Returns ok, or a ready-to-send 402 paywall body.
+// Shared by the single-message path (maps to an HTTP 402 → upgrade popup) and the
+// batch path (maps to a per-lane inline error).
+function tryChargeTurn(
+  userId: string,
+  projectId: string,
+): { ok: true } | { ok: false; status: number; body: unknown } {
+  const plan = getUserPlan(userId);
+  const chatReservation = reserveUsage(userId, "chat_turn", plan.chatTurnLimit, { projectId });
+  if (!chatReservation.ok) {
+    return {
+      ok: false,
+      status: 402,
+      body: upgradePaywall("chat_limit_reached", {
+        used: chatReservation.used,
+        limit: chatReservation.limit,
+      }),
+    };
+  }
+  const tier = brainTier(readModelPreferences(userId));
+  const editCost = creditCostOf("edit") * (tier === "vibe-max" ? VIBE_MAX_EDIT_MULTIPLIER : 1);
+  const editCharge = chargeCredits(userId, editCost, "edit", { projectId, brain: tier });
+  if (!editCharge.ok) {
+    return {
+      ok: false,
+      status: 402,
+      body: upgradePaywall("out_of_credits", {
+        used: editCharge.balance.used,
+        limit: editCharge.balance.monthly,
+      }),
+    };
+  }
+  return { ok: true };
+}
+
+// Resolve a batch item's scene hint to a stable lane label for the UI. A string
+// hint is a scene id; a number is a timeline time resolved to the scene playing
+// then; anything else falls back to a positional label.
+function resolveLane(
+  userId: string,
+  projectId: string,
+  hint: string | number | undefined,
+  index: number,
+): string {
+  if (typeof hint === "string" && hint.trim()) return hint.trim();
+  if (typeof hint === "number" && Number.isFinite(hint)) {
+    try {
+      const scene = resolveSceneAtTime(readProjectText(userId, projectId, "index.html"), hint);
+      if (scene) return scene.id;
+    } catch {
+      // no composition yet — fall through to positional
+    }
+    return `${hint}s`;
+  }
+  return `edit-${index + 1}`;
+}
+
+type BatchRunItem = { message: string; lane: string };
+
+// Runs several sub-agents CONCURRENTLY inside one detached run (Phase 2b). Each
+// item edits a different scene; events are tagged with the item's lane so the
+// client shows one live-activity line per scene. The file writes serialize via
+// the per-project lock in the editing tools, so parallel scene edits can't
+// lose-update index.html. Billing is per item; the shared AbortController lets a
+// single Stop abort every lane. One snapshot is taken after all lanes settle.
+function startBatchRun(params: {
+  key: string;
+  userId: string;
+  projectId: string;
+  items: BatchRunItem[];
+  priorHistory: string;
+  platform?: string;
+  aspectRatio?: string;
+  apiKeys: { replicate?: string; elevenlabs?: string; anthropic?: string };
+}): RunState {
+  const previous = RUNS.get(params.key);
+  if (previous) {
+    previous.controller.abort();
+    RUNS.delete(params.key);
+  }
+
+  const controller = new AbortController();
+  const state: RunState = { controller, events: [], done: false, subs: new Set() };
+  RUNS.set(params.key, state);
+
+  const stream = (event: AgentEvent) => {
+    state.events.push(slimEvent(event));
+    for (const sub of [...state.subs]) sub.send(event);
+  };
+
+  void (async () => {
+    let lastAssistantId: string | null = null;
+    try {
+      const assetsBefore = new Set(listAssets(params.userId, params.projectId));
+      await Promise.allSettled(
+        params.items.map(async (item) => {
+          // Tag everything this sub-agent emits with its lane so the UI can split
+          // concurrent activity by scene, and accumulate its own assistant blocks.
+          const blocks: AssistantBlock[] = [];
+          const onEvent = (event: AgentEvent) => {
+            stream({ ...event, lane: item.lane });
+            if (event.type === "text") {
+              blocks.push({ type: "text", text: event.text });
+            } else if (event.type === "tool_use") {
+              blocks.push({ type: "tool_use", id: event.id, name: event.name, input: event.input });
+            } else if (event.type === "tool_result" && event.images?.length) {
+              blocks.push({
+                type: "tool_result",
+                tool_use_id: event.tool_use_id,
+                images: event.images,
+              });
+            }
+          };
+
+          const gate = tryChargeTurn(params.userId, params.projectId);
+          if (!gate.ok) {
+            onEvent({
+              type: "error",
+              message: "Out of credits or plan limit — upgrade to run this edit.",
+            });
+            return;
+          }
+
+          try {
+            await runAgent({
+              userMessage: item.message,
+              priorHistory: params.priorHistory,
+              ctx: {
+                userId: params.userId,
+                projectId: params.projectId,
+                platform: params.platform,
+                aspectRatio: params.aspectRatio,
+                apiKeys: params.apiKeys,
+                enqueueRender: (opts) =>
+                  enqueue({ userId: params.userId, projectId: params.projectId, ...opts }),
+              },
+              onEvent,
+              abortController: controller,
+            });
+          } catch (error) {
+            captureException(error, {
+              source: "api.chat.batch",
+              userId: params.userId,
+              projectId: params.projectId,
+            });
+            onEvent({ type: "error", message: (error as Error).message });
+          }
+
+          if (blocks.length) {
+            const assistantMessageId = nanoid(10);
+            db.insert(messages)
+              .values({
+                id: assistantMessageId,
+                projectId: params.projectId,
+                role: "assistant",
+                content: JSON.stringify(blocks),
+                createdAt: new Date(),
+              })
+              .run();
+            lastAssistantId = assistantMessageId;
+          }
+        }),
+      );
+
+      const newAssets = listAssets(params.userId, params.projectId).filter(
+        (p) => !assetsBefore.has(p),
+      );
+      markAiAssets(params.userId, params.projectId, newAssets);
+      // One snapshot after every lane settles — the file is consistent thanks to
+      // the per-project write lock, so this captures the merged result once.
+      if (lastAssistantId) captureChatSnapshot(params.userId, params.projectId, lastAssistantId);
+      db.update(projects)
+        .set({ updatedAt: new Date() })
+        .where(eq(projects.id, params.projectId))
+        .run();
+    } catch (error) {
+      captureException(error, {
+        source: "api.chat.batch",
+        userId: params.userId,
+        projectId: params.projectId,
+      });
+      stream({ type: "error", message: (error as Error).message });
+    } finally {
+      state.done = true;
+      for (const sub of [...state.subs]) sub.finish();
+      setTimeout(() => {
+        if (RUNS.get(params.key) === state) RUNS.delete(params.key);
+      }, RUN_GRACE_MS);
+    }
+  })();
+
+  return state;
+}
+
+// How many scenes may build at once in one batch — bounds token/cost blow-up.
+const MAX_BATCH_LANES = 3;
+
 export async function DELETE(req: Request) {
   const session = await requireServerSession().catch((r) => r);
   if (session instanceof Response) return session;
@@ -264,13 +463,22 @@ export async function POST(req: Request) {
   const userId = session.user.id;
   const body = (await req.json()) as {
     projectId: string;
-    message: string;
+    message?: string;
+    // Phase 2b: several scene-targeted instructions to run CONCURRENTLY. When
+    // present (and non-empty) this takes precedence over `message`.
+    batch?: Array<{ message: string; sceneHint?: string | number }>;
     apiKeys?: Record<string, string>;
   };
   const projectId = body.projectId;
+  const batchInput = Array.isArray(body.batch)
+    ? body.batch
+        .filter((item) => item && typeof item.message === "string" && item.message.trim())
+        .slice(0, MAX_BATCH_LANES)
+    : [];
+  const isBatch = batchInput.length > 0;
   const userMessage = body.message;
-  if (!projectId || !userMessage)
-    return new Response("projectId and message required", { status: 400 });
+  if (!projectId || (!isBatch && !userMessage))
+    return new Response("projectId and message (or batch) required", { status: 400 });
 
   // Validate & trim BYOK keys before handing to the agent. Anything unknown
   // is dropped so a malicious caller can't smuggle arbitrary header names.
@@ -284,6 +492,7 @@ export async function POST(req: Request) {
       }
     }
   }
+  const typedApiKeys = apiKeys as { replicate?: string; elevenlabs?: string; anthropic?: string };
 
   const owned = db
     .select()
@@ -291,38 +500,6 @@ export async function POST(req: Request) {
     .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
     .get();
   if (!owned) return new Response("not found", { status: 404 });
-
-  // Monthly chat-turn cap per plan (hard ceiling). Reserve atomically: the
-  // count + the usage-event insert happen in one transaction so two parallel
-  // turns can't both pass the gate and overshoot the cap. We reserve BEFORE
-  // doing any agent work; the turn is committed the moment it's allowed.
-  const plan = getUserPlan(userId);
-  const chatReservation = reserveUsage(userId, "chat_turn", plan.chatTurnLimit, { projectId });
-  if (!chatReservation.ok) {
-    return Response.json(
-      upgradePaywall("chat_limit_reached", {
-        used: chatReservation.used,
-        limit: chatReservation.limit,
-      }),
-      { status: 402 },
-    );
-  }
-
-  // Spend unified credits for this AI edit request. Vibe Max (Opus) costs more
-  // than Vibe (Sonnet). Meter-only until BILLING_ENFORCE is set; then a user out
-  // of credits is asked to upgrade.
-  const tier = brainTier(readModelPreferences(userId));
-  const editCost = creditCostOf("edit") * (tier === "vibe-max" ? VIBE_MAX_EDIT_MULTIPLIER : 1);
-  const editCharge = chargeCredits(userId, editCost, "edit", { projectId, brain: tier });
-  if (!editCharge.ok) {
-    return Response.json(
-      upgradePaywall("out_of_credits", {
-        used: editCharge.balance.used,
-        limit: editCharge.balance.monthly,
-      }),
-      { status: 402 },
-    );
-  }
 
   // Per-user sliding-window rate limit — protects against a single account
   // burning the Anthropic bill in an afternoon (separate from the monthly cap).
@@ -347,6 +524,42 @@ export async function POST(req: Request) {
     captureEvent(FUNNEL.firstMessageSent, userId, { projectId });
   }
 
+  const key = `${userId}:${projectId}`;
+
+  // --- Batch path: run several scene edits concurrently. Billing happens
+  // per lane inside startBatchRun (a paywalled lane shows an inline error);
+  // insert one user-message row per item so the thread reads naturally.
+  if (isBatch) {
+    const items: BatchRunItem[] = batchInput.map((item, index) => {
+      db.insert(messages)
+        .values({
+          id: nanoid(10),
+          projectId,
+          role: "user",
+          content: JSON.stringify(item.message),
+          createdAt: new Date(),
+        })
+        .run();
+      return { message: item.message, lane: resolveLane(userId, projectId, item.sceneHint, index) };
+    });
+    const batchState = startBatchRun({
+      key,
+      userId,
+      projectId,
+      items,
+      priorHistory,
+      platform: owned.platform ?? undefined,
+      aspectRatio: owned.aspectRatio ?? undefined,
+      apiKeys: typedApiKeys,
+    });
+    return streamRun(batchState, req.signal);
+  }
+
+  // --- Single path: reserve the turn + charge credits up front so a paywall
+  // returns a 402 (→ upgrade popup) before any agent work starts.
+  const gate = tryChargeTurn(userId, projectId);
+  if (!gate.ok) return Response.json(gate.body, { status: gate.status });
+
   db.insert(messages)
     .values({
       id: nanoid(10),
@@ -356,22 +569,19 @@ export async function POST(req: Request) {
       createdAt: new Date(),
     })
     .run();
-  // Usage already reserved atomically above (chatReservation) — do not
-  // double-count here.
 
   // Start the run DETACHED from this request: the agent executes and persists
   // independently, so closing the browser mid-run no longer loses the work.
   // This POST just attaches a viewer to the run's live event stream.
-  const key = `${userId}:${projectId}`;
   const state = startRun({
     key,
     userId,
     projectId,
-    userMessage,
+    userMessage: userMessage as string,
     priorHistory,
     platform: owned.platform ?? undefined,
     aspectRatio: owned.aspectRatio ?? undefined,
-    apiKeys: apiKeys as { replicate?: string; elevenlabs?: string; anthropic?: string },
+    apiKeys: typedApiKeys,
   });
 
   return streamRun(state, req.signal);

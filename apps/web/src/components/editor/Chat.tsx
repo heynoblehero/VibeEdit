@@ -16,8 +16,18 @@ import { MessageBubble, VideoMessageCard } from "./chat/MessageView";
 
 // One queued chat instruction. `message` is the fully composed prompt (with any
 // attachment notes) that gets POSTed; `display` is the short user-typed text
-// shown on the queue chip.
-type QueuedInstruction = { id: string; message: string; display: string };
+// shown on the queue chip. `sceneHint` (a timeline time in seconds), when set,
+// marks the instruction as targeting one scene — the dispatcher batches distinct
+// scene-targeted items to run them in parallel (Phase 2b).
+type QueuedInstruction = {
+  id: string;
+  message: string;
+  display: string;
+  sceneHint?: number;
+};
+
+// Max scenes built at once in one parallel batch — mirrors the server cap.
+const MAX_BATCH_LANES = 3;
 
 const SAMPLE_PROMPTS: Array<{
   tag: string;
@@ -198,8 +208,17 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
   // Streaming state (busy / live tool log / live activity label) + the SSE
   // read loop live in the useChatStream hook; the thread UI here just consumes
   // them. The protocol degrades gracefully — see chat/useChatStream.ts.
-  const { busy, live, activity, paywall, dismissPaywall, runStream, resumeStream } =
-    useChatStream();
+  const {
+    busy,
+    live,
+    activity,
+    laneActivity,
+    paywall,
+    dismissPaywall,
+    runStream,
+    runBatch,
+    resumeStream,
+  } = useChatStream();
   const [prefs, setPrefs] = useState<UserPrefs | null>(null);
   const [editingAt, setEditingAt] = useState<number | null>(null);
   const [attachedAssets, setAttachedAssets] = useState<string[]>([]);
@@ -526,14 +545,38 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
     drainingRef.current = true;
     try {
       while (queueRef.current.length > 0) {
-        const [item, ...rest] = queueRef.current;
-        syncQueue(rest);
-        setMessages((prev) => [...prev, { role: "user", content: item.message }]);
-        const started = await runStream(projectId, item.message);
-        // The current item is already off the queue and shown in the thread; its
-        // error (paywall / failure) is surfaced by runStream. If it never
-        // started, stop draining so we don't spam failing POSTs — the remaining
-        // queued items stay put and resume on the next send.
+        // Build the next unit of work: a single item, or a parallel BATCH of the
+        // longest prefix of scene-targeted items with DISTINCT scenes. A batch
+        // stops at the first untargeted item, a repeated scene, or the cap — so
+        // whole-composition and same-scene edits stay serial.
+        const group = [queueRef.current[0]];
+        if (group[0].sceneHint != null) {
+          const seen = new Set<string>([String(group[0].sceneHint)]);
+          for (let i = 1; i < queueRef.current.length && group.length < MAX_BATCH_LANES; i += 1) {
+            const candidate = queueRef.current[i];
+            if (candidate.sceneHint == null) break;
+            const key = String(candidate.sceneHint);
+            if (seen.has(key)) break;
+            seen.add(key);
+            group.push(candidate);
+          }
+        }
+        syncQueue(queueRef.current.slice(group.length));
+        setMessages((prev) => [
+          ...prev,
+          ...group.map((entry) => ({ role: "user" as const, content: entry.message })),
+        ]);
+        const started =
+          group.length > 1
+            ? await runBatch(
+                projectId,
+                group.map((entry) => ({ message: entry.message, sceneHint: entry.sceneHint })),
+              )
+            : await runStream(projectId, group[0].message);
+        // The group is already off the queue and shown in the thread; any error
+        // (paywall / failure) is surfaced by the run. If it never started, stop
+        // draining so we don't spam failing POSTs — the rest stays queued and
+        // resumes on the next send.
         if (!started) break;
         await loadHistory();
       }
@@ -578,11 +621,23 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
     setSlashMenuActive(false);
     markEditSent();
 
+    // A scene-targeted instruction (from the timeline "Edit the scene at Xs"
+    // affordance) carries its time as a sceneHint so the dispatcher can run it in
+    // parallel with edits to OTHER scenes. Attachments force whole-composition
+    // reasoning, so an instruction with attachments is never scene-targeted.
+    const sceneMatch = hasAttachments
+      ? null
+      : userMessageRaw.match(/^Edit the scene at ([\d.]+)s/i);
+    const sceneHint = sceneMatch ? Number(sceneMatch[1]) : undefined;
+
     // Always go through the queue: when idle, drainQueue runs it immediately;
     // when a run is in flight, it waits its turn. The composer is already reset
     // above, so the user can keep firing instructions without blocking.
     const display = userMessageRaw || `${attachedAssets.length} attachment(s)`;
-    syncQueue([...queueRef.current, { id: crypto.randomUUID(), message: userMessage, display }]);
+    syncQueue([
+      ...queueRef.current,
+      { id: crypto.randomUUID(), message: userMessage, display, sceneHint },
+    ]);
     drainQueue();
   }
   sendRef.current = send;
@@ -758,9 +813,27 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
               </div>
             );
           })}
-          {(live.length > 0 || activity) && (
+          {(live.length > 0 || activity || Object.values(laneActivity).some(Boolean)) && (
             <div className="max-w-[90%] space-y-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs shadow-sm">
               <ActivityIndicator label={activity} />
+              {/* One line per scene building in parallel (Phase 2b). */}
+              {Object.entries(laneActivity)
+                .filter(([, label]) => label)
+                .map(([lane, label]) => (
+                  <div
+                    key={lane}
+                    className="flex items-center gap-2 text-[11px] font-medium text-[var(--color-fg-muted)]"
+                  >
+                    <span
+                      className="inline-block h-3 w-3 animate-spin rounded-full border border-[var(--color-border)] border-t-[var(--color-accent)]"
+                      aria-hidden="true"
+                    />
+                    <span className="rounded bg-[var(--color-bg-2)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-fg)]">
+                      {lane}
+                    </span>
+                    <span aria-live="polite">{label}…</span>
+                  </div>
+                ))}
               <LiveLog live={live} projectId={projectId} />
             </div>
           )}

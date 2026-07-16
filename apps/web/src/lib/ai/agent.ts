@@ -28,7 +28,11 @@ export type ToolResultImage = {
   mimeType: "image/png" | "image/jpeg";
 };
 
-export type AgentEvent =
+// `lane` (optional) tags an event with which parallel sub-agent produced it, so
+// the client can show one live-activity line per concurrently-editing scene
+// (Phase 2b batch runs). Absent on ordinary single-agent runs — consumers that
+// ignore it behave exactly as before.
+export type AgentEvent = { lane?: string } & (
   | { type: "text"; text: string }
   | { type: "tool_use"; name: string; input: Record<string, unknown>; id: string }
   | {
@@ -45,7 +49,8 @@ export type AgentEvent =
   | { type: "tool_end"; id: string; name: string; ok: boolean }
   | { type: "turn_end"; usage?: unknown }
   | { type: "done"; stop_reason: string }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+);
 
 type AssistantContentBlock = {
   type: string;

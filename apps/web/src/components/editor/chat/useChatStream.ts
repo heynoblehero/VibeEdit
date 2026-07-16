@@ -55,6 +55,10 @@ export type ChatStream = {
   // structured tool_start / tool_end lifecycle events, falling back to legacy
   // tool_use events so it works even if those events never arrive.
   activity: string | null;
+  // Per-lane "what's happening now" during a parallel batch (Phase 2b): keyed by
+  // scene lane (e.g. "scene-1"), value is the current activity label or null.
+  // Empty on ordinary single-agent runs.
+  laneActivity: Record<string, string | null>;
   // Set when the server returns a 402 with a structured paywall payload (out of
   // credits / plan limit). The UI shows the full upgrade popup; null otherwise.
   paywall: PaywallData | null;
@@ -65,6 +69,14 @@ export type ChatStream = {
    * a history reload), true otherwise.
    */
   runStream: (projectId: string, userMessage: string) => Promise<boolean>;
+  /**
+   * Run several scene-targeted instructions CONCURRENTLY (Phase 2b). Streams one
+   * SSE connection whose events are lane-tagged; resolves when the batch closes.
+   */
+  runBatch: (
+    projectId: string,
+    items: Array<{ message: string; sceneHint?: string | number }>,
+  ) => Promise<boolean>;
   /**
    * Reattach to an agent run that's still executing server-side for this project
    * (e.g. after the user closed and reopened the tab mid-build). Replays what's
@@ -78,6 +90,10 @@ export function useChatStream(): ChatStream {
   const [busy, setBusy] = useState(false);
   const [live, setLive] = useState<LiveEntry[]>([]);
   const [activity, setActivity] = useState<string | null>(null);
+  const [laneActivity, setLaneActivity] = useState<Record<string, string | null>>({});
+  // Per-lane in-flight tool count, so a lane's activity clears only once all its
+  // tools have resolved (mirrors inFlightRef for the default, unlaned run).
+  const laneInFlightRef = useRef<Record<string, number>>({});
   const [paywall, setPaywall] = useState<PaywallData | null>(null);
   // Tracks the most recent content written to each path so the inline write_file
   // bubble can show a +/- diff against the prior version within a single turn.
@@ -91,13 +107,27 @@ export function useChatStream(): ChatStream {
     // additive — the tool log below is still built from tool_use / tool_result.
     if (event.type === "tool_start") {
       if (event.name === "suggest_next_steps") return;
-      inFlightRef.current += 1;
-      setActivity(event.label || fallbackLabel(event.name));
+      const label = event.label || fallbackLabel(event.name);
+      if (event.lane) {
+        const lane = event.lane;
+        laneInFlightRef.current[lane] = (laneInFlightRef.current[lane] ?? 0) + 1;
+        setLaneActivity((prev) => ({ ...prev, [lane]: label }));
+      } else {
+        inFlightRef.current += 1;
+        setActivity(label);
+      }
       return;
     }
     if (event.type === "tool_end") {
-      inFlightRef.current = Math.max(0, inFlightRef.current - 1);
-      if (inFlightRef.current === 0) setActivity(null);
+      if (event.lane) {
+        const lane = event.lane;
+        const next = Math.max(0, (laneInFlightRef.current[lane] ?? 0) - 1);
+        laneInFlightRef.current[lane] = next;
+        if (next === 0) setLaneActivity((prev) => ({ ...prev, [lane]: null }));
+      } else {
+        inFlightRef.current = Math.max(0, inFlightRef.current - 1);
+        if (inFlightRef.current === 0) setActivity(null);
+      }
       return;
     }
 
@@ -109,8 +139,15 @@ export function useChatStream(): ChatStream {
       // Legacy status broadcast (raw tool name) kept for back-compat, but the
       // friendly label is what the Preview overlay now shows.
       dispatchAgentStatus(true, fallbackLabel(event.name));
-      // Fallback for servers that don't emit tool_start: still show activity.
-      if (inFlightRef.current === 0) setActivity(fallbackLabel(event.name));
+      // Fallback for servers that don't emit tool_start: still show activity,
+      // routed to the event's lane during a parallel batch.
+      if (event.lane) {
+        const lane = event.lane;
+        if ((laneInFlightRef.current[lane] ?? 0) === 0)
+          setLaneActivity((prev) => ({ ...prev, [lane]: fallbackLabel(event.name) }));
+      } else if (inFlightRef.current === 0) {
+        setActivity(fallbackLabel(event.name));
+      }
       let prevContent: string | undefined;
       if (
         event.name === "write_file" &&
@@ -190,11 +227,15 @@ export function useChatStream(): ChatStream {
     [handleEvent],
   );
 
-  const runStream = useCallback(
-    async (projectId: string, userMessage: string): Promise<boolean> => {
+  // Shared POST + SSE-consume lifecycle for both a single message and a parallel
+  // batch — the only difference is the request body.
+  const runRequest = useCallback(
+    async (payload: Record<string, unknown>): Promise<boolean> => {
       setBusy(true);
       setLive([]);
       setActivity(null);
+      setLaneActivity({});
+      laneInFlightRef.current = {};
       inFlightRef.current = 0;
       dispatchAgentStatus(true, "thinking");
 
@@ -202,11 +243,7 @@ export function useChatStream(): ChatStream {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          projectId,
-          message: userMessage,
-          apiKeys: getAllApiKeys(),
-        }),
+        body: JSON.stringify({ ...payload, apiKeys: getAllApiKeys() }),
       });
       if (!response.ok || !response.body) {
         let message = `error: ${response.statusText}`;
@@ -222,6 +259,7 @@ export function useChatStream(): ChatStream {
         setLive([{ kind: "error", message }]);
         setBusy(false);
         setActivity(null);
+        setLaneActivity({});
         dispatchAgentStatus(false);
         return false;
       }
@@ -230,10 +268,25 @@ export function useChatStream(): ChatStream {
       setBusy(false);
       setLive([]);
       setActivity(null);
+      setLaneActivity({});
       dispatchAgentStatus(false);
       return true;
     },
     [consume],
+  );
+
+  const runStream = useCallback(
+    (projectId: string, userMessage: string): Promise<boolean> =>
+      runRequest({ projectId, message: userMessage }),
+    [runRequest],
+  );
+
+  const runBatch = useCallback(
+    (
+      projectId: string,
+      items: Array<{ message: string; sceneHint?: string | number }>,
+    ): Promise<boolean> => runRequest({ projectId, batch: items }),
+    [runRequest],
   );
 
   const resumeStream = useCallback(
@@ -252,12 +305,15 @@ export function useChatStream(): ChatStream {
       setBusy(true);
       setLive([]);
       setActivity(null);
+      setLaneActivity({});
+      laneInFlightRef.current = {};
       inFlightRef.current = 0;
       dispatchAgentStatus(true, "thinking");
       await consume(response.body);
       setBusy(false);
       setLive([]);
       setActivity(null);
+      setLaneActivity({});
       dispatchAgentStatus(false);
       return true;
     },
@@ -268,9 +324,11 @@ export function useChatStream(): ChatStream {
     busy,
     live,
     activity,
+    laneActivity,
     paywall,
     dismissPaywall: () => setPaywall(null),
     runStream,
+    runBatch,
     resumeStream,
   };
 }

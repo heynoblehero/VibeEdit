@@ -32,7 +32,10 @@ export type AspectRatio = "16:9" | "9:16" | "1:1";
 // tool_end are the structured tool-lifecycle events; everything else is the
 // pre-existing protocol. Unknown event types are ignored by the consumer, so
 // the stream degrades gracefully if the server emits something newer.
-export type AgentEvent =
+// `lane` (optional) tags an event with which parallel sub-agent produced it, so
+// the client can show one activity line per concurrently-editing scene (Phase 2b
+// batch runs). Absent on ordinary single-agent runs.
+export type AgentEvent = { lane?: string } & (
   | { type: "text"; text: string }
   | { type: "tool_use"; name: string; input: Record<string, unknown>; id: string }
   | {
@@ -45,7 +48,8 @@ export type AgentEvent =
   | { type: "tool_end"; id: string; name: string; ok: boolean }
   | { type: "turn_end"; usage?: Record<string, unknown> }
   | { type: "done"; stop_reason: string }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+);
 
 export type VariantInfo = {
   sceneSlug: string;

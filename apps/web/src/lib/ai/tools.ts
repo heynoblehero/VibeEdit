@@ -11,6 +11,7 @@ import {
 } from "../storage/fs";
 import { listRegistry, readRegistryBlock } from "./registry";
 import { getScene, resolveSceneAtTime, replaceScene, sceneSummary } from "./scene-manifest";
+import { withProjectLock } from "./project-lock";
 import {
   ensureManifest,
   readManifest,
@@ -488,38 +489,42 @@ export function buildToolServer(ctx: ToolContext) {
     },
     async ({ path, old_text, new_text }) => {
       try {
-        const current = readProjectText(ctx.userId, ctx.projectId, path);
-        const occurrences = current.split(old_text).length - 1;
-        if (occurrences === 0)
+        // Read-modify-write under the per-project lock so a concurrent scene edit
+        // (Phase 2b batch) can't lose-update this file between our read and write.
+        return await withProjectLock(ctx.userId, ctx.projectId, () => {
+          const current = readProjectText(ctx.userId, ctx.projectId, path);
+          const occurrences = current.split(old_text).length - 1;
+          if (occurrences === 0)
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `ERROR: old_text not found in ${path}. Try a more specific snippet.`,
+                },
+              ],
+              isError: true,
+            };
+          if (occurrences > 1)
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `ERROR: old_text appears ${occurrences} times in ${path}. Need a unique snippet — add surrounding context.`,
+                },
+              ],
+              isError: true,
+            };
+          const updated = current.replace(old_text, new_text);
+          writeProjectFile(ctx.userId, ctx.projectId, path, updated);
           return {
             content: [
               {
                 type: "text",
-                text: `ERROR: old_text not found in ${path}. Try a more specific snippet.`,
+                text: `OK: ${path} updated (${old_text.length}B → ${new_text.length}B).`,
               },
             ],
-            isError: true,
           };
-        if (occurrences > 1)
-          return {
-            content: [
-              {
-                type: "text",
-                text: `ERROR: old_text appears ${occurrences} times in ${path}. Need a unique snippet — add surrounding context.`,
-              },
-            ],
-            isError: true,
-          };
-        const updated = current.replace(old_text, new_text);
-        writeProjectFile(ctx.userId, ctx.projectId, path, updated);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `OK: ${path} updated (${old_text.length}B → ${new_text.length}B).`,
-            },
-          ],
-        };
+        });
       } catch (error) {
         return {
           content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],
@@ -597,7 +602,11 @@ export function buildToolServer(ctx: ToolContext) {
     },
     async ({ path, content }) => {
       try {
-        writeProjectFile(ctx.userId, ctx.projectId, path, content);
+        // Serialize with concurrent scene edits so a whole-file write and an
+        // in-flight scene RMW can't clobber each other (Phase 2b).
+        await withProjectLock(ctx.userId, ctx.projectId, () => {
+          writeProjectFile(ctx.userId, ctx.projectId, path, content);
+        });
         return {
           content: [
             {
@@ -697,15 +706,6 @@ export function buildToolServer(ctx: ToolContext) {
         ),
     },
     async ({ scene_id, content }) => {
-      let html: string;
-      try {
-        html = readProjectText(ctx.userId, ctx.projectId, "index.html");
-      } catch {
-        return {
-          content: [{ type: "text", text: "No index.html yet — build the composition first." }],
-          isError: true,
-        };
-      }
       const trimmed = content.trim();
       if (!trimmed.startsWith("<div") || !/\bdata-scene-id\s*=/.test(trimmed))
         return {
@@ -717,21 +717,37 @@ export function buildToolServer(ctx: ToolContext) {
           ],
           isError: true,
         };
-      const updated = replaceScene(html, scene_id, trimmed);
-      if (updated === null)
+      // Read-modify-write under the per-project lock: two concurrent scene edits
+      // (Phase 2b batch) each read the LATEST index.html inside the lock and
+      // replace only their own scene, so neither loses the other's change.
+      return withProjectLock(ctx.userId, ctx.projectId, () => {
+        let html: string;
+        try {
+          html = readProjectText(ctx.userId, ctx.projectId, "index.html");
+        } catch {
+          return {
+            content: [{ type: "text", text: "No index.html yet — build the composition first." }],
+            isError: true,
+          };
+        }
+        const updated = replaceScene(html, scene_id, trimmed);
+        if (updated === null)
+          return {
+            content: [
+              { type: "text", text: `Scene '${scene_id}' not found. ${sceneSummary(html)}` },
+            ],
+            isError: true,
+          };
+        writeProjectFile(ctx.userId, ctx.projectId, "index.html", updated);
         return {
-          content: [{ type: "text", text: `Scene '${scene_id}' not found. ${sceneSummary(html)}` }],
-          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `OK: replaced scene ${scene_id} (index.html now ${updated.length} bytes). Lint + screenshot to verify.`,
+            },
+          ],
         };
-      writeProjectFile(ctx.userId, ctx.projectId, "index.html", updated);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `OK: replaced scene ${scene_id} (index.html now ${updated.length} bytes). Lint + screenshot to verify.`,
-          },
-        ],
-      };
+      });
     },
   );
 

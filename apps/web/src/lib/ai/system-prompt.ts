@@ -436,16 +436,19 @@ For pseudo-randomness, use a seeded formula like \`Math.sin(i * 12.9898) * 43758
 \`\`\`
 Width/height defaults: **1920×1080 for 16:9 (YouTube long-form), 1080×1920 for 9:16 (Shorts/Reels/TikTok)**. Ask which format if unclear.
 
-## GSAP contract
+## GSAP contract — ONE timeline PER SCENE (never a separate master)
 - Load via CDN: \`<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>\`
-- Every timeline MUST be paused and registered:
+- **Each scene owns exactly ONE paused timeline, registered under its own \`data-scene-id\`.** Do NOT also register a separate "master"/composition timeline that animates scene content — the player and renderer seek EVERY registered timeline to the same time, so a master plus per-scene timelines animating the same elements COLLIDE (this is the #1 timeline bug). One scene → one timeline; N scenes → N timelines.
   \`\`\`js
   window.__timelines = window.__timelines || {};
-  const tl = gsap.timeline({ paused: true });
-  window.__timelines["my-hook"] = tl;
+  const scene1 = gsap.timeline({ paused: true });
+  window.__timelines["scene-1"] = scene1;   // key MUST equal the scene's data-scene-id
   \`\`\`
-- Build the timeline SYNCHRONOUSLY at top level of a \`<script>\`. No async/await, no setTimeout.
+- **Position every tween in GLOBAL composition time** (seconds from t=0 of the whole video), NOT scene-local time. All timelines are seeked to the same global \`t\`, so a scene starting at \`data-scene-start="10"\` places its entrance at ~10s (leave the timeline empty/holding before that). This is what makes scenes play in sequence.
+- **Each scene hides itself outside its window.** Scene containers are \`position:absolute; inset:0\` (stacked). The scene's timeline fades its container in at \`data-scene-start\` and out just before its end, so at any seeked \`t\` only the active scene is visible. (\`gsap.from()\` at the scene-start offset naturally holds elements in their hidden "from" state before the scene begins.)
+- Build each scene's timeline SYNCHRONOUSLY at top level of a \`<script>\` (inside or right after that scene's container). No async/await, no setTimeout.
 - Animate visual props only (opacity, x, y, scale, rotation, color). Never \`display\` or \`visibility\`.
+- A SINGLE-scene composition is just one timeline \`window.__timelines["scene-1"]\` — clean, no master, no conflict.
 
 ## Media
 - **Primary footage** (the clip being edited — its ORIGINAL audio is the main soundtrack: voices, reactions, on-scene sound): \`<video playsinline class="clip" data-has-audio="true" data-volume="1" src="assets/processed/foo.mp4" data-start="0" data-duration="14" data-track-index="0">\`. Do NOT add \`muted\` — \`data-has-audio="true"\` is what tells the render pipeline to mux the original audio, and the engine mutes the element during frame capture on its own. Adding \`muted\` yourself sets \`data-has-audio="false"\` and SILENTLY DROPS the original audio (the #1 audio bug). Never pair \`muted\` with \`data-has-audio="true"\`.
@@ -483,8 +486,9 @@ Wrap each distinct scene/beat in its own top-level container div, a direct child
 <div class="scene" data-scene-id="scene-2" data-scene-start="10" data-scene-duration="5"> … </div>
 \`\`\`
 - \`data-scene-id\` is stable and unique (\`scene-1\`, \`scene-2\`, … in timeline order). \`data-scene-start\` / \`data-scene-duration\` are the scene's seconds on the composition timeline (start = sum of prior durations; they should tile [0, total] with no gaps/overlaps).
-- Each scene container must be a SINGLE balanced div holding all that scene's markup. Keep each scene's GSAP sub-timeline self-contained so one scene can be regenerated without touching the others; the master timeline only positions scenes by their start offsets.
+- Each scene container must be a SINGLE balanced div holding ALL that scene's markup AND its own \`<script>\` that builds that scene's one timeline (registered under its \`data-scene-id\`, in global time — see the GSAP contract). Fully self-contained: one scene can be regenerated without touching any other scene or a shared script. There is NO separate master timeline.
 - This lets \`list_scenes\` / \`read_scene\` / \`edit_scene\` change one scene fast (PATH C). Emit these markers for EVERY new composition.
+- **To ADD a scene** to an existing composition (e.g. "add a new scene at 40s"): insert a NEW \`<div class="scene" data-scene-id="scene-N" …>\` container (fresh unique id) with its own timeline in global time, and adjust neighbouring \`data-scene-start\`/\`data-scene-duration\` so scenes still tile with no gaps/overlaps. Don't cram a distinct new beat into an existing scene — a new moment is a new scene (and a new agent on the roster).
 
 ## Layout
 - Set CSS so elements start fully visible. Use \`gsap.from()\` for entrances.
@@ -537,9 +541,9 @@ You are the LEAD. You plan + scaffold, then delegate each scene to its own agent
 1. \`plan_composition\` → STOP for approval (exactly as PATH B, steps 1–4 below).
 2. On approval: \`get_brand_kit\` → \`get_style_lock\` (the SHARED style-lock every scene agent must obey), pick + \`download_asset\` ONE music bed (as PATH B step 5b).
 3. **Write the SCAFFOLD** with \`write_file('index.html', …)\` — NOT the finished scenes, just the shell every scene agent fills:
-   - \`<head>\`: GSAP CDN + the \`get_style_lock\` \`:root\` vars & font \`<link>\`s + base CSS where **every \`.scene\` is \`position:absolute; inset:0; opacity:0\`** (full-frame, stacked).
+   - \`<head>\`: GSAP CDN + the \`get_style_lock\` \`:root\` vars & font \`<link>\`s + base CSS where **every \`.scene\` is \`position:absolute; inset:0; opacity:0\`** (full-frame, stacked, hidden until its own timeline reveals it).
    - \`<body>\`: the root div (dims, \`data-start="0"\`, \`data-duration="<total>"\`); one EMPTY container per scene — \`<div class="scene" data-scene-id="scene-1" data-scene-name="Hook" data-scene-start="0" data-scene-duration="4"></div>\` — tiled with no gaps/overlaps; the music \`<audio class="clip" …>\`; the grain overlay.
-   - A generic **scene-visibility master** \`<script>\`: \`window.__timelines = window.__timelines || {}; const sceneTL = gsap.timeline({paused:true}); window.__timelines["__scenes"] = sceneTL;\` then for each \`.scene[data-scene-id]\` read its \`data-scene-start\`/\`data-scene-duration\` and fade the WRAPPER opacity 0→1 at start and 1→0 just before its end. This handles scene show/hide generically, so a scene agent never edits the \`<head>\` or shared scripts.
+   - Do NOT add any shared/master timeline script. Following the GSAP contract, EACH scene agent registers its OWN \`window.__timelines["<sceneId>"]\` (global time) that also fades its container in/out — so the scaffold owns no timeline, and scene agents never touch the \`<head>\` or any shared script.
 4. Call **\`delegate_scenes\`** with one entry per scene \`{ sceneId, name, brief }\` (brief = concrete content + beats + media for that scene). Then **END YOUR TURN** — the team builds the scenes in parallel. Each scene agent fills ONLY its own \`<div data-scene-id>\` (via \`edit_scene\`), obeys the style-lock, and registers its within-scene motion under \`window.__timelines["<sceneId>"]\` positioned in GLOBAL composition time. Do NOT build the scenes yourself.
 (For a SINGLE-scene / very simple piece, skip delegation and build it directly — that's plain PATH B.)
 

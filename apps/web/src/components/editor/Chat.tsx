@@ -232,6 +232,7 @@ export function Chat({
     runStream,
     runBatch,
     resumeStream,
+    takePendingDelegation,
   } = useChatStream();
   const [prefs, setPrefs] = useState<UserPrefs | null>(null);
   const [editingAt, setEditingAt] = useState<number | null>(null);
@@ -605,6 +606,24 @@ export function Chat({
         // resumes on the next send.
         if (!started) break;
         await loadHistory();
+
+        // If the lead just delegated scenes to the team, enqueue one build task
+        // per scene at the FRONT of the queue — the next loop iterations batch
+        // them (MAX_BATCH_LANES at a time) so the scenes build in parallel.
+        const delegated = takePendingDelegation();
+        if (delegated && delegated.length > 0) {
+          const buildTasks: QueuedInstruction[] = delegated.map((scene) => ({
+            id: crypto.randomUUID(),
+            message:
+              `Build scene ${scene.sceneId} ("${scene.name}"). ${scene.brief}\n\n` +
+              `The scaffold, shared style-lock (in <head>), and your empty scene container already exist. ` +
+              `Use read_scene then edit_scene to fill ONLY your own <div data-scene-id="${scene.sceneId}"> — never touch other scenes or the <head>. ` +
+              `Match the style-lock (fonts/colors/type scale). Register this scene's motion under window.__timelines["${scene.sceneId}"] positioned in GLOBAL composition time (entrance at data-scene-start, exit before its end), and keep the container absolutely positioned + full-frame so scenes stack cleanly.`,
+            display: `Build ${scene.name} (${scene.sceneId})`,
+            sceneId: scene.sceneId,
+          }));
+          syncQueue([...buildTasks, ...queueRef.current]);
+        }
       }
     } finally {
       drainingRef.current = false;

@@ -10,7 +10,13 @@ import {
   personaDir,
 } from "../storage/fs";
 import { listRegistry, readRegistryBlock } from "./registry";
-import { getScene, resolveSceneAtTime, replaceScene, sceneSummary } from "./scene-manifest";
+import {
+  getScene,
+  parseScenes,
+  resolveSceneAtTime,
+  replaceScene,
+  sceneSummary,
+} from "./scene-manifest";
 import { withProjectLock } from "./project-lock";
 import {
   ensureManifest,
@@ -748,6 +754,62 @@ export function buildToolServer(ctx: ToolContext) {
           ],
         };
       });
+    },
+  );
+
+  // Editor Team delegation. The lead calls this AFTER writing the scaffold to
+  // hand each scene to its own agent; the client sees this tool call and fans the
+  // scenes out as a parallel batch (one agent per scene, each editing only its
+  // own div under the write lock). The tool itself just validates + acknowledges.
+  const delegateScenesTool = tool(
+    "delegate_scenes",
+    "Delegate the per-scene build to the Editor Team — call this ONCE, right after writing the scaffold index.html (style-lock + empty scene containers). Each scene runs as its own agent IN PARALLEL, filling only its own <div data-scene-id> and registering its within-scene motion under window.__timelines['<sceneId>']. Provide one entry per scene with its id, short name, and a concrete brief (content + beats + media). After this returns, END your turn — the team takes over and the scenes build concurrently.",
+    {
+      scenes: z
+        .array(
+          z.object({
+            sceneId: z.string().describe("The scene's data-scene-id, e.g. 'scene-1'."),
+            name: z.string().describe("Short role name, e.g. 'Hook' or 'Reveal'."),
+            brief: z
+              .string()
+              .describe("Concrete build brief for this scene: content, beats, media, motion."),
+          }),
+        )
+        .min(1)
+        .describe("One entry per scene to build, in timeline order."),
+    },
+    async ({ scenes }) => {
+      // Validate the scenes exist in the scaffold so we don't dispatch dead lanes.
+      let known = new Set<string>();
+      try {
+        known = new Set(
+          parseScenes(readProjectText(ctx.userId, ctx.projectId, "index.html")).map((s) => s.id),
+        );
+      } catch {
+        // no scaffold yet — the lead must write it before delegating
+      }
+      const missing = scenes.map((s) => s.sceneId).filter((id) => !known.has(id));
+      if (missing.length > 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `ERROR: these scene ids are not in the scaffold: ${missing.join(", ")}. Write the scaffold (empty scene <div>s with matching data-scene-id) BEFORE delegating.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Delegating ${scenes.length} scene(s) to the team: ${scenes
+              .map((s) => `${s.sceneId} (${s.name})`)
+              .join(", ")}. Each will build in parallel now.`,
+          },
+        ],
+      };
     },
   );
 
@@ -5647,6 +5709,7 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       listScenesTool,
       readSceneTool,
       editSceneTool,
+      delegateScenesTool,
     ],
   });
 }
@@ -5731,6 +5794,7 @@ export const ALLOWED_TOOL_NAMES = [
   "list_scenes",
   "read_scene",
   "edit_scene",
+  "delegate_scenes",
 ].map((n) => `mcp__${MCP_SERVER_NAME}__${n}`);
 
 type MediaResult = { url: string; source: string; license?: string; title?: string };

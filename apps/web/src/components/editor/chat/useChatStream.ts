@@ -33,6 +33,7 @@ const FALLBACK_TOOL_LABELS: Record<string, string> = {
   list_scenes: "Mapping the scenes",
   read_scene: "Reading a scene",
   edit_scene: "Editing a scene",
+  delegate_scenes: "Assembling the team",
   search_media: "Searching b-roll",
   find_stock: "Finding stock media",
   generate_image: "Generating an image",
@@ -46,6 +47,9 @@ function fallbackLabel(name: string): string {
     FALLBACK_TOOL_LABELS[name] ?? name.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase())
   );
 }
+
+// One scene handed to the team by the lead's delegate_scenes call.
+export type DelegatedScene = { sceneId: string; name: string; brief: string };
 
 export type ChatStream = {
   busy: boolean;
@@ -84,6 +88,11 @@ export type ChatStream = {
    * the caller reloads history when it finishes), false if nothing was running.
    */
   resumeStream: (projectId: string) => Promise<boolean>;
+  /**
+   * If the run just observed a `delegate_scenes` call from the lead agent, returns
+   * (and clears) the scenes to fan out as a parallel build batch — else null.
+   */
+  takePendingDelegation: () => DelegatedScene[] | null;
 };
 
 export function useChatStream(): ChatStream {
@@ -101,6 +110,9 @@ export function useChatStream(): ChatStream {
   // Count of in-flight tools, so the indicator only clears once everything the
   // agent kicked off this beat has resolved.
   const inFlightRef = useRef(0);
+  // Scenes the lead handed to the team via delegate_scenes this run; the caller
+  // drains them into a parallel build batch once the lead's turn finishes.
+  const pendingDelegationRef = useRef<DelegatedScene[] | null>(null);
 
   const handleEvent = useCallback((event: AgentEvent) => {
     // Structured lifecycle events drive the live activity indicator. They are
@@ -131,6 +143,20 @@ export function useChatStream(): ChatStream {
       return;
     }
 
+    // The lead delegating scenes to the team — capture the scene list so the
+    // caller can fan them out into a parallel build batch when this run ends.
+    if (event.type === "tool_use" && event.name === "delegate_scenes") {
+      const scenes = (event.input as { scenes?: unknown }).scenes;
+      if (Array.isArray(scenes)) {
+        pendingDelegationRef.current = scenes.filter(
+          (s): s is DelegatedScene =>
+            !!s &&
+            typeof (s as DelegatedScene).sceneId === "string" &&
+            typeof (s as DelegatedScene).brief === "string",
+        );
+      }
+      return;
+    }
     // suggest_next_steps is surfaced as one-tap chips, not as a tool-log line.
     if (event.type === "tool_use" && event.name === "suggest_next_steps") return;
     if (event.type === "text") {
@@ -237,6 +263,7 @@ export function useChatStream(): ChatStream {
       setLaneActivity({});
       laneInFlightRef.current = {};
       inFlightRef.current = 0;
+      pendingDelegationRef.current = null;
       dispatchAgentStatus(true, "thinking");
 
       const { getAllApiKeys } = await import("@/lib/api-keys/store");
@@ -330,5 +357,10 @@ export function useChatStream(): ChatStream {
     runStream,
     runBatch,
     resumeStream,
+    takePendingDelegation: () => {
+      const scenes = pendingDelegationRef.current;
+      pendingDelegationRef.current = null;
+      return scenes;
+    },
   };
 }

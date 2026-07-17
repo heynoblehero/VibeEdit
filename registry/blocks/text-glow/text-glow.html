@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Monoton&display=block");
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="3"
+      data-width="1920"
+      data-height="1080"
+    >
+      <style>
+        [data-composition-id="main"] {
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          position: relative;
+          background: radial-gradient(circle at 50% 55%, #1b1030 0%, #060310 75%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: "Monoton", cursive;
+        }
+        .neon {
+          font-size: 200px;
+          color: #fff2fb;
+          letter-spacing: 8px;
+          text-transform: uppercase;
+          will-change: opacity, text-shadow;
+          --glow: #ff2ec4;
+          text-shadow:
+            0 0 8px #fff,
+            0 0 22px var(--glow),
+            0 0 48px var(--glow),
+            0 0 90px var(--glow);
+        }
+      </style>
+      <div class="neon">NEON</div>
+
+      <script>
+        (function () {
+          const root = document.querySelector('[data-composition-id="main"]');
+          const neon = root.querySelector(".neon");
+          const strong =
+            "0 0 8px #fff, 0 0 22px var(--glow), 0 0 48px var(--glow), 0 0 90px var(--glow)";
+          const dim =
+            "0 0 4px #fff, 0 0 10px var(--glow), 0 0 20px var(--glow), 0 0 34px var(--glow)";
+          const tl = gsap.timeline({ paused: true });
+          // Fluorescent-tube switch-on flicker, then a slow breathing pulse.
+          tl.set(neon, { opacity: 0.15, textShadow: dim })
+            .to(neon, { opacity: 1, duration: 0.05 }, 0.15)
+            .to(neon, { opacity: 0.2, duration: 0.05 }, 0.24)
+            .to(neon, { opacity: 1, duration: 0.05 }, 0.32)
+            .to(neon, { opacity: 0.3, duration: 0.04 }, 0.42)
+            .to(neon, { opacity: 1, textShadow: strong, duration: 0.2 }, 0.5)
+            .to(neon, {
+              textShadow: dim,
+              duration: 1,
+              ease: "sine.inOut",
+              yoyo: true,
+              repeat: 1,
+            });
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+        })();
+      </script>
+    </div>
+  </body>
+</html>

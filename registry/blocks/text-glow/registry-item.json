@@ -1,0 +1,17 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/registry-item.json",
+  "name": "text-glow",
+  "type": "hyperframes:block",
+  "title": "Neon Glow",
+  "description": "Neon title that flickers on and pulses with a colored halo — night, club, and gaming vibes.",
+  "tags": ["title", "neon", "glow", "flicker", "night"],
+  "dimensions": { "width": 1920, "height": 1080 },
+  "duration": 3,
+  "files": [
+    {
+      "path": "text-glow.html",
+      "target": "compositions/text-glow.html",
+      "type": "hyperframes:composition"
+    }
+  ]
+}

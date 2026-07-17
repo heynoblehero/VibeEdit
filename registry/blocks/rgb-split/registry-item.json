@@ -1,0 +1,17 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/registry-item.json",
+  "name": "rgb-split",
+  "type": "hyperframes:block",
+  "title": "RGB Split",
+  "description": "Chromatic-aberration title — red and blue channels shear apart and snap back with a glitchy pulse.",
+  "tags": ["title", "glitch", "chromatic", "rgb", "retro"],
+  "dimensions": { "width": 1920, "height": 1080 },
+  "duration": 2.5,
+  "files": [
+    {
+      "path": "rgb-split.html",
+      "target": "compositions/rgb-split.html",
+      "type": "hyperframes:composition"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/registry-item.json",
+  "name": "light-sweep",
+  "type": "hyperframes:block",
+  "title": "Light Sweep",
+  "description": "A specular shine sweeps across metallic title text — premium, product-reveal shimmer.",
+  "tags": ["title", "shine", "premium", "reveal", "metallic"],
+  "dimensions": { "width": 1920, "height": 1080 },
+  "duration": 2.5,
+  "files": [
+    {
+      "path": "light-sweep.html",
+      "target": "compositions/light-sweep.html",
+      "type": "hyperframes:composition"
+    }
+  ]
+}

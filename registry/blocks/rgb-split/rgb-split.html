@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Anton&display=block");
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="2.5"
+      data-width="1920"
+      data-height="1080"
+    >
+      <style>
+        [data-composition-id="main"] {
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          position: relative;
+          background: #050507;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: "Anton", sans-serif;
+        }
+        .rgb {
+          position: relative;
+          width: 1200px;
+          height: 300px;
+        }
+        /* Three colour channels stacked and screen-blended: aligned = white,
+           sheared apart = red/blue fringing (chromatic aberration). */
+        .rgb .layer {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 240px;
+          letter-spacing: 4px;
+          text-transform: uppercase;
+          mix-blend-mode: screen;
+          will-change: transform;
+        }
+        .rgb .r {
+          color: #ff2d2d;
+        }
+        .rgb .g {
+          color: #2dff77;
+        }
+        .rgb .b {
+          color: #2d6bff;
+        }
+      </style>
+      <div class="rgb">
+        <div class="layer r">SIGNAL</div>
+        <div class="layer g">SIGNAL</div>
+        <div class="layer b">SIGNAL</div>
+      </div>
+
+      <script>
+        (function () {
+          const root = document.querySelector('[data-composition-id="main"]');
+          const red = root.querySelector(".rgb .r");
+          const blue = root.querySelector(".rgb .b");
+          const tl = gsap.timeline({ paused: true });
+          // Settle aligned, then a sharp glitch shear, a couple of jitters, and
+          // snap back — reads as a channel-tearing signal-break title.
+          tl.set([red, blue], { x: 0, y: 0 })
+            .to(red, { x: -26, y: -4, duration: 0.12, ease: "power1.in" }, 0.5)
+            .to(blue, { x: 26, y: 4, duration: 0.12, ease: "power1.in" }, 0.5)
+            .to(red, { x: 14, duration: 0.08 }, 0.72)
+            .to(blue, { x: -14, duration: 0.08 }, 0.72)
+            .to(red, { x: -20, y: 3, duration: 0.08 }, 0.86)
+            .to(blue, { x: 20, y: -3, duration: 0.08 }, 0.86)
+            .to([red, blue], { x: 0, y: 0, duration: 0.35, ease: "elastic.out(1, 0.4)" }, 1.02)
+            .to({}, { duration: 0.9 });
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+        })();
+      </script>
+    </div>
+  </body>
+</html>

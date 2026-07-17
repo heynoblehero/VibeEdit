@@ -1,0 +1,17 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/registry-item.json",
+  "name": "zoom-punch",
+  "type": "hyperframes:block",
+  "title": "Zoom Punch",
+  "description": "Title slams in from a hard scale-up with motion blur, then settles — a punchy hook entrance.",
+  "tags": ["title", "entrance", "impact", "zoom", "hook"],
+  "dimensions": { "width": 1920, "height": 1080 },
+  "duration": 2.5,
+  "files": [
+    {
+      "path": "zoom-punch.html",
+      "target": "compositions/zoom-punch.html",
+      "type": "hyperframes:composition"
+    }
+  ]
+}

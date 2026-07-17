@@ -25,6 +25,9 @@ export default function EffectsPage() {
   const { data: session, isPending } = useSession();
   const [projects, setProjects] = useState<Project[]>([]);
   const [active, setActive] = useState<EffectCategory | "all">("all");
+  // Only the hovered card animates its (looping) webp preview — animating all 13
+  // at once pins the main thread and the page never idles.
+  const [hovered, setHovered] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isPending && !session) router.replace("/app/login");
@@ -122,17 +125,34 @@ export default function EffectsPage() {
         {shown.map((effect) => (
           <li
             key={effect.presetId}
+            onMouseEnter={() => setHovered(effect.presetId)}
+            onMouseLeave={() => setHovered((h) => (h === effect.presetId ? null : h))}
             className="flex flex-col overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]"
           >
-            <div className="relative aspect-video bg-black">
-              {/* Animated webp / waveform png preview (screen-blend overlays sit on black). */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={effectPreviewUrl(effect)}
-                alt={effect.name}
-                loading="lazy"
-                className={`h-full w-full ${effect.kind === "audio" ? "object-contain p-4" : "object-cover"}`}
-              />
+            <div className="relative flex aspect-video items-center justify-center bg-black">
+              {/* SFX show a static waveform; video previews (animated webp) only load
+                  + animate on hover so the whole grid doesn't animate at once. */}
+              {effect.kind === "audio" || hovered === effect.presetId ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={effectPreviewUrl(effect)}
+                  alt={effect.name}
+                  className={`h-full w-full ${effect.kind === "audio" ? "object-contain p-4" : "object-cover"}`}
+                />
+              ) : (
+                <span className="flex items-center gap-1.5 text-[11px] text-[var(--color-fg-subtle)]">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                  hover to preview
+                </span>
+              )}
               <span className="absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-white">
                 {effect.compositing.blend}
               </span>

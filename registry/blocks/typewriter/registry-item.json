@@ -1,0 +1,17 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/registry-item.json",
+  "name": "typewriter",
+  "type": "hyperframes:block",
+  "title": "Typewriter",
+  "description": "Monospace text types on character-by-character with a blinking caret — terminal, code, and reveal captions.",
+  "tags": ["title", "caption", "typewriter", "terminal", "reveal"],
+  "dimensions": { "width": 1920, "height": 1080 },
+  "duration": 3.5,
+  "files": [
+    {
+      "path": "typewriter.html",
+      "target": "compositions/typewriter.html",
+      "type": "hyperframes:composition"
+    }
+  ]
+}

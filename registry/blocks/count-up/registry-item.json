@@ -1,0 +1,17 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/registry-item.json",
+  "name": "count-up",
+  "type": "hyperframes:block",
+  "title": "Number Counter",
+  "description": "A big stat rolls up from zero to its target with an eased ramp — metrics, milestones, stat cards.",
+  "tags": ["stat", "counter", "number", "data", "milestone"],
+  "dimensions": { "width": 1920, "height": 1080 },
+  "duration": 3,
+  "files": [
+    {
+      "path": "count-up.html",
+      "target": "compositions/count-up.html",
+      "type": "hyperframes:composition"
+    }
+  ]
+}

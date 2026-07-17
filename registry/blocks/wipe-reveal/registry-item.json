@@ -1,0 +1,17 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/registry-item.json",
+  "name": "wipe-reveal",
+  "type": "hyperframes:block",
+  "title": "Wipe Reveal",
+  "description": "Colored panels sweep across and clear to reveal the title behind them — a clean scene-change wipe.",
+  "tags": ["transition", "wipe", "reveal", "scene-change", "title"],
+  "dimensions": { "width": 1920, "height": 1080 },
+  "duration": 2.5,
+  "files": [
+    {
+      "path": "wipe-reveal.html",
+      "target": "compositions/wipe-reveal.html",
+      "type": "hyperframes:composition"
+    }
+  ]
+}

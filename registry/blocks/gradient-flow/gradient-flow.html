@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="6"
+      data-width="1920"
+      data-height="1080"
+    >
+      <style>
+        [data-composition-id="main"] {
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          position: relative;
+          background: #0a0f1e;
+          filter: saturate(1.1);
+        }
+        .blob {
+          position: absolute;
+          width: 1100px;
+          height: 1100px;
+          border-radius: 50%;
+          filter: blur(120px);
+          mix-blend-mode: screen;
+          will-change: transform;
+        }
+        .b1 {
+          left: -160px;
+          top: -200px;
+          background: radial-gradient(circle, #4f46e5 0%, transparent 65%);
+        }
+        .b2 {
+          right: -220px;
+          top: -120px;
+          background: radial-gradient(circle, #db2777 0%, transparent 65%);
+        }
+        .b3 {
+          left: 20%;
+          bottom: -320px;
+          background: radial-gradient(circle, #0891b2 0%, transparent 65%);
+        }
+        .b4 {
+          right: 8%;
+          bottom: -260px;
+          background: radial-gradient(circle, #7c3aed 0%, transparent 65%);
+        }
+      </style>
+      <div class="blob b1"></div>
+      <div class="blob b2"></div>
+      <div class="blob b3"></div>
+      <div class="blob b4"></div>
+
+      <script>
+        (function () {
+          const root = document.querySelector('[data-composition-id="main"]');
+          const [b1, b2, b3, b4] = root.querySelectorAll(".blob");
+          const tl = gsap.timeline({ paused: true });
+          // Each blob drifts out and back over the full 6s so the end state equals
+          // the start state — the timeline loops seamlessly (repeat -1) with no jump.
+          const drift = (el, dx, dy, ds) => {
+            tl.to(el, { x: dx, y: dy, scale: ds, duration: 3, ease: "sine.inOut" }, 0).to(
+              el,
+              { x: 0, y: 0, scale: 1, duration: 3, ease: "sine.inOut" },
+              3,
+            );
+          };
+          drift(b1, 300, 220, 1.15);
+          drift(b2, -280, 260, 0.9);
+          drift(b3, 240, -200, 1.1);
+          drift(b4, -300, -180, 0.95);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+        })();
+      </script>
+    </div>
+  </body>
+</html>

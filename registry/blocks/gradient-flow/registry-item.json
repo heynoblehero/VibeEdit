@@ -1,0 +1,17 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/registry-item.json",
+  "name": "gradient-flow",
+  "type": "hyperframes:block",
+  "title": "Gradient Flow",
+  "description": "Soft drifting mesh-gradient background that loops seamlessly — a lightweight animated backdrop for titles.",
+  "tags": ["background", "gradient", "loop", "ambient", "backdrop"],
+  "dimensions": { "width": 1920, "height": 1080 },
+  "duration": 6,
+  "files": [
+    {
+      "path": "gradient-flow.html",
+      "target": "compositions/gradient-flow.html",
+      "type": "hyperframes:composition"
+    }
+  ]
+}

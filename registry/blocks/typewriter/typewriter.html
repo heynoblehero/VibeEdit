@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&display=block");
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="3.5"
+      data-width="1920"
+      data-height="1080"
+    >
+      <style>
+        [data-composition-id="main"] {
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          position: relative;
+          background: #0d1117;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: "JetBrains Mono", monospace;
+        }
+        .line {
+          display: flex;
+          align-items: center;
+          font-size: 96px;
+          color: #7ee787;
+          white-space: nowrap;
+        }
+        .prompt {
+          color: #58a6ff;
+          margin-right: 24px;
+        }
+        .typed {
+          overflow: hidden;
+          white-space: nowrap;
+          width: 0;
+        }
+        .caret {
+          width: 44px;
+          height: 96px;
+          margin-left: 6px;
+          background: #7ee787;
+        }
+      </style>
+      <div class="line">
+        <span class="prompt">&gt;_</span>
+        <span class="typed">npm run render</span>
+        <span class="caret"></span>
+      </div>
+
+      <script>
+        (function () {
+          const root = document.querySelector('[data-composition-id="main"]');
+          const typed = root.querySelector(".typed");
+          const caret = root.querySelector(".caret");
+          const text = typed.textContent;
+          const chars = text.length;
+          // Measure the full rendered width so the reveal is exact in monospace.
+          typed.style.width = "auto";
+          const fullWidth = typed.getBoundingClientRect().width;
+          typed.style.width = "0px";
+
+          const tl = gsap.timeline({ paused: true });
+          // Step-reveal the width one glyph at a time, then hold with a blinking
+          // caret. All caret blinks are finite tweens so the seek engine renders
+          // them deterministically (no CSS keyframe animation).
+          tl.to(typed, {
+            width: fullWidth,
+            duration: 1.4,
+            ease: "steps(" + chars + ")",
+          });
+          for (let i = 0; i < 5; i++) {
+            tl.to(caret, { opacity: 0, duration: 0.28 }, 1.5 + i * 0.4).to(
+              caret,
+              { opacity: 1, duration: 0.28 },
+              1.5 + i * 0.4 + 0.28,
+            );
+          }
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+        })();
+      </script>
+    </div>
+  </body>
+</html>

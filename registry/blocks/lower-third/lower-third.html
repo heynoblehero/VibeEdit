@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@500;800&display=block");
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="4"
+      data-width="1920"
+      data-height="1080"
+    >
+      <style>
+        [data-composition-id="main"] {
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          position: relative;
+          background: linear-gradient(120deg, #223, #0e0e18);
+          font-family: "Inter", sans-serif;
+        }
+        .lt {
+          position: absolute;
+          left: 150px;
+          bottom: 170px;
+          display: flex;
+          align-items: stretch;
+        }
+        .lt .accent {
+          width: 12px;
+          background: #ff4d6d;
+          transform-origin: bottom center;
+          will-change: transform;
+        }
+        .lt .body {
+          padding: 18px 40px 18px 28px;
+          background: rgba(10, 12, 20, 0.72);
+          backdrop-filter: blur(6px);
+          overflow: hidden;
+        }
+        .lt .name {
+          font-size: 84px;
+          font-weight: 800;
+          color: #fff;
+          letter-spacing: 1px;
+          white-space: nowrap;
+          will-change: transform, opacity;
+        }
+        .lt .role {
+          margin-top: 4px;
+          font-size: 40px;
+          font-weight: 500;
+          letter-spacing: 3px;
+          text-transform: uppercase;
+          color: #ff8fa3;
+          white-space: nowrap;
+          will-change: transform, opacity;
+        }
+      </style>
+      <div class="lt">
+        <div class="accent"></div>
+        <div class="body">
+          <div class="name">Ava Reyes</div>
+          <div class="role">Creative Director</div>
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          const root = document.querySelector('[data-composition-id="main"]');
+          const accent = root.querySelector(".accent");
+          const body = root.querySelector(".body");
+          const name = root.querySelector(".name");
+          const role = root.querySelector(".role");
+          const tl = gsap.timeline({ paused: true });
+          // Accent bar wipes up, the panel opens, text slides in staggered, holds,
+          // then the whole thing collapses back out.
+          tl.from(accent, { scaleY: 0, duration: 0.35, ease: "power3.out" })
+            .from(body, { width: 0, opacity: 0, duration: 0.45, ease: "power3.out" }, 0.2)
+            .from(name, { y: 60, opacity: 0, duration: 0.45, ease: "power2.out" }, 0.5)
+            .from(role, { y: 40, opacity: 0, duration: 0.45, ease: "power2.out" }, 0.62)
+            .to({}, { duration: 1.6 })
+            .to([name, role], { opacity: 0, duration: 0.3 })
+            .to(body, { width: 0, opacity: 0, duration: 0.4, ease: "power3.in" }, "<0.1")
+            .to(accent, { scaleY: 0, duration: 0.3, ease: "power3.in" }, "<0.1");
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+        })();
+      </script>
+    </div>
+  </body>
+</html>

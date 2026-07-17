@@ -1,0 +1,17 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/registry-item.json",
+  "name": "word-cascade",
+  "type": "hyperframes:block",
+  "title": "Kinetic Cascade",
+  "description": "Words punch up one after another in a staggered kinetic-typography stack — punchy reels and hooks.",
+  "tags": ["title", "kinetic", "typography", "stagger", "reel"],
+  "dimensions": { "width": 1920, "height": 1080 },
+  "duration": 3,
+  "files": [
+    {
+      "path": "word-cascade.html",
+      "target": "compositions/word-cascade.html",
+      "type": "hyperframes:composition"
+    }
+  ]
+}

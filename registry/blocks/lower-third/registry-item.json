@@ -1,0 +1,17 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/registry-item.json",
+  "name": "lower-third",
+  "type": "hyperframes:block",
+  "title": "Lower Third",
+  "description": "Broadcast-style name bar: accent wipes in, name and role slide up, holds, then exits — interviews and intros.",
+  "tags": ["lower-third", "name", "broadcast", "intro", "caption"],
+  "dimensions": { "width": 1920, "height": 1080 },
+  "duration": 4,
+  "files": [
+    {
+      "path": "lower-third.html",
+      "target": "compositions/lower-third.html",
+      "type": "hyperframes:composition"
+    }
+  ]
+}

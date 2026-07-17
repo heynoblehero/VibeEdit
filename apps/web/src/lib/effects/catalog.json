@@ -1,0 +1,228 @@
+[
+  {
+    "presetId": "film-burn-01",
+    "name": "Film Burn 01",
+    "description": "Warm analog film burn — orange light bleeds across the frame.",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "vintage", "analog", "transition", "retro", "grain"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.6,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "film-burn-07",
+    "name": "Film Burn 07",
+    "description": "Intense film burn flare — strong orange/red bloom, good for hard cuts.",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "vintage", "flare", "transition", "impact", "retro"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.27,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-short-01",
+    "name": "Light Leak (short)",
+    "description": "Quick soft light leak sweep — subtle warm glow across a scene.",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "scene-open", "subtle", "glow"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.17,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-long-01",
+    "name": "Light Leak (long)",
+    "description": "Slow drifting light leak — atmospheric warm haze for longer holds.",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "atmospheric", "ambient", "hold", "glow"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.6,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bokeh-01",
+    "name": "Bokeh Particles",
+    "description": "Soft out-of-focus light dots drifting — dreamy depth over any scene.",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["dreamy", "soft", "particles", "romantic", "ambient", "depth"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.13,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "flash-01",
+    "name": "Light Flash",
+    "description": "Quick white light flash — punchy transition hit between cuts.",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["impact", "transition", "punch", "beat", "energy", "hit"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.43,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "flames-transition-01",
+    "name": "Blue Flames Transition",
+    "description": "Blue fire sweeps upward across the frame — dramatic scene transition.",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["fire", "dramatic", "transition", "intense", "energy", "cool"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 1.33,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bg-vibrant-flow-01",
+    "name": "Vibrant Flow BG",
+    "description": "Smooth flowing gradient of vivid color — a lively full-frame backdrop.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["colorful", "gradient", "modern", "backdrop", "energetic", "abstract"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.04,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bg-shadow-grid-black-01",
+    "name": "Shadow Grid BG (dark)",
+    "description": "Subtle animated grid of shifting shadows on black — clean techy backdrop.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["dark", "grid", "techy", "minimal", "backdrop", "corporate"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.04,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "sfx-swoosh-01",
+    "name": "Swoosh",
+    "description": "Fast whoosh — pairs with a cut, wipe, or fast motion.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["whoosh", "transition", "cut", "fast", "swipe"],
+    "compositing": {
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 1.13,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "sfx-riser-01",
+    "name": "Riser (metallic)",
+    "description": "Building metallic riser — tension before a reveal or drop.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["riser", "build", "tension", "reveal", "dramatic"],
+    "compositing": {
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 5.35,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "sfx-camera-shutter-01",
+    "name": "Camera Shutter",
+    "description": "Camera shutter click — punctuates a freeze-frame or photo moment.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["shutter", "photo", "freeze", "snap", "click"],
+    "compositing": {
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 0.7,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "sfx-click-01",
+    "name": "UI Click",
+    "description": "Crisp click/tap — for UI reveals, taps, or beat accents.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["click", "tap", "ui", "accent", "pop"],
+    "compositing": {
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 0.5,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  }
+]

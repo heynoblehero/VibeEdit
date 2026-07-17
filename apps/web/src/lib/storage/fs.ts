@@ -23,6 +23,12 @@ export function referenceDir(userId: string): string {
   return resolve(STORAGE_ROOT, "references", userId);
 }
 
+// First-party Effects Store assets (shared, read-only): normalized effect files
+// live directly under here (<presetId>.<ext>); animated previews under previews/.
+export function effectsDir(): string {
+  return resolve(STORAGE_ROOT, "effects");
+}
+
 // Hard-delete every on-disk artifact owned by a user: their whole project tree,
 // personas, brand-kit uploads, thumbnails, and each render's output directory.
 // Used by the admin account-removal flow. renderJobIds are passed in because

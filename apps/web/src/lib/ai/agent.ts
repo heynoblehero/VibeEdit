@@ -368,6 +368,8 @@ const TOOL_LABELS: Record<string, string> = {
   list_scenes: "Mapping the scenes",
   read_scene: "Reading a scene",
   edit_scene: "Editing a scene",
+  search_effects: "Browsing the effects store",
+  apply_effect: "Adding an effect",
   lint_composition: "Checking the composition",
   screenshot_at_time: "Capturing a preview frame",
   get_brand_kit: "Loading your brand kit",

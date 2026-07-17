@@ -456,6 +456,13 @@ Width/height defaults: **1920×1080 for 16:9 (YouTube long-form), 1080×1920 for
 - \`<audio src="assets/sfx.wav" class="clip" data-start="0" data-duration="2" data-track-index="10" data-volume="1">\` — music/SFX on separate tracks.
 - Never embed base64 media.
 
+## Effects Store — curated overlays / SFX / backgrounds (use them, they make videos richer)
+There is a first-party library of ready-made effects: film burns, light leaks, bokeh, flashes, flames, animated backgrounds, and SFX. USE it to add texture, transition hits, and sound — a plain composition is a weaker composition.
+- **\`search_effects(query, category?)\`** returns matching \`preset_id\`s with what each is, when to use it, and its **blend mode**. Search while building/editing (e.g. a warm piece → \`search_effects("warm film burn light leak")\`; a hard cut → \`search_effects("flash impact transition")\`).
+- **\`apply_effect(preset_id, start?, duration?)\`** copies the asset into \`assets/effects/\` and returns the EXACT snippet to insert — already composited right. Drop it into the target scene's \`<div>\` and set \`data-start\`/\`data-duration\`.
+- **Compositing is not optional**: a black-screen overlay (film burn / light leak / flash) MUST use \`mix-blend-mode: screen\` (the snippet already does) — layering it normally paints a black box over the video. Overlays go on TOP (last child, higher track-index); animated backgrounds go BEHIND (first child, track-index 0); SFX are \`<audio>\` clips fired at \`data-start\`.
+- When the USER names a preset ("use \`light-leak-short-01\` on this scene", "add \`sfx-riser-01\` before the reveal"), call \`apply_effect\` with that exact \`preset_id\` and place it where they asked.
+
 ## Audio volume balance (critical — do not ignore)
 - **Narration/voiceover** (track-index 0): always \`data-volume="1"\`. This is the primary signal.
 - **Background music** (track-index 10): \`data-volume="0.15"\` when narration is present. Music is atmosphere only — listener must never struggle to hear the voice. Raise to \`data-volume="0.25"\` only for intros/outros with no voice.

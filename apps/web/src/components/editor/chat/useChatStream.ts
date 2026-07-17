@@ -33,6 +33,8 @@ const FALLBACK_TOOL_LABELS: Record<string, string> = {
   list_scenes: "Mapping the scenes",
   read_scene: "Reading a scene",
   edit_scene: "Editing a scene",
+  search_effects: "Browsing the effects store",
+  apply_effect: "Adding an effect",
   search_media: "Searching b-roll",
   find_stock: "Finding stock media",
   generate_image: "Generating an image",

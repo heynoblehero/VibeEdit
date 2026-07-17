@@ -11,6 +11,8 @@ import {
 } from "../storage/fs";
 import { listRegistry, readRegistryBlock } from "./registry";
 import { getScene, resolveSceneAtTime, replaceScene, sceneSummary } from "./scene-manifest";
+import { getEffect, searchEffects } from "../effects/catalog";
+import { effectsDir } from "../storage/fs";
 import {
   ensureManifest,
   readManifest,
@@ -729,6 +731,108 @@ export function buildToolServer(ctx: ToolContext) {
           {
             type: "text",
             text: `OK: replaced scene ${scene_id} (index.html now ${updated.length} bytes). Lint + screenshot to verify.`,
+          },
+        ],
+      };
+    },
+  );
+
+  // --- Effects Store: curated overlays / SFX / backgrounds the agent applies ---
+  const searchEffectsTool = tool(
+    "search_effects",
+    "Search the curated Effects Store for ready-made overlays (film burns, light leaks, bokeh, flashes, flames), animated backgrounds, and SFX to make the video richer. Returns each match's preset_id, what it is, when to use it, and — critically — how to COMPOSITE it (blend mode). Call this while building/editing to add texture, transitions, or sound. Then use apply_effect with a chosen preset_id.",
+    {
+      query: z
+        .string()
+        .describe("Keywords, e.g. 'warm film burn transition', 'dreamy bokeh', 'whoosh cut'."),
+      category: z
+        .enum(["overlay", "transition", "background", "sfx", "grade", "typography", "character"])
+        .optional()
+        .describe("Restrict to one category. Omit to search all."),
+    },
+    async ({ query, category }) => {
+      const results = searchEffects(query, category as never);
+      if (results.length === 0)
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No effects matched "${query}". Try broader terms (warm, glow, impact, transition, whoosh, riser).`,
+            },
+          ],
+        };
+      const lines = results.slice(0, 12).map((effect) => {
+        const dur = effect.durationSeconds ? `, ${effect.durationSeconds}s` : "";
+        return `[${effect.category}] ${effect.presetId} — ${effect.name}: ${effect.description} (use when: ${effect.useWhen.join(", ")}; blend: ${effect.compositing.blend}${dur})`;
+      });
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    },
+  );
+
+  const applyEffectTool = tool(
+    "apply_effect",
+    "Bring an Effects Store item into the project by its preset_id (from search_effects, or one the user named). Copies the asset into assets/effects/ and returns the EXACT HTML snippet to drop into the composition, already composited correctly (black-screen overlays get mix-blend-mode:screen so they read as light, not a black box; SFX get an <audio> clip). Place the returned snippet inside the target scene's <div> (set data-start/data-duration to when it should play). Then lint + screenshot.",
+    {
+      preset_id: z.string().describe("The effect's preset_id, e.g. 'light-leak-short-01'."),
+      start: z.number().optional().describe("data-start (seconds on the timeline). Default 0."),
+      duration: z
+        .number()
+        .optional()
+        .describe("data-duration (seconds it should play). Defaults to the effect's own length."),
+    },
+    async ({ preset_id, start, duration }) => {
+      const effect = getEffect(preset_id);
+      if (!effect)
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No effect '${preset_id}'. Call search_effects to find the right preset_id.`,
+            },
+          ],
+          isError: true,
+        };
+      const srcPath = join(effectsDir(), `${effect.presetId}.${effect.ext}`);
+      if (!existsSync(srcPath))
+        return {
+          content: [{ type: "text", text: `Effect '${preset_id}' asset is missing on disk.` }],
+          isError: true,
+        };
+      const dest = `assets/effects/${effect.presetId}.${effect.ext}`;
+      try {
+        writeProjectFile(ctx.userId, ctx.projectId, dest, readFileSync(srcPath));
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Copy failed: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+      const s = start ?? 0;
+      const d = duration ?? effect.durationSeconds ?? 2;
+      let snippet: string;
+      if (effect.kind === "audio") {
+        snippet = `<audio class="clip" src="${dest}" data-start="${s}" data-duration="${d}" data-track-index="11" data-volume="0.8"></audio>`;
+      } else if (effect.compositing.blend === "screen" || effect.compositing.blend === "add") {
+        const op = effect.compositing.defaultOpacity ?? 0.85;
+        snippet = `<video muted playsinline loop class="clip" src="${dest}" data-start="${s}" data-duration="${d}" data-track-index="3" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;mix-blend-mode:${effect.compositing.blend};opacity:${op};pointer-events:none"></video>`;
+      } else if (effect.category === "background") {
+        // A backdrop sits BEHIND scene content — low track index, full opacity.
+        snippet = `<video muted playsinline loop class="clip" src="${dest}" data-start="${s}" data-duration="${d}" data-track-index="0" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none"></video>`;
+      } else {
+        // alpha / normal overlay (e.g. transparent PNG-style or pre-keyed clip).
+        snippet = `<video muted playsinline loop class="clip" src="${dest}" data-start="${s}" data-duration="${d}" data-track-index="3" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none"></video>`;
+      }
+      const where =
+        effect.kind === "audio"
+          ? "Place it once inside the composition (it plays at data-start)."
+          : effect.category === "background"
+            ? "Place it as the FIRST child of the target scene (behind everything)."
+            : "Place it as the LAST child of the target scene (on top), so it overlays the content.";
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Copied ${effect.name} → ${dest}.\n${where}\nInsert this exactly:\n${snippet}`,
           },
         ],
       };
@@ -5631,6 +5735,8 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       listScenesTool,
       readSceneTool,
       editSceneTool,
+      searchEffectsTool,
+      applyEffectTool,
     ],
   });
 }
@@ -5715,6 +5821,8 @@ export const ALLOWED_TOOL_NAMES = [
   "list_scenes",
   "read_scene",
   "edit_scene",
+  "search_effects",
+  "apply_effect",
 ].map((n) => `mcp__${MCP_SERVER_NAME}__${n}`);
 
 type MediaResult = { url: string; source: string; license?: string; title?: string };

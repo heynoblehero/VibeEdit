@@ -15,73 +15,88 @@ import {
 
 type Project = { id: string; name: string };
 type Ratio = "16:9" | "9:16" | "1:1";
+// A registry code-effect (native GSAP/CSS block) — previewed live in an iframe.
+type CodeBlock = { name: string; title?: string; description: string; tags?: string[] };
+// A card is either a media asset (mp4/mp3 overlay) or a code effect.
+type Item = { kind: "media"; media: EffectEntry } | { kind: "code"; code: CodeBlock };
+// "motion" is the virtual category for code effects.
+type Filter = EffectCategory | "motion" | "all";
+
 const RATIO_CLASS: Record<Ratio, string> = {
   "16:9": "aspect-video w-full",
   "9:16": "aspect-[9/16] h-[70vh]",
   "1:1": "aspect-square h-[70vh]",
 };
-
 const CATEGORY_LABELS: Record<string, string> = {
   overlay: "Overlays",
   transition: "Transitions",
   background: "Backgrounds",
   sfx: "SFX",
-  grade: "Color grades",
-  typography: "Typography",
-  character: "Characters",
+  motion: "Motion FX",
 };
 
 export default function EffectsPage() {
   const router = useRouter();
   const { data: session, isPending } = useSession();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [active, setActive] = useState<EffectCategory | "all">("all");
-  // Only the hovered card animates its (looping) webp preview — animating all
-  // cards at once pins the main thread and the page never idles.
+  const [blocks, setBlocks] = useState<CodeBlock[]>([]);
+  const [active, setActive] = useState<Filter>("all");
   const [hovered, setHovered] = useState<string | null>(null);
-  // The effect open in the full preview modal (with aspect-ratio toggle).
-  const [preview, setPreview] = useState<EffectEntry | null>(null);
+  const [preview, setPreview] = useState<Item | null>(null);
 
   useEffect(() => {
     if (!isPending && !session) router.replace("/app/login");
   }, [isPending, session, router]);
 
   useEffect(() => {
-    if (session)
-      fetch("/api/projects")
-        .then((r) => (r.ok ? r.json() : { projects: [] }))
-        .then((data) => setProjects((data.projects as Project[]) || []))
-        .catch(() => {});
+    if (!session) return;
+    fetch("/api/projects")
+      .then((r) => (r.ok ? r.json() : { projects: [] }))
+      .then((data) => setProjects((data.projects as Project[]) || []))
+      .catch(() => {});
+    fetch("/api/registry")
+      .then((r) => (r.ok ? r.json() : { blocks: [] }))
+      .then((data) => setBlocks((data.blocks as CodeBlock[]) || []))
+      .catch(() => {});
   }, [session]);
 
-  // Categories that actually have entries, in a sensible order.
-  const categories = useMemo(() => {
-    const order: EffectCategory[] = [
-      "overlay",
-      "transition",
-      "background",
-      "sfx",
-      "grade",
-      "typography",
-      "character",
-    ];
+  const categories = useMemo<Filter[]>(() => {
     const present = new Set(EFFECTS_CATALOG.map((e) => e.category));
-    return order.filter((c) => present.has(c));
-  }, []);
-
-  const shown = useMemo(
-    () =>
-      active === "all" ? EFFECTS_CATALOG : EFFECTS_CATALOG.filter((e) => e.category === active),
-    [active],
-  );
-
-  function useInProject(presetId: string, name: string, projectId: string) {
-    if (!projectId) return;
-    localStorage.setItem(
-      `vibeedit:seed:${projectId}`,
-      `Add the effect "${name}" (preset_id: ${presetId}) to the video — call apply_effect with preset_id "${presetId}" and place it where it fits best.`,
+    const media = (["overlay", "transition", "background", "sfx"] as EffectCategory[]).filter((c) =>
+      present.has(c),
     );
+    return [...media, ...(blocks.length ? (["motion"] as Filter[]) : [])];
+  }, [blocks.length]);
+
+  const items = useMemo<Item[]>(() => {
+    const media: Item[] =
+      active === "motion"
+        ? []
+        : EFFECTS_CATALOG.filter((e) => active === "all" || e.category === active).map((e) => ({
+            kind: "media",
+            media: e,
+          }));
+    const code: Item[] =
+      active === "all" || active === "motion" ? blocks.map((b) => ({ kind: "code", code: b })) : [];
+    return [...media, ...code];
+  }, [active, blocks]);
+
+  function seedProject(projectId: string, prompt: string) {
+    if (!projectId) return;
+    localStorage.setItem(`vibeedit:seed:${projectId}`, prompt);
     router.push(`/app/projects/${projectId}/edit`);
+  }
+  function useMediaInProject(effect: EffectEntry, projectId: string) {
+    seedProject(
+      projectId,
+      `Add the effect "${effect.name}" (preset_id: ${effect.presetId}) to the video — call apply_effect with preset_id "${effect.presetId}" and place it where it fits best.`,
+    );
+  }
+  function useCodeInProject(block: CodeBlock, projectId: string) {
+    seedProject(
+      projectId,
+      `Add the "${block.title ?? block.name}" motion effect to the video — read_registry_block("${block.name}") and integrate it into a scene.`,
+    );
   }
 
   if (isPending || !session) return null;
@@ -113,12 +128,12 @@ export default function EffectsPage() {
 
       <h1 className="mb-2 text-2xl font-bold sm:text-3xl">Effects store</h1>
       <p className="mb-6 max-w-2xl text-[var(--color-fg-muted)]">
-        Ready-made overlays, animated backgrounds, and SFX. Drop one into a project and the AI
-        composites it correctly — or just name an effect (or its preset id) in the editor chat.
+        Ready-made overlays, animated backgrounds, SFX, and native motion effects. Drop one into a
+        project and the AI composites it correctly — or just name it in the editor chat.
       </p>
 
       <div className="mb-6 flex flex-wrap gap-2">
-        {(["all", ...categories] as const).map((cat) => (
+        {(["all", ...categories] as Filter[]).map((cat) => (
           <button
             key={cat}
             type="button"
@@ -135,109 +150,131 @@ export default function EffectsPage() {
       </div>
 
       <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {shown.map((effect) => (
-          <li
-            key={effect.presetId}
-            onMouseEnter={() => setHovered(effect.presetId)}
-            onMouseLeave={() => setHovered((h) => (h === effect.presetId ? null : h))}
-            className="flex flex-col overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]"
-          >
-            <button
-              type="button"
-              onClick={() => setPreview(effect)}
-              title="Open full preview (16:9 · 9:16 · 1:1)"
-              className="group relative flex aspect-video items-center justify-center overflow-hidden bg-black"
+        {items.map((item) => {
+          const id = item.kind === "media" ? item.media.presetId : `code:${item.code.name}`;
+          const name =
+            item.kind === "media" ? item.media.name : (item.code.title ?? item.code.name);
+          const description =
+            item.kind === "media" ? item.media.description : item.code.description;
+          const badge = item.kind === "media" ? item.media.compositing.blend : "motion fx";
+          const isAudio = item.kind === "media" && item.media.kind === "audio";
+          return (
+            <li
+              key={id}
+              onMouseEnter={() => setHovered(id)}
+              onMouseLeave={() => setHovered((h) => (h === id ? null : h))}
+              className="flex flex-col overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]"
             >
-              {/* SFX show a static waveform; video previews (animated webp) only load
-                  + animate on hover so the whole grid doesn't animate at once. */}
-              {effect.kind === "audio" || hovered === effect.presetId ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={effectPreviewUrl(effect)}
-                  alt={effect.name}
-                  className={`h-full w-full ${effect.kind === "audio" ? "object-contain p-4" : "object-cover"}`}
-                />
-              ) : (
-                <span className="flex items-center gap-1.5 text-[11px] text-[var(--color-fg-subtle)]">
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                  hover to preview
+              <button
+                type="button"
+                onClick={() => setPreview(item)}
+                title="Open full preview (16:9 · 9:16 · 1:1)"
+                className="group relative flex aspect-video items-center justify-center overflow-hidden bg-black"
+              >
+                {hovered === id || isAudio ? (
+                  item.kind === "code" ? (
+                    <iframe
+                      title={name}
+                      src={`/api/registry/${item.code.name}`}
+                      className="h-full w-full border-0"
+                      sandbox="allow-scripts"
+                    />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={effectPreviewUrl(item.media)}
+                      alt={name}
+                      className={`h-full w-full ${isAudio ? "object-contain p-4" : "object-cover"}`}
+                    />
+                  )
+                ) : (
+                  <span className="flex items-center gap-1.5 text-[11px] text-[var(--color-fg-subtle)]">
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                    hover to preview
+                  </span>
+                )}
+                <span className="absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-white">
+                  {badge}
                 </span>
-              )}
-              <span className="absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-white">
-                {effect.compositing.blend}
-              </span>
-              <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100">
-                <span className="rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-semibold text-black">
-                  ▶ Preview
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100">
+                  <span className="rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-semibold text-black">
+                    ▶ Preview
+                  </span>
                 </span>
-              </span>
-            </button>
+              </button>
 
-            <div className="flex flex-1 flex-col gap-2 p-3">
-              <div>
-                <div className="text-sm font-semibold text-[var(--color-fg)]">{effect.name}</div>
-                <div className="mt-0.5 line-clamp-2 text-xs text-[var(--color-fg-muted)]">
-                  {effect.description}
+              <div className="flex flex-1 flex-col gap-2 p-3">
+                <div>
+                  <div className="text-sm font-semibold text-[var(--color-fg)]">{name}</div>
+                  <div className="mt-0.5 line-clamp-2 text-xs text-[var(--color-fg-muted)]">
+                    {description}
+                  </div>
+                </div>
+                <div className="mt-auto flex items-center justify-between gap-2 pt-1">
+                  <code className="truncate font-mono text-[10px] text-[var(--color-fg-subtle)]">
+                    {item.kind === "media" ? item.media.presetId : item.code.name}
+                  </code>
+                  <select
+                    defaultValue=""
+                    disabled={projects.length === 0}
+                    onChange={(event) =>
+                      item.kind === "media"
+                        ? useMediaInProject(item.media, event.target.value)
+                        : useCodeInProject(item.code, event.target.value)
+                    }
+                    className="shrink-0 rounded-lg border border-[var(--color-accent)] bg-[var(--color-accent)]/8 px-2 py-1 text-[11px] font-semibold text-[var(--color-accent)]"
+                    title="Use this effect in a project"
+                  >
+                    <option value="" disabled>
+                      Use in…
+                    </option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
-              <div className="mt-auto flex items-center justify-between gap-2 pt-1">
-                <code className="truncate font-mono text-[10px] text-[var(--color-fg-subtle)]">
-                  {effect.presetId}
-                </code>
-                <select
-                  defaultValue=""
-                  disabled={projects.length === 0}
-                  onChange={(event) =>
-                    useInProject(effect.presetId, effect.name, event.target.value)
-                  }
-                  className="shrink-0 rounded-lg border border-[var(--color-accent)] bg-[var(--color-accent)]/8 px-2 py-1 text-[11px] font-semibold text-[var(--color-accent)]"
-                  title="Use this effect in a project"
-                >
-                  <option value="" disabled>
-                    Use in…
-                  </option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
 
       {preview && (
-        <EffectPreviewModal
-          effect={preview}
+        <PreviewModal
+          item={preview}
           projects={projects}
           onClose={() => setPreview(null)}
-          onUse={(projectId) => useInProject(preview.presetId, preview.name, projectId)}
+          onUse={(projectId) =>
+            preview.kind === "media"
+              ? useMediaInProject(preview.media, projectId)
+              : useCodeInProject(preview.code, projectId)
+          }
         />
       )}
     </main>
   );
 }
 
-// Full preview with an aspect-ratio toggle. Overlays (screen/add blend) are shown
-// composited over a placeholder "scene" so their light reads correctly instead of
-// looking like a black clip; backgrounds/SFX show on their own.
-function EffectPreviewModal({
-  effect,
+// Full preview with aspect-ratio toggle. Media overlays composite over a
+// placeholder scene (screen blend) so their light reads; code effects render
+// live in an iframe (scaled to fit); SFX play in an <audio>.
+function PreviewModal({
+  item,
   projects,
   onClose,
   onUse,
 }: {
-  effect: EffectEntry;
+  item: Item;
   projects: Project[];
   onClose: () => void;
   onUse: (projectId: string) => void;
@@ -251,7 +288,13 @@ function EffectPreviewModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const isOverlay = effect.compositing.blend === "screen" || effect.compositing.blend === "add";
+  const name = item.kind === "media" ? item.media.name : (item.code.title ?? item.code.name);
+  const description = item.kind === "media" ? item.media.description : item.code.description;
+  const idLabel = item.kind === "media" ? item.media.presetId : item.code.name;
+  const isAudio = item.kind === "media" && item.media.kind === "audio";
+  const isMediaOverlay =
+    item.kind === "media" &&
+    (item.media.compositing.blend === "screen" || item.media.compositing.blend === "add");
 
   return (
     <div
@@ -264,8 +307,8 @@ function EffectPreviewModal({
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-lg font-bold text-[var(--color-fg)]">{effect.name}</h2>
-            <p className="text-xs text-[var(--color-fg-muted)]">{effect.description}</p>
+            <h2 className="text-lg font-bold text-[var(--color-fg)]">{name}</h2>
+            <p className="text-xs text-[var(--color-fg-muted)]">{description}</p>
           </div>
           <button
             onClick={onClose}
@@ -276,36 +319,36 @@ function EffectPreviewModal({
           </button>
         </div>
 
-        {/* Aspect-ratio toggle */}
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
-            Preview at
-          </span>
-          {(["16:9", "9:16", "1:1"] as const).map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => setRatio(r)}
-              className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                ratio === r
-                  ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
-                  : "border-[var(--color-border)] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
-              }`}
-            >
-              {r}
-            </button>
-          ))}
-        </div>
+        {!isAudio && (
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+              Preview at
+            </span>
+            {(["16:9", "9:16", "1:1"] as const).map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRatio(r)}
+                className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  ratio === r
+                    ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
+                    : "border-[var(--color-border)] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {/* Stage */}
         <div className="flex items-center justify-center rounded-xl bg-black p-2">
-          {effect.kind === "audio" ? (
+          {isAudio && item.kind === "media" ? (
             <div className="flex w-full flex-col items-center gap-3 p-6">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={effectPreviewUrl(effect)} alt="" className="w-full max-w-md" />
+              <img src={effectPreviewUrl(item.media)} alt="" className="w-full max-w-md" />
               {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
               <audio
-                src={effectFileUrl(effect)}
+                src={effectFileUrl(item.media)}
                 controls
                 autoPlay
                 loop
@@ -316,38 +359,46 @@ function EffectPreviewModal({
             <div
               className={`relative overflow-hidden rounded-lg ${RATIO_CLASS[ratio]} max-h-[70vh]`}
             >
-              {/* Placeholder "your video" behind an overlay so the blend reads. */}
-              {isOverlay && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-600 via-slate-800 to-slate-900">
-                  <span className="text-xs font-medium text-white/40">your video</span>
-                </div>
+              {item.kind === "code" ? (
+                <iframe
+                  title={name}
+                  src={`/api/registry/${item.code.name}`}
+                  className="absolute inset-0 h-full w-full border-0"
+                  sandbox="allow-scripts"
+                />
+              ) : (
+                <>
+                  {isMediaOverlay && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-600 via-slate-800 to-slate-900">
+                      <span className="text-xs font-medium text-white/40">your video</span>
+                    </div>
+                  )}
+                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                  <video
+                    src={effectFileUrl(item.media)}
+                    muted
+                    loop
+                    autoPlay
+                    playsInline
+                    className="absolute inset-0 h-full w-full object-cover"
+                    style={
+                      isMediaOverlay
+                        ? {
+                            mixBlendMode:
+                              item.media.compositing.blend === "add" ? "plus-lighter" : "screen",
+                            opacity: item.media.compositing.defaultOpacity ?? 0.85,
+                          }
+                        : undefined
+                    }
+                  />
+                </>
               )}
-              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-              <video
-                src={effectFileUrl(effect)}
-                muted
-                loop
-                autoPlay
-                playsInline
-                className="absolute inset-0 h-full w-full object-cover"
-                style={
-                  isOverlay
-                    ? {
-                        mixBlendMode:
-                          effect.compositing.blend === "add" ? "plus-lighter" : "screen",
-                        opacity: effect.compositing.defaultOpacity ?? 0.85,
-                      }
-                    : undefined
-                }
-              />
             </div>
           )}
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <code className="font-mono text-[11px] text-[var(--color-fg-subtle)]">
-            {effect.presetId}
-          </code>
+          <code className="font-mono text-[11px] text-[var(--color-fg-subtle)]">{idLabel}</code>
           <select
             defaultValue=""
             disabled={projects.length === 0}

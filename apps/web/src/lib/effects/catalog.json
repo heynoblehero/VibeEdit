@@ -1,83 +1,1035 @@
 [
   {
-    "presetId": "film-burn-01",
-    "name": "Film Burn 01",
-    "description": "Warm analog film burn — orange light bleeds across the frame.",
+    "presetId": "breaking-glass",
+    "name": "Breaking Glass",
+    "description": "Shattering glass overlay — a hard impact effect (screen blend).",
     "category": "overlay",
     "kind": "video",
-    "useWhen": ["warm", "vintage", "analog", "transition", "retro", "grain"],
+    "useWhen": ["shatter", "glass", "impact", "break", "dramatic"],
     "compositing": {
       "blend": "screen",
       "defaultOpacity": 0.85,
       "loop": true,
       "hasAudio": false
     },
-    "durationSeconds": 0.6,
+    "durationSeconds": 42.57,
     "ext": "mp4",
     "previewExt": "webp",
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "film-burn-07",
-    "name": "Film Burn 07",
-    "description": "Intense film burn flare — strong orange/red bloom, good for hard cuts.",
-    "category": "overlay",
-    "kind": "video",
-    "useWhen": ["warm", "vintage", "flare", "transition", "impact", "retro"],
+    "presetId": "distortion-sound-effect",
+    "name": "Distortion Sound Effect",
+    "description": "Sound effect — distortion sound effect. Fire it on a cut, beat, or reveal.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["sfx", "distortion", "glitch", "harsh"],
     "compositing": {
-      "blend": "screen",
-      "defaultOpacity": 0.85,
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 12.77,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "sfx-riser-metallic-transition",
+    "name": "SFX - Riser Metallic (Transition)",
+    "description": "Sound effect — sfx - riser metallic (transition). Fire it on a cut, beat, or reveal.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["sfx", "riser", "build", "tension", "reveal"],
+    "compositing": {
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 5.35,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "camera-shutter-314056",
+    "name": "Camera-Shutter-314056",
+    "description": "Sound effect — camera-shutter-314056. Fire it on a cut, beat, or reveal.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["sfx", "shutter", "photo", "snap"],
+    "compositing": {
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 0.7,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "camera-shutter-6305",
+    "name": "Camera-Shutter-6305",
+    "description": "Sound effect — camera-shutter-6305. Fire it on a cut, beat, or reveal.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["sfx", "shutter", "photo", "snap"],
+    "compositing": {
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 0.38,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "click-234708",
+    "name": "Click-234708",
+    "description": "Sound effect — click-234708. Fire it on a cut, beat, or reveal.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["sfx", "click", "tap", "ui"],
+    "compositing": {
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 0.5,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "click-tap-computer-mouse-352734",
+    "name": "Click-Tap-Computer-Mouse-352734",
+    "description": "Sound effect — click-tap-computer-mouse-352734. Fire it on a cut, beat, or reveal.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["sfx", "click", "tap", "ui"],
+    "compositing": {
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 0.67,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "computer-mouse-click-351398",
+    "name": "Computer-Mouse-Click-351398",
+    "description": "Sound effect — computer-mouse-click-351398. Fire it on a cut, beat, or reveal.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["sfx", "click", "tap", "ui"],
+    "compositing": {
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 1.08,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "gear-click-351962",
+    "name": "Gear-Click-351962",
+    "description": "Sound effect — gear-click-351962. Fire it on a cut, beat, or reveal.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["sfx", "click", "tap", "ui", "mechanical", "gear"],
+    "compositing": {
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 2.16,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "mouse-click-290204",
+    "name": "Mouse-Click-290204",
+    "description": "Sound effect — mouse-click-290204. Fire it on a cut, beat, or reveal.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["sfx", "click", "tap", "ui"],
+    "compositing": {
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 0.41,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "riser-sound-effect",
+    "name": "Riser Sound Effect",
+    "description": "Sound effect — riser sound effect. Fire it on a cut, beat, or reveal.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["sfx", "riser", "build", "tension", "reveal"],
+    "compositing": {
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 5.26,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "swoosh-2-359826",
+    "name": "Swoosh-2-359826",
+    "description": "Sound effect — swoosh-2-359826. Fire it on a cut, beat, or reveal.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["sfx", "whoosh", "transition", "cut"],
+    "compositing": {
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 1.13,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "swoosh-5-359829",
+    "name": "Swoosh-5-359829",
+    "description": "Sound effect — swoosh-5-359829. Fire it on a cut, beat, or reveal.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["sfx", "whoosh", "transition", "cut"],
+    "compositing": {
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 1.49,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "typing-274133",
+    "name": "Typing-274133",
+    "description": "Sound effect — typing-274133. Fire it on a cut, beat, or reveal.",
+    "category": "sfx",
+    "kind": "audio",
+    "useWhen": ["sfx", "typing", "keyboard"],
+    "compositing": {
+      "blend": "normal",
+      "hasAudio": true
+    },
+    "durationSeconds": 290.71,
+    "ext": "mp3",
+    "previewExt": "png",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "black-bg-1",
+    "name": "Black BG 1",
+    "description": "Animated full-frame background — black bg 1.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "grid", "techy", "minimal", "corporate", "dark"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
       "loop": true,
       "hasAudio": false
     },
-    "durationSeconds": 0.27,
+    "durationSeconds": 10.04,
     "ext": "mp4",
     "previewExt": "webp",
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "light-leak-short-01",
-    "name": "Light Leak (short)",
-    "description": "Quick soft light leak sweep — subtle warm glow across a scene.",
-    "category": "overlay",
+    "presetId": "black-bg-2",
+    "name": "Black BG 2",
+    "description": "Animated full-frame background — black bg 2.",
+    "category": "background",
     "kind": "video",
-    "useWhen": ["warm", "dreamy", "soft", "scene-open", "subtle", "glow"],
+    "useWhen": ["backdrop", "abstract", "modern", "grid", "techy", "minimal", "corporate", "dark"],
     "compositing": {
-      "blend": "screen",
-      "defaultOpacity": 0.85,
+      "blend": "normal",
+      "defaultOpacity": 1,
       "loop": true,
       "hasAudio": false
     },
-    "durationSeconds": 0.17,
+    "durationSeconds": 10.04,
     "ext": "mp4",
     "previewExt": "webp",
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "light-leak-long-01",
-    "name": "Light Leak (long)",
-    "description": "Slow drifting light leak — atmospheric warm haze for longer holds.",
-    "category": "overlay",
+    "presetId": "black-bg-3",
+    "name": "Black BG 3",
+    "description": "Animated full-frame background — black bg 3.",
+    "category": "background",
     "kind": "video",
-    "useWhen": ["warm", "dreamy", "atmospheric", "ambient", "hold", "glow"],
+    "useWhen": ["backdrop", "abstract", "modern", "grid", "techy", "minimal", "corporate", "dark"],
     "compositing": {
-      "blend": "screen",
-      "defaultOpacity": 0.85,
+      "blend": "normal",
+      "defaultOpacity": 1,
       "loop": true,
       "hasAudio": false
     },
-    "durationSeconds": 0.6,
+    "durationSeconds": 10.04,
     "ext": "mp4",
     "previewExt": "webp",
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "bokeh-01",
-    "name": "Bokeh Particles",
-    "description": "Soft out-of-focus light dots drifting — dreamy depth over any scene.",
+    "presetId": "black-bg-4",
+    "name": "Black BG 4",
+    "description": "Animated full-frame background — black bg 4.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "grid", "techy", "minimal", "corporate", "dark"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.04,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "black-bg-5",
+    "name": "Black BG 5",
+    "description": "Animated full-frame background — black bg 5.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "grid", "techy", "minimal", "corporate", "dark"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.04,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "black-bg-6",
+    "name": "Black BG 6",
+    "description": "Animated full-frame background — black bg 6.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "grid", "techy", "minimal", "corporate", "dark"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "white-bg-1",
+    "name": "White BG 1",
+    "description": "Animated full-frame background — white bg 1.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": [
+      "backdrop",
+      "abstract",
+      "modern",
+      "grid",
+      "techy",
+      "minimal",
+      "corporate",
+      "light",
+      "clean"
+    ],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.04,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "white-bg-2",
+    "name": "White BG 2",
+    "description": "Animated full-frame background — white bg 2.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": [
+      "backdrop",
+      "abstract",
+      "modern",
+      "grid",
+      "techy",
+      "minimal",
+      "corporate",
+      "light",
+      "clean"
+    ],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.04,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "white-bg-3",
+    "name": "White BG 3",
+    "description": "Animated full-frame background — white bg 3.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": [
+      "backdrop",
+      "abstract",
+      "modern",
+      "grid",
+      "techy",
+      "minimal",
+      "corporate",
+      "light",
+      "clean"
+    ],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.04,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "white-bg-4",
+    "name": "White BG 4",
+    "description": "Animated full-frame background — white bg 4.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": [
+      "backdrop",
+      "abstract",
+      "modern",
+      "grid",
+      "techy",
+      "minimal",
+      "corporate",
+      "light",
+      "clean"
+    ],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.04,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "white-bg-5",
+    "name": "White BG 5",
+    "description": "Animated full-frame background — white bg 5.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": [
+      "backdrop",
+      "abstract",
+      "modern",
+      "grid",
+      "techy",
+      "minimal",
+      "corporate",
+      "light",
+      "clean"
+    ],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.04,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "white-bg-6",
+    "name": "White BG 6",
+    "description": "Animated full-frame background — white bg 6.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": [
+      "backdrop",
+      "abstract",
+      "modern",
+      "grid",
+      "techy",
+      "minimal",
+      "corporate",
+      "light",
+      "clean"
+    ],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bg-1",
+    "name": "BG 1",
+    "description": "Animated full-frame background — bg 1.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "colorful", "gradient", "energetic", "vivid"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.04,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bg-10",
+    "name": "BG 10",
+    "description": "Animated full-frame background — bg 10.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "colorful", "gradient", "energetic", "vivid"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bg-11",
+    "name": "BG 11",
+    "description": "Animated full-frame background — bg 11.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "colorful", "gradient", "energetic", "vivid"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bg-2",
+    "name": "BG 2",
+    "description": "Animated full-frame background — bg 2.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "colorful", "gradient", "energetic", "vivid"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.04,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bg-3",
+    "name": "BG 3",
+    "description": "Animated full-frame background — bg 3.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "colorful", "gradient", "energetic", "vivid"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.04,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bg-4",
+    "name": "BG 4",
+    "description": "Animated full-frame background — bg 4.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "colorful", "gradient", "energetic", "vivid"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bg-5",
+    "name": "BG 5",
+    "description": "Animated full-frame background — bg 5.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "colorful", "gradient", "energetic", "vivid"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.04,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bg-6",
+    "name": "BG 6",
+    "description": "Animated full-frame background — bg 6.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "colorful", "gradient", "energetic", "vivid"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bg-7",
+    "name": "BG 7",
+    "description": "Animated full-frame background — bg 7.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "colorful", "gradient", "energetic", "vivid"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bg-8",
+    "name": "BG 8",
+    "description": "Animated full-frame background — bg 8.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "colorful", "gradient", "energetic", "vivid"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.04,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bg-9",
+    "name": "BG 9",
+    "description": "Animated full-frame background — bg 9.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "colorful", "gradient", "energetic", "vivid"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "1-jitter-bg",
+    "name": "1 Jitter BG",
+    "description": "Animated full-frame background — 1 jitter bg.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "2-jitter-bg",
+    "name": "2 Jitter BG",
+    "description": "Animated full-frame background — 2 jitter bg.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "3-jitter-bg",
+    "name": "3 Jitter BG",
+    "description": "Animated full-frame background — 3 jitter bg.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "4-jitter-bg",
+    "name": "4 Jitter BG",
+    "description": "Animated full-frame background — 4 jitter bg.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "blue-flames-bg",
+    "name": "Blue Flames BG",
+    "description": "Animated full-frame background — blue flames bg.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "fire", "warm", "dramatic"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "green-flames-bg",
+    "name": "Green Flames BG",
+    "description": "Animated full-frame background — green flames bg.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "fire", "warm", "dramatic"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "orange-flames-bg",
+    "name": "Orange Flames BG",
+    "description": "Animated full-frame background — orange flames bg.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "fire", "warm", "dramatic"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "red-flames-bg",
+    "name": "Red Flames BG",
+    "description": "Animated full-frame background — red flames bg.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern", "fire", "warm", "dramatic"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 10.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "blue-explosion",
+    "name": "Blue Explosion",
+    "description": "Animated full-frame background — blue explosion.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 5.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "green-explosion",
+    "name": "Green Explosion",
+    "description": "Animated full-frame background — green explosion.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 5.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "orange-explosion",
+    "name": "Orange Explosion",
+    "description": "Animated full-frame background — orange explosion.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 5.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "red-explosion",
+    "name": "Red Explosion",
+    "description": "Animated full-frame background — red explosion.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 5.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "white-explosion",
+    "name": "White Explosion",
+    "description": "Animated full-frame background — white explosion.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 5.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "blue-vortex",
+    "name": "Blue Vortex",
+    "description": "Animated full-frame background — blue vortex.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 6.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "green-vortex",
+    "name": "Green Vortex",
+    "description": "Animated full-frame background — green vortex.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 6.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "orange-vortex",
+    "name": "Orange Vortex",
+    "description": "Animated full-frame background — orange vortex.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 6.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "red-vortex",
+    "name": "Red Vortex",
+    "description": "Animated full-frame background — red vortex.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 6.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "white-vortex",
+    "name": "White Vortex",
+    "description": "Animated full-frame background — white vortex.",
+    "category": "background",
+    "kind": "video",
+    "useWhen": ["backdrop", "abstract", "modern"],
+    "compositing": {
+      "blend": "normal",
+      "defaultOpacity": 1,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 6.01,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bokeh-long-1",
+    "name": "Bokeh Long 1",
+    "description": "Dreamy out-of-focus bokeh particles drifting over the scene (screen blend).",
     "category": "overlay",
     "kind": "video",
-    "useWhen": ["dreamy", "soft", "particles", "romantic", "ambient", "depth"],
+    "useWhen": ["dreamy", "soft", "particles", "depth", "romantic", "ambient", "bokeh"],
     "compositing": {
       "blend": "screen",
       "defaultOpacity": 0.85,
@@ -90,30 +1042,462 @@
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "flash-01",
-    "name": "Light Flash",
-    "description": "Quick white light flash — punchy transition hit between cuts.",
+    "presetId": "bokeh-long-2",
+    "name": "Bokeh Long 2",
+    "description": "Dreamy out-of-focus bokeh particles drifting over the scene (screen blend).",
     "category": "overlay",
     "kind": "video",
-    "useWhen": ["impact", "transition", "punch", "beat", "energy", "hit"],
+    "useWhen": ["dreamy", "soft", "particles", "depth", "romantic", "ambient", "bokeh"],
     "compositing": {
       "blend": "screen",
       "defaultOpacity": 0.85,
       "loop": true,
       "hasAudio": false
     },
-    "durationSeconds": 0.43,
+    "durationSeconds": 0.13,
     "ext": "mp4",
     "previewExt": "webp",
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "flames-transition-01",
-    "name": "Blue Flames Transition",
-    "description": "Blue fire sweeps upward across the frame — dramatic scene transition.",
+    "presetId": "bokeh-long-3",
+    "name": "Bokeh Long 3",
+    "description": "Dreamy out-of-focus bokeh particles drifting over the scene (screen blend).",
     "category": "overlay",
     "kind": "video",
-    "useWhen": ["fire", "dramatic", "transition", "intense", "energy", "cool"],
+    "useWhen": ["dreamy", "soft", "particles", "depth", "romantic", "ambient", "bokeh"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.33,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bokeh-long-4",
+    "name": "Bokeh Long 4",
+    "description": "Dreamy out-of-focus bokeh particles drifting over the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["dreamy", "soft", "particles", "depth", "romantic", "ambient", "bokeh"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.27,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bokeh-long-5",
+    "name": "Bokeh Long 5",
+    "description": "Dreamy out-of-focus bokeh particles drifting over the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["dreamy", "soft", "particles", "depth", "romantic", "ambient", "bokeh"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.37,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bokeh-long-6",
+    "name": "Bokeh Long 6",
+    "description": "Dreamy out-of-focus bokeh particles drifting over the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["dreamy", "soft", "particles", "depth", "romantic", "ambient", "bokeh"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.33,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bokeh-short-1",
+    "name": "Bokeh Short 1",
+    "description": "Dreamy out-of-focus bokeh particles drifting over the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["dreamy", "soft", "particles", "depth", "romantic", "ambient", "bokeh"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.13,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bokeh-short-2",
+    "name": "Bokeh Short 2",
+    "description": "Dreamy out-of-focus bokeh particles drifting over the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["dreamy", "soft", "particles", "depth", "romantic", "ambient", "bokeh"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.13,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bokeh-short-3",
+    "name": "Bokeh Short 3",
+    "description": "Dreamy out-of-focus bokeh particles drifting over the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["dreamy", "soft", "particles", "depth", "romantic", "ambient", "bokeh"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.2,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bokeh-short-4",
+    "name": "Bokeh Short 4",
+    "description": "Dreamy out-of-focus bokeh particles drifting over the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["dreamy", "soft", "particles", "depth", "romantic", "ambient", "bokeh"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.2,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bokeh-short-5",
+    "name": "Bokeh Short 5",
+    "description": "Dreamy out-of-focus bokeh particles drifting over the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["dreamy", "soft", "particles", "depth", "romantic", "ambient", "bokeh"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.13,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "bokeh-short-6",
+    "name": "Bokeh Short 6",
+    "description": "Dreamy out-of-focus bokeh particles drifting over the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["dreamy", "soft", "particles", "depth", "romantic", "ambient", "bokeh"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.2,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "film-burn-1",
+    "name": "Film Burn 1",
+    "description": "Warm analog film-burn overlay — orange light bleeds across the frame (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "vintage", "analog", "film", "retro", "grain", "transition"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.6,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "film-burn-10",
+    "name": "Film Burn 10",
+    "description": "Warm analog film-burn overlay — orange light bleeds across the frame (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "vintage", "analog", "film", "retro", "grain", "transition"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.33,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "film-burn-11",
+    "name": "Film Burn 11",
+    "description": "Warm analog film-burn overlay — orange light bleeds across the frame (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "vintage", "analog", "film", "retro", "grain", "transition"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.33,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "film-burn-12",
+    "name": "Film Burn 12",
+    "description": "Warm analog film-burn overlay — orange light bleeds across the frame (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "vintage", "analog", "film", "retro", "grain", "transition"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.33,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "film-burn-13",
+    "name": "Film Burn 13",
+    "description": "Warm analog film-burn overlay — orange light bleeds across the frame (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "vintage", "analog", "film", "retro", "grain", "transition"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.33,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "film-burn-14",
+    "name": "Film Burn 14",
+    "description": "Warm analog film-burn overlay — orange light bleeds across the frame (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "vintage", "analog", "film", "retro", "grain", "transition"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.33,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "film-burn-2",
+    "name": "Film Burn 2",
+    "description": "Warm analog film-burn overlay — orange light bleeds across the frame (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "vintage", "analog", "film", "retro", "grain", "transition"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.8,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "film-burn-3",
+    "name": "Film Burn 3",
+    "description": "Warm analog film-burn overlay — orange light bleeds across the frame (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "vintage", "analog", "film", "retro", "grain", "transition"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.47,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "film-burn-4",
+    "name": "Film Burn 4",
+    "description": "Warm analog film-burn overlay — orange light bleeds across the frame (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "vintage", "analog", "film", "retro", "grain", "transition"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.5,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "film-burn-5",
+    "name": "Film Burn 5",
+    "description": "Warm analog film-burn overlay — orange light bleeds across the frame (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "vintage", "analog", "film", "retro", "grain", "transition"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.37,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "film-burn-6",
+    "name": "Film Burn 6",
+    "description": "Warm analog film-burn overlay — orange light bleeds across the frame (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "vintage", "analog", "film", "retro", "grain", "transition"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.27,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "film-burn-7",
+    "name": "Film Burn 7",
+    "description": "Warm analog film-burn overlay — orange light bleeds across the frame (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "vintage", "analog", "film", "retro", "grain", "transition"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.27,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "film-burn-8",
+    "name": "Film Burn 8",
+    "description": "Warm analog film-burn overlay — orange light bleeds across the frame (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "vintage", "analog", "film", "retro", "grain", "transition"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.2,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "film-burn-9",
+    "name": "Film Burn 9",
+    "description": "Warm analog film-burn overlay — orange light bleeds across the frame (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "vintage", "analog", "film", "retro", "grain", "transition"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.4,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "blue-flames-right",
+    "name": "Blue Flames RIGHT",
+    "description": "Fire sweeps across the frame — a dramatic scene-to-scene transition (screen blend).",
+    "category": "transition",
+    "kind": "video",
+    "useWhen": ["fire", "flames", "dramatic", "transition", "intense", "energy"],
     "compositing": {
       "blend": "screen",
       "defaultOpacity": 0.85,
@@ -126,103 +1510,669 @@
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "bg-vibrant-flow-01",
-    "name": "Vibrant Flow BG",
-    "description": "Smooth flowing gradient of vivid color — a lively full-frame backdrop.",
-    "category": "background",
+    "presetId": "blue-flames-up",
+    "name": "Blue Flames UP",
+    "description": "Fire sweeps across the frame — a dramatic scene-to-scene transition (screen blend).",
+    "category": "transition",
     "kind": "video",
-    "useWhen": ["colorful", "gradient", "modern", "backdrop", "energetic", "abstract"],
+    "useWhen": ["fire", "flames", "dramatic", "transition", "intense", "energy"],
     "compositing": {
-      "blend": "normal",
-      "defaultOpacity": 1,
+      "blend": "screen",
+      "defaultOpacity": 0.85,
       "loop": true,
       "hasAudio": false
     },
-    "durationSeconds": 10.04,
+    "durationSeconds": 1.33,
     "ext": "mp4",
     "previewExt": "webp",
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "bg-shadow-grid-black-01",
-    "name": "Shadow Grid BG (dark)",
-    "description": "Subtle animated grid of shifting shadows on black — clean techy backdrop.",
-    "category": "background",
+    "presetId": "green-flames-right",
+    "name": "Green Flames RIGHT",
+    "description": "Fire sweeps across the frame — a dramatic scene-to-scene transition (screen blend).",
+    "category": "transition",
     "kind": "video",
-    "useWhen": ["dark", "grid", "techy", "minimal", "backdrop", "corporate"],
+    "useWhen": ["fire", "flames", "dramatic", "transition", "intense", "energy"],
     "compositing": {
-      "blend": "normal",
-      "defaultOpacity": 1,
+      "blend": "screen",
+      "defaultOpacity": 0.85,
       "loop": true,
       "hasAudio": false
     },
-    "durationSeconds": 10.04,
+    "durationSeconds": 1.33,
     "ext": "mp4",
     "previewExt": "webp",
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "sfx-swoosh-01",
-    "name": "Swoosh",
-    "description": "Fast whoosh — pairs with a cut, wipe, or fast motion.",
-    "category": "sfx",
-    "kind": "audio",
-    "useWhen": ["whoosh", "transition", "cut", "fast", "swipe"],
+    "presetId": "green-flames-up",
+    "name": "Green Flames UP",
+    "description": "Fire sweeps across the frame — a dramatic scene-to-scene transition (screen blend).",
+    "category": "transition",
+    "kind": "video",
+    "useWhen": ["fire", "flames", "dramatic", "transition", "intense", "energy"],
     "compositing": {
-      "blend": "normal",
-      "hasAudio": true
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
     },
-    "durationSeconds": 1.13,
-    "ext": "mp3",
-    "previewExt": "png",
+    "durationSeconds": 1.33,
+    "ext": "mp4",
+    "previewExt": "webp",
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "sfx-riser-01",
-    "name": "Riser (metallic)",
-    "description": "Building metallic riser — tension before a reveal or drop.",
-    "category": "sfx",
-    "kind": "audio",
-    "useWhen": ["riser", "build", "tension", "reveal", "dramatic"],
+    "presetId": "orange-flames-right",
+    "name": "Orange Flames RIGHT",
+    "description": "Fire sweeps across the frame — a dramatic scene-to-scene transition (screen blend).",
+    "category": "transition",
+    "kind": "video",
+    "useWhen": ["fire", "flames", "dramatic", "transition", "intense", "energy"],
     "compositing": {
-      "blend": "normal",
-      "hasAudio": true
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
     },
-    "durationSeconds": 5.35,
-    "ext": "mp3",
-    "previewExt": "png",
+    "durationSeconds": 1.33,
+    "ext": "mp4",
+    "previewExt": "webp",
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "sfx-camera-shutter-01",
-    "name": "Camera Shutter",
-    "description": "Camera shutter click — punctuates a freeze-frame or photo moment.",
-    "category": "sfx",
-    "kind": "audio",
-    "useWhen": ["shutter", "photo", "freeze", "snap", "click"],
+    "presetId": "orange-flames-up",
+    "name": "Orange Flames UP",
+    "description": "Fire sweeps across the frame — a dramatic scene-to-scene transition (screen blend).",
+    "category": "transition",
+    "kind": "video",
+    "useWhen": ["fire", "flames", "dramatic", "transition", "intense", "energy"],
     "compositing": {
-      "blend": "normal",
-      "hasAudio": true
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
     },
-    "durationSeconds": 0.7,
-    "ext": "mp3",
-    "previewExt": "png",
+    "durationSeconds": 1.33,
+    "ext": "mp4",
+    "previewExt": "webp",
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "sfx-click-01",
-    "name": "UI Click",
-    "description": "Crisp click/tap — for UI reveals, taps, or beat accents.",
-    "category": "sfx",
-    "kind": "audio",
-    "useWhen": ["click", "tap", "ui", "accent", "pop"],
+    "presetId": "red-flames-right",
+    "name": "Red Flames RIGHT",
+    "description": "Fire sweeps across the frame — a dramatic scene-to-scene transition (screen blend).",
+    "category": "transition",
+    "kind": "video",
+    "useWhen": ["fire", "flames", "dramatic", "transition", "intense", "energy"],
     "compositing": {
-      "blend": "normal",
-      "hasAudio": true
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 1.33,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "red-flames-up",
+    "name": "Red Flames UP",
+    "description": "Fire sweeps across the frame — a dramatic scene-to-scene transition (screen blend).",
+    "category": "transition",
+    "kind": "video",
+    "useWhen": ["fire", "flames", "dramatic", "transition", "intense", "energy"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 1.33,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "flash-1",
+    "name": "Flash 1",
+    "description": "A quick light flash — a punchy transition hit between cuts (screen blend).",
+    "category": "transition",
+    "kind": "video",
+    "useWhen": ["impact", "flash", "punch", "beat", "transition", "energy"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.43,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "flash-2",
+    "name": "Flash 2",
+    "description": "A quick light flash — a punchy transition hit between cuts (screen blend).",
+    "category": "transition",
+    "kind": "video",
+    "useWhen": ["impact", "flash", "punch", "beat", "transition", "energy"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.57,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "flash-3",
+    "name": "Flash 3",
+    "description": "A quick light flash — a punchy transition hit between cuts (screen blend).",
+    "category": "transition",
+    "kind": "video",
+    "useWhen": ["impact", "flash", "punch", "beat", "transition", "energy"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.53,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "flash-4",
+    "name": "Flash 4",
+    "description": "A quick light flash — a punchy transition hit between cuts (screen blend).",
+    "category": "transition",
+    "kind": "video",
+    "useWhen": ["impact", "flash", "punch", "beat", "transition", "energy"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.2,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "flash-5",
+    "name": "Flash 5",
+    "description": "A quick light flash — a punchy transition hit between cuts (screen blend).",
+    "category": "transition",
+    "kind": "video",
+    "useWhen": ["impact", "flash", "punch", "beat", "transition", "energy"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.13,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "flash-6",
+    "name": "Flash 6",
+    "description": "A quick light flash — a punchy transition hit between cuts (screen blend).",
+    "category": "transition",
+    "kind": "video",
+    "useWhen": ["impact", "flash", "punch", "beat", "transition", "energy"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.37,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "flash-7",
+    "name": "Flash 7",
+    "description": "A quick light flash — a punchy transition hit between cuts (screen blend).",
+    "category": "transition",
+    "kind": "video",
+    "useWhen": ["impact", "flash", "punch", "beat", "transition", "energy"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.2,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-long-1",
+    "name": "Light Leak Long 1",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
     },
     "durationSeconds": 0.5,
-    "ext": "mp3",
-    "previewExt": "png",
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-long-10",
+    "name": "Light Leak Long 10",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.6,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-long-11",
+    "name": "Light Leak Long 11",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.87,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-long-12",
+    "name": "Light Leak Long 12",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.8,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-long-13",
+    "name": "Light Leak Long 13",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.43,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-long-14",
+    "name": "Light Leak Long 14",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.63,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-long-2",
+    "name": "Light Leak Long 2",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.47,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-long-3",
+    "name": "Light Leak Long 3",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.93,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-long-4",
+    "name": "Light Leak Long 4",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 1.03,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-long-5",
+    "name": "Light Leak Long 5",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 1.17,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-long-6",
+    "name": "Light Leak Long 6",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.63,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-long-7",
+    "name": "Light Leak Long 7",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.6,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-long-8",
+    "name": "Light Leak Long 8",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 1.07,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-long-9",
+    "name": "Light Leak Long 9",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.9,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-short-1",
+    "name": "Light Leak Short 1",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.17,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-short-2",
+    "name": "Light Leak Short 2",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.33,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-short-3",
+    "name": "Light Leak Short 3",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.33,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-short-4",
+    "name": "Light Leak Short 4",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.33,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-short-5",
+    "name": "Light Leak Short 5",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.27,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-short-6",
+    "name": "Light Leak Short 6",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.4,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-short-7",
+    "name": "Light Leak Short 7",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.17,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-short-8",
+    "name": "Light Leak Short 8",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.33,
+    "ext": "mp4",
+    "previewExt": "webp",
+    "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
+  },
+  {
+    "presetId": "light-leak-short-9",
+    "name": "Light Leak Short 9",
+    "description": "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    "category": "overlay",
+    "kind": "video",
+    "useWhen": ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+    "compositing": {
+      "blend": "screen",
+      "defaultOpacity": 0.85,
+      "loop": true,
+      "hasAudio": false
+    },
+    "durationSeconds": 0.33,
+    "ext": "mp4",
+    "previewExt": "webp",
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   }
 ]

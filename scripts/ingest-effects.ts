@@ -1,181 +1,180 @@
-// Effects Store ingest — normalize a curated set of pack assets into web-ready
-// files + animated previews, and emit a catalog the app + agent consume.
+// Effects Store ingest — normalize the curated pack into web-ready files +
+// animated previews + a catalog the app + agent consume.
 //
-// Run locally (assets are huge and unlicensed-for-redistribution until curated):
+// Run locally (assets are huge + unlicensed-for-redistribution until curated):
 //   npx tsx scripts/ingest-effects.ts
 //
-// Outputs to OUT_DIR (outside git): files/<presetId>.<ext>, previews/<presetId>.webp|png,
-// and catalog.generated.json. The files/ + previews/ dirs get rsync'd to the
-// server's persistent volume (/data/effects); catalog.generated.json is copied
-// into apps/web/src/lib/effects/catalog.ts.
+// Auto-walks the pack, classifies each file by its folder (category + how to
+// composite: black-screen overlays → "screen", animated backgrounds → "normal",
+// SFX → audio), normalizes with ffmpeg (cap 1080p, drop overlay audio, loudnorm
+// SFX), makes a 2s webp preview, and writes catalog.generated.json. Prefers HD
+// over 4K; skips Adobe presets, green-screen (no chroma yet), character stills,
+// and junk compilations.
 //
-// Compositing is hand-assigned per curated item (auto-detection is a later
-// scaling step): pack overlays (film burn / light leak / bokeh / flash / flames)
-// are black-background → "screen"; animated backgrounds are "normal"; SFX audio.
+// Outputs to OUT_DIR (outside git): files/<presetId>.<ext>, previews/<presetId>.<ext>,
+// catalog.generated.json → rsync files/+previews/ to /data/storage/effects on the
+// server; copy catalog into apps/web/src/lib/effects/catalog.json.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { join, relative } from "node:path";
 
 const SRC = "/home/ishaan/Downloads/ASSETS";
 const OUT_DIR = "/home/ishaan/Downloads/effects-staging";
 const FILES_DIR = join(OUT_DIR, "files");
 const PREVIEW_DIR = join(OUT_DIR, "previews");
+const LICENSE = "starter-pack (intro-hd.net) — rights unverified, replace before promotion";
 
 type Blend = "screen" | "alpha" | "normal";
-type Category = "overlay" | "background" | "sfx";
+type Category = "overlay" | "transition" | "background" | "sfx";
 type Kind = "video" | "audio" | "image";
 
-type SeedItem = {
-  presetId: string;
-  name: string;
-  description: string;
+type Classification = {
   category: Category;
   kind: Kind;
   blend: Blend;
+  descriptionFor: (name: string) => string;
   useWhen: string[];
-  src: string; // relative to SRC
 };
 
-// Curated seed — HD versions (lighter to transcode than 4K). License: the pack is
-// "free off the net" (intro-hd.net); ships as a STARTER set, unverified rights.
-const LICENSE = "starter-pack (intro-hd.net) — rights unverified, replace before promotion";
+// Classify by lowercased relative path. Returns null to SKIP the file.
+function classify(rel: string): Classification | null {
+  const p = rel.toLowerCase();
+  if (p.includes("/4k/")) return null; // prefer HD — skip the 4K duplicates
+  if (/\.(ffx|prfpset|aep|url|ini|aep)$/i.test(p)) return null; // Adobe / junk
+  if (p.includes("green screen")) return null; // no in-browser chroma yet
+  if (p.includes("download it") || p.includes("scribble")) return null; // promo compilation
+  if (p.includes("/characters/")) return null; // a specific person, not generic
 
-const SEED: SeedItem[] = [
-  // --- Overlays (black-screen → screen blend) ---
-  {
-    presetId: "film-burn-01",
-    name: "Film Burn 01",
-    description: "Warm analog film burn — orange light bleeds across the frame.",
-    category: "overlay",
-    kind: "video",
-    blend: "screen",
-    useWhen: ["warm", "vintage", "analog", "transition", "retro", "grain"],
-    src: "Pro Edit Pack/Film Burns( @Afters_effect )/HD/Film Burn 1 (HD).mp4",
-  },
-  {
-    presetId: "film-burn-07",
-    name: "Film Burn 07",
-    description: "Intense film burn flare — strong orange/red bloom, good for hard cuts.",
-    category: "overlay",
-    kind: "video",
-    blend: "screen",
-    useWhen: ["warm", "vintage", "flare", "transition", "impact", "retro"],
-    src: "Pro Edit Pack/Film Burns( @Afters_effect )/HD/Film Burn 7 (HD).mp4",
-  },
-  {
-    presetId: "light-leak-short-01",
-    name: "Light Leak (short)",
-    description: "Quick soft light leak sweep — subtle warm glow across a scene.",
-    category: "overlay",
-    kind: "video",
-    blend: "screen",
-    useWhen: ["warm", "dreamy", "soft", "scene-open", "subtle", "glow"],
-    src: "Pro Edit Pack/Light Leaks( @Afters_effect )/HD/Short/Light Leak Short 1 (HD).mp4",
-  },
-  {
-    presetId: "light-leak-long-01",
-    name: "Light Leak (long)",
-    description: "Slow drifting light leak — atmospheric warm haze for longer holds.",
-    category: "overlay",
-    kind: "video",
-    blend: "screen",
-    useWhen: ["warm", "dreamy", "atmospheric", "ambient", "hold", "glow"],
-    src: "Pro Edit Pack/Light Leaks( @Afters_effect )/HD/Long/Light Leak Long 10 (HD).mp4",
-  },
-  {
-    presetId: "bokeh-01",
-    name: "Bokeh Particles",
-    description: "Soft out-of-focus light dots drifting — dreamy depth over any scene.",
-    category: "overlay",
-    kind: "video",
-    blend: "screen",
-    useWhen: ["dreamy", "soft", "particles", "romantic", "ambient", "depth"],
-    src: "Pro Edit Pack/Bokeh( @Afters_effect )/HD/Short/Bokeh Short 1 (HD).mp4",
-  },
-  {
-    presetId: "flash-01",
-    name: "Light Flash",
-    description: "Quick white light flash — punchy transition hit between cuts.",
-    category: "overlay",
-    kind: "video",
-    blend: "screen",
-    useWhen: ["impact", "transition", "punch", "beat", "energy", "hit"],
-    src: "Pro Edit Pack/Flashes( @Afters_effect )/HD/Flash 1 (HD).mp4",
-  },
-  {
-    presetId: "flames-transition-01",
-    name: "Blue Flames Transition",
-    description: "Blue fire sweeps upward across the frame — dramatic scene transition.",
-    category: "overlay",
-    kind: "video",
-    blend: "screen",
-    useWhen: ["fire", "dramatic", "transition", "intense", "energy", "cool"],
-    src: "Pro Edit Pack/Flames Transitions( @Afters_effect )/HD/Blue Flames UP (HD).mp4",
-  },
-  // --- Animated backgrounds (full-frame → normal) ---
-  {
-    presetId: "bg-vibrant-flow-01",
-    name: "Vibrant Flow BG",
-    description: "Smooth flowing gradient of vivid color — a lively full-frame backdrop.",
-    category: "background",
-    kind: "video",
-    blend: "normal",
-    useWhen: ["colorful", "gradient", "modern", "backdrop", "energetic", "abstract"],
-    src: "Pro Edit Pack/Animated Backgrounds( @Afters_effect )/2 Vibrant Flow/HD/BG 1 (HD).mp4",
-  },
-  {
-    presetId: "bg-shadow-grid-black-01",
-    name: "Shadow Grid BG (dark)",
-    description: "Subtle animated grid of shifting shadows on black — clean techy backdrop.",
-    category: "background",
-    kind: "video",
-    blend: "normal",
-    useWhen: ["dark", "grid", "techy", "minimal", "backdrop", "corporate"],
-    src: "Pro Edit Pack/Animated Backgrounds( @Afters_effect )/1 Shadow Grid/HD/Black/Black BG 1 (HD).mp4",
-  },
-  // --- SFX (audio) ---
-  {
-    presetId: "sfx-swoosh-01",
-    name: "Swoosh",
-    description: "Fast whoosh — pairs with a cut, wipe, or fast motion.",
-    category: "sfx",
-    kind: "audio",
-    blend: "normal",
-    useWhen: ["whoosh", "transition", "cut", "fast", "swipe"],
-    src: "Issac Pack/SFX/swoosh-2-359826.mp3",
-  },
-  {
-    presetId: "sfx-riser-01",
-    name: "Riser (metallic)",
-    description: "Building metallic riser — tension before a reveal or drop.",
-    category: "sfx",
-    kind: "audio",
-    blend: "normal",
-    useWhen: ["riser", "build", "tension", "reveal", "dramatic"],
-    src: "Issac Pack/SFX/SFX - Riser Metallic (Transition).mp3",
-  },
-  {
-    presetId: "sfx-camera-shutter-01",
-    name: "Camera Shutter",
-    description: "Camera shutter click — punctuates a freeze-frame or photo moment.",
-    category: "sfx",
-    kind: "audio",
-    blend: "normal",
-    useWhen: ["shutter", "photo", "freeze", "snap", "click"],
-    src: "Issac Pack/SFX/camera-shutter-314056.mp3",
-  },
-  {
-    presetId: "sfx-click-01",
-    name: "UI Click",
-    description: "Crisp click/tap — for UI reveals, taps, or beat accents.",
-    category: "sfx",
-    kind: "audio",
-    blend: "normal",
-    useWhen: ["click", "tap", "ui", "accent", "pop"],
-    src: "Issac Pack/SFX/click-234708.mp3",
-  },
-];
+  if (p.endsWith(".mp3")) {
+    return {
+      category: "sfx",
+      kind: "audio",
+      blend: "normal",
+      useWhen: sfxTags(p),
+      descriptionFor: (n) =>
+        `Sound effect — ${n.toLowerCase()}. Fire it on a cut, beat, or reveal.`,
+    };
+  }
+  if (!p.endsWith(".mp4")) return null; // (png graphics handled later if wanted)
+
+  if (p.includes("film burn"))
+    return {
+      category: "overlay",
+      kind: "video",
+      blend: "screen",
+      useWhen: ["warm", "vintage", "analog", "film", "retro", "grain", "transition"],
+      descriptionFor: () =>
+        "Warm analog film-burn overlay — orange light bleeds across the frame (screen blend).",
+    };
+  if (p.includes("light leak"))
+    return {
+      category: "overlay",
+      kind: "video",
+      blend: "screen",
+      useWhen: ["warm", "dreamy", "soft", "glow", "leak", "atmospheric", "scene-open"],
+      descriptionFor: () =>
+        "Soft light-leak overlay — a warm glow drifts across the scene (screen blend).",
+    };
+  if (p.includes("bokeh"))
+    return {
+      category: "overlay",
+      kind: "video",
+      blend: "screen",
+      useWhen: ["dreamy", "soft", "particles", "depth", "romantic", "ambient", "bokeh"],
+      descriptionFor: () =>
+        "Dreamy out-of-focus bokeh particles drifting over the scene (screen blend).",
+    };
+  if (p.includes("flames transition"))
+    return {
+      category: "transition",
+      kind: "video",
+      blend: "screen",
+      useWhen: ["fire", "flames", "dramatic", "transition", "intense", "energy"],
+      descriptionFor: () =>
+        "Fire sweeps across the frame — a dramatic scene-to-scene transition (screen blend).",
+    };
+  if (p.includes("flash"))
+    return {
+      category: "transition",
+      kind: "video",
+      blend: "screen",
+      useWhen: ["impact", "flash", "punch", "beat", "transition", "energy"],
+      descriptionFor: () =>
+        "A quick light flash — a punchy transition hit between cuts (screen blend).",
+    };
+  if (p.includes("breaking glass"))
+    return {
+      category: "overlay",
+      kind: "video",
+      blend: "screen",
+      useWhen: ["shatter", "glass", "impact", "break", "dramatic"],
+      descriptionFor: () => "Shattering glass overlay — a hard impact effect (screen blend).",
+    };
+  if (p.includes("neon"))
+    return {
+      category: "overlay",
+      kind: "video",
+      blend: "screen",
+      useWhen: ["neon", "glow", "vibrant", "night", "energy"],
+      descriptionFor: () => "Neon light overlay — glowing accents over the scene (screen blend).",
+    };
+  // Animated backgrounds (Shadow Grid / Vibrant Flow / Flames BG, or anything "BG").
+  if (
+    p.includes("animated background") ||
+    p.includes("shadow grid") ||
+    p.includes("vibrant flow") ||
+    /\bbg\b/.test(p)
+  )
+    return {
+      category: "background",
+      kind: "video",
+      blend: "normal",
+      useWhen: bgTags(p),
+      descriptionFor: (n) => `Animated full-frame background — ${n.toLowerCase()}.`,
+    };
+  return null;
+}
+
+function sfxTags(p: string): string[] {
+  const t = ["sfx"];
+  if (p.includes("whoosh") || p.includes("swoosh")) t.push("whoosh", "transition", "cut");
+  if (p.includes("riser")) t.push("riser", "build", "tension", "reveal");
+  if (p.includes("click") || p.includes("tap") || p.includes("mouse")) t.push("click", "tap", "ui");
+  if (p.includes("shutter") || p.includes("camera")) t.push("shutter", "photo", "snap");
+  if (p.includes("distortion")) t.push("distortion", "glitch", "harsh");
+  if (p.includes("typing")) t.push("typing", "keyboard");
+  if (p.includes("gear")) t.push("mechanical", "gear");
+  return t;
+}
+
+function bgTags(p: string): string[] {
+  const t = ["backdrop", "abstract", "modern"];
+  if (p.includes("shadow grid")) t.push("grid", "techy", "minimal", "corporate");
+  if (p.includes("vibrant flow")) t.push("colorful", "gradient", "energetic", "vivid");
+  if (p.includes("flames")) t.push("fire", "warm", "dramatic");
+  if (p.includes("/black/") || p.includes("black bg")) t.push("dark");
+  if (p.includes("/white/") || p.includes("white bg")) t.push("light", "clean");
+  return t;
+}
+
+// Human name from filename: drop extension + "(HD)"/"(4K)" + tidy whitespace.
+function niceName(fileName: string): string {
+  return fileName
+    .replace(/\.[^.]+$/, "")
+    .replace(/\((?:hd|4k)\)/gi, "")
+    .replace(/[_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function slug(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 function run(bin: string, args: string[]): { ok: boolean; out: string } {
   const r = spawnSync(bin, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
@@ -196,6 +195,14 @@ function probeDuration(path: string): number | undefined {
   return Number.isFinite(value) ? Math.round(value * 100) / 100 : undefined;
 }
 
+function walk(dir: string, out: string[]): void {
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) walk(full, out);
+    else out.push(full);
+  }
+}
+
 type CatalogEntry = {
   presetId: string;
   name: string;
@@ -212,23 +219,37 @@ type CatalogEntry = {
 
 function main() {
   for (const dir of [FILES_DIR, PREVIEW_DIR]) mkdirSync(dir, { recursive: true });
-  const catalog: CatalogEntry[] = [];
-  const skipped: string[] = [];
+  const all: string[] = [];
+  walk(SRC, all);
 
-  for (const item of SEED) {
-    const abs = resolve(SRC, item.src);
-    if (!existsSync(abs)) {
-      console.warn(`SKIP (missing): ${item.presetId} ← ${item.src}`);
-      skipped.push(item.presetId);
+  const catalog: CatalogEntry[] = [];
+  const usedIds = new Set<string>();
+  let skipped = 0;
+  let failed = 0;
+
+  for (const abs of all.sort()) {
+    const rel = relative(SRC, abs);
+    const cls = classify(rel);
+    if (!cls) {
+      skipped += 1;
       continue;
     }
-    console.log(`\n▶ ${item.presetId}  (${item.category}/${item.kind})`);
+    const name = niceName(abs.split("/").pop() as string);
+    let presetId = slug(name);
+    // Prefix by category-ish folder hint on collision so ids stay unique + readable.
+    if (usedIds.has(presetId)) {
+      const hint = slug(rel.split("/").slice(-3, -1).join("-")).slice(0, 24);
+      presetId = slug(`${hint}-${name}`);
+    }
+    let n = 2;
+    let base = presetId;
+    while (usedIds.has(presetId)) presetId = `${base}-${n++}`;
+    usedIds.add(presetId);
 
-    if (item.kind === "video") {
-      const outFile = join(FILES_DIR, `${item.presetId}.mp4`);
-      const outPrev = join(PREVIEW_DIR, `${item.presetId}.webp`);
-      // Normalize: cap at 1080p, drop audio (overlays are muted), web-friendly.
-      const v1 = run("ffmpeg", [
+    if (cls.kind === "video") {
+      const outFile = join(FILES_DIR, `${presetId}.mp4`);
+      const outPrev = join(PREVIEW_DIR, `${presetId}.webp`);
+      const v = run("ffmpeg", [
         "-y",
         "-i",
         abs,
@@ -247,13 +268,11 @@ function main() {
         "+faststart",
         outFile,
       ]);
-      if (!v1.ok) {
-        console.warn(`  ffmpeg normalize FAILED: ${v1.out.slice(-300)}`);
-        skipped.push(item.presetId);
+      if (!v.ok) {
+        console.warn(`FAIL ${presetId}: ${v.out.slice(-160)}`);
+        failed += 1;
         continue;
       }
-      // Animated preview: up to 2s loop from the start (no input seek — short
-      // clips overshoot it), small, 15fps webp.
       run("ffmpeg", [
         "-y",
         "-t",
@@ -272,15 +291,15 @@ function main() {
         outPrev,
       ]);
       catalog.push({
-        presetId: item.presetId,
-        name: item.name,
-        description: item.description,
-        category: item.category,
-        kind: item.kind,
-        useWhen: item.useWhen,
+        presetId,
+        name,
+        description: cls.descriptionFor(name),
+        category: cls.category,
+        kind: "video",
+        useWhen: cls.useWhen,
         compositing: {
-          blend: item.blend,
-          defaultOpacity: item.blend === "screen" ? 0.85 : 1,
+          blend: cls.blend,
+          defaultOpacity: cls.blend === "screen" ? 0.85 : 1,
           loop: true,
           hasAudio: false,
         },
@@ -289,10 +308,10 @@ function main() {
         previewExt: "webp",
         license: LICENSE,
       });
-    } else if (item.kind === "audio") {
-      const outFile = join(FILES_DIR, `${item.presetId}.mp3`);
-      const outPrev = join(PREVIEW_DIR, `${item.presetId}.png`);
-      const a1 = run("ffmpeg", [
+    } else if (cls.kind === "audio") {
+      const outFile = join(FILES_DIR, `${presetId}.mp3`);
+      const outPrev = join(PREVIEW_DIR, `${presetId}.png`);
+      const a = run("ffmpeg", [
         "-y",
         "-i",
         abs,
@@ -304,12 +323,11 @@ function main() {
         "192k",
         outFile,
       ]);
-      if (!a1.ok) {
-        console.warn(`  ffmpeg audio FAILED: ${a1.out.slice(-300)}`);
-        skipped.push(item.presetId);
+      if (!a.ok) {
+        console.warn(`FAIL ${presetId}: ${a.out.slice(-160)}`);
+        failed += 1;
         continue;
       }
-      // Waveform preview image (lime on transparent).
       run("ffmpeg", [
         "-y",
         "-i",
@@ -321,12 +339,12 @@ function main() {
         outPrev,
       ]);
       catalog.push({
-        presetId: item.presetId,
-        name: item.name,
-        description: item.description,
-        category: item.category,
-        kind: item.kind,
-        useWhen: item.useWhen,
+        presetId,
+        name,
+        description: cls.descriptionFor(name),
+        category: cls.category,
+        kind: "audio",
+        useWhen: cls.useWhen,
         compositing: { blend: "normal", hasAudio: true },
         durationSeconds: probeDuration(outFile),
         ext: "mp3",
@@ -334,13 +352,17 @@ function main() {
         license: LICENSE,
       });
     }
-    console.log(`  ✓ done`);
+    if (catalog.length % 10 === 0) console.log(`  …${catalog.length} done`);
   }
 
   writeFileSync(join(OUT_DIR, "catalog.generated.json"), `${JSON.stringify(catalog, null, 2)}\n`);
+  const byCat = catalog.reduce<Record<string, number>>((acc, e) => {
+    acc[e.category] = (acc[e.category] ?? 0) + 1;
+    return acc;
+  }, {});
   console.log(`\n=== INGEST COMPLETE ===`);
-  console.log(`catalog entries: ${catalog.length}   skipped: ${skipped.length}`);
-  if (skipped.length) console.log(`skipped: ${skipped.join(", ")}`);
+  console.log(`catalog entries: ${catalog.length}  (skipped ${skipped}, failed ${failed})`);
+  console.log(`by category: ${JSON.stringify(byCat)}`);
   console.log(`staged → ${OUT_DIR}`);
 }
 

@@ -11,6 +11,7 @@ function buildItems(): MenuItem[] {
   const items: MenuItem[] = [
     { kind: "link", href: "/app/projects", label: "Projects" },
     { kind: "link", href: "/app/renders", label: "Renders" },
+    { kind: "link", href: "/app/effects", label: "Effects" },
     { kind: "link", href: "/app/snippets", label: "Snippets" },
     { kind: "sep" },
     { kind: "link", href: "/app/settings/account", label: "Account" },

@@ -34,9 +34,9 @@
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "sfx-riser-metallic-transition",
-    "name": "SFX - Riser Metallic (Transition)",
-    "description": "Sound effect — sfx - riser metallic (transition). Fire it on a cut, beat, or reveal.",
+    "presetId": "riser-metallic-transition",
+    "name": "Riser Metallic (Transition)",
+    "description": "Sound effect — riser metallic (transition). Fire it on a cut, beat, or reveal.",
     "category": "sfx",
     "kind": "audio",
     "useWhen": ["sfx", "riser", "build", "tension", "reveal"],
@@ -50,9 +50,9 @@
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "camera-shutter-314056",
-    "name": "Camera-Shutter-314056",
-    "description": "Sound effect — camera-shutter-314056. Fire it on a cut, beat, or reveal.",
+    "presetId": "camera-shutter",
+    "name": "Camera Shutter",
+    "description": "Sound effect — camera shutter. Fire it on a cut, beat, or reveal.",
     "category": "sfx",
     "kind": "audio",
     "useWhen": ["sfx", "shutter", "photo", "snap"],
@@ -66,9 +66,9 @@
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "camera-shutter-6305",
-    "name": "Camera-Shutter-6305",
-    "description": "Sound effect — camera-shutter-6305. Fire it on a cut, beat, or reveal.",
+    "presetId": "issac-pack-sfx-camera-shutter",
+    "name": "Camera Shutter",
+    "description": "Sound effect — camera shutter. Fire it on a cut, beat, or reveal.",
     "category": "sfx",
     "kind": "audio",
     "useWhen": ["sfx", "shutter", "photo", "snap"],
@@ -82,9 +82,9 @@
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "click-234708",
-    "name": "Click-234708",
-    "description": "Sound effect — click-234708. Fire it on a cut, beat, or reveal.",
+    "presetId": "click",
+    "name": "Click",
+    "description": "Sound effect — click. Fire it on a cut, beat, or reveal.",
     "category": "sfx",
     "kind": "audio",
     "useWhen": ["sfx", "click", "tap", "ui"],
@@ -98,9 +98,9 @@
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "click-tap-computer-mouse-352734",
-    "name": "Click-Tap-Computer-Mouse-352734",
-    "description": "Sound effect — click-tap-computer-mouse-352734. Fire it on a cut, beat, or reveal.",
+    "presetId": "click-tap-computer-mouse",
+    "name": "Click Tap Computer Mouse",
+    "description": "Sound effect — click tap computer mouse. Fire it on a cut, beat, or reveal.",
     "category": "sfx",
     "kind": "audio",
     "useWhen": ["sfx", "click", "tap", "ui"],
@@ -114,9 +114,9 @@
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "computer-mouse-click-351398",
-    "name": "Computer-Mouse-Click-351398",
-    "description": "Sound effect — computer-mouse-click-351398. Fire it on a cut, beat, or reveal.",
+    "presetId": "computer-mouse-click",
+    "name": "Computer Mouse Click",
+    "description": "Sound effect — computer mouse click. Fire it on a cut, beat, or reveal.",
     "category": "sfx",
     "kind": "audio",
     "useWhen": ["sfx", "click", "tap", "ui"],
@@ -130,9 +130,9 @@
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "gear-click-351962",
-    "name": "Gear-Click-351962",
-    "description": "Sound effect — gear-click-351962. Fire it on a cut, beat, or reveal.",
+    "presetId": "gear-click",
+    "name": "Gear Click",
+    "description": "Sound effect — gear click. Fire it on a cut, beat, or reveal.",
     "category": "sfx",
     "kind": "audio",
     "useWhen": ["sfx", "click", "tap", "ui", "mechanical", "gear"],
@@ -146,9 +146,9 @@
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "mouse-click-290204",
-    "name": "Mouse-Click-290204",
-    "description": "Sound effect — mouse-click-290204. Fire it on a cut, beat, or reveal.",
+    "presetId": "mouse-click",
+    "name": "Mouse Click",
+    "description": "Sound effect — mouse click. Fire it on a cut, beat, or reveal.",
     "category": "sfx",
     "kind": "audio",
     "useWhen": ["sfx", "click", "tap", "ui"],
@@ -178,9 +178,9 @@
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "swoosh-2-359826",
-    "name": "Swoosh-2-359826",
-    "description": "Sound effect — swoosh-2-359826. Fire it on a cut, beat, or reveal.",
+    "presetId": "swoosh-2",
+    "name": "Swoosh 2",
+    "description": "Sound effect — swoosh 2. Fire it on a cut, beat, or reveal.",
     "category": "sfx",
     "kind": "audio",
     "useWhen": ["sfx", "whoosh", "transition", "cut"],
@@ -194,9 +194,9 @@
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "swoosh-5-359829",
-    "name": "Swoosh-5-359829",
-    "description": "Sound effect — swoosh-5-359829. Fire it on a cut, beat, or reveal.",
+    "presetId": "swoosh-5",
+    "name": "Swoosh 5",
+    "description": "Sound effect — swoosh 5. Fire it on a cut, beat, or reveal.",
     "category": "sfx",
     "kind": "audio",
     "useWhen": ["sfx", "whoosh", "transition", "cut"],
@@ -210,9 +210,9 @@
     "license": "starter-pack (intro-hd.net) — rights unverified, replace before promotion"
   },
   {
-    "presetId": "typing-274133",
-    "name": "Typing-274133",
-    "description": "Sound effect — typing-274133. Fire it on a cut, beat, or reveal.",
+    "presetId": "typing",
+    "name": "Typing",
+    "description": "Sound effect — typing. Fire it on a cut, beat, or reveal.",
     "category": "sfx",
     "kind": "audio",
     "useWhen": ["sfx", "typing", "keyboard"],

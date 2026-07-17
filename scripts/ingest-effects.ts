@@ -16,7 +16,7 @@
 // server; copy catalog into apps/web/src/lib/effects/catalog.json.
 
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const SRC = "/home/ishaan/Downloads/ASSETS";
@@ -158,12 +158,15 @@ function bgTags(p: string): string[] {
   return t;
 }
 
-// Human name from filename: drop extension + "(HD)"/"(4K)" + tidy whitespace.
+// Human name from filename: drop extension, "(HD)"/"(4K)", trailing source-ids
+// (e.g. "-314056"), an "SFX -" prefix, and tidy separators/casing.
 function niceName(fileName: string): string {
   return fileName
     .replace(/\.[^.]+$/, "")
     .replace(/\((?:hd|4k)\)/gi, "")
-    .replace(/[_]+/g, " ")
+    .replace(/[-_]+\d{3,}\b/g, "") // drop pack ids like "-314056"
+    .replace(/^\s*sfx\s*[-–—]\s*/i, "") // "SFX - Riser…" → "Riser…"
+    .replace(/[-_]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (c) => c.toUpperCase());
@@ -249,47 +252,80 @@ function main() {
     if (cls.kind === "video") {
       const outFile = join(FILES_DIR, `${presetId}.mp4`);
       const outPrev = join(PREVIEW_DIR, `${presetId}.webp`);
-      const v = run("ffmpeg", [
-        "-y",
-        "-i",
-        abs,
-        "-vf",
-        "scale='min(1920,iw)':-2:flags=lanczos",
-        "-an",
-        "-c:v",
-        "libx264",
-        "-pix_fmt",
-        "yuv420p",
-        "-crf",
-        "24",
-        "-preset",
-        "veryfast",
-        "-movflags",
-        "+faststart",
-        outFile,
-      ]);
-      if (!v.ok) {
-        console.warn(`FAIL ${presetId}: ${v.out.slice(-160)}`);
-        failed += 1;
-        continue;
+      // Skip the (slow) transcode if we already normalized this on a prior run —
+      // lets us regenerate names + previews cheaply.
+      if (!existsSync(outFile)) {
+        const v = run("ffmpeg", [
+          "-y",
+          "-i",
+          abs,
+          "-vf",
+          "scale='min(1920,iw)':-2:flags=lanczos",
+          "-an",
+          "-c:v",
+          "libx264",
+          "-pix_fmt",
+          "yuv420p",
+          "-crf",
+          "24",
+          "-preset",
+          "veryfast",
+          "-movflags",
+          "+faststart",
+          outFile,
+        ]);
+        if (!v.ok) {
+          console.warn(`FAIL ${presetId}: ${v.out.slice(-160)}`);
+          failed += 1;
+          continue;
+        }
       }
-      run("ffmpeg", [
-        "-y",
-        "-t",
-        "2",
-        "-i",
-        outFile,
-        "-vf",
-        "scale=480:-2:flags=lanczos,fps=15",
-        "-an",
-        "-c:v",
-        "libwebp",
-        "-loop",
-        "0",
-        "-q:v",
-        "55",
-        outPrev,
-      ]);
+      // Preview: a screen-blend overlay is mostly-black, so composite it over a
+      // mid-tone base (like it'll actually be used) — otherwise the card looks
+      // like a dark clip. Backgrounds show as-is.
+      if (cls.blend === "screen" || cls.blend === "add") {
+        run("ffmpeg", [
+          "-y",
+          "-f",
+          "lavfi",
+          "-i",
+          "color=c=0x3b4256:s=480x270:d=2",
+          "-t",
+          "2",
+          "-i",
+          outFile,
+          "-filter_complex",
+          "[1:v]scale=480:270:force_original_aspect_ratio=increase,crop=480:270,fps=15,setsar=1[fx];[0:v][fx]blend=all_mode=screen[o]",
+          "-map",
+          "[o]",
+          "-an",
+          "-c:v",
+          "libwebp",
+          "-loop",
+          "0",
+          "-q:v",
+          "60",
+          outPrev,
+        ]);
+      } else {
+        run("ffmpeg", [
+          "-y",
+          "-t",
+          "2",
+          "-i",
+          outFile,
+          "-vf",
+          "scale=480:-2:flags=lanczos,fps=15",
+          "-an",
+          "-c:v",
+          "libwebp",
+          "-loop",
+          "0",
+          "-q:v",
+          "55",
+          outPrev,
+        ]);
+      }
       catalog.push({
         presetId,
         name,

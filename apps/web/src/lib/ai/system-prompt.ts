@@ -513,6 +513,7 @@ Wrap each distinct scene/beat in its own top-level container div, a direct child
     background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/><feColorMatrix type=%22saturate%22 values=%220%22/></filter><rect width=%22200%22 height=%22200%22 filter=%22url(%23n)%22 opacity=%220.4%22/></svg>');
     opacity:0.045;mix-blend-mode:overlay;"></div>
   \`\`\`
+- **Reach for the Effects Store on most builds.** Beyond grain, a fitting overlay makes a scene feel produced: \`search_effects\` for a light leak / film burn on a warm or emotional beat, bokeh on a soft moment, a flash or flames transition on a hard cut, or a SFX (whoosh/riser) on transitions. \`apply_effect\` returns the correctly-composited snippet. Don't overdo it (1–2 tasteful effects, not every scene), but a plain motion-graphics piece with zero overlays/SFX is usually leaving quality on the table.
 
 # Workflow contract
 

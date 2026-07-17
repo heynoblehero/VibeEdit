@@ -91,6 +91,64 @@ const CURATED_EXAMPLES: Array<{ name: string; kind: string; why: string }> = [
     kind: "component",
     why: "Radial vignette darkening the frame edges — draws eye to center, instant cinematic quality boost.",
   },
+  // Native code effects (Effects Store → Motion FX). Self-contained GSAP blocks —
+  // read_registry_block to copy the pattern into a scene. All render-safe under
+  // the seek engine (property tweens only, no onUpdate).
+  {
+    name: "zoom-punch",
+    kind: "block",
+    why: "Title slams in from an oversized scale with motion blur — the punchy hook entrance for the opening word.",
+  },
+  {
+    name: "rgb-split",
+    kind: "block",
+    why: "Chromatic-aberration glitch on a title (red/blue channels shear + snap back) — retro/tech/gaming energy.",
+  },
+  {
+    name: "text-glow",
+    kind: "block",
+    why: "Neon-sign title: flicker-on + breathing colored halo. Use for night / club / gaming beats.",
+  },
+  {
+    name: "light-sweep",
+    kind: "block",
+    why: "Specular shine sweeps across a metallic title — premium product-reveal polish.",
+  },
+  {
+    name: "shake",
+    kind: "block",
+    why: "Whole-frame camera shake on a hit (scale-pop + flash + decaying jitter). Use on the single biggest impact beat.",
+  },
+  {
+    name: "typewriter",
+    kind: "block",
+    why: "Monospace text types on character-by-character with a blinking caret — terminal / code / reveal captions.",
+  },
+  {
+    name: "word-cascade",
+    kind: "block",
+    why: "Words punch up one-by-one in a staggered stack — compact kinetic-typography hook for a single scene.",
+  },
+  {
+    name: "count-up",
+    kind: "block",
+    why: "Odometer stat that rolls from zero to a target number — metrics, milestones, follower/revenue reveals.",
+  },
+  {
+    name: "lower-third",
+    kind: "block",
+    why: "Broadcast name bar: accent wipe + name/role slide, holds, exits. Use for interview/host intros.",
+  },
+  {
+    name: "wipe-reveal",
+    kind: "block",
+    why: "Colored panels sweep across and clear to reveal the title — a clean, energetic scene-change wipe.",
+  },
+  {
+    name: "gradient-flow",
+    kind: "block",
+    why: "Soft drifting mesh-gradient background that loops seamlessly — a living backdrop behind titles.",
+  },
 ];
 
 // Color grade presets — CSS filter strings. Agent picks ONE at plan time and

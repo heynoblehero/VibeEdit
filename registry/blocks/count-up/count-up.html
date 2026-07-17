@@ -40,20 +40,39 @@
           justify-content: center;
           font-family: "Inter", sans-serif;
         }
-        .num {
-          font-size: 340px;
+        /* Odometer: every digit is a vertical reel moved by translateY only, so
+           the counter renders correctly under the engine's (event-suppressing)
+           seek — no onUpdate/text-writing callbacks, which seeking skips. */
+        .row {
+          display: flex;
+          align-items: center;
           font-weight: 900;
-          line-height: 1;
-          letter-spacing: -6px;
+          font-size: 300px;
+          line-height: 300px;
+          letter-spacing: -4px;
+          font-variant-numeric: tabular-nums;
+        }
+        .col {
+          height: 300px;
+          overflow: hidden;
+        }
+        .reel {
+          will-change: transform;
+        }
+        .d {
+          height: 300px;
+          text-align: center;
           background: linear-gradient(180deg, #7dd3fc 0%, #3b82f6 100%);
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
-          font-variant-numeric: tabular-nums;
-          will-change: transform, opacity;
+        }
+        .comma {
+          color: #3b82f6;
+          padding: 0 10px;
         }
         .label {
-          margin-top: 12px;
+          margin-top: 24px;
           font-size: 64px;
           font-weight: 700;
           letter-spacing: 6px;
@@ -62,34 +81,56 @@
           will-change: transform, opacity;
         }
       </style>
-      <div class="num">0</div>
+      <div class="row"></div>
       <div class="label">Downloads</div>
 
       <script>
         (function () {
           const root = document.querySelector('[data-composition-id="main"]');
-          const num = root.querySelector(".num");
+          const row = root.querySelector(".row");
           const label = root.querySelector(".label");
-          const target = 128459;
-          const counter = { value: 0 };
+          const target = "128,459";
+          const H = 300; // px per digit — matches .col / .d height
+          const SPINS = 3; // full 0-9 cycles before landing (the roll)
+
+          const reels = [];
+          for (const ch of target) {
+            if (ch === ",") {
+              const sep = document.createElement("div");
+              sep.className = "comma";
+              sep.textContent = ",";
+              row.appendChild(sep);
+              continue;
+            }
+            const col = document.createElement("div");
+            col.className = "col";
+            const reel = document.createElement("div");
+            reel.className = "reel";
+            // 0-9 repeated so the reel is long enough to spin SPINS times and land.
+            let markup = "";
+            for (let cycle = 0; cycle <= SPINS; cycle++) {
+              for (let digit = 0; digit < 10; digit++) markup += '<div class="d">' + digit + "</div>";
+            }
+            reel.innerHTML = markup;
+            col.appendChild(reel);
+            row.appendChild(col);
+            reels.push({ reel, digit: Number(ch) });
+          }
+
           const tl = gsap.timeline({ paused: true });
-          // Pop the number in, ramp the value up on an ease (fast then settling),
-          // and fade the label up beneath it.
-          tl.from(num, { scale: 0.6, opacity: 0, duration: 0.4, ease: "back.out(2)" })
-            .to(
-              counter,
-              {
-                value: target,
-                duration: 1.8,
-                ease: "power2.out",
-                onUpdate: () => {
-                  num.textContent = Math.round(counter.value).toLocaleString("en-US");
-                },
-              },
-              0.15,
-            )
-            .from(label, { y: 24, opacity: 0, duration: 0.5, ease: "power2.out" }, 0.4)
-            .to({}, { duration: 0.5 });
+          reels.forEach((entry, index) => {
+            const landing = SPINS * 10 + entry.digit; // index of the final digit
+            tl.fromTo(
+              entry.reel,
+              { y: 0 },
+              { y: -landing * H, duration: 1.5 + index * 0.14, ease: "power3.out" },
+              0,
+            );
+          });
+          tl.from(label, { y: 24, opacity: 0, duration: 0.5, ease: "power2.out" }, 0.5).to(
+            {},
+            { duration: 0.5 },
+          );
           window.__timelines = window.__timelines || {};
           window.__timelines["main"] = tl;
         })();

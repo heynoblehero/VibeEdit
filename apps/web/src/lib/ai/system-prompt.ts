@@ -149,6 +149,31 @@ const CURATED_EXAMPLES: Array<{ name: string; kind: string; why: string }> = [
     kind: "block",
     why: "Soft drifting mesh-gradient background that loops seamlessly — a living backdrop behind titles.",
   },
+  {
+    name: "whoosh-in",
+    kind: "block",
+    why: "Title streaks in with directional motion blur and snaps to a stop — high-energy speed-ramp entrance.",
+  },
+  {
+    name: "blur-dissolve",
+    kind: "block",
+    why: "Title resolves out of a heavy defocus into sharp — soft cinematic focus-pull reveal for calm/premium beats.",
+  },
+  {
+    name: "spin-reveal",
+    kind: "block",
+    why: "Letters flip in on a 3D X-axis rotation, staggered — a dynamic dimensional title assemble.",
+  },
+  {
+    name: "bounce-in",
+    kind: "block",
+    why: "Title drops in with a squash-and-stretch bounce — playful, friendly, kid/brand-safe energy.",
+  },
+  {
+    name: "stroke-draw",
+    kind: "block",
+    why: "Outlined title draws itself on then the fill fades in — elegant hand-crafted reveal for premium/editorial.",
+  },
 ];
 
 // Color grade presets — CSS filter strings. Agent picks ONE at plan time and

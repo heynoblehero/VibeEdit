@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&display=block");
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="2.5"
+      data-width="1920"
+      data-height="1080"
+    >
+      <style>
+        [data-composition-id="main"] {
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          position: relative;
+          background: radial-gradient(circle at 50% 50%, #2b2b33 0%, #0d0d12 78%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: "Cormorant Garamond", serif;
+        }
+        .fp {
+          font-size: 220px;
+          font-weight: 600;
+          letter-spacing: 6px;
+          color: #f3ede2;
+          text-align: center;
+          will-change: transform, filter, opacity, letter-spacing;
+        }
+      </style>
+      <div class="fp">Aperture</div>
+
+      <script>
+        (function () {
+          const root = document.querySelector('[data-composition-id="main"]');
+          const fp = root.querySelector(".fp");
+          const tl = gsap.timeline({ paused: true });
+          // Pull from a heavy defocus + slightly larger, breathing in to a crisp,
+          // settled title — the letter-spacing tightening sells the "snap".
+          tl.from(fp, {
+            filter: "blur(36px)",
+            opacity: 0,
+            scale: 1.14,
+            letterSpacing: "40px",
+            duration: 1.2,
+            ease: "power3.out",
+          }).to({}, { duration: 0.9 });
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+        })();
+      </script>
+    </div>
+  </body>
+</html>

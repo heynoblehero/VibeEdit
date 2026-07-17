@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Anton&display=block");
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="2.5"
+      data-width="1920"
+      data-height="1080"
+    >
+      <style>
+        [data-composition-id="main"] {
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          position: relative;
+          background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: "Anton", sans-serif;
+          perspective: 900px;
+        }
+        .spin {
+          display: flex;
+          font-size: 280px;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+          transform-style: preserve-3d;
+        }
+        .spin .ch {
+          display: inline-block;
+          color: #f8fafc;
+          transform-origin: 50% 50% -40px;
+          will-change: transform, opacity;
+        }
+      </style>
+      <div class="spin"></div>
+
+      <script>
+        (function () {
+          const root = document.querySelector('[data-composition-id="main"]');
+          const spin = root.querySelector(".spin");
+          const word = "IMPACT";
+          for (const ch of word) {
+            const span = document.createElement("span");
+            span.className = "ch";
+            span.textContent = ch;
+            spin.appendChild(span);
+          }
+          const chars = spin.querySelectorAll(".ch");
+          const tl = gsap.timeline({ paused: true });
+          // Each letter flips down into place on the X axis with a staggered
+          // back-ease, so the word assembles dimensionally.
+          tl.from(chars, {
+            rotationX: -110,
+            y: -60,
+            opacity: 0,
+            duration: 0.6,
+            ease: "back.out(1.7)",
+            stagger: 0.08,
+          }).to({}, { duration: 1.1 });
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+        })();
+      </script>
+    </div>
+  </body>
+</html>

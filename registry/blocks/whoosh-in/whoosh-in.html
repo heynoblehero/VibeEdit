@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Anton&display=block");
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="2.5"
+      data-width="1920"
+      data-height="1080"
+    >
+      <style>
+        [data-composition-id="main"] {
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          position: relative;
+          background: linear-gradient(120deg, #ff5f6d 0%, #ffc371 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: "Anton", sans-serif;
+        }
+        .whoosh {
+          font-size: 260px;
+          letter-spacing: 4px;
+          text-transform: uppercase;
+          color: #201010;
+          will-change: transform, filter, opacity;
+        }
+      </style>
+      <div class="whoosh">FASTER</div>
+
+      <script>
+        (function () {
+          const root = document.querySelector('[data-composition-id="main"]');
+          const whoosh = root.querySelector(".whoosh");
+          const tl = gsap.timeline({ paused: true });
+          // Streak in from off-screen left with directional blur + skew (the
+          // speed smear), decelerate hard, then a tiny overshoot settle.
+          tl.from(whoosh, {
+            x: -2200,
+            skewX: 28,
+            scaleX: 1.7,
+            filter: "blur(24px)",
+            opacity: 0,
+            duration: 0.55,
+            ease: "power4.out",
+          })
+            .to(whoosh, { skewX: 0, scaleX: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out" }, ">-0.1")
+            .to(whoosh, { x: 24, duration: 0.12, ease: "power1.inOut" })
+            .to(whoosh, { x: 0, duration: 0.35, ease: "elastic.out(1, 0.5)" })
+            .to({}, { duration: 0.6 });
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+        })();
+      </script>
+    </div>
+  </body>
+</html>

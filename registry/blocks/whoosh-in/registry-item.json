@@ -1,0 +1,17 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/registry-item.json",
+  "name": "whoosh-in",
+  "type": "hyperframes:block",
+  "title": "Whoosh In",
+  "description": "Title streaks in from the side with heavy directional motion blur and snaps to a stop — high-energy speed-ramp entrance.",
+  "tags": ["title", "entrance", "speed", "whoosh", "motion-blur"],
+  "dimensions": { "width": 1920, "height": 1080 },
+  "duration": 2.5,
+  "files": [
+    {
+      "path": "whoosh-in.html",
+      "target": "compositions/whoosh-in.html",
+      "type": "hyperframes:composition"
+    }
+  ]
+}

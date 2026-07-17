@@ -1,0 +1,17 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/registry-item.json",
+  "name": "blur-dissolve",
+  "type": "hyperframes:block",
+  "title": "Focus Pull",
+  "description": "Title resolves out of a heavy defocus blur and settles sharp — a soft, cinematic focus-pull reveal.",
+  "tags": ["title", "reveal", "blur", "focus", "cinematic"],
+  "dimensions": { "width": 1920, "height": 1080 },
+  "duration": 2.5,
+  "files": [
+    {
+      "path": "blur-dissolve.html",
+      "target": "compositions/blur-dissolve.html",
+      "type": "hyperframes:composition"
+    }
+  ]
+}

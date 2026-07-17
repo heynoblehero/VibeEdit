@@ -1,0 +1,17 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/registry-item.json",
+  "name": "bounce-in",
+  "type": "hyperframes:block",
+  "title": "Bounce In",
+  "description": "Playful title drops in with a squash-and-stretch bounce settle — friendly, energetic, kid/brand-safe.",
+  "tags": ["title", "entrance", "bounce", "playful", "elastic"],
+  "dimensions": { "width": 1920, "height": 1080 },
+  "duration": 2.5,
+  "files": [
+    {
+      "path": "bounce-in.html",
+      "target": "compositions/bounce-in.html",
+      "type": "hyperframes:composition"
+    }
+  ]
+}

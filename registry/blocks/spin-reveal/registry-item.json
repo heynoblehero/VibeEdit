@@ -1,0 +1,17 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/registry-item.json",
+  "name": "spin-reveal",
+  "type": "hyperframes:block",
+  "title": "3D Flip In",
+  "description": "Title flips in on a 3D X-axis rotation with perspective, letters staggered — a dynamic dimensional reveal.",
+  "tags": ["title", "3d", "flip", "rotate", "reveal"],
+  "dimensions": { "width": 1920, "height": 1080 },
+  "duration": 2.5,
+  "files": [
+    {
+      "path": "spin-reveal.html",
+      "target": "compositions/spin-reveal.html",
+      "type": "hyperframes:composition"
+    }
+  ]
+}

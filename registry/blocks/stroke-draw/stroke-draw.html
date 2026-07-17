@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=block");
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="3"
+      data-width="1920"
+      data-height="1080"
+    >
+      <style>
+        [data-composition-id="main"] {
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          position: relative;
+          background: radial-gradient(circle at 50% 45%, #1a1f2b 0%, #0a0c12 80%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        svg {
+          width: 1600px;
+          height: 500px;
+          overflow: visible;
+        }
+        .label {
+          font-family: "Playfair Display", serif;
+          font-weight: 700;
+          font-size: 300px;
+        }
+        .outline {
+          fill: none;
+          stroke: #e9c46a;
+          stroke-width: 2.5;
+          will-change: stroke-dashoffset;
+        }
+        .fill {
+          fill: #f4e4c1;
+          will-change: opacity;
+        }
+      </style>
+      <svg viewBox="0 0 1600 500" preserveAspectRatio="xMidYMid meet">
+        <text
+          class="label outline"
+          x="800"
+          y="330"
+          text-anchor="middle"
+        >
+          Élan
+        </text>
+        <text
+          class="label fill"
+          x="800"
+          y="330"
+          text-anchor="middle"
+        >
+          Élan
+        </text>
+      </svg>
+
+      <script>
+        (function () {
+          const root = document.querySelector('[data-composition-id="main"]');
+          const outline = root.querySelector(".outline");
+          const fill = root.querySelector(".fill");
+          // Big dash so the whole glyph outline is one dash; offsetting it to 0
+          // draws the strokes on. All property tweens → renders under seek.
+          const LEN = 6000;
+          gsap.set(outline, { strokeDasharray: LEN, strokeDashoffset: LEN });
+          const tl = gsap.timeline({ paused: true });
+          tl.set(fill, { opacity: 0 })
+            .to(outline, { strokeDashoffset: 0, duration: 1.6, ease: "power1.inOut" })
+            .to(fill, { opacity: 1, duration: 0.6, ease: "power2.out" }, "-=0.35")
+            .to({}, { duration: 0.8 });
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+        })();
+      </script>
+    </div>
+  </body>
+</html>

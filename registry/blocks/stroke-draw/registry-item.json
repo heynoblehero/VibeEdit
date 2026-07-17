@@ -1,0 +1,17 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/registry-item.json",
+  "name": "stroke-draw",
+  "type": "hyperframes:block",
+  "title": "Line Draw",
+  "description": "Outlined title draws itself on stroke-by-stroke, then the fill fades in — elegant, hand-crafted title reveal.",
+  "tags": ["title", "reveal", "outline", "draw", "premium"],
+  "dimensions": { "width": 1920, "height": 1080 },
+  "duration": 3,
+  "files": [
+    {
+      "path": "stroke-draw.html",
+      "target": "compositions/stroke-draw.html",
+      "type": "hyperframes:composition"
+    }
+  ]
+}

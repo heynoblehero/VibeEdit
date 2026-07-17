@@ -6,6 +6,7 @@ import { projects, renderJobs } from "@/lib/db/schema";
 import { ensureProjectDir, seedFromIsaacHook } from "@/lib/storage/fs";
 import { requireServerSession } from "@/lib/server-session";
 import { captureEvent, FUNNEL } from "@/lib/observability/posthog";
+import { generateProjectName } from "@/lib/projects/name";
 
 export async function GET() {
   const session = await requireServerSession().catch((r) => r);
@@ -52,13 +53,19 @@ export async function POST(req: Request) {
   const userId = session.user.id;
   const body = (await req.json().catch(() => ({}))) as {
     name?: string;
+    description?: string;
     seed?: "isaac" | "empty";
     platform?: string;
     aspectRatio?: string;
   };
   const id = nanoid(10);
   const now = new Date();
-  const resolvedName = body.name?.slice(0, 100) || "Untitled Project";
+  // Prefer an explicit name; otherwise auto-generate a good one from the
+  // description (falls back to a friendly random name) so nothing is "Untitled".
+  const typedName = body.name?.trim();
+  const resolvedName = typedName
+    ? typedName.slice(0, 100)
+    : await generateProjectName(body.description);
 
   const VALID_PLATFORMS = ["youtube", "tiktok", "instagram", "linkedin"] as const;
   const VALID_RATIOS = ["16:9", "9:16", "1:1"] as const;

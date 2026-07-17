@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/lib/auth-client";
@@ -58,16 +58,28 @@ export default function EditorPage({ params }: PageProps) {
     return () => window.removeEventListener("vibeedit:focus-chat", onFocusChat);
   }, []);
 
-  // Fetch project name for breadcrumb
+  // Fetch project name for breadcrumb. A missing project or one the user
+  // doesn't own both come back 404 (the query is scoped to userId) — in either
+  // case send them back to their dashboard instead of a dead "Loading…" state.
   useEffect(() => {
     if (!session) return;
+    let cancelled = false;
     fetch(`/api/projects/${id}`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        if (r.status === 404 || r.status === 403) {
+          if (!cancelled) router.replace("/app/projects");
+          return null;
+        }
+        return r.ok ? r.json() : null;
+      })
       .then((data) => {
-        if (data?.project?.name) setProjectName(data.project.name);
+        if (!cancelled && data?.project?.name) setProjectName(data.project.name);
       })
       .catch(() => {});
-  }, [id, session]);
+    return () => {
+      cancelled = true;
+    };
+  }, [id, session, router]);
 
   // Show "Saved" pulse when agent stops working
   useEffect(() => {
@@ -85,6 +97,28 @@ export default function EditorPage({ params }: PageProps) {
       clearTimeout(h);
     };
   }, []);
+
+  // Card thumbnail from the live preview: backfill once on open (if this
+  // project has no recent thumbnail), then refresh after each agent edit so the
+  // dashboard card always reflects the latest composition. Throttled + fire-
+  // and-forget so it never blocks the editor.
+  const lastThumbAt = useRef(0);
+  useEffect(() => {
+    if (!session) return;
+    fetch(`/api/projects/${id}/thumb?ifMissing=1`, { method: "POST" }).catch(() => {});
+  }, [id, session]);
+  useEffect(() => {
+    function onStatus(e: Event) {
+      const detail = (e as CustomEvent<{ working: boolean }>).detail;
+      if (detail?.working !== false) return;
+      const now = Date.now();
+      if (now - lastThumbAt.current < 45_000) return;
+      lastThumbAt.current = now;
+      fetch(`/api/projects/${id}/thumb`, { method: "POST" }).catch(() => {});
+    }
+    window.addEventListener("vibeedit:agent-status", onStatus);
+    return () => window.removeEventListener("vibeedit:agent-status", onStatus);
+  }, [id]);
 
   // Tour
   useEffect(() => {

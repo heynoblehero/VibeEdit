@@ -128,7 +128,9 @@ export default function ProjectsPage() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          name: name.trim() || "Untitled Project",
+          // Blank name → the server auto-generates one from the description.
+          name: name.trim(),
+          description: description.trim(),
           platform,
           aspectRatio: meta.ratio,
         }),
@@ -284,35 +286,6 @@ export default function ProjectsPage() {
             {/* Right side */}
             <div className="flex items-center gap-2">
               <ConnectExtension />
-              {/* Command palette discoverability — dispatches ⌘K to the
-                  global listener in CommandPalette. */}
-              <button
-                type="button"
-                onClick={() =>
-                  window.dispatchEvent(
-                    new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
-                  )
-                }
-                aria-label="Open command palette (Command K)"
-                title="Search & commands (⌘K)"
-                className="hidden items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5 text-xs text-[var(--color-fg-muted)] transition-colors hover:border-[var(--color-accent)]/40 hover:text-[var(--color-fg)] sm:flex"
-              >
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                <kbd className="font-sans">⌘K</kbd>
-              </button>
               <div className="hidden sm:block">
                 <UsageMeter compact />
               </div>
@@ -668,6 +641,9 @@ function ProjectCard({
   const initial = project.name[0]?.toUpperCase() ?? "P";
   // Track whether the thumbnail image has failed to load (404 = no render yet).
   const [thumbFailed, setThumbFailed] = useState(false);
+  // Cache-buster fixed per card mount, so revisiting the dashboard picks up a
+  // thumbnail refreshed from the latest preview (edits don't bump updatedAt).
+  const [thumbBust] = useState(() => Date.now());
 
   return (
     <div
@@ -693,8 +669,8 @@ function ProjectCard({
         {!thumbFailed && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={`/api/projects/${project.id}/thumb`}
-            alt={`Latest render thumbnail for ${project.name}`}
+            src={`/api/projects/${project.id}/thumb?v=${thumbBust}`}
+            alt={`Preview thumbnail for ${project.name}`}
             onError={() => setThumbFailed(true)}
             className="absolute inset-0 h-full w-full object-cover"
           />

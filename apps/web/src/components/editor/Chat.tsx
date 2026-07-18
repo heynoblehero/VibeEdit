@@ -648,6 +648,7 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
         className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4"
       >
         <div className="mx-auto w-full min-w-0 max-w-3xl space-y-2">
+          {messages.length === 0 && !busy && <FirstVisitGuide />}
           {messages.map((message, index) => {
             const versionSnapshotId = message.role === "assistant" ? message.snapshotId : null;
             const isLatestVersion = !!versionSnapshotId && versionSnapshotId === latestSnapshotId;
@@ -1000,6 +1001,67 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
             ↵ send · ⇧↵ newline · drag image/video to attach · / for commands
           </p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+const GUIDE_KEY = "vibeedit:guide-seen";
+
+const GUIDE_STEPS = [
+  { icon: "✏️", title: "Describe it", sub: "Type what you want in plain English" },
+  { icon: "⚙️", title: "Watch it build", sub: "The agent writes every scene for you" },
+  { icon: "▶️", title: "Render & export", sub: "Hit Render when you're happy" },
+];
+
+// Compact "how it works" guide shown in the empty chat. Dismissible; matches the
+// bolder look with an accent-tinted panel and readable text.
+function FirstVisitGuide() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!localStorage.getItem(GUIDE_KEY)) setVisible(true);
+  }, []);
+
+  if (!visible) return null;
+
+  function dismiss() {
+    localStorage.setItem(GUIDE_KEY, "1");
+    setVisible(false);
+  }
+
+  return (
+    <div className="rounded-2xl border border-[var(--color-accent)]/30 bg-gradient-to-br from-[var(--color-accent)]/10 via-[var(--color-surface)] to-[var(--color-violet)]/10 p-4 shadow-[var(--glow-accent-sm)]">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-accent)]">
+          How it works
+        </span>
+        <button
+          onClick={dismiss}
+          className="text-[var(--color-fg-muted)] transition-colors hover:text-[var(--color-fg)]"
+          title="Dismiss"
+          aria-label="Dismiss guide"
+          onKeyDown={(event) => event.key === "Enter" && dismiss()}
+        >
+          ✕
+        </button>
+      </div>
+      <div className="grid grid-cols-3 gap-2 text-center">
+        {GUIDE_STEPS.map((step, index) => (
+          <div
+            key={step.title}
+            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] p-2.5"
+          >
+            <div className="mb-1.5 text-lg">{step.icon}</div>
+            <div className="text-[11px] font-semibold text-[var(--color-fg)]">{step.title}</div>
+            <div className="mt-0.5 text-[10px] leading-snug text-[var(--color-fg-muted)]">
+              {step.sub}
+            </div>
+            <div className="mt-1.5 text-[10px] font-bold text-[var(--color-accent)]">
+              {index + 1}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

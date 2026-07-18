@@ -8,6 +8,17 @@ import { requireServerSession } from "@/lib/server-session";
 import { captureEvent, FUNNEL } from "@/lib/observability/posthog";
 import { generateProjectName } from "@/lib/projects/name";
 
+// A preset or custom "W:H" ratio, each side 16–4096px; else the 16:9 default.
+function normalizeAspectRatio(input?: string): string {
+  if (!input) return "16:9";
+  const match = /^(\d{1,4}):(\d{1,4})$/.exec(input.trim());
+  if (!match) return "16:9";
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (width < 16 || width > 4096 || height < 16 || height > 4096) return "16:9";
+  return `${width}:${height}`;
+}
+
 export async function GET() {
   const session = await requireServerSession().catch((r) => r);
   if (session instanceof Response) return session;
@@ -68,13 +79,12 @@ export async function POST(req: Request) {
     : await generateProjectName(body.description);
 
   const VALID_PLATFORMS = ["youtube", "tiktok", "instagram", "linkedin"] as const;
-  const VALID_RATIOS = ["16:9", "9:16", "1:1"] as const;
   const platform = VALID_PLATFORMS.includes(body.platform as (typeof VALID_PLATFORMS)[number])
     ? body.platform!
     : "youtube";
-  const aspectRatio = VALID_RATIOS.includes(body.aspectRatio as (typeof VALID_RATIOS)[number])
-    ? body.aspectRatio!
-    : "16:9";
+  // Accept a preset ratio OR a custom "W:H" (each side 16–4096px); the preview
+  // and agent size proportionally off the ratio. Anything else → 16:9.
+  const aspectRatio = normalizeAspectRatio(body.aspectRatio);
 
   db.insert(projects)
     .values({

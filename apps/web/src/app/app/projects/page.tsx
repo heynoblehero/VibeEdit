@@ -685,21 +685,9 @@ function randomProjectName(): string {
 }
 
 const FORMATS = [
-  {
-    ratio: "16:9",
-    label: "Landscape",
-    sub: "YouTube · 1920×1080",
-    platform: "youtube",
-    box: "h-5 w-8",
-  },
-  {
-    ratio: "9:16",
-    label: "Vertical",
-    sub: "TikTok · Reels · Shorts",
-    platform: "tiktok",
-    box: "h-8 w-5",
-  },
-  { ratio: "1:1", label: "Square", sub: "Instagram feed", platform: "instagram", box: "h-6 w-6" },
+  { ratio: "16:9", label: "Landscape", dims: "1920 × 1080", platform: "youtube", box: "h-5 w-8" },
+  { ratio: "9:16", label: "Vertical", dims: "1080 × 1920", platform: "tiktok", box: "h-8 w-5" },
+  { ratio: "1:1", label: "Square", dims: "1080 × 1080", platform: "instagram", box: "h-6 w-6" },
 ] as const;
 
 function CreateProjectModal({
@@ -712,7 +700,11 @@ function CreateProjectModal({
   onCreate: (opts: { name: string; platform: string; aspectRatio: string }) => void;
 }) {
   const [name, setName] = useState(() => randomProjectName());
-  const [format, setFormat] = useState<(typeof FORMATS)[number]>(FORMATS[0]);
+  // Selected preset ratio, or "custom" for the width × height inputs.
+  const [choice, setChoice] = useState<string>("16:9");
+  const [customW, setCustomW] = useState("1080");
+  const [customH, setCustomH] = useState("1350");
+  const isCustom = choice === "custom";
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -722,11 +714,19 @@ function CreateProjectModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  const customValid =
+    Number(customW) >= 128 &&
+    Number(customW) <= 4096 &&
+    Number(customH) >= 128 &&
+    Number(customH) <= 4096;
+
   function submit() {
+    if (isCustom && !customValid) return;
+    const preset = FORMATS.find((f) => f.ratio === choice);
     onCreate({
       name: name.trim() || randomProjectName(),
-      platform: format.platform,
-      aspectRatio: format.ratio,
+      platform: preset?.platform ?? "youtube",
+      aspectRatio: isCustom ? `${Number(customW)}:${Number(customH)}` : choice,
     });
   }
 
@@ -773,18 +773,17 @@ function CreateProjectModal({
             </button>
           </div>
 
-          <label className="mb-1.5 block text-xs font-medium text-[var(--color-fg-muted)]">
+          <label className="mb-1.5 block text-xs font-semibold text-[var(--color-fg)]">
             Format
           </label>
-          <div className="mb-5 grid grid-cols-3 gap-2">
+          <div className="mb-3 grid grid-cols-3 gap-2">
             {FORMATS.map((f) => {
-              const selected = format.ratio === f.ratio;
+              const selected = choice === f.ratio;
               return (
                 <button
                   key={f.ratio}
                   type="button"
-                  onClick={() => setFormat(f)}
-                  title={f.sub}
+                  onClick={() => setChoice(f.ratio)}
                   className={`flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 text-center transition-colors ${
                     selected
                       ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10"
@@ -792,22 +791,61 @@ function CreateProjectModal({
                   }`}
                 >
                   <span
-                    className={`rounded-sm border ${f.box} ${
-                      selected ? "border-[var(--color-accent)]" : "border-[var(--color-fg-subtle)]"
+                    className={`rounded-sm border-2 ${f.box} ${
+                      selected ? "border-[var(--color-accent)]" : "border-[var(--color-fg-muted)]"
                     }`}
                   />
                   <span className="text-xs font-semibold text-[var(--color-fg)]">{f.label}</span>
-                  <span className="font-mono text-[9px] text-[var(--color-fg-subtle)]">
-                    {f.ratio}
+                  <span className="font-mono text-[10px] text-[var(--color-fg-muted)]">
+                    {f.dims}
                   </span>
                 </button>
               );
             })}
           </div>
 
+          {/* Custom dimensions */}
+          <button
+            type="button"
+            onClick={() => setChoice("custom")}
+            className={`mb-2 flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition-colors ${
+              isCustom
+                ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10"
+                : "border-[var(--color-border)] hover:border-[var(--color-border-2)]"
+            }`}
+          >
+            <span className="text-sm font-semibold text-[var(--color-fg)]">Custom size</span>
+            <span className="text-xs text-[var(--color-fg-muted)]">— set exact pixels</span>
+          </button>
+          {isCustom && (
+            <div className="mb-5 flex items-center gap-2">
+              <input
+                type="number"
+                value={customW}
+                min={128}
+                max={4096}
+                onChange={(event) => setCustomW(event.target.value)}
+                aria-label="Width in pixels"
+                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-2)] px-3 py-2 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]"
+              />
+              <span className="text-sm font-medium text-[var(--color-fg-muted)]">×</span>
+              <input
+                type="number"
+                value={customH}
+                min={128}
+                max={4096}
+                onChange={(event) => setCustomH(event.target.value)}
+                aria-label="Height in pixels"
+                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-2)] px-3 py-2 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]"
+              />
+              <span className="text-xs text-[var(--color-fg-muted)]">px</span>
+            </div>
+          )}
+          {!isCustom && <div className="mb-5" />}
+
           <button
             onClick={submit}
-            disabled={creating}
+            disabled={creating || (isCustom && !customValid)}
             className="w-full rounded-xl bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {creating ? "Creating…" : "Create project"}

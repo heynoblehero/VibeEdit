@@ -13,9 +13,9 @@
 
   /* Foreground — lifted to meet WCAG AA on the dark base (the old subtle grays
      were ~3:1 and hard to read). */
-  --color-fg: #f3f3f8;
-  --color-fg-muted: #a7a7c0;
-  --color-fg-subtle: #7c7c99;
+  --color-fg: #f4f4f9;
+  --color-fg-muted: #b2b2c8;
+  --color-fg-subtle: #8f8fab;
 
   /* Brand — lime primary, kept, with warmer coral as the secondary. */
   --color-accent: #d4ff3a;

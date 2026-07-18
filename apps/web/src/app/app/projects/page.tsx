@@ -82,6 +82,13 @@ export default function ProjectsPage() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [projectsLoading, setProjectsLoading] = useState(true);
+  const [usage, setUsage] = useState<{
+    credits?: { total: number };
+    usage?: {
+      renders?: { used: number; limit: number };
+      renderMinutes?: { used: number; limit: number };
+    };
+  } | null>(null);
 
   useEffect(() => {
     if (!session) return;
@@ -106,6 +113,14 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     if (session) refresh();
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) return;
+    fetch("/api/billing/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setUsage)
+      .catch(() => {});
   }, [session]);
 
   async function create(opts: { name: string; platform: string; aspectRatio: string }) {
@@ -276,6 +291,33 @@ export default function ProjectsPage() {
                         {session.user.email}
                       </div>
                     </div>
+                    {usage?.usage?.renders && (
+                      <Link
+                        href="/app/billing"
+                        onClick={() => setMenuOpen(false)}
+                        className="block border-b border-[var(--color-border)] px-4 py-2.5 text-xs text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-bg-2)]"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span>Renders this month</span>
+                          <span className="font-mono text-[var(--color-fg)]">
+                            {usage.usage.renders.used}
+                            {usage.usage.renders.limit === -1
+                              ? ""
+                              : ` / ${usage.usage.renders.limit}`}
+                          </span>
+                        </div>
+                        {typeof usage.credits?.total === "number" && (
+                          <div className="mt-1 flex items-center justify-between">
+                            <span>Credits left</span>
+                            <span className="font-mono text-[var(--color-fg)]">
+                              {usage.credits.total === -1
+                                ? "∞"
+                                : usage.credits.total.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                      </Link>
+                    )}
                     {[
                       { href: "/app/projects", label: "Projects" },
                       { href: "/app/renders", label: "Renders" },

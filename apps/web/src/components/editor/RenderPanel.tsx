@@ -486,7 +486,7 @@ export function RenderPanel({ projectId }: { projectId: string }) {
               <span className="hidden sm:inline">
                 Render
                 <span className="ml-1 text-[10px] font-normal opacity-70">
-                  · {activePreset.label}
+                  · {creditCostLabel("render_30s")}
                 </span>
               </span>
               <span className="text-xs sm:hidden">Render</span>

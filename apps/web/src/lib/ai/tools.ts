@@ -39,7 +39,6 @@ import {
 import { defaultModelForTask, getModel, type ModelEntry, type ModelTask } from "./models";
 import { readModelPreferences, resolveModelForTask } from "./model-prefs";
 import { resolveApiKey } from "@/lib/providers/pool";
-import { chargeGeneration } from "@/lib/billing/generation-pricing";
 import { creditBalance, getCreditCosts, type CreditAction } from "@/lib/billing/credits";
 import { nanoid } from "nanoid";
 import { safeFetch } from "../net/ssrf-guard";
@@ -1939,19 +1938,8 @@ export function buildToolServer(ctx: ToolContext) {
     },
     async ({ prompt, sceneSlug, count, aspectRatio, model }) => {
       const requested = resolveTaskModel("image", model);
-      {
-        const credit = chargeGeneration(ctx.userId, requested);
-        if (!credit.ok)
-          return {
-            content: [
-              {
-                type: "text",
-                text: `ERROR: out of generation credits this month (${credit.used}/${credit.limit}). Ask the user to upgrade their plan.`,
-              },
-            ],
-            isError: true,
-          };
-      }
+      // Generation is bring-your-own-key (billed by the user's own provider),
+      // so it no longer spends platform credits — no charge or gate here.
       const batchId = nanoid(8);
       const dir = `assets/variants/${sceneSlug}-${batchId}`;
       const generated: Array<{ path: string; index: number }> = [];
@@ -4676,19 +4664,8 @@ ${jsLines.join("\n")}`;
     },
     async ({ prompt, filename, duration, aspectRatio, model }) => {
       const requested = resolveTaskModel("video", model);
-      {
-        const credit = chargeGeneration(ctx.userId, requested);
-        if (!credit.ok)
-          return {
-            content: [
-              {
-                type: "text",
-                text: `ERROR: out of generation credits this month (${credit.used}/${credit.limit}). Ask the user to upgrade their plan.`,
-              },
-            ],
-            isError: true,
-          };
-      }
+      // Generation is bring-your-own-key (billed by the user's own provider),
+      // so it no longer spends platform credits — no charge or gate here.
       const safe = filename.replace(/[/\\]/g, "_").replace(/^\.+/, "");
       const dest = `assets/${safe}`;
       try {
@@ -4760,19 +4737,8 @@ ${jsLines.join("\n")}`;
     },
     async ({ prompt, filename, instrumental, model }) => {
       const requested = resolveTaskModel("music", model);
-      {
-        const credit = chargeGeneration(ctx.userId, requested);
-        if (!credit.ok)
-          return {
-            content: [
-              {
-                type: "text",
-                text: `ERROR: out of generation credits this month (${credit.used}/${credit.limit}). Ask the user to upgrade their plan.`,
-              },
-            ],
-            isError: true,
-          };
-      }
+      // Generation is bring-your-own-key (billed by the user's own provider),
+      // so it no longer spends platform credits — no charge or gate here.
       const safe = filename.replace(/[/\\]/g, "_").replace(/^\.+/, "");
       const dest = `assets/${safe}`;
       try {

@@ -7,6 +7,7 @@ import { useSession } from "@/lib/auth-client";
 import { Chat } from "@/components/editor/Chat";
 import { FilesDrawer } from "@/components/editor/FilesDrawer";
 import { EffectsPanel } from "@/components/editor/EffectsPanel";
+import { KeySetupBanner } from "@/components/editor/KeySetupBanner";
 import { EditHistory } from "@/components/editor/EditHistory";
 import { HistoryPanel } from "@/components/editor/HistoryPanel";
 import { CodePane } from "@/components/editor/CodePane";
@@ -268,6 +269,7 @@ export default function EditorPage({ params }: PageProps) {
       <aside
         className={`${mobileTab === "chat" ? "flex" : "hidden"} min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--color-bg)] md:flex`}
       >
+        <KeySetupBanner />
         <Chat projectId={id} reloadKey={reloadKey} />
       </aside>
 

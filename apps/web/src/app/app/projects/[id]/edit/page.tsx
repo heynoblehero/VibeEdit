@@ -6,13 +6,13 @@ import Link from "next/link";
 import { useSession } from "@/lib/auth-client";
 import { Chat } from "@/components/editor/Chat";
 import { FilesDrawer } from "@/components/editor/FilesDrawer";
+import { EffectsPanel } from "@/components/editor/EffectsPanel";
 import { EditHistory } from "@/components/editor/EditHistory";
 import { HistoryPanel } from "@/components/editor/HistoryPanel";
 import { CodePane } from "@/components/editor/CodePane";
 import { RenderPanel } from "@/components/editor/RenderPanel";
 import { Wordmark } from "@/components/Wordmark";
 import { UserMenu } from "@/components/UserMenu";
-import { UsageMeter } from "@/components/UsageMeter";
 import { EditorTour } from "@/components/EditorTour";
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -25,11 +25,11 @@ export default function EditorPage({ params }: PageProps) {
   const [projectName, setProjectName] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [showTour, setShowTour] = useState(false);
-  const [rightTab, setRightTab] = useState<"files" | "history" | "code">("files");
+  const [rightTab, setRightTab] = useState<"files" | "history" | "effects" | "code">("files");
   const [devMode, setDevMode] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
   const [showSaveSnippet, setShowSaveSnippet] = useState(false);
-  const [savedPulse, setSavedPulse] = useState(false);
+  const [overflowOpen, setOverflowOpen] = useState(false);
   const [toast, setToast] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
   useEffect(() => {
@@ -80,23 +80,6 @@ export default function EditorPage({ params }: PageProps) {
       cancelled = true;
     };
   }, [id, session, router]);
-
-  // Show "Saved" pulse when agent stops working
-  useEffect(() => {
-    let h: ReturnType<typeof setTimeout>;
-    function onStatus(e: Event) {
-      const detail = (e as CustomEvent<{ working: boolean }>).detail;
-      if (!detail?.working) {
-        setSavedPulse(true);
-        h = setTimeout(() => setSavedPulse(false), 2000);
-      }
-    }
-    window.addEventListener("vibeedit:agent-status", onStatus);
-    return () => {
-      window.removeEventListener("vibeedit:agent-status", onStatus);
-      clearTimeout(h);
-    };
-  }, []);
 
   // Card thumbnail from the live preview: backfill once on open (if this
   // project has no recent thumbnail), then refresh after each agent edit so the
@@ -211,66 +194,72 @@ export default function EditorPage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Right: actions */}
+        {/* Right: actions — kept minimal. Dev mode + Save snippet live in the ⋯ menu. */}
         <div className="flex shrink-0 items-center gap-1.5">
-          {/* Dev mode toggle */}
-          <button
-            onClick={toggleDevMode}
-            title={devMode ? "Disable developer mode" : "Enable developer mode (shows code editor)"}
-            className={`hidden items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors sm:inline-flex ${
-              devMode
-                ? "border-[var(--color-accent)]/40 bg-[var(--color-accent)]/8 text-[var(--color-accent)]"
-                : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-fg-subtle)] hover:text-[var(--color-fg-muted)]"
-            }`}
-          >
-            <svg
-              width="11"
-              height="11"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <polyline points="16 18 22 12 16 6" />
-              <polyline points="8 6 2 12 8 18" />
-            </svg>
-            Dev
-          </button>
-
-          {/* Save snippet */}
-          <button
-            onClick={() => setShowSaveSnippet(true)}
-            title="Save as snippet"
-            className="hidden items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-medium text-[var(--color-fg-muted)] transition-colors hover:border-[var(--color-border-2)] hover:text-[var(--color-fg)] sm:inline-flex"
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-            </svg>
-            <span>Save snippet</span>
-          </button>
-
-          {savedPulse && (
-            <span className="hidden items-center gap-1 text-[10px] font-medium text-[var(--color-success)] sm:flex">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
-              Saved
-            </span>
-          )}
-
           <RenderPanel projectId={id} />
-          <UsageMeter compact />
+
+          <div className="relative">
+            <button
+              onClick={() => setOverflowOpen((v) => !v)}
+              title="More"
+              aria-haspopup="menu"
+              aria-expanded={overflowOpen}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-fg-muted)] transition-colors hover:text-[var(--color-fg)]"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <circle cx="5" cy="12" r="1.6" />
+                <circle cx="12" cy="12" r="1.6" />
+                <circle cx="19" cy="12" r="1.6" />
+              </svg>
+            </button>
+            {overflowOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Close menu"
+                  className="fixed inset-0 z-40 cursor-default"
+                  onClick={() => setOverflowOpen(false)}
+                />
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full z-50 mt-1 w-48 overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl"
+                >
+                  <button
+                    onClick={() => {
+                      setShowSaveSnippet(true);
+                      setOverflowOpen(false);
+                    }}
+                    className="block w-full px-3 py-2 text-left text-sm text-[var(--color-fg)] hover:bg-[var(--color-bg-2)]"
+                  >
+                    Save as snippet
+                  </button>
+                  <button
+                    onClick={() => {
+                      toggleDevMode();
+                      setOverflowOpen(false);
+                    }}
+                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-[var(--color-fg)] hover:bg-[var(--color-bg-2)]"
+                  >
+                    Developer mode
+                    <span
+                      className={
+                        devMode ? "text-[var(--color-accent)]" : "text-[var(--color-fg-subtle)]"
+                      }
+                    >
+                      {devMode ? "On" : "Off"}
+                    </span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
           <UserMenu />
         </div>
       </header>
@@ -336,6 +325,29 @@ export default function EditorPage({ params }: PageProps) {
             </svg>
             History
           </button>
+          <button
+            onClick={() => setRightTab("effects")}
+            className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
+              rightTab === "effects"
+                ? "border-b-2 border-[var(--color-accent)] text-[var(--color-fg)]"
+                : "border-b-2 border-transparent text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+            }`}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z" />
+            </svg>
+            Effects
+          </button>
           {devMode && (
             <button
               onClick={() => setRightTab("code")}
@@ -377,6 +389,8 @@ export default function EditorPage({ params }: PageProps) {
               reloadKey={reloadKey}
               onRestored={() => setReloadKey((k) => k + 1)}
             />
+          ) : rightTab === "effects" ? (
+            <EffectsPanel />
           ) : (
             <CodePane projectId={id} reloadKey={reloadKey} />
           )}

@@ -19,6 +19,11 @@ type AssetHandle = {
   analyzed: boolean;
 };
 
+// The brand-character/persona feature is hidden for now (niche; clutters the
+// Files drawer for most users). Flip to true to bring the section back — the
+// backend + CharacterTile are all still here.
+const SHOW_CHARACTERS = false;
+
 type Character = {
   name: string;
   description: string;
@@ -83,6 +88,7 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
 
   // Characters are account-level (reused across every project), so load once.
   useEffect(() => {
+    if (!SHOW_CHARACTERS) return;
     let cancelled = false;
     fetch("/api/characters")
       .then((r) => (r.ok ? r.json() : { characters: [] }))
@@ -368,24 +374,26 @@ export function FilesDrawer({ projectId, reloadKey }: { projectId: string; reloa
       </div>
 
       {/* Characters — account-level reusable host/character, reused across projects */}
-      <div className="border-b border-[var(--color-border)] p-4">
-        <div className="mb-3">
-          <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-subtle)]">
-            Characters
-          </span>
-        </div>
-        {characters.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-[var(--color-border)] px-3 py-4 text-center text-[11px] text-[var(--color-fg-muted)]">
-            No character yet — ask the AI to generate one.
-          </p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {characters.map((c) => (
-              <CharacterTile key={c.name} character={c} />
-            ))}
+      {SHOW_CHARACTERS && (
+        <div className="border-b border-[var(--color-border)] p-4">
+          <div className="mb-3">
+            <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-subtle)]">
+              Characters
+            </span>
           </div>
-        )}
-      </div>
+          {characters.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-[var(--color-border)] px-3 py-4 text-center text-[11px] text-[var(--color-fg-muted)]">
+              No character yet — ask the AI to generate one.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {characters.map((c) => (
+                <CharacterTile key={c.name} character={c} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Quick composition edit shortcut */}
       <div className="border-b border-[var(--color-border)] p-4">

@@ -14,7 +14,7 @@ function buildItems(): MenuItem[] {
     { kind: "link", href: "/app/effects", label: "Effects" },
     { kind: "link", href: "/app/snippets", label: "Snippets" },
     { kind: "sep" },
-    { kind: "link", href: "/app/settings/account", label: "Account" },
+    { kind: "link", href: "/app/settings/account", label: "Settings" },
     { kind: "link", href: "/app/settings/brand", label: "Brand kit" },
     { kind: "link", href: "/app/billing", label: "Billing" },
   ];
@@ -92,6 +92,18 @@ export function UserMenu() {
             {ITEMS.map((item, index) =>
               item.kind === "sep" ? (
                 <li key={`sep-${index}`} className="my-1 border-t border-[var(--color-border)]" />
+              ) : item.href === "/app/settings/account" ? (
+                <li key={item.href}>
+                  <button
+                    onClick={() => {
+                      setOpen(false);
+                      window.dispatchEvent(new CustomEvent("vibeedit:open-settings"));
+                    }}
+                    className="block w-full px-3 py-1.5 text-left text-sm text-[var(--color-fg)] hover:bg-[var(--color-bg-2)]"
+                  >
+                    {item.label}
+                  </button>
+                </li>
               ) : (
                 <li key={item.href}>
                   <Link

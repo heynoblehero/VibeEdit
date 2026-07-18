@@ -394,18 +394,34 @@ export default function ProjectsPage() {
                         )}
                       </Link>
                     )}
-                    {MENU_ITEMS.map((item) => (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        role="menuitem"
-                        onClick={() => setMenuOpen(false)}
-                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)]"
-                      >
-                        <span className="text-[var(--color-fg-subtle)]">{item.icon}</span>
-                        {item.label}
-                      </Link>
-                    ))}
+                    {MENU_ITEMS.map((item) =>
+                      item.href === "/app/settings/account" ? (
+                        <button
+                          key={item.href}
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setMenuOpen(false);
+                            window.dispatchEvent(new CustomEvent("vibeedit:open-settings"));
+                          }}
+                          className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)]"
+                        >
+                          <span className="text-[var(--color-fg-subtle)]">{item.icon}</span>
+                          {item.label}
+                        </button>
+                      ) : (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          role="menuitem"
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)]"
+                        >
+                          <span className="text-[var(--color-fg-subtle)]">{item.icon}</span>
+                          {item.label}
+                        </Link>
+                      ),
+                    )}
                     <div className="border-t border-[var(--color-border)]">
                       <button
                         role="menuitem"

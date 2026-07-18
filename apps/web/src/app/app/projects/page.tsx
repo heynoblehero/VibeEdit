@@ -68,13 +68,6 @@ const PLATFORM_META: Record<
   },
 };
 
-const NAV_LINKS = [
-  { href: "/app/projects", label: "Projects" },
-  { href: "/app/renders", label: "Renders" },
-  { href: "/app/effects", label: "Effects" },
-  { href: "/app/billing", label: "Billing" },
-];
-
 export default function ProjectsPage() {
   const router = useRouter();
   const toast = useToast();
@@ -262,27 +255,6 @@ export default function ProjectsPage() {
               <Wordmark size="sm" />
             </Link>
 
-            {/* Desktop nav */}
-            <nav className="hidden items-center gap-0.5 text-sm sm:flex">
-              {NAV_LINKS.map((link) => {
-                const isActive = link.href === "/app/projects";
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    aria-current={isActive ? "page" : undefined}
-                    className={`rounded-lg px-3 py-1.5 font-medium transition-colors ${
-                      isActive
-                        ? "bg-[var(--color-surface)] text-[var(--color-fg)]"
-                        : "text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
-                    }`}
-                  >
-                    {link.label}
-                  </Link>
-                );
-              })}
-            </nav>
-
             {/* Right side */}
             <div className="flex items-center gap-2">
               <ConnectExtension />
@@ -315,9 +287,12 @@ export default function ProjectsPage() {
                       </div>
                     </div>
                     {[
+                      { href: "/app/projects", label: "Projects" },
+                      { href: "/app/renders", label: "Renders" },
+                      { href: "/app/effects", label: "Effects" },
+                      { href: "/app/snippets", label: "Snippets" },
                       { href: "/app/settings/account", label: "Settings" },
                       { href: "/app/billing", label: "Billing" },
-                      { href: "/app/snippets", label: "Snippets" },
                     ].map((item) => (
                       <Link
                         key={item.href}
@@ -346,30 +321,6 @@ export default function ProjectsPage() {
               </div>
             </div>
           </div>
-
-          {/* Mobile nav — desktop nav is hidden on phones */}
-          <nav
-            aria-label="Primary"
-            className="flex gap-1 overflow-x-auto border-t border-[var(--color-border)] px-2 py-2 text-sm sm:hidden"
-          >
-            {NAV_LINKS.map((link) => {
-              const isActive = link.href === "/app/projects";
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  aria-current={isActive ? "page" : undefined}
-                  className={`shrink-0 rounded-lg px-3 py-1.5 font-medium transition-colors ${
-                    isActive
-                      ? "bg-[var(--color-surface)] text-[var(--color-fg)]"
-                      : "text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">

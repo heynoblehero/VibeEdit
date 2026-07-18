@@ -75,17 +75,13 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [projectsLoading, setProjectsLoading] = useState(true);
-  const [platform, setPlatform] = useState<"youtube" | "tiktok" | "instagram" | "linkedin">(
-    "youtube",
-  );
 
   useEffect(() => {
     if (!session) return;
@@ -112,20 +108,17 @@ export default function ProjectsPage() {
     if (session) refresh();
   }, [session]);
 
-  async function create() {
+  async function create(opts: { name: string; platform: string; aspectRatio: string }) {
     setCreating(true);
     setCreateError(null);
     try {
-      const meta = PLATFORM_META[platform];
       const result = await fetch("/api/projects", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          // Blank name → the server auto-generates one from the description.
-          name: name.trim(),
-          description: description.trim(),
-          platform,
-          aspectRatio: meta.ratio,
+          name: opts.name.trim(),
+          platform: opts.platform,
+          aspectRatio: opts.aspectRatio,
         }),
       });
       if (!result.ok) {
@@ -135,16 +128,6 @@ export default function ProjectsPage() {
         return;
       }
       const { id } = (await result.json()) as { id: string };
-      // Hand the description to the editor as the seeded first message (the
-      // unified "describe it" step). Chat reads + clears this on mount.
-      const desc = description.trim();
-      if (desc) {
-        try {
-          localStorage.setItem(`vibeedit:seed:${id}`, desc);
-        } catch {
-          // non-fatal
-        }
-      }
       router.push(`/app/projects/${id}/edit`);
     } catch (err) {
       setCreateError((err as Error).message || "Could not create project — check your connection.");
@@ -245,6 +228,13 @@ export default function ProjectsPage() {
   return (
     <>
       {showOnboarding && <Onboarding onDone={() => setShowOnboarding(false)} />}
+      {showCreate && (
+        <CreateProjectModal
+          creating={creating}
+          onClose={() => setShowCreate(false)}
+          onCreate={create}
+        />
+      )}
 
       <div className="flex min-h-screen flex-col bg-[var(--color-bg)]">
         {/* ── Header ─────────────────────────────────────────────── */}
@@ -326,58 +316,7 @@ export default function ProjectsPage() {
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
           {/* ── New project ─────────────────────────────────────── */}
           <section className="mb-10">
-            {/* Row 1: name + platform picker */}
-            <div className="mb-4 flex flex-wrap items-center gap-3">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") create();
-                }}
-                placeholder="Name your project (optional)…"
-                className="max-w-xs flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2 text-sm outline-none transition-colors placeholder:text-[var(--color-fg-subtle)] focus:border-[var(--color-accent)]"
-              />
-              {/* Platform picker */}
-              <div className="flex items-center gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-1">
-                {(["youtube", "tiktok", "instagram", "linkedin"] as const).map((p) => {
-                  const meta = PLATFORM_META[p];
-                  return (
-                    <button
-                      key={p}
-                      onClick={() => setPlatform(p)}
-                      title={`${meta.label} (${meta.ratio})`}
-                      className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all ${
-                        platform === p
-                          ? "bg-[var(--color-accent)] text-black shadow-sm"
-                          : "text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
-                      }`}
-                    >
-                      <span className="hidden sm:inline">{meta.label}</span>
-                      <span className="sm:hidden">{meta.shortLabel}</span>
-                      <span
-                        className={`font-mono text-[9px] opacity-70 ${platform === p ? "opacity-60" : ""}`}
-                      >
-                        {meta.ratio}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Row 1.5: describe it — seeds the first chat message */}
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) create();
-              }}
-              rows={2}
-              placeholder="Describe the video you want (optional) — e.g. “a punchy 30s explainer about our pricing change” or “tighten my uploaded clip and add captions”. ⌘↵ to create."
-              className="mb-4 w-full resize-none rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2.5 text-sm outline-none transition-colors placeholder:text-[var(--color-fg-subtle)] focus:border-[var(--color-accent)]"
-            />
-
-            {/* Row 2: single new-project action */}
+            {/* Single new-project action — opens the create modal */}
             <NewProjectCard
               icon={
                 <svg
@@ -395,10 +334,13 @@ export default function ProjectsPage() {
                 </svg>
               }
               title="New project"
-              description="Upload clips to edit, or describe a scene to generate from scratch — the agent figures out what to do from your first message."
+              description="Pick a name and a format — then build it in the editor with the AI."
               accent
               disabled={creating}
-              onClick={() => create()}
+              onClick={() => {
+                setCreateError(null);
+                setShowCreate(true);
+              }}
             />
             {createError && (
               <div className="mt-3 rounded-xl border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/8 px-4 py-2.5 text-xs text-[var(--color-danger)]">
@@ -559,6 +501,187 @@ function NewProjectCard({
         <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-fg-muted)]">{description}</p>
       </div>
     </button>
+  );
+}
+
+/* ── CreateProjectModal ───────────────────────────────────────────────────── */
+const NAME_ADJECTIVES = [
+  "Crimson",
+  "Golden",
+  "Violet",
+  "Neon",
+  "Amber",
+  "Cobalt",
+  "Silver",
+  "Emerald",
+  "Midnight",
+  "Solar",
+  "Electric",
+  "Velvet",
+  "Coral",
+  "Lunar",
+  "Scarlet",
+  "Azure",
+  "Radiant",
+  "Onyx",
+];
+const NAME_NOUNS = [
+  "Harbor",
+  "Circuit",
+  "Vortex",
+  "Falcon",
+  "Ember",
+  "Summit",
+  "Comet",
+  "Atlas",
+  "Prism",
+  "Nomad",
+  "Echo",
+  "Horizon",
+  "Cascade",
+  "Beacon",
+  "Meridian",
+  "Pulse",
+  "Signal",
+  "Aurora",
+];
+function randomProjectName(): string {
+  const adjective = NAME_ADJECTIVES[Math.floor(Math.random() * NAME_ADJECTIVES.length)];
+  const noun = NAME_NOUNS[Math.floor(Math.random() * NAME_NOUNS.length)];
+  return `${adjective} ${noun}`;
+}
+
+const FORMATS = [
+  {
+    ratio: "16:9",
+    label: "Landscape",
+    sub: "YouTube · 1920×1080",
+    platform: "youtube",
+    box: "h-5 w-8",
+  },
+  {
+    ratio: "9:16",
+    label: "Vertical",
+    sub: "TikTok · Reels · Shorts",
+    platform: "tiktok",
+    box: "h-8 w-5",
+  },
+  { ratio: "1:1", label: "Square", sub: "Instagram feed", platform: "instagram", box: "h-6 w-6" },
+] as const;
+
+function CreateProjectModal({
+  creating,
+  onClose,
+  onCreate,
+}: {
+  creating: boolean;
+  onClose: () => void;
+  onCreate: (opts: { name: string; platform: string; aspectRatio: string }) => void;
+}) {
+  const [name, setName] = useState(() => randomProjectName());
+  const [format, setFormat] = useState<(typeof FORMATS)[number]>(FORMATS[0]);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function submit() {
+    onCreate({
+      name: name.trim() || randomProjectName(),
+      platform: format.platform,
+      aspectRatio: format.ratio,
+    });
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+    >
+      <div
+        onClick={(event) => event.stopPropagation()}
+        className="w-full max-w-md overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl"
+      >
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
+          <h2 className="font-semibold text-[var(--color-fg)]">New project</h2>
+          <button
+            onClick={onClose}
+            title="Close (Esc)"
+            className="rounded-lg px-2 py-1 text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="p-5">
+          <label className="mb-1.5 block text-xs font-medium text-[var(--color-fg-muted)]">
+            Name
+          </label>
+          <div className="mb-5 flex gap-2">
+            <input
+              autoFocus
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") submit();
+              }}
+              className="flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] px-3.5 py-2.5 text-sm outline-none focus:border-[var(--color-accent)]"
+            />
+            <button
+              type="button"
+              onClick={() => setName(randomProjectName())}
+              title="Shuffle name"
+              className="shrink-0 rounded-xl border border-[var(--color-border)] px-3 text-sm text-[var(--color-fg-muted)] transition-colors hover:text-[var(--color-fg)]"
+            >
+              🎲
+            </button>
+          </div>
+
+          <label className="mb-1.5 block text-xs font-medium text-[var(--color-fg-muted)]">
+            Format
+          </label>
+          <div className="mb-5 grid grid-cols-3 gap-2">
+            {FORMATS.map((f) => {
+              const selected = format.ratio === f.ratio;
+              return (
+                <button
+                  key={f.ratio}
+                  type="button"
+                  onClick={() => setFormat(f)}
+                  title={f.sub}
+                  className={`flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 text-center transition-colors ${
+                    selected
+                      ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10"
+                      : "border-[var(--color-border)] hover:border-[var(--color-border-2)]"
+                  }`}
+                >
+                  <span
+                    className={`rounded-sm border ${f.box} ${
+                      selected ? "border-[var(--color-accent)]" : "border-[var(--color-fg-subtle)]"
+                    }`}
+                  />
+                  <span className="text-xs font-semibold text-[var(--color-fg)]">{f.label}</span>
+                  <span className="font-mono text-[9px] text-[var(--color-fg-subtle)]">
+                    {f.ratio}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={submit}
+            disabled={creating}
+            className="w-full rounded-xl bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {creating ? "Creating…" : "Create project"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -5,10 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/lib/auth-client";
 import { Chat } from "@/components/editor/Chat";
-import { FilesDrawer } from "@/components/editor/FilesDrawer";
-import { EffectsPanel } from "@/components/editor/EffectsPanel";
+import { AssetsPanel } from "@/components/editor/AssetsPanel";
 import { KeySetupBanner } from "@/components/editor/KeySetupBanner";
-import { EditHistory } from "@/components/editor/EditHistory";
 import { HistoryPanel } from "@/components/editor/HistoryPanel";
 import { CodePane } from "@/components/editor/CodePane";
 import { RenderPanel } from "@/components/editor/RenderPanel";
@@ -26,7 +24,7 @@ export default function EditorPage({ params }: PageProps) {
   const [projectName, setProjectName] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [showTour, setShowTour] = useState(false);
-  const [rightTab, setRightTab] = useState<"files" | "history" | "effects" | "code">("files");
+  const [rightTab, setRightTab] = useState<"assets" | "history" | "code">("assets");
   const [devMode, setDevMode] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
   const [showSaveSnippet, setShowSaveSnippet] = useState(false);
@@ -152,7 +150,7 @@ export default function EditorPage({ params }: PageProps) {
     const next = !devMode;
     setDevMode(next);
     localStorage.setItem("vibeedit:devmode", next ? "1" : "0");
-    if (!next && rightTab === "code") setRightTab("files");
+    if (!next && rightTab === "code") setRightTab("assets");
   }
 
   if (isPending || !session) {
@@ -280,9 +278,9 @@ export default function EditorPage({ params }: PageProps) {
         {/* Tab bar */}
         <div className="flex shrink-0 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
           <button
-            onClick={() => setRightTab("files")}
+            onClick={() => setRightTab("assets")}
             className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
-              rightTab === "files"
+              rightTab === "assets"
                 ? "border-b-2 border-[var(--color-accent)] text-[var(--color-fg)]"
                 : "border-b-2 border-transparent text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
             }`}
@@ -300,7 +298,7 @@ export default function EditorPage({ params }: PageProps) {
             >
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
             </svg>
-            Files
+            Assets
           </button>
           <button
             onClick={() => setRightTab("history")}
@@ -326,29 +324,6 @@ export default function EditorPage({ params }: PageProps) {
               <path d="M12 7v5l4 2" />
             </svg>
             History
-          </button>
-          <button
-            onClick={() => setRightTab("effects")}
-            className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
-              rightTab === "effects"
-                ? "border-b-2 border-[var(--color-accent)] text-[var(--color-fg)]"
-                : "border-b-2 border-transparent text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
-            }`}
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z" />
-            </svg>
-            Store
           </button>
           {devMode && (
             <button
@@ -380,19 +355,14 @@ export default function EditorPage({ params }: PageProps) {
 
         {/* Panel content */}
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {rightTab === "files" ? (
-            <>
-              <EditHistory projectId={id} />
-              <FilesDrawer projectId={id} reloadKey={reloadKey} />
-            </>
+          {rightTab === "assets" ? (
+            <AssetsPanel projectId={id} reloadKey={reloadKey} />
           ) : rightTab === "history" ? (
             <HistoryPanel
               projectId={id}
               reloadKey={reloadKey}
               onRestored={() => setReloadKey((k) => k + 1)}
             />
-          ) : rightTab === "effects" ? (
-            <EffectsPanel />
           ) : (
             <CodePane projectId={id} reloadKey={reloadKey} />
           )}
@@ -426,7 +396,7 @@ export default function EditorPage({ params }: PageProps) {
           },
           {
             id: "files" as MobileTab,
-            label: "Files",
+            label: "Assets",
             icon: (
               <svg
                 width="18"

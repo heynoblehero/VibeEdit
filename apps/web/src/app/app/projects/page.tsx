@@ -68,6 +68,82 @@ const PLATFORM_META: Record<
   },
 };
 
+function menuIcon(children: React.ReactNode): React.ReactNode {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+
+const MENU_ITEMS: Array<{ href: string; label: string; icon: React.ReactNode }> = [
+  {
+    href: "/app/projects",
+    label: "Projects",
+    icon: menuIcon(
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </>,
+    ),
+  },
+  {
+    href: "/app/renders",
+    label: "Renders",
+    icon: menuIcon(<polygon points="5 3 19 12 5 21 5 3" />),
+  },
+  {
+    href: "/app/effects",
+    label: "Store",
+    icon: menuIcon(
+      <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z" />,
+    ),
+  },
+  {
+    href: "/app/snippets",
+    label: "Snippets",
+    icon: menuIcon(
+      <>
+        <path d="m7 8-4 4 4 4" />
+        <path d="m17 8 4 4-4 4" />
+        <path d="m14 4-4 16" />
+      </>,
+    ),
+  },
+  {
+    href: "/app/settings/account",
+    label: "Settings",
+    icon: menuIcon(
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8 7 17M17 7l2.8-2.8" />
+      </>,
+    ),
+  },
+  {
+    href: "/app/billing",
+    label: "Billing",
+    icon: menuIcon(
+      <>
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <line x1="2" y1="10" x2="22" y2="10" />
+      </>,
+    ),
+  },
+];
+
 export default function ProjectsPage() {
   const router = useRouter();
   const toast = useToast();
@@ -318,21 +394,15 @@ export default function ProjectsPage() {
                         )}
                       </Link>
                     )}
-                    {[
-                      { href: "/app/projects", label: "Projects" },
-                      { href: "/app/renders", label: "Renders" },
-                      { href: "/app/effects", label: "Effects" },
-                      { href: "/app/snippets", label: "Snippets" },
-                      { href: "/app/settings/account", label: "Settings" },
-                      { href: "/app/billing", label: "Billing" },
-                    ].map((item) => (
+                    {MENU_ITEMS.map((item) => (
                       <Link
                         key={item.href}
                         href={item.href}
                         role="menuitem"
                         onClick={() => setMenuOpen(false)}
-                        className="block px-4 py-2.5 text-sm text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)]"
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg)]"
                       >
+                        <span className="text-[var(--color-fg-subtle)]">{item.icon}</span>
                         {item.label}
                       </Link>
                     ))}

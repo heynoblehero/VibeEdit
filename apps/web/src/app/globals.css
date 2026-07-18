@@ -2,30 +2,46 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap");
 
 @theme {
-  /* Core palette */
-  --color-bg: #070709;
-  --color-bg-2: #0c0c11;
-  --color-surface: #12121a;
-  --color-surface-2: #1a1a25;
-  --color-border: #1e1e2c;
-  --color-border-2: #2a2a3a;
+  /* Core palette — dark with a cool indigo undertone and CLEAR elevation steps
+     so surfaces read as distinct layers instead of melting into the background. */
+  --color-bg: #0a0a12;
+  --color-bg-2: #12121d;
+  --color-surface: #1b1b28;
+  --color-surface-2: #262636;
+  --color-border: #2f2f44;
+  --color-border-2: #414159;
 
-  /* Foreground */
-  --color-fg: #eeeef2;
-  --color-fg-muted: #8888a0;
-  --color-fg-subtle: #55556a;
+  /* Foreground — lifted to meet WCAG AA on the dark base (the old subtle grays
+     were ~3:1 and hard to read). */
+  --color-fg: #f3f3f8;
+  --color-fg-muted: #a7a7c0;
+  --color-fg-subtle: #7c7c99;
 
-  /* Brand */
+  /* Brand — lime primary, kept, with warmer coral as the secondary. */
   --color-accent: #d4ff3a;
   --color-accent-dim: #d4ff3a22;
-  --color-accent-2: #ff5f5f;
+  --color-accent-2: #ff6b6b;
   --color-success: #4ade80;
   --color-danger: #f87171;
+  --color-warning: #fbbf24;
   --color-info: #60a5fa;
 
-  /* Glow radii for elements */
-  --glow-accent: 0 0 40px #d4ff3a18;
-  --glow-accent-sm: 0 0 16px #d4ff3a14;
+  /* Category colors — for asset-type / store coding + a colorful, fun feel.
+     video = cyan, audio = amber, image = violet, effects = pink, text = lime. */
+  --color-cat-video: #38bdf8;
+  --color-cat-audio: #fbbf24;
+  --color-cat-image: #a855f7;
+  --color-cat-fx: #f472b6;
+  --color-cat-text: #d4ff3a;
+  --color-violet: #8b5cf6;
+
+  /* Signature gradients for hero/CTA/brand moments (bold + energetic). */
+  --gradient-brand: linear-gradient(135deg, #d4ff3a 0%, #8b5cf6 100%);
+  --gradient-accent: linear-gradient(135deg, #eaffb0 0%, #d4ff3a 55%, #a3e635 100%);
+
+  /* Glows — a touch stronger so accents actually glow. */
+  --glow-accent: 0 0 44px #d4ff3a2e;
+  --glow-accent-sm: 0 0 18px #d4ff3a22;
 }
 
 html,

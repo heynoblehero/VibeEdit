@@ -22,6 +22,16 @@ const CATEGORY_LABELS: Record<string, string> = {
   motion: "Motion FX",
 };
 
+// Per-category accent colour so the store reads as colourful + scannable.
+const CATEGORY_COLOR: Record<string, string> = {
+  all: "var(--color-accent)",
+  overlay: "var(--color-cat-fx)",
+  transition: "var(--color-violet)",
+  background: "var(--color-cat-video)",
+  sfx: "var(--color-cat-audio)",
+  motion: "var(--color-cat-text)",
+};
+
 /**
  * In-editor Effects Store. The project is already open, so clicking an effect
  * asks the agent to add it to the current project via a vibeedit:send-prompt
@@ -87,20 +97,40 @@ export function EffectsPanel() {
     <div className="flex flex-col">
       {/* Filter chips */}
       <div className="sticky top-0 z-10 flex gap-1.5 overflow-x-auto border-b border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2">
-        {filters.map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setActive(f)}
-            className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
-              active === f
-                ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
-                : "border-[var(--color-border)] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
-            }`}
-          >
-            {CATEGORY_LABELS[f] ?? f}
-          </button>
-        ))}
+        {filters.map((f) => {
+          const color = CATEGORY_COLOR[f] ?? "var(--color-accent)";
+          const on = active === f;
+          return (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setActive(f)}
+              style={
+                on
+                  ? {
+                      borderColor: color,
+                      color,
+                      backgroundColor: "color-mix(in srgb, " + color + " 12%, transparent)",
+                    }
+                  : undefined
+              }
+              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                on
+                  ? ""
+                  : "border-[var(--color-border)] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+              }`}
+            >
+              {f !== "all" && (
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: color }}
+                  aria-hidden="true"
+                />
+              )}
+              {CATEGORY_LABELS[f] ?? f}
+            </button>
+          );
+        })}
       </div>
 
       <p className="px-3 pt-2.5 text-[11px] text-[var(--color-fg-subtle)]">

@@ -585,26 +585,26 @@ function NewProjectCard({
     <button
       disabled={disabled}
       onClick={onClick}
-      className={`group flex items-start gap-4 rounded-2xl border p-5 text-left transition-all duration-200 disabled:opacity-60 sm:p-6 ${
+      className={`group relative flex items-center gap-4 overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200 disabled:opacity-60 sm:p-6 ${
         accent
-          ? "border-[var(--color-accent)]/25 bg-[var(--color-accent)]/5 hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-accent)]/10"
+          ? "border-[var(--color-accent)]/40 bg-gradient-to-br from-[var(--color-accent)]/12 via-[var(--color-surface)] to-[var(--color-violet)]/12 hover:border-[var(--color-accent)]/70 hover:shadow-[var(--glow-accent)]"
           : "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-border-2)] hover:bg-[var(--color-surface-2)]"
       }`}
     >
       <div
-        className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105 ${
+        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-110 group-hover:rotate-6 ${
           accent
-            ? "bg-[var(--color-accent)]/15 text-[var(--color-accent)]"
+            ? "bg-[var(--color-accent)] text-black shadow-[var(--glow-accent-sm)]"
             : "bg-[var(--color-bg-2)] text-[var(--color-fg-muted)] group-hover:text-[var(--color-accent)]"
         }`}
       >
         {icon}
       </div>
-      <div>
+      <div className="min-w-0 flex-1">
         <div
-          className={`font-semibold transition-colors ${
+          className={`text-base font-bold transition-colors ${
             accent
-              ? "text-[var(--color-accent)]"
+              ? "text-[var(--color-fg)]"
               : "text-[var(--color-fg)] group-hover:text-[var(--color-accent)]"
           }`}
         >
@@ -612,6 +612,11 @@ function NewProjectCard({
         </div>
         <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-fg-muted)]">{description}</p>
       </div>
+      {accent && !disabled && (
+        <span className="shrink-0 text-2xl text-[var(--color-accent)] opacity-0 transition-all duration-200 group-hover:translate-x-1 group-hover:opacity-100">
+          →
+        </span>
+      )}
     </button>
   );
 }

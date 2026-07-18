@@ -32,10 +32,13 @@ export type ApiKeys = Partial<Record<"replicate" | "elevenlabs" | "anthropic", s
 
 export class ProviderNotConfiguredError extends Error {
   constructor(model: ModelEntry) {
-    const need = model.official
-      ? `set ${model.credentialEnv ?? "the provider API key"}`
-      : `set ${model.endpointEnv} (proxy URL) and ${model.credentialEnv} (token/cookie)`;
-    super(`${model.label} isn't configured yet — an admin needs to ${need}.`);
+    // Generation is bring-your-own-key: official providers need the user's own
+    // API key; the unofficial proxy models simply aren't available on BYOK.
+    super(
+      model.official
+        ? `${model.label} needs your own API key — add your ${model.provider} key in Settings → API keys, then try again.`
+        : `${model.label} isn't available.`,
+    );
     this.name = "ProviderNotConfiguredError";
   }
 }

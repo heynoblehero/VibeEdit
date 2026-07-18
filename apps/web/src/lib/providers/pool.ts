@@ -74,15 +74,25 @@ export function markCredentialFailed(id: string, reason: string): void {
 
 // Resolve a plain API key for a provider: managed pool → BYOK → env var.
 // Returns undefined if none is available anywhere.
+// Providers the PLATFORM pays for and always resolves from the pool/env: the
+// agent brain + vision (anthropic) and free stock search (pexels). Everything
+// else is a paid GENERATION provider the user must bring their own key for
+// (BYOK) — no pool/env fallback, so generation is gated on a user-supplied key.
+const PLATFORM_PROVIDERS = new Set(["anthropic", "pexels"]);
+
 export function resolveApiKey(
   provider: string,
   envVar?: string,
   byok?: string,
 ): string | undefined {
-  const managed = getManagedCredential(provider);
-  if (managed?.secret) return managed.secret;
-  if (byok) return byok;
-  return envVar ? process.env[envVar] : undefined;
+  if (PLATFORM_PROVIDERS.has(provider)) {
+    const managed = getManagedCredential(provider);
+    if (managed?.secret) return managed.secret;
+    if (byok) return byok;
+    return envVar ? process.env[envVar] : undefined;
+  }
+  // Generation providers are BYOK-required — only the user's own key counts.
+  return byok || undefined;
 }
 
 // True if the pool has at least one enabled credential for the provider.

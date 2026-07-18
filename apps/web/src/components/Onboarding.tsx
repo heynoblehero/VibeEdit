@@ -287,6 +287,15 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
               </div>
             </section>
 
+            <div className="mb-6 flex items-start gap-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-2)] px-4 py-3 text-xs text-[var(--color-fg-muted)]">
+              <span aria-hidden="true">🔑</span>
+              <span>
+                To generate AI images, video &amp; voiceover, add your own provider keys later in{" "}
+                <span className="font-medium text-[var(--color-fg)]">Settings → API keys</span>. The
+                editor, chat, and renders all work without them.
+              </span>
+            </div>
+
             <div className="flex items-center justify-between">
               <button
                 onClick={() => setStep("preferences")}

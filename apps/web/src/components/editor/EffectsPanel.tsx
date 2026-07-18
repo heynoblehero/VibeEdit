@@ -127,6 +127,9 @@ export function EffectsPanel() {
               className="group flex flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-left transition-colors hover:border-[var(--color-accent)]/50"
             >
               <span className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--color-bg-2)]">
+                <span className="absolute left-1 top-1 z-10 rounded bg-[var(--color-accent)]/90 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-black">
+                  Free
+                </span>
                 {/* Hover-to-load preview so we don't mount dozens of iframes/webps at once */}
                 {isHovered && item.kind === "code" ? (
                   <iframe

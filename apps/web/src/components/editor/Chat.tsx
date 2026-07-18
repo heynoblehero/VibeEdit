@@ -19,76 +19,6 @@ import { MessageBubble, VideoMessageCard } from "./chat/MessageView";
 // shown on the queue chip.
 type QueuedInstruction = { id: string; message: string; display: string };
 
-const SAMPLE_PROMPTS: Array<{
-  tag: string;
-  ratio: "9:16" | "16:9";
-  niche: string;
-  prompt: string;
-}> = [
-  {
-    tag: "Remove filler words",
-    ratio: "16:9",
-    niche: "youtube",
-    prompt:
-      "I just uploaded an interview clip. Transcribe it, find all the 'um', 'uh', and long pauses over 0.4s, cut them out cleanly on word boundaries, burn sync'd captions (2 words, uppercase, white pill), warm grade, −14 LUFS output.",
-  },
-  {
-    tag: "Highlight reel",
-    ratio: "9:16",
-    niche: "shorts",
-    prompt:
-      "Turn the uploaded footage into a punchy 45-second highlight reel for Instagram Reels. Bold uppercase captions, tight cuts, no dead air, sync to the beat of the uploaded music track.",
-  },
-  {
-    tag: "Auto captions",
-    ratio: "9:16",
-    niche: "shorts",
-    prompt:
-      "Transcribe the uploaded video and burn sync'd captions — 2 words at a time, all caps, white text with a semi-transparent black pill background. Export as 9:16 for TikTok.",
-  },
-  {
-    tag: "YouTube intro",
-    ratio: "16:9",
-    niche: "youtube",
-    prompt:
-      "Make a 10-second 1920x1080 YouTube channel intro. Dark background, channel name 'NOVA' slams in with a light-speed trail effect, logo smash on beat. Cinematic and bold.",
-  },
-  {
-    tag: "Wedding highlight",
-    ratio: "16:9",
-    niche: "wedding",
-    prompt:
-      "Edit the uploaded wedding footage into a 2-minute highlight reel. Warm cinematic grade, slow crossfades, mix in the uploaded music track, add title cards for each key moment — ceremony, first dance, speeches.",
-  },
-  {
-    tag: "Tutorial cleanup",
-    ratio: "16:9",
-    niche: "education",
-    prompt:
-      "Clean up this screen-recording tutorial: cut the dead air and filler words, normalize audio to −14 LUFS, add an animated lower-third with my name and the topic, export 1080p.",
-  },
-  {
-    tag: "Speed ramp",
-    ratio: "9:16",
-    niche: "content",
-    prompt:
-      "Take the uploaded clip and ramp speed to 3× during the slow parts, snapping back to 1× at the action moments. Drop a dramatic music hit at the slowest frame. Export 9:16.",
-  },
-  {
-    tag: "Lower-third titles",
-    ratio: "16:9",
-    niche: "corporate",
-    prompt:
-      "Add animated lower-third name titles to each speaker segment in this interview. 'Jane Smith · CEO' fades in at the bottom-left — clean white text on a dark translucent bar. Corporate style.",
-  },
-];
-
-type UserPrefs = {
-  niche: string | null;
-  formatPreference: string | null;
-  onboardingCompleted: boolean;
-};
-
 type SlashCommand =
   | { kind: "action"; cmd: string; icon: string; label: string; desc: string }
   | { kind: "prompt"; cmd: string; icon: string; label: string; desc: string; text: string };
@@ -200,7 +130,6 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
   // them. The protocol degrades gracefully — see chat/useChatStream.ts.
   const { busy, live, activity, paywall, dismissPaywall, runStream, resumeStream } =
     useChatStream();
-  const [prefs, setPrefs] = useState<UserPrefs | null>(null);
   const [editingAt, setEditingAt] = useState<number | null>(null);
   const [attachedAssets, setAttachedAssets] = useState<string[]>([]);
   // Pending instructions the user fired while a run was in flight. They pipeline
@@ -396,12 +325,6 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
     if (!busy && queueRef.current.length > 0) drainRef.current();
   }, [busy]);
 
-  useEffect(() => {
-    fetch("/api/onboarding")
-      .then((r) => (r.ok ? r.json() : null))
-      .then(setPrefs);
-  }, []);
-
   // Project aspect ratio — sizes the inline per-version snapshot players so
   // vertical (9:16) and square comps aren't letterboxed into 16:9 cards.
   useEffect(() => {
@@ -587,7 +510,6 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
   }
   sendRef.current = send;
 
-  const showSamples = messages.length === 0 && !busy;
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
   const showChips = !busy && lastAssistant !== undefined;
 
@@ -726,7 +648,6 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
         className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4"
       >
         <div className="mx-auto w-full min-w-0 max-w-3xl space-y-2">
-          {showSamples && <SamplePromptCards prefs={prefs} onPick={(text) => send(text)} />}
           {messages.map((message, index) => {
             const versionSnapshotId = message.role === "assistant" ? message.snapshotId : null;
             const isLatestVersion = !!versionSnapshotId && versionSnapshotId === latestSnapshotId;
@@ -1084,132 +1005,6 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
   );
 }
 
-const GUIDE_KEY = "vibeedit:guide-seen";
-
-const GUIDE_STEPS = [
-  { icon: "✏️", title: "Describe it", sub: "Type what you want in plain English" },
-  { icon: "⚙️", title: "Watch it build", sub: "Agent writes every scene automatically" },
-  { icon: "▶️", title: "Render & export", sub: "Hit Render MP4 when you're happy" },
-];
-
-function FirstVisitGuide() {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    if (!localStorage.getItem(GUIDE_KEY)) setVisible(true);
-  }, []);
-
-  if (!visible) return null;
-
-  function dismiss() {
-    localStorage.setItem(GUIDE_KEY, "1");
-    setVisible(false);
-  }
-
-  return (
-    <div className="rounded-xl border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5 p-3">
-      <div className="mb-2.5 flex items-center justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-accent)]">
-          How it works
-        </span>
-        <button
-          onClick={dismiss}
-          className="text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
-          title="Dismiss"
-          aria-label="Dismiss guide"
-          onKeyDown={(event) => event.key === "Enter" && dismiss()}
-        >
-          ✕
-        </button>
-      </div>
-      <div className="grid grid-cols-3 gap-2 text-center">
-        {GUIDE_STEPS.map((step, i) => (
-          <div key={step.title} className="rounded-lg bg-[var(--color-bg-2)] p-2">
-            <div className="mb-1.5 text-base">{step.icon}</div>
-            <div className="text-[11px] font-semibold text-[var(--color-fg)]">{step.title}</div>
-            <div className="mt-0.5 text-[9px] leading-snug text-[var(--color-fg-muted)]">
-              {step.sub}
-            </div>
-            <div className="mt-1.5 text-[9px] font-bold text-[var(--color-accent)]/60">{i + 1}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SamplePromptCards({
-  prefs,
-  onPick,
-}: {
-  prefs: UserPrefs | null;
-  onPick: (text: string) => void;
-}) {
-  const ordered = orderForPrefs(SAMPLE_PROMPTS, prefs);
-  return (
-    <div className="space-y-3">
-      <FirstVisitGuide />
-      <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-subtle)]">
-        {prefs?.niche ? `Picks for ${humanNiche(prefs.niche)}` : "Start with a prompt"}
-      </div>
-      <div className="grid grid-cols-1 gap-1.5">
-        {ordered.map((sample) => (
-          <button
-            key={sample.tag}
-            onClick={() => onPick(sample.prompt)}
-            className="group rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-left transition-all hover:border-[var(--color-accent)]/40 hover:bg-[var(--color-surface-2)]"
-          >
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-xs font-semibold text-[var(--color-fg)] group-hover:text-[var(--color-accent)]">
-                {sample.tag}
-              </span>
-              <span className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg-2)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--color-fg-muted)]">
-                {sample.ratio}
-              </span>
-            </div>
-            <div className="line-clamp-2 text-[11px] leading-snug text-[var(--color-fg-muted)]">
-              {sample.prompt}
-            </div>
-          </button>
-        ))}
-      </div>
-      <div className="pt-1 text-center text-[9px] text-[var(--color-fg-subtle)]">
-        or type your own prompt below
-      </div>
-    </div>
-  );
-}
-
-function orderForPrefs(
-  samples: typeof SAMPLE_PROMPTS,
-  prefs: UserPrefs | null,
-): typeof SAMPLE_PROMPTS {
-  if (!prefs) return samples;
-  const scored = samples
-    .map((sample) => {
-      let score = 0;
-      if (prefs.niche && prefs.niche === sample.niche) score += 10;
-      if (prefs.formatPreference === sample.ratio) score += 5;
-      if (prefs.formatPreference === "both") score += 1;
-      return { sample, score };
-    })
-    .sort((a, b) => b.score - a.score);
-  return scored.map((s) => s.sample);
-}
-
-function humanNiche(niche: string): string {
-  const map: Record<string, string> = {
-    youtube: "YouTube",
-    shorts: "Shorts / Reels",
-    wedding: "weddings & events",
-    corporate: "corporate & brand",
-    education: "tutorials",
-    documentary: "documentary & film",
-    content: "content creation",
-    other: "your workflow",
-  };
-  return map[niche] || "your workflow";
-}
 function SlashCommandMenu({
   input,
   selectedIndex,

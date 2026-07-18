@@ -15,12 +15,12 @@ const OG_IMAGE =
 export const metadata: Metadata = {
   title: "Pricing — VibeEdit",
   description:
-    "One credit currency, the full AI video editor on every plan. Pick your monthly volume. 7-day trial on all plans.",
+    "The full AI video editor on every plan. Credits cover edits, renders, and storage; AI generation is bring-your-own-key. 7-day trial on all plans.",
   alternates: { canonical: "/pricing" },
   openGraph: {
     title: "VibeEdit Pricing — Every tool, every tier",
     description:
-      "The full AI video editor on every plan. Credits power every action. 7-day trial on all plans.",
+      "The full AI video editor on every plan. Credits cover edits, renders & storage; generation is BYOK. 7-day trial on all plans.",
     type: "website",
     url: "/pricing",
     siteName: "VibeEdit",
@@ -29,13 +29,15 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "VibeEdit Pricing — Every tool, every tier",
-    description: "The full AI editor on every plan. Credits power every action. 7-day trial.",
+    description:
+      "The full AI editor on every plan. Credits cover edits, renders & storage; generation is BYOK. 7-day trial.",
     images: [OG_IMAGE],
   },
 };
 
-// ~credits a typical 60s video costs (1 edit + 60s render + 3 images + 60s VO).
-const CREDITS_PER_VIDEO = 56;
+// ~credits a typical 60s video costs now that generation is BYOK: a handful of
+// AI edits + a 60s final render (2 × 30s). Generation runs on the user's keys.
+const CREDITS_PER_VIDEO = 3 * DEFAULT_CREDIT_COSTS.edit + 2 * DEFAULT_CREDIT_COSTS.render_30s;
 
 const PLAN_CARDS = [
   {
@@ -58,16 +60,15 @@ const PLAN_CARDS = [
   },
 ];
 
-// What each action spends. Sourced from the live cost table so it never drifts.
+// What each action spends. Credits cover the things we host for you — AI edits,
+// renders, storage. AI generation runs on your own provider keys (BYOK), so it
+// doesn't spend credits. Sourced from the live cost table so it never drifts.
 const COST_ROWS: Array<{ action: string; cost: string }> = [
   { action: "AI edit (per request)", cost: `${DEFAULT_CREDIT_COSTS.edit} credits` },
   { action: "Final render (per 30s)", cost: `${DEFAULT_CREDIT_COSTS.render_30s} credits` },
   { action: "Draft render / preview", cost: "Free" },
-  { action: "AI image", cost: `${DEFAULT_CREDIT_COSTS.image} credits` },
-  { action: "AI b-roll clip (video gen)", cost: `${DEFAULT_CREDIT_COSTS.broll} credits` },
-  { action: "AI voiceover (per 30s)", cost: `${DEFAULT_CREDIT_COSTS.voiceover_30s} credits` },
-  { action: "AI music track", cost: `${DEFAULT_CREDIT_COSTS.music} credits` },
   { action: "Auto-captions & transcription", cost: "Free" },
+  { action: "AI generation — image, video, voice, music", cost: "Your own key" },
 ];
 
 const FAQS = [
@@ -77,7 +78,11 @@ const FAQS = [
   },
   {
     q: "What's a credit?",
-    a: "One currency for everything. Each action — an AI edit, a render, an image, a voiceover — spends credits from your monthly balance. See the table above for exact costs.",
+    a: "Credits cover the things we host for you: AI edits, final renders, and storage. Each action spends credits from your monthly balance — see the table above for exact costs.",
+  },
+  {
+    q: "Do I need my own API keys?",
+    a: "For AI generation — images, video, voiceover, and music — yes. Add your provider keys (Replicate, ElevenLabs, etc.) in Settings → API keys and you pay those providers directly at cost. The editor, chat, renders, and captions all work without any keys.",
   },
   {
     q: "What happens when I run out of credits?",
@@ -89,7 +94,7 @@ const FAQS = [
   },
   {
     q: "Is every feature on every plan?",
-    a: "Yes. The entire editor — 4K exports, every AI tool, no watermark — is unlocked on all three plans. The only difference is how many credits you get each month.",
+    a: "Yes. The entire editor — 4K exports, every AI tool, no watermark — is unlocked on all three plans. The only difference is how many credits you get each month. AI generation is bring-your-own-key on every plan.",
   },
   {
     q: "Can I cancel any time?",
@@ -131,8 +136,9 @@ export default function PricingPage() {
           Every tool. Every tier.
         </h1>
         <p className="mx-auto mt-5 max-w-xl text-lg text-[var(--color-fg-muted)]">
-          The full AI video editor is unlocked on every plan — 4K, no watermark, every tool. One
-          credit currency powers every action. Just pick your monthly volume.
+          The full AI video editor is unlocked on every plan — 4K, no watermark, every tool. Credits
+          power your edits, renders, and storage; AI generation runs on your own keys. Just pick
+          your monthly volume.
         </p>
         <p className="mt-3 text-sm text-[var(--color-fg-muted)]">
           7-day trial on every plan · cancel any time

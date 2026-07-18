@@ -6,6 +6,8 @@ import { HeroSandbox } from "@/components/landing/HeroSandbox";
 import { HowItWorksTabs } from "@/components/landing/HowItWorksTabs";
 import { NichePicker } from "@/components/landing/NichePicker";
 import { StatsBar } from "@/components/landing/StatsBar";
+import { UseCases } from "@/components/landing/UseCases";
+import { ShowcaseStrip } from "@/components/landing/ShowcaseStrip";
 
 export default function Home() {
   return (
@@ -61,10 +63,12 @@ export default function Home() {
               <span className="text-[var(--color-accent)]">Just by talking.</span>
             </h1>
 
-            <p className="mt-6 max-w-[460px] text-[1.05rem] leading-[1.7] text-[var(--color-fg-muted)]">
-              Drop in your footage and fix, cut, and restructure it by chatting — or spin up a whole
-              video from a sentence. No timeline. No tools to learn. You talk, the AI edits
-              underneath, and hands you a finished MP4.
+            <p className="mt-6 max-w-[460px] text-[1.1rem] leading-[1.7] text-[var(--color-fg-muted)]">
+              Drop in footage or start from a single sentence. You chat — the AI cuts, grades,
+              captions, and builds every scene, then hands you a finished MP4.{" "}
+              <span className="font-semibold text-[var(--color-fg)]">
+                No timeline, no tools to learn.
+              </span>
             </p>
 
             <p className="mt-5 flex items-center gap-2 text-sm font-medium text-[var(--color-accent)]">
@@ -114,6 +118,8 @@ export default function Home() {
       </section>
 
       <StatsBar />
+
+      <ShowcaseStrip />
 
       {/* ── THE BIG IDEA ──────────────────────────────────────────────────── */}
       <section className="border-y border-[var(--color-border)] bg-[var(--color-surface)]/50">
@@ -347,6 +353,8 @@ export default function Home() {
           </p>
         </div>
       </section>
+
+      <UseCases />
 
       {/* ── PRICING ───────────────────────────────────────────────────────── */}
       <section id="pricing" className="border-t border-[var(--color-border)]">

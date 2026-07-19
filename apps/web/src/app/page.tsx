@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Wordmark } from "@/components/Wordmark";
 import { MarketingNav } from "@/components/MarketingNav";
 import { WaitlistForm } from "@/components/WaitlistForm";
-import { HeroSandbox } from "@/components/landing/HeroSandbox";
 import { HowItWorksTabs } from "@/components/landing/HowItWorksTabs";
 import { NichePicker } from "@/components/landing/NichePicker";
 import { StatsBar } from "@/components/landing/StatsBar";
@@ -43,43 +42,30 @@ export default function Home() {
           />
         </div>
 
-        <div className="relative grid gap-12 lg:grid-cols-[1fr_1.15fr] lg:items-center lg:gap-20">
-          {/* Left col */}
-          <div className="animate-slide-up">
+        <div className="relative mx-auto max-w-3xl animate-slide-up text-center">
+          <div>
             {/* Badge */}
             <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[var(--color-border-2)] bg-[var(--color-surface)] px-3.5 py-1.5 text-xs font-medium text-[var(--color-fg-muted)]">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--color-accent)] opacity-60" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--color-accent)]" />
               </span>
-              Vibe coding, but for video · now in early access
+              The Adobe-killer · Premiere &amp; After Effects, by chat
             </div>
 
-            <h1 className="text-[clamp(2.6rem,6vw,4.5rem)] font-black leading-[1.04] tracking-[-0.03em] text-[var(--color-fg)]">
-              Make any video.
+            <h1 className="text-[clamp(2.6rem,6.5vw,5rem)] font-black leading-[1.02] tracking-[-0.03em] text-[var(--color-fg)]">
+              Everything Adobe does.
               <br />
               <span className="text-[var(--color-accent)]">Just by talking.</span>
             </h1>
 
-            <p className="mt-6 max-w-[460px] text-[1.15rem] leading-[1.7] text-[var(--color-fg-muted)]">
-              The easiest way to create videos — no timeline, no tools to learn. Describe what you
-              want, the AI builds every scene, and hands you a finished MP4.
+            <p className="mx-auto mt-6 max-w-2xl text-[1.15rem] leading-[1.7] text-[var(--color-fg-muted)]">
+              Cuts, color grades, motion graphics, effects, keyframes, audio — everything Premiere
+              and After Effects do, without the timeline. Describe it, the AI builds every scene,
+              and hands you a finished MP4.
             </p>
 
-            <p className="mt-5 flex items-center gap-2 text-sm font-medium text-[var(--color-accent)]">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 14 14"
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                <path d="M7 0l1.8 5.5H14l-4.6 3.4 1.8 5.5L7 11 2.8 14.4l1.8-5.5L0 5.5h5.2z" />
-              </svg>
-              Try it live — type a prompt in the sandbox →
-            </p>
-
-            <div className="mt-8">
+            <div className="mt-8 flex justify-center">
               <Link
                 href="/app/signup"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--color-accent)] px-8 py-4 text-base font-semibold text-black shadow-lg shadow-[var(--color-accent)]/20 transition-all hover:-translate-y-0.5 hover:opacity-95 hover:shadow-xl hover:shadow-[var(--color-accent)]/30"
@@ -103,11 +89,6 @@ export default function Home() {
             <p className="mt-4 text-xs text-[var(--color-fg-subtle)]">
               7-day trial · runs in your browser, no install · no editing skills needed
             </p>
-          </div>
-
-          {/* Right col — sandbox */}
-          <div className="animate-slide-up delay-150">
-            <HeroSandbox />
           </div>
         </div>
       </section>
@@ -138,13 +119,14 @@ export default function Home() {
         <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
           <div className="mb-14 text-center">
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-accent)]">
-              Capabilities
+              The full pro toolset
             </p>
             <h2 className="text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight">
-              What the agent can do.
+              Everything Premiere &amp; After Effects can do.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-[var(--color-fg-muted)]">
-              Every operation triggered from chat. No menus, no settings panels.
+              Cuts, grades, keyframes, motion graphics, effects, audio mixing — the whole
+              professional toolset, triggered from chat instead of a timeline. No menus, no panels.
             </p>
           </div>
 

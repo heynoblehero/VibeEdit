@@ -8,6 +8,7 @@ import { UsageMeter } from "@/components/UsageMeter";
 import { Onboarding } from "@/components/Onboarding";
 import { Wordmark } from "@/components/Wordmark";
 import { ConnectExtension } from "@/components/ConnectExtension";
+import { AppSidebar } from "@/components/AppSidebar";
 import { useToast } from "@/components/Toast";
 
 type Project = {
@@ -109,17 +110,6 @@ const MENU_ITEMS: Array<{ href: string; label: string; icon: React.ReactNode }> 
     label: "Store",
     icon: menuIcon(
       <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z" />,
-    ),
-  },
-  {
-    href: "/app/snippets",
-    label: "Snippets",
-    icon: menuIcon(
-      <>
-        <path d="m7 8-4 4 4 4" />
-        <path d="m17 8 4 4-4 4" />
-        <path d="m14 4-4 16" />
-      </>,
     ),
   },
   {
@@ -327,9 +317,11 @@ export default function ProjectsPage() {
         />
       )}
 
-      <div className="flex min-h-screen flex-col bg-[var(--color-bg)]">
-        {/* ── Header ─────────────────────────────────────────────── */}
-        <header className="sticky top-0 z-20 border-b border-[var(--color-border)] bg-[var(--color-bg)]/90 backdrop-blur-xl">
+      <AppSidebar />
+
+      <div className="flex min-h-screen flex-col bg-[var(--color-bg)] md:pl-[3.75rem]">
+        {/* ── Header (mobile only — desktop uses the sidebar) ─────── */}
+        <header className="sticky top-0 z-20 border-b border-[var(--color-border)] bg-[var(--color-bg)]/90 backdrop-blur-xl md:hidden">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
             {/* Logo */}
             <Link href="/app/projects">

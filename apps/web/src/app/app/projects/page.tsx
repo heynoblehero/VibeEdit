@@ -434,61 +434,57 @@ export default function ProjectsPage() {
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
-          {/* ── New project ─────────────────────────────────────── */}
-          <section className="mb-10">
-            {/* Single new-project action — opens the create modal */}
-            <NewProjectCard
-              icon={
-                <svg
-                  width="22"
-                  height="22"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
-                </svg>
-              }
-              title="New project"
-              description="Pick a name and a format — then build it in the editor with the AI."
-              accent
-              disabled={creating}
-              onClick={() => {
-                setCreateError(null);
-                setShowCreate(true);
-              }}
-            />
-            {createError && (
-              <div className="mt-3 rounded-xl border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/8 px-4 py-2.5 text-xs text-[var(--color-danger)]">
-                Could not create project: {createError}
-              </div>
-            )}
-          </section>
-
           {/* ── Project list ────────────────────────────────────── */}
           <section>
             <div className="mb-5 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-[var(--color-fg)]">Your projects</h2>
+                <h2 className="text-lg font-bold text-[var(--color-fg)]">Your projects</h2>
                 {projects.length > 0 && (
                   <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-0.5 text-xs text-[var(--color-fg-muted)]">
                     {projects.length}
                   </span>
                 )}
               </div>
-              {projects.length > 4 && (
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search…"
-                  className="w-44 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm outline-none focus:border-[var(--color-accent)]"
-                />
-              )}
+              <div className="flex items-center gap-2">
+                {projects.length > 4 && (
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search…"
+                    className="w-40 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] sm:w-44"
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateError(null);
+                    setShowCreate(true);
+                  }}
+                  disabled={creating}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-black shadow-[var(--glow-accent-sm)] transition-all hover:-translate-y-0.5 hover:opacity-95 disabled:opacity-50"
+                >
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                  {creating ? "Creating…" : "New project"}
+                </button>
+              </div>
             </div>
+            {createError && (
+              <div className="mb-4 rounded-xl border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/8 px-4 py-2.5 text-xs text-[var(--color-danger)]">
+                Could not create project: {createError}
+              </div>
+            )}
 
             {/* Empty states */}
             {filtered.length === 0 && projects.length === 0 && !projectsLoading && (
@@ -512,8 +508,31 @@ export default function ProjectsPage() {
                 </div>
                 <p className="font-semibold text-[var(--color-fg)]">No projects yet</p>
                 <p className="mt-1 text-sm text-[var(--color-fg-muted)]">
-                  Start a new project above to begin.
+                  Create your first video — pick a name and format, then build it with the AI.
                 </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateError(null);
+                    setShowCreate(true);
+                  }}
+                  className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-5 py-2.5 text-sm font-semibold text-black shadow-[var(--glow-accent-sm)] transition-all hover:-translate-y-0.5 hover:opacity-95"
+                >
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                  New project
+                </button>
               </div>
             )}
             {filtered.length === 0 && projects.length > 0 && (
@@ -570,62 +589,6 @@ function ProjectsSkeleton() {
         </div>
       ))}
     </div>
-  );
-}
-
-/* ── NewProjectCard ───────────────────────────────────────────────────────── */
-function NewProjectCard({
-  icon,
-  title,
-  description,
-  accent,
-  disabled,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  accent: boolean;
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      disabled={disabled}
-      onClick={onClick}
-      className={`group relative flex items-center gap-4 overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200 disabled:opacity-60 sm:p-6 ${
-        accent
-          ? "border-[var(--color-accent)]/40 bg-gradient-to-br from-[var(--color-accent)]/12 via-[var(--color-surface)] to-[var(--color-violet)]/12 hover:border-[var(--color-accent)]/70 hover:shadow-[var(--glow-accent)]"
-          : "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-border-2)] hover:bg-[var(--color-surface-2)]"
-      }`}
-    >
-      <div
-        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-110 group-hover:rotate-6 ${
-          accent
-            ? "bg-[var(--color-accent)] text-black shadow-[var(--glow-accent-sm)]"
-            : "bg-[var(--color-bg-2)] text-[var(--color-fg-muted)] group-hover:text-[var(--color-accent)]"
-        }`}
-      >
-        {icon}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div
-          className={`text-base font-bold transition-colors ${
-            accent
-              ? "text-[var(--color-fg)]"
-              : "text-[var(--color-fg)] group-hover:text-[var(--color-accent)]"
-          }`}
-        >
-          {disabled ? "Creating…" : title}
-        </div>
-        <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-fg-muted)]">{description}</p>
-      </div>
-      {accent && !disabled && (
-        <span className="shrink-0 text-2xl text-[var(--color-accent)] opacity-0 transition-all duration-200 group-hover:translate-x-1 group-hover:opacity-100">
-          →
-        </span>
-      )}
-    </button>
   );
 }
 

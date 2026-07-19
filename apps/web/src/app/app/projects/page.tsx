@@ -8,7 +8,6 @@ import { UsageMeter } from "@/components/UsageMeter";
 import { Onboarding } from "@/components/Onboarding";
 import { Wordmark } from "@/components/Wordmark";
 import { ConnectExtension } from "@/components/ConnectExtension";
-import { AppSidebar } from "@/components/AppSidebar";
 import { useToast } from "@/components/Toast";
 
 type Project = {
@@ -317,9 +316,7 @@ export default function ProjectsPage() {
         />
       )}
 
-      <AppSidebar />
-
-      <div className="flex min-h-screen flex-col bg-[var(--color-bg)] md:pl-[3.75rem]">
+      <div className="flex min-h-screen flex-col bg-[var(--color-bg)]">
         {/* ── Header (mobile only — desktop uses the sidebar) ─────── */}
         <header className="sticky top-0 z-20 border-b border-[var(--color-border)] bg-[var(--color-bg)]/90 backdrop-blur-xl md:hidden">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">

@@ -113,7 +113,7 @@ export default function AccountPage() {
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-8">
-      <header className="mb-8 flex flex-wrap items-center justify-between gap-3 sm:mb-10">
+      <header className="md:hidden mb-8 flex flex-wrap items-center justify-between gap-3 sm:mb-10">
         <Link href="/app/projects">
           <Wordmark size="md" />
         </Link>

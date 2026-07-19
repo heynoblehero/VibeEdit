@@ -36,14 +36,8 @@ export const PROVIDERS: ProviderMeta[] = [
     getKeyUrl: "https://elevenlabs.io/app/settings/api-keys",
     placeholder: "sk_xxxxxxxx",
   },
-  {
-    id: "anthropic",
-    name: "Anthropic",
-    description: "Optional: use your own Claude key for chat (BYOK billing).",
-    getKeyUrl: "https://console.anthropic.com/settings/keys",
-    placeholder: "sk-ant-xxxxxxxx",
-    keyPrefix: "sk-ant-",
-  },
+  // Anthropic (the chat brain) is intentionally NOT here — the platform handles
+  // chat; users bring their own keys only for the paid generation providers.
 ];
 
 const LS_PREFIX = "vibeedit:apikey:";

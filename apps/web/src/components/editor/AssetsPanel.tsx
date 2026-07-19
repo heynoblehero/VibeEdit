@@ -4,8 +4,9 @@ import { useState } from "react";
 import { EditHistory } from "./EditHistory";
 import { FilesDrawer } from "./FilesDrawer";
 import { EffectsPanel } from "./EffectsPanel";
+import { SnippetsSection } from "./SnippetsSection";
 
-type Source = "mine" | "store";
+type Source = "mine" | "store" | "snippets";
 
 /**
  * Unified Assets tab: the user's own files and the Store live under one roof,
@@ -54,6 +55,26 @@ export function AssetsPanel({ projectId, reloadKey }: { projectId: string; reloa
         </svg>
       ),
     },
+    {
+      id: "snippets",
+      label: "Snippets",
+      icon: (
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M16 3H5a2 2 0 0 0-2 2v14" />
+          <path d="M21 8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2z" />
+        </svg>
+      ),
+    },
   ];
 
   return (
@@ -81,6 +102,8 @@ export function AssetsPanel({ projectId, reloadKey }: { projectId: string; reloa
           <EditHistory projectId={projectId} />
           <FilesDrawer projectId={projectId} reloadKey={reloadKey} />
         </>
+      ) : source === "snippets" ? (
+        <SnippetsSection projectId={projectId} />
       ) : (
         <EffectsPanel />
       )}

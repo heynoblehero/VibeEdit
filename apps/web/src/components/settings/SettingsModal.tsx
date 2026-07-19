@@ -11,6 +11,9 @@ import {
   maskKey,
   onKeysChanged,
 } from "@/lib/api-keys/store";
+import { BrandSection } from "./BrandSection";
+import { AccountSection } from "./AccountSection";
+import { ExtensionSection } from "./ExtensionSection";
 
 type Tab = "keys" | "brand" | "account" | "extension" | "billing";
 
@@ -85,7 +88,17 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             </button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-5">
-            {tab === "keys" ? <ApiKeysSection /> : <LinkOut tab={tab} onClose={onClose} />}
+            {tab === "keys" ? (
+              <ApiKeysSection />
+            ) : tab === "brand" ? (
+              <BrandSection />
+            ) : tab === "account" ? (
+              <AccountSection />
+            ) : tab === "extension" ? (
+              <ExtensionSection />
+            ) : (
+              <LinkOut tab="billing" onClose={onClose} />
+            )}
           </div>
         </div>
       </div>

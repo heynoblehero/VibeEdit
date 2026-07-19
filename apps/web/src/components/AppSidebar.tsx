@@ -55,14 +55,17 @@ const NAV: NavItem[] = [
       </>,
     ),
   },
+  {
+    href: "/app/settings",
+    label: "Settings",
+    icon: svg(
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8 7 17M17 7l2.8-2.8" />
+      </>,
+    ),
+  },
 ];
-
-const SETTINGS_ICON = svg(
-  <>
-    <circle cx="12" cy="12" r="3" />
-    <path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8 7 17M17 7l2.8-2.8" />
-  </>,
-);
 
 /** A row where the icon is centered in a fixed 60px slot (so it stays aligned
  *  whether the rail is collapsed or expanded) and the label follows. */
@@ -89,10 +92,6 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const initials = initialsFor(session?.user?.name || session?.user?.email || "?");
-
-  function openSettings() {
-    window.dispatchEvent(new CustomEvent("vibeedit:open-settings"));
-  }
 
   return (
     <aside className="group fixed inset-y-0 left-0 z-40 hidden w-[60px] flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-bg-2)] py-3 transition-[width] duration-200 hover:w-56 hover:shadow-2xl md:flex">
@@ -127,17 +126,6 @@ export function AppSidebar() {
             </Link>
           );
         })}
-
-        <button type="button" onClick={openSettings} className="group/row block" title="Settings">
-          <Row>
-            <span className="flex w-[35px] shrink-0 items-center justify-center">
-              {SETTINGS_ICON}
-            </span>
-            <span className="whitespace-nowrap text-sm font-medium opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-              Settings
-            </span>
-          </Row>
-        </button>
       </nav>
 
       {/* Account */}

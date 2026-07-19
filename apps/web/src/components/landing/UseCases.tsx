@@ -73,7 +73,7 @@ export function UseCases() {
           {USE_CASES.map((useCase) => (
             <div
               key={useCase.title}
-              className="group rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 transition-colors hover:border-[var(--color-border-2)]"
+              className="group rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 transition-all duration-200 hover:-translate-y-1 hover:border-[var(--color-border-2)] hover:shadow-xl"
             >
               <div
                 className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl transition-transform group-hover:scale-110"

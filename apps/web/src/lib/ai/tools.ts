@@ -2344,15 +2344,25 @@ export function buildToolServer(ctx: ToolContext) {
 
   const chromaKeyTool = tool(
     "chroma_key",
-    "Remove a solid color background (green screen / blue screen) from a video clip. Output has the background replaced with transparency (encoded as H.264 — use in composition over another background).",
+    "Remove a solid color background (green/blue screen) from a video clip. Default output is TRUE transparency as a VP9-alpha WebM (.webm) — reference it in the composition over any background. Pass `background` (e.g. 'black') to instead flatten the subject onto a solid color and get an opaque MP4. NOTE: H.264/MP4 cannot hold transparency, so transparent output is always .webm regardless of the `output` extension you pass — always use the returned path.",
     {
       input: z.string().describe("Relative path to source clip with solid color background."),
-      output: z.string().describe("Relative output path."),
+      output: z
+        .string()
+        .describe(
+          "Relative output path. The extension is forced to match the codec (.webm for transparent, .mp4 for a solid background) — use the path returned in the result.",
+        ),
       color: z
         .string()
         .optional()
         .describe(
-          "Background hex color without # (e.g. '00FF00' for green, '0000FF' for blue). Default '00FF00'.",
+          "The KEY color to remove, hex without # (e.g. '00FF00' for green, '0000FF' for blue). Default '00FF00'.",
+        ),
+      background: z
+        .string()
+        .optional()
+        .describe(
+          "What to put BEHIND the subject. Omit or 'transparent' for a real alpha channel (VP9-alpha WebM). A solid color name or hex (e.g. 'black', '000000') flattens onto that color and outputs an opaque MP4.",
         ),
       similarity: z
         .number()
@@ -2364,19 +2374,28 @@ export function buildToolServer(ctx: ToolContext) {
         ),
       blend: z.number().min(0).max(1).optional().describe("Edge softness. 0.05 default."),
     },
-    async ({ input, output, color, similarity, blend }) => {
+    async ({ input, output, color, background, similarity, blend }) => {
       try {
         const dir = projectDir(ctx.userId, ctx.projectId);
         const result = await chromaKey({
           inputPath: resolveProjectPath(dir, input),
           outputPath: resolveProjectPath(dir, output),
           color,
+          background,
           similarity,
           blend,
         });
         if (!result.ok)
           return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
-        return { content: [{ type: "text", text: `OK: chroma-keyed ${input} → ${output}` }] };
+        // Report the ACTUAL output path the agent must reference. chroma_key forces
+        // the extension to match the codec (transparent → .webm, solid bg → .mp4),
+        // so re-derive it from the relative `output` with the same rule.
+        const opaque = !!background && background.trim().toLowerCase() !== "transparent";
+        const finalRel = output.replace(/\.[^./\\]+$/, "") + (opaque ? ".mp4" : ".webm");
+        const mode = opaque ? `flattened onto ${background}` : "transparent (alpha)";
+        return {
+          content: [{ type: "text", text: `OK: chroma-keyed ${input} → ${finalRel} (${mode})` }],
+        };
       } catch (error) {
         return {
           content: [{ type: "text", text: `ERROR: ${(error as Error).message}` }],

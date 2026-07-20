@@ -400,25 +400,92 @@ export async function gradeClip(opts: {
 // chroma_key
 // ---------------------------------------------------------------------------
 
+// Force an output path to a given extension (the codec dictates the container:
+// alpha needs WebM/VP9; a flattened opaque clip stays MP4/H.264).
+function withExtension(path: string, ext: string): string {
+  return path.replace(/\.[^./\\]+$/, "") + ext;
+}
+
+// Normalize a background fill color for ffmpeg's drawbox/color filters, which
+// want a named color ("black") or a 0xRRGGBB / #RRGGBB literal. A bare 6-hex
+// string (e.g. "000000") is not accepted as-is, so prefix it.
+function normalizeFillColor(input: string): string {
+  const value = input.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(value)) return `0x${value.slice(1)}`;
+  if (/^[0-9a-fA-F]{6}$/.test(value)) return `0x${value}`;
+  return value; // named color like "black", or already "0x…"
+}
+
 export async function chromaKey(opts: {
   inputPath: string;
   outputPath: string;
-  color?: string; // hex without # e.g. "00FF00", or "green"/"blue". Default "00FF00"
+  color?: string; // KEY color to remove: hex without # e.g. "00FF00", or "green"/"blue". Default "00FF00"
   similarity?: number; // 0.01 to 1.0, default 0.3
   blend?: number; // 0.0 to 1.0, default 0.05
-}): Promise<{ ok: boolean; error?: string }> {
-  ensureParentDir(opts.outputPath);
-
+  // Background to place BEHIND the subject after keying:
+  //  - undefined / "transparent" → true transparency (VP9-alpha WebM). The .webm
+  //    container is REQUIRED: H.264 has no alpha channel, so the ffmpeg chromakey
+  //    filter only sets the matched pixels' alpha to 0 while leaving their RGB
+  //    (green) intact — encode that to yuv420p/H.264 and the alpha is dropped and
+  //    the GREEN comes back. That silent failure is why a keyed "H.264 with
+  //    transparency" clip renders green, not removed.
+  //  - a solid color (e.g. "black", "000000") → flatten the keyed subject over
+  //    that color and output opaque H.264/MP4.
+  background?: string;
+}): Promise<{ ok: boolean; error?: string; outputPath?: string }> {
   const rawColor = opts.color ?? "00FF00";
-  const color = rawColor.startsWith("#") ? rawColor.slice(1) : rawColor;
+  const keyColor = rawColor.startsWith("#") ? rawColor.slice(1) : rawColor;
   const similarity = opts.similarity ?? 0.3;
   const blend = opts.blend ?? 0.05;
+  const chromakey = `chromakey=0x${keyColor}:${similarity}:${blend}`;
 
-  return ffmpegRun([
+  const wantsTransparent =
+    !opts.background || opts.background.trim().toLowerCase() === "transparent";
+
+  if (wantsTransparent) {
+    // True transparency: VP9 with an alpha plane, in a WebM container. This is
+    // the format the snapshot + render pipeline already decodes (see
+    // shouldUseVp9Alpha in snapshot/capture.ts). Source audio (usually AAC) can't
+    // be copied into WebM, so transcode to Opus; `0:a?` keeps it optional.
+    const outputPath = withExtension(opts.outputPath, ".webm");
+    ensureParentDir(outputPath);
+    const result = await ffmpegRun([
+      "-i",
+      opts.inputPath,
+      "-vf",
+      chromakey,
+      "-c:v",
+      "libvpx-vp9",
+      "-pix_fmt",
+      "yuva420p",
+      "-c:a",
+      "libopus",
+      outputPath,
+    ]);
+    return { ...result, outputPath };
+  }
+
+  // Opaque: composite the keyed subject over a solid background color so the
+  // removed area is actually filled (not left green). drawbox=t=fill on a copy
+  // of the source yields a same-size color canvas without needing explicit
+  // dimensions; overlay respects the keyed alpha, then flatten to yuv420p.
+  const outputPath = withExtension(opts.outputPath, ".mp4");
+  ensureParentDir(outputPath);
+  const fill = normalizeFillColor(opts.background ?? "black");
+  const filterComplex =
+    `[0:v]split=2[base][key];` +
+    `[key]${chromakey}[ck];` +
+    `[base]drawbox=t=fill:color=${fill}[bg];` +
+    `[bg][ck]overlay=format=auto,format=yuv420p[out]`;
+  const result = await ffmpegRun([
     "-i",
     opts.inputPath,
-    "-vf",
-    `chromakey=0x${color}:${similarity}:${blend}`,
+    "-filter_complex",
+    filterComplex,
+    "-map",
+    "[out]",
+    "-map",
+    "0:a?",
     "-c:v",
     "libx264",
     "-preset",
@@ -427,8 +494,9 @@ export async function chromaKey(opts: {
     "18",
     "-c:a",
     "copy",
-    opts.outputPath,
+    outputPath,
   ]);
+  return { ...result, outputPath };
 }
 
 // ---------------------------------------------------------------------------

@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useSession, signOut } from "@/lib/auth-client";
+import { getMe } from "@/lib/billing/me-client";
 
 type NavItem = { href: string; label: string; icon: React.ReactNode };
 
@@ -43,6 +45,17 @@ const NAV: NavItem[] = [
     label: "Store",
     icon: svg(
       <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z" />,
+    ),
+  },
+  {
+    href: "/app/storage",
+    label: "Storage",
+    icon: svg(
+      <>
+        <ellipse cx="12" cy="5" rx="9" ry="3" />
+        <path d="M3 5v14a9 3 0 0 0 18 0V5" />
+        <path d="M3 12a9 3 0 0 0 18 0" />
+      </>,
     ),
   },
   {
@@ -128,6 +141,10 @@ export function AppSidebar() {
         })}
       </nav>
 
+      {/* Usage: credits + storage. Both fetch client-side and fail silently so a
+          billing/storage hiccup never breaks the app shell. */}
+      <UsageMeters />
+
       {/* Account */}
       <div className="mt-2 border-t border-[var(--color-border)] px-2.5 pt-2">
         <button
@@ -152,6 +169,107 @@ export function AppSidebar() {
         </button>
       </div>
     </aside>
+  );
+}
+
+type StorageUsage = { usedBytes: number; limitBytes: number; fraction: number };
+
+function formatSize(bytes: number): string {
+  if (bytes <= 0) return "0 MB";
+  const gb = bytes / (1024 * 1024 * 1024);
+  if (gb >= 1) return `${gb.toFixed(1)} GB`;
+  return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+}
+
+/** Credits + storage readouts that sit above the account block. Compact icon in
+ *  the collapsed rail; the number/bar fade in when the rail expands on hover. */
+function UsageMeters() {
+  const [credits, setCredits] = useState<number | null>(null);
+  const [storage, setStorage] = useState<StorageUsage | null>(null);
+
+  useEffect(() => {
+    getMe()
+      .then((me) => {
+        if (me?.credits) setCredits(me.credits.total);
+      })
+      .catch(() => {});
+    fetch("/api/storage")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((value) => value && setStorage(value as StorageUsage))
+      .catch(() => {});
+  }, []);
+
+  const unlimited = !storage || storage.limitBytes < 0;
+  const pct = storage && storage.limitBytes > 0 ? Math.round(storage.fraction * 100) : 0;
+  const near = pct >= 80;
+  const creditsLabel = credits === null ? "—" : credits < 0 ? "∞" : String(credits);
+
+  return (
+    <div className="mt-2 space-y-1 border-t border-[var(--color-border)] px-2.5 pt-2">
+      {/* Credits → billing */}
+      <Link href="/app/billing" className="group/row block" title={`${creditsLabel} credits`}>
+        <Row>
+          <span className="flex w-[35px] shrink-0 items-center justify-center">
+            {svg(
+              <>
+                <circle cx="12" cy="12" r="8" />
+                <path d="M14.5 9.5a2.5 2.5 0 0 0-2.5-1.5c-1.4 0-2.5.8-2.5 2s1.1 2 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2a2.5 2.5 0 0 1-2.5-1.5M12 6.5v11" />
+              </>,
+            )}
+          </span>
+          <span className="min-w-0 flex-1 whitespace-nowrap text-left text-xs font-medium opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            <span className="text-[var(--color-fg)]">{creditsLabel}</span>{" "}
+            <span className="text-[var(--color-fg-subtle)]">credits</span>
+          </span>
+        </Row>
+      </Link>
+
+      {/* Storage → storage page */}
+      <Link
+        href="/app/storage"
+        className="group/row block"
+        title={
+          storage
+            ? `Storage ${formatSize(storage.usedBytes)}${unlimited ? "" : ` of ${formatSize(storage.limitBytes)}`}`
+            : "Storage"
+        }
+      >
+        <Row>
+          <span className="flex w-[35px] shrink-0 items-center justify-center">
+            {svg(
+              <>
+                <ellipse cx="12" cy="5" rx="9" ry="3" />
+                <path d="M3 5v14a9 3 0 0 0 18 0V5" />
+                <path d="M3 12a9 3 0 0 0 18 0" />
+              </>,
+            )}
+          </span>
+          <span className="min-w-0 flex-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            <span className="flex items-baseline justify-between text-xs">
+              <span className="font-medium text-[var(--color-fg)]">Storage</span>
+              {storage && (
+                <span
+                  className={near ? "text-[var(--color-danger)]" : "text-[var(--color-fg-subtle)]"}
+                >
+                  {unlimited ? formatSize(storage.usedBytes) : `${pct}%`}
+                </span>
+              )}
+            </span>
+            {storage && !unlimited && (
+              <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-[var(--color-bg)]">
+                <span
+                  className="block h-full rounded-full"
+                  style={{
+                    width: `${Math.min(100, pct)}%`,
+                    backgroundColor: near ? "var(--color-danger)" : "var(--color-accent)",
+                  }}
+                />
+              </span>
+            )}
+          </span>
+        </Row>
+      </Link>
+    </div>
   );
 }
 

@@ -406,7 +406,7 @@ const TOOL_LABELS: Record<string, string> = {
   add_transition: "Adding a transition",
   mix_audio: "Mixing audio",
   extract_audio: "Extracting audio",
-  burn_captions: "Burning in captions",
+  add_text_overlay: "Adding captions",
   transcribe_clip: "Transcribing the clip",
   pack_footage: "Packing the footage",
   analyze_clip: "Analyzing the clip",

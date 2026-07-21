@@ -2308,43 +2308,14 @@ export async function renderEdl(opts: {
     }
 
     // ----------------------------------------------------------------
-    // Step 4: Burn captions LAST (Hard Rule 1)
+    // Step 4: Finalize. Captions/text are NOT burned here anymore — they are
+    // rendered as a native HTML/CSS/GSAP layer in the composition (see the
+    // add_text_overlay tool + lib/ai/captions). render_edl only produces the cut
+    // footage; the agent wraps it in index.html and the composition render draws
+    // the caption layer over it. So we just remux to the atomic temp output.
+    // +faststart moves the moov atom to the front for instant web playback.
     // ----------------------------------------------------------------
-    if (edl.captions && edl.captions.length > 0) {
-      // Styled ASS captions (libass) — presets + per-cue word-pop, sized to the
-      // canonical canvas so positioning/scale are exact.
-      const assPath = join(tmpDir, "master.ass");
-      writeFileSync(
-        assPath,
-        buildAssContent(edl.captions, {
-          videoWidth: targetW,
-          videoHeight: targetH,
-          defaultStyle: edl.captionStyle,
-        }),
-        "utf8",
-      );
-
-      const escapedAss = assPath.replace(/\\/g, "/").replace(/:/g, "\\:");
-
-      const captionResult = await ffmpegRun([
-        "-i",
-        currentPath,
-        "-vf",
-        `subtitles=${escapedAss}`,
-        ...h264VideoArgs(preset, crf, true),
-        "-c:a",
-        "copy",
-        // Force the container: the atomic temp name ends in ".part", which
-        // ffmpeg can't map to a muxer by extension.
-        "-f",
-        "mp4",
-        outTmp,
-      ]);
-      if (!captionResult.ok) return captionResult;
-    } else {
-      // No captions: copy current to the temp output path (force mp4 muxer —
-      // the ".part" extension is not a recognized container). +faststart moves
-      // the moov atom to the front so web playback starts before full download.
+    {
       const copyResult = await ffmpegRun([
         "-i",
         currentPath,
@@ -2352,6 +2323,8 @@ export async function renderEdl(opts: {
         "copy",
         "-movflags",
         "+faststart",
+        // Force the container: the atomic temp name ends in ".part", which
+        // ffmpeg can't map to a muxer by extension.
         "-f",
         "mp4",
         outTmp,

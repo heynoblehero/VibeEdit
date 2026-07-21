@@ -58,7 +58,6 @@ import {
   mixAudio,
   extractAudio,
   replaceAudioTrack,
-  burnCaptions,
   transcribeClip,
   renderEdl,
   validateEdl,
@@ -77,6 +76,8 @@ import {
   type TranscriptWord,
   type EdlSegment,
 } from "./ffmpeg-tools";
+import { buildCaptionLayer } from "./captions/overlay-generator";
+import { DEFAULT_CAPTION_PRESET } from "./captions/presets";
 import { db } from "@/lib/db";
 import { creatorInsights } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -2646,56 +2647,60 @@ export function buildToolServer(ctx: ToolContext) {
     },
   );
 
-  const burnCaptionsTool = tool(
-    "burn_captions",
-    "Permanently bake caption/subtitle cues into a video clip. The text is rendered directly on the pixels — no separate subtitle track. Pass cues from generate_captions or transcribe_clip.",
+  const addTextOverlayTool = tool(
+    "add_text_overlay",
+    "Add captions or on-screen text to the composition as a native HTML/CSS/GSAP layer (this REPLACES burning captions with ffmpeg — HTML looks far better and shows in the live preview). Inserts a caption layer into index.html; the composition render (index.html) draws it over the footage. Call this AFTER render_edl + writing the single-clip index.html wrapper. For captions, pass the cues from build_captions_from_words. Pick a preset by niche: word-pop looks (bold/karaoke/gradient/glow/spring) for shorts & hooks, minimal looks (clean/minimal/documentary) for interviews/docs/corporate.",
     {
-      input: z.string().describe("Relative path to source video."),
-      output: z.string().describe("Relative output path."),
       cues: z
         .array(
           z.object({
             text: z.string(),
-            start: z.number().describe("Start time in seconds."),
-            end: z.number().describe("End time in seconds."),
+            start: z.number().describe("Start time in OUTPUT-timeline seconds."),
+            end: z.number().describe("End time in OUTPUT-timeline seconds."),
+            words: z
+              .array(z.object({ text: z.string(), start: z.number(), end: z.number() }))
+              .optional()
+              .describe("Optional per-word timings for word-level pop/highlight."),
           }),
         )
         .min(1)
-        .describe("Caption cues with timing."),
-      fontSize: z
+        .describe(
+          "Text cues in output-timeline seconds. For captions pass build_captions_from_words output. For a single title/lower-third, pass one cue.",
+        ),
+      totalDuration: z
         .number()
-        .int()
-        .min(10)
-        .max(80)
+        .describe("Total composition duration in seconds (probe the wrapped clip)."),
+      preset: z
+        .enum(["clean", "bold", "karaoke", "minimal", "documentary", "gradient", "glow", "spring"])
         .optional()
-        .describe("Font size in points. Default 24."),
-      position: z
-        .enum(["bottom", "center", "top"])
-        .optional()
-        .describe("Where captions appear. Default 'bottom'."),
-      fontColor: z
-        .string()
-        .optional()
-        .describe("Font color as hex without # (e.g. 'FFFFFF' for white). Default 'FFFFFF'."),
+        .describe("Caption/text style preset. Default 'bold' (word-pop)."),
     },
-    async ({ input, output, cues, fontSize, position, fontColor }) => {
+    async ({ cues, totalDuration, preset }) => {
       try {
-        const dir = projectDir(ctx.userId, ctx.projectId);
-        const result = await burnCaptions({
-          inputPath: resolveProjectPath(dir, input),
-          outputPath: resolveProjectPath(dir, output),
+        const html = readProjectText(ctx.userId, ctx.projectId, "index.html");
+        // Composition canvas drives font/margin scaling. Read the root
+        // data-width/height if present (same contract snapshot capture uses),
+        // else fall back to 1080p landscape.
+        const width = Number(html.match(/data-width="(\d+)"/)?.[1]) || 1920;
+        const height = Number(html.match(/data-height="(\d+)"/)?.[1]) || 1080;
+        const layer = buildCaptionLayer({
           cues,
-          fontSize,
-          position,
-          fontColor,
+          width,
+          height,
+          totalDuration,
+          presetId: preset ?? DEFAULT_CAPTION_PRESET,
         });
-        if (!result.ok)
-          return { content: [{ type: "text", text: `ERROR: ${result.error}` }], isError: true };
+        // Insert before </body> so the layer sits above the footage; if there's
+        // no </body> (fragment), append.
+        const next = html.includes("</body>")
+          ? html.replace("</body>", `${layer}\n</body>`)
+          : `${html}\n${layer}`;
+        writeProjectFile(ctx.userId, ctx.projectId, "index.html", next);
         return {
           content: [
             {
               type: "text",
-              text: `OK: burned ${cues.length} caption cues into ${input} → ${output}`,
+              text: `OK: added ${cues.length}-cue "${preset ?? DEFAULT_CAPTION_PRESET}" text layer to index.html. Run lint_composition, then screenshot_at_time to verify.`,
             },
           ],
         };
@@ -2710,7 +2715,7 @@ export function buildToolServer(ctx: ToolContext) {
 
   const transcribeClipTool = tool(
     "transcribe_clip",
-    "Transcribe speech in a video or audio file using ElevenLabs Scribe. Returns the full transcript text AND word-level timestamps you can pass directly to generate_captions or burn_captions. Requires a BYOK ElevenLabs key.",
+    "Transcribe speech in a video or audio file using ElevenLabs Scribe. Returns the full transcript text AND word-level timestamps you can pass to build_captions_from_words / generate_captions, then render with add_text_overlay. Requires a BYOK ElevenLabs key.",
     {
       path: z.string().describe("Relative path to video or audio asset."),
       language: z
@@ -5678,7 +5683,7 @@ tl.from(".title", { opacity: 0, duration: 0.01 }, 0);
       addTransitionTool,
       mixAudioTool,
       extractAudioTool,
-      burnCaptionsTool,
+      addTextOverlayTool,
       transcribeClipTool,
       packFootageTool,
       analyzeClipTool,
@@ -5764,7 +5769,7 @@ export const ALLOWED_TOOL_NAMES = [
   "add_transition",
   "mix_audio",
   "extract_audio",
-  "burn_captions",
+  "add_text_overlay",
   "transcribe_clip",
   "pack_footage",
   "analyze_clip",

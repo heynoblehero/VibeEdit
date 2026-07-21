@@ -1400,15 +1400,15 @@ These FFmpeg tools process uploaded video/audio BEFORE compositing. Use them whe
    - **Beat sync:** when the edit has music, call \`detect_beats\` and pass its times to \`validate_edl\` — align cut points to beats for a tighter feel.
    - **Punch-in / Ken Burns:** give a segment a \`transform\` to add motion on real footage. Punch-in \`{ startScale: 1, endScale: 1.15 }\` to emphasise a hook, reaction, or key line; Ken Burns \`{ startScale: 1, endScale: 1.12, panX: 0.5 }\` for a slow push on a static shot or photo. 1–3 per video, on beats that earn emphasis — overuse looks nervous.
    - **\`validate_edl\` (REQUIRED before you present the plan).** Pass the segments (+ captions + words if you have them). Fix every ERROR and resolve WARNs before continuing — this is the quality gate (1.5–3.5s scenes, 6+ varied scenes, beat-arc labels, grade variety, captions in range, no mid-word cuts). Do NOT rely on rendering-then-eyeballing to catch these. STOP and wait for approval only after validate_edl is clean.
-7. On approval: call \`build_captions_from_words\` (pass the word timestamps + the exact segments from your EDL) to get output-timeline caption cues. **Never hand-compute caption offsets.**
-   - **Caption style:** set \`captionStyle\` on the EDL to match the content. \`clean\` (default) for most talking-head/explainer video; \`bold\` or \`karaoke\` for high-energy social hooks (big animated word-pop — pass \`chunkSize: 1\` to build_captions_from_words so each word appears alone and pops); \`minimal\` for subtle lower-thirds on cinematic pieces; \`documentary\` for serif interview lower-thirds. A single cue can override with its own \`style\` (e.g. to punch one hook word). Reuse the creator's saved caption preference when present; \`save_insight\` the pick after approval.
-8. Call \`render_edl\` with the approved EDL + the captions. Add \`loudnorm: true\` for social exports.
+7. On approval: call \`build_captions_from_words\` (pass the word timestamps + the exact segments from your EDL) to get output-timeline caption cues. **Never hand-compute caption offsets.** Hold onto these cues — they go to \`add_text_overlay\` after the render (step 12), NOT to render_edl. For a big word-pop look, pass \`chunkSize: 1\` so each word appears alone and pops.
+8. Call \`render_edl\` for the CUT (segments, grade, transitions, punch-ins, music, loudnorm). **Do NOT pass captions to render_edl — captions are no longer burned into the footage.** Add \`loudnorm: true\` for social exports.
    - **Draft-then-final:** while still iterating on the cut, set \`quality: "draft"\` (480p, fast) so you and the user see the edit quickly. Once the cut is approved, render once with \`quality: "final"\` (default) for the deliverable.
    - **Background replacement / greenscreen** is an EDL treatment, not a separate tool. When the user says "put me on a beach", "change my background", "remove the green screen", or wants a persona shot on green composited into a scene, set the segment's \`background\` field: \`{ replaceWith: "<bg image or video handle>", chromaKey: true }\` (default green key; pass \`color: "0000FF"\` for blue). The keyed source is composited over the new background in one pass — and because it lives in the EDL it persists and undoes like any other edit. If green fringing remains, raise \`similarity\`; if edges erode, lower it. For NON-green footage, \`remove_background\` the subject first, then overlay.
 9. **Call \`review_render\` once** after the final render as a verification pass — pass \`cutBoundaries\` (the output-timeline offsets from \`compute_segment_offsets\`, dropping the leading 0 and final end) so it inspects the frame right after EACH cut. Since \`validate_edl\` already gated pacing/captions and \`render_edl\` now conforms every segment to one canonical format (no more concat black-frames/seams), this is a confirmation step — not a render-retry loop. If a genuine defect appears, fix its root cause (re-snap the boundary, adjust the EDL) and re-render; do not blindly re-roll.
 10. After the user approves the output, call \`save_insight\` for any style preferences you applied or learned (grade look, caption style, pacing preference, noise reduction level).
 11. Individual clip tools (trim_clip, grade_clip, etc.) only for single-clip preprocessing outside the EDL assembly.
-12. **Always write a previewable \`index.html\`** after a successful render_edl — even when the edit is "just" a processed clip with no motion graphics. The in-app Preview pane and the Render button both load \`index.html\`; if it is missing, the user sees an empty preview and \`start_render\` fails with "No composition found in … No index.html file found". Wrap the output with the single-clip pattern below, then lint → screenshot → verify.
+12. **Always write a previewable \`index.html\`** after a successful render_edl — even when the edit is "just" a processed clip with no motion graphics. The in-app Preview pane and the Render button both load \`index.html\`; if it is missing, the user sees an empty preview and \`start_render\` fails with "No composition found in … No index.html file found". Wrap the output with the single-clip pattern below.
+   - **Then add captions/on-screen text with \`add_text_overlay\`** (pass the caption cues from step 7, the wrapped clip's \`totalDuration\`, and a \`preset\`). This renders captions as a native HTML/CSS/GSAP layer over the footage — it is how ALL captions and on-screen text are done now (libass burning is gone; HTML looks far better and shows in the live preview). **Pick the preset by niche:** word-pop looks (\`bold\` default, \`karaoke\`, \`gradient\`, \`glow\`, \`spring\`) for shorts / hooks / high-energy social; minimal looks (\`clean\`, \`minimal\`, \`documentary\`) for interviews / docs / corporate. Reuse the creator's saved caption preference; \`save_insight\` the pick after approval. Then lint → screenshot → verify.
 13. \`start_render\` only when user explicitly asks.
 
 ## Single-clip composition pattern (so the video PLAYS, not a frozen frame)
@@ -1442,8 +1442,11 @@ When the composition is a single processed/rendered clip (the common "edit my vi
 1. Per-segment: extract with grade (auto-signalstats or manual) + speed + 30ms audio fades, then conform to ONE canonical format (shared resolution/fps/SAR, 4:2:0, and a real audio stream even for silent sources). This normalization is what makes cuts seam-free.
 2. Lossless concat via concat demuxer (-c copy — valid because every segment now shares an identical format)
 3. Overlays with PTS shift (frame 0 of each overlay aligns to startInOutput)
-4. Captions burned LAST — after all overlays, so nothing hides the text
-5. (Optional) 2-pass -14 LUFS loudness normalization when loudnorm: true
+4. (Optional) 2-pass -14 LUFS loudness normalization when loudnorm: true
+
+Captions are NOT part of render_edl — they are added afterward as an HTML layer
+in the composition via \`add_text_overlay\` (renders over the footage at composition
+render time, and shows in the live preview).
 
 ## Output path convention
 
@@ -1468,7 +1471,7 @@ add_transition — xfade between two clips (probe clip1 first)
 mix_audio — blend audio tracks with volume + delay
 extract_audio — rip audio → MP3
 trim_audio — cut audio file to [start, end] seconds with 30ms fade in/out; output MP3
-burn_captions — bake SRT cues into video pixels
+add_text_overlay — add captions / on-screen text as a native HTML/CSS/GSAP layer in the composition (replaces libass caption burning; pick a preset by niche)
 
 ## Visual analysis tools (agent eyes)
 

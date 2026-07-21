@@ -173,6 +173,7 @@ export function AppSidebar() {
 }
 
 type StorageUsage = { usedBytes: number; limitBytes: number; fraction: number };
+type CreditUsage = { monthly: number; used: number; topups: number };
 
 function formatSize(bytes: number): string {
   if (bytes <= 0) return "0 MB";
@@ -184,13 +185,19 @@ function formatSize(bytes: number): string {
 /** Credits + storage readouts that sit above the account block. Compact icon in
  *  the collapsed rail; the number/bar fade in when the rail expands on hover. */
 function UsageMeters() {
-  const [credits, setCredits] = useState<number | null>(null);
+  const [credits, setCredits] = useState<CreditUsage | null>(null);
   const [storage, setStorage] = useState<StorageUsage | null>(null);
 
   useEffect(() => {
     getMe()
       .then((me) => {
-        if (me?.credits) setCredits(me.credits.total);
+        if (me?.credits) {
+          setCredits({
+            monthly: me.credits.monthly,
+            used: me.credits.used,
+            topups: me.credits.topups,
+          });
+        }
       })
       .catch(() => {});
     fetch("/api/storage")
@@ -202,12 +209,33 @@ function UsageMeters() {
   const unlimited = !storage || storage.limitBytes < 0;
   const pct = storage && storage.limitBytes > 0 ? Math.round(storage.fraction * 100) : 0;
   const near = pct >= 80;
-  const creditsLabel = credits === null ? "—" : credits < 0 ? "∞" : String(credits);
+
+  // Credits mirror the storage meter: "used / monthly" + a fill bar. -1 monthly
+  // means an unlimited plan.
+  const creditsUnlimited = !credits || credits.monthly < 0;
+  const creditsPct =
+    credits && credits.monthly > 0
+      ? Math.min(100, Math.round((credits.used / credits.monthly) * 100))
+      : 0;
+  const creditsNear = creditsPct >= 80;
+  const creditsRight = !credits
+    ? "—"
+    : creditsUnlimited
+      ? `${credits.used} used`
+      : `${credits.used}/${credits.monthly}`;
 
   return (
     <div className="mt-2 space-y-1 border-t border-[var(--color-border)] px-2.5 pt-2">
       {/* Credits → billing */}
-      <Link href="/app/billing" className="group/row block" title={`${creditsLabel} credits`}>
+      <Link
+        href="/app/billing"
+        className="group/row block"
+        title={
+          credits
+            ? `Credits ${creditsRight}${credits.topups > 0 ? ` (+${credits.topups} top-up)` : ""}`
+            : "Credits"
+        }
+      >
         <Row>
           <span className="flex w-[35px] shrink-0 items-center justify-center">
             {svg(
@@ -217,9 +245,31 @@ function UsageMeters() {
               </>,
             )}
           </span>
-          <span className="min-w-0 flex-1 whitespace-nowrap text-left text-xs font-medium opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-            <span className="text-[var(--color-fg)]">{creditsLabel}</span>{" "}
-            <span className="text-[var(--color-fg-subtle)]">credits</span>
+          <span className="min-w-0 flex-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            <span className="flex items-baseline justify-between text-xs">
+              <span className="font-medium text-[var(--color-fg)]">Credits</span>
+              <span
+                className={
+                  creditsNear ? "text-[var(--color-danger)]" : "text-[var(--color-fg-subtle)]"
+                }
+              >
+                {creditsRight}
+                {credits && credits.topups > 0 && (
+                  <span className="text-[var(--color-accent)]"> +{credits.topups}</span>
+                )}
+              </span>
+            </span>
+            {credits && !creditsUnlimited && (
+              <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-[var(--color-bg)]">
+                <span
+                  className="block h-full rounded-full"
+                  style={{
+                    width: `${creditsPct}%`,
+                    backgroundColor: creditsNear ? "var(--color-danger)" : "var(--color-accent)",
+                  }}
+                />
+              </span>
+            )}
           </span>
         </Row>
       </Link>

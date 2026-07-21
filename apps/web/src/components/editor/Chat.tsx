@@ -150,6 +150,7 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
   const [showAssetPicker, setShowAssetPicker] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showAddMenu, setShowAddMenu] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [modelMode, setModelMode] = useState<"auto" | "manual">("auto");
   // When set, a fullscreen zoom viewer for a composition (live or a snapshot).
@@ -864,68 +865,124 @@ export function Chat({ projectId, reloadKey }: { projectId: string; reloadKey: n
                       event.target.value = "";
                     }}
                   />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                    title="Attach an image, video, or audio file"
-                    className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-surface)] hover:text-[var(--color-fg)] disabled:opacity-50"
-                  >
-                    <svg
-                      width="17"
-                      height="17"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
+                  {/* Single "+" entry point for every way to bring media into the
+                      chat — upload from device, reuse a file already in the
+                      project, or import from a URL. Replaces three separate icons
+                      that looked redundant but do different things. */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddMenu((open) => !open)}
+                      disabled={uploading}
+                      title="Add media"
+                      aria-haspopup="menu"
+                      aria-expanded={showAddMenu}
+                      className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-surface)] hover:text-[var(--color-fg)] disabled:opacity-50"
                     >
-                      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.64 16.34a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowAssetPicker(true)}
-                    title="Browse your uploaded files"
-                    className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-surface)] hover:text-[var(--color-fg)]"
-                  >
-                    <svg
-                      width="17"
-                      height="17"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowImportModal(true)}
-                    title="Import a clip from a video URL"
-                    className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-surface)] hover:text-[var(--color-fg)]"
-                  >
-                    <svg
-                      width="17"
-                      height="17"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                    </svg>
-                  </button>
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                    </button>
+                    {showAddMenu && (
+                      <>
+                        <button
+                          type="button"
+                          aria-label="Close menu"
+                          className="fixed inset-0 z-40 cursor-default"
+                          onClick={() => setShowAddMenu(false)}
+                        />
+                        <div
+                          role="menu"
+                          className="absolute bottom-full left-0 z-50 mb-1 w-52 overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl"
+                        >
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setShowAddMenu(false);
+                              fileInputRef.current?.click();
+                            }}
+                            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-[var(--color-fg)] hover:bg-[var(--color-bg-2)]"
+                          >
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.64 16.34a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                            </svg>
+                            Upload from device
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setShowAddMenu(false);
+                              setShowAssetPicker(true);
+                            }}
+                            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-[var(--color-fg)] hover:bg-[var(--color-bg-2)]"
+                          >
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                            </svg>
+                            Choose from project files
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setShowAddMenu(false);
+                              setShowImportModal(true);
+                            }}
+                            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-[var(--color-fg)] hover:bg-[var(--color-bg-2)]"
+                          >
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                            </svg>
+                            Import from URL
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() => setShowModelPicker(true)}

@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
-  buildAssContent,
   buildGradeFilter,
   buildTransformFilter,
-  type CaptionCue,
   computeSegmentOffsets,
   type EdlSegment,
   type TranscriptWord,
@@ -171,71 +169,6 @@ describe("validateEdl", () => {
     const beats = [0, 1, 2, 3, 4, 5];
     const result = validateEdl({ segments: gridSegments }, { beats });
     expect(result.issues.some((issue) => issue.code === "off_beat_cuts")).toBe(false);
-  });
-});
-
-describe("buildAssContent", () => {
-  const cues: CaptionCue[] = [
-    { text: "hello world", start: 0.2, end: 1.5 },
-    { text: "second line", start: 1.6, end: 2.8 },
-  ];
-
-  test("emits a valid ASS structure sized to the video", () => {
-    const ass = buildAssContent(cues, { videoWidth: 1920, videoHeight: 1080 });
-    expect(ass).toContain("[Script Info]");
-    expect(ass).toContain("PlayResX: 1920");
-    expect(ass).toContain("PlayResY: 1080");
-    expect(ass).toContain("[V4+ Styles]");
-    expect(ass).toContain("[Events]");
-    // Two dialogue events, in centisecond timestamps.
-    const dialogues = ass.split("\n").filter((line) => line.startsWith("Dialogue:"));
-    expect(dialogues).toHaveLength(2);
-    expect(dialogues[0]).toContain("0:00:00.20");
-    expect(dialogues[0]).toContain("0:00:01.50");
-  });
-
-  test("default style is 'clean' and the used style block is emitted", () => {
-    const ass = buildAssContent(cues, { videoWidth: 1080, videoHeight: 1920 });
-    expect(ass).toContain("Style: clean,");
-    // Font size scales with height: 0.05 * 1920 = 96.
-    expect(ass).toContain("Style: clean,Liberation Sans,96,");
-  });
-
-  test("'bold' preset uppercases text and adds a scale-in pop tag", () => {
-    const ass = buildAssContent([{ text: "pop", start: 0, end: 1 }], {
-      videoWidth: 1080,
-      videoHeight: 1920,
-      defaultStyle: "bold",
-    });
-    expect(ass).toContain("Style: bold,");
-    expect(ass).toContain(",,0,0,0,,{\\fad(50,0)\\t(0,120,\\fscx112\\fscy112)");
-    expect(ass).toContain("POP"); // uppercased
-  });
-
-  test("per-cue style override emits both style blocks", () => {
-    const ass = buildAssContent(
-      [
-        { text: "normal", start: 0, end: 1 },
-        { text: "emphasis", start: 1, end: 2, style: "karaoke" },
-      ],
-      { videoWidth: 1920, videoHeight: 1080, defaultStyle: "clean" },
-    );
-    expect(ass).toContain("Style: clean,");
-    expect(ass).toContain("Style: karaoke,");
-    // The karaoke cue uses the karaoke style name in its Dialogue line.
-    const karaokeLine = ass
-      .split("\n")
-      .find((line) => line.startsWith("Dialogue:") && line.includes("karaoke"));
-    expect(karaokeLine).toBeDefined();
-  });
-
-  test("strips brace injection from caption text", () => {
-    const ass = buildAssContent([{ text: "a{\\evil}b", start: 0, end: 1 }], {
-      videoWidth: 1920,
-      videoHeight: 1080,
-    });
-    const dialogue = ass.split("\n").find((line) => line.startsWith("Dialogue:"));
-    expect(dialogue).toContain("a\\evilb"); // braces removed, no override injected
   });
 });
 

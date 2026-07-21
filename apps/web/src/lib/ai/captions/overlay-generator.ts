@@ -16,7 +16,7 @@ import {
   type CaptionOverlayPreset,
   type CaptionPresetId,
   DEFAULT_CAPTION_PRESET,
-} from "./presets.js";
+} from "./presets";
 
 export interface OverlayWord {
   text: string;

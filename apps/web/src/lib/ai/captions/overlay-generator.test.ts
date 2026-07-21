@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { buildCaptionLayer, type OverlayCue } from "./overlay-generator.js";
-import { CAPTION_PRESETS } from "./presets.js";
+import { buildCaptionLayer, type OverlayCue } from "./overlay-generator";
+import { CAPTION_PRESETS } from "./presets";
 
 const cues: OverlayCue[] = [
   { text: "hello world", start: 0, end: 1.5 },

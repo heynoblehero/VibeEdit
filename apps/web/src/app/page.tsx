@@ -7,10 +7,18 @@ import { NichePicker } from "@/components/landing/NichePicker";
 import { StatsBar } from "@/components/landing/StatsBar";
 import { UseCases } from "@/components/landing/UseCases";
 import { ShowcaseStrip } from "@/components/landing/ShowcaseStrip";
+import { Reveal } from "@/components/landing/Reveal";
+import { ScrollProgress } from "@/components/landing/ScrollProgress";
 
 export default function Home() {
   return (
     <div className="relative min-h-screen overflow-x-hidden">
+      {/* JS-disabled fallback: reveals rely on an observer, so force content
+          visible when scripts don't run. */}
+      <noscript>
+        <style>{".reveal,.reveal-stagger>*{opacity:1!important;transform:none!important}"}</style>
+      </noscript>
+      <ScrollProgress />
       <MarketingNav />
 
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
@@ -93,13 +101,17 @@ export default function Home() {
         </div>
       </section>
 
-      <StatsBar />
+      <Reveal>
+        <StatsBar />
+      </Reveal>
 
-      <ShowcaseStrip />
+      <Reveal>
+        <ShowcaseStrip />
+      </Reveal>
 
       {/* ── HOW IT WORKS ──────────────────────────────────────────────────── */}
       <section id="how" className="mx-auto max-w-4xl px-4 py-20 sm:px-6 sm:py-28">
-        <div className="mb-14 text-center">
+        <Reveal className="mb-14 text-center">
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-accent)]">
             How it works
           </p>
@@ -110,14 +122,16 @@ export default function Home() {
             Bring footage or start from a sentence — either way, you just chat and the AI does the
             work.
           </p>
-        </div>
-        <HowItWorksTabs />
+        </Reveal>
+        <Reveal delay={120}>
+          <HowItWorksTabs />
+        </Reveal>
       </section>
 
       {/* ── CAPABILITIES ──────────────────────────────────────────────────── */}
       <section className="border-y border-[var(--color-border)] bg-[var(--color-surface)]/30">
         <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
-          <div className="mb-14 text-center">
+          <Reveal className="mb-14 text-center">
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-accent)]">
               The full pro toolset
             </p>
@@ -128,9 +142,9 @@ export default function Home() {
               Cuts, grades, keyframes, motion graphics, effects, audio mixing — the whole
               professional toolset, triggered from chat instead of a timeline. No menus, no panels.
             </p>
-          </div>
+          </Reveal>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Reveal stagger className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <FeatureChip
               icon={<IconScissors />}
               title="Word-boundary cuts"
@@ -161,13 +175,13 @@ export default function Home() {
               title="Speed ramp + chroma key"
               body="0.25×–4.0× speed with pitch-correct audio. Green/blue screen removal per segment."
             />
-          </div>
+          </Reveal>
         </div>
       </section>
 
       {/* ── WORKFLOW PICKER ───────────────────────────────────────────────── */}
       <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
-        <div className="mb-14 text-center">
+        <Reveal className="mb-14 text-center">
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-accent)]">
             Built for every editor
           </p>
@@ -178,22 +192,27 @@ export default function Home() {
             YouTube, weddings, corporate, documentaries, social shorts — the agent adapts its style,
             pacing, and output format to match what you actually make.
           </p>
-        </div>
-        <NichePicker />
+        </Reveal>
+        <Reveal delay={120}>
+          <NichePicker />
+        </Reveal>
       </section>
 
       {/* ── DEMO VIDEO ────────────────────────────────────────────────────── */}
       <section className="border-t border-[var(--color-border)] bg-[var(--color-surface)]/30">
         <div className="mx-auto max-w-4xl px-4 py-20 sm:px-6 sm:py-28">
-          <div className="mb-12 text-center">
+          <Reveal className="mb-12 text-center">
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-accent)]">
               Watch a real render
             </p>
             <h2 className="text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight">
               60 seconds. Start to MP4.
             </h2>
-          </div>
-          <div className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-black shadow-2xl">
+          </Reveal>
+          <Reveal
+            delay={120}
+            className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-black shadow-2xl"
+          >
             {/* Accent glow ring */}
             <div className="pointer-events-none absolute inset-0 z-10 rounded-2xl ring-1 ring-inset ring-white/5" />
             <div className="aspect-video w-full">
@@ -210,19 +229,21 @@ export default function Home() {
                 aria-label="VibeEdit demo: prompt to MP4 in 60 seconds"
               />
             </div>
-          </div>
+          </Reveal>
           <p className="mt-5 text-center text-sm text-[var(--color-fg-muted)]">
             Prompt → preview → render → download · all in one window
           </p>
         </div>
       </section>
 
-      <UseCases />
+      <Reveal>
+        <UseCases />
+      </Reveal>
 
       {/* ── PRICING ───────────────────────────────────────────────────────── */}
       <section id="pricing" className="border-t border-[var(--color-border)]">
         <div className="mx-auto max-w-5xl px-4 py-20 sm:px-6 sm:py-28">
-          <div className="mb-14 text-center">
+          <Reveal className="mb-14 text-center">
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-accent)]">
               Pricing
             </p>
@@ -234,9 +255,9 @@ export default function Home() {
               credit currency powers every action. Pick your monthly volume. 7-day trial on all
               plans.
             </p>
-          </div>
+          </Reveal>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <Reveal stagger className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <PricingCard
               name="Starter"
               price="$39"
@@ -277,13 +298,13 @@ export default function Home() {
               ]}
               cta={{ label: "Start 7-day trial", href: "/app/signup?plan=studio" }}
             />
-          </div>
+          </Reveal>
         </div>
       </section>
 
       {/* ── WAITLIST ──────────────────────────────────────────────────────── */}
       <section className="mx-auto max-w-3xl px-4 py-16 sm:px-6 sm:py-20">
-        <div className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 text-center sm:p-12">
+        <Reveal className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 text-center sm:p-12">
           {/* Background glow */}
           <div className="pointer-events-none absolute inset-0" aria-hidden="true">
             <div className="absolute left-1/2 top-0 h-40 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--color-accent)] opacity-[0.04] blur-3xl" />
@@ -297,19 +318,19 @@ export default function Home() {
           <div className="relative mx-auto max-w-md">
             <WaitlistForm placement="hero" />
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* ── FAQ ───────────────────────────────────────────────────────────── */}
       <section id="faq" className="mx-auto max-w-3xl px-4 py-20 sm:px-6 sm:py-28">
-        <div className="mb-12 text-center">
+        <Reveal className="mb-12 text-center">
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-accent)]">
             Common questions
           </p>
           <h2 className="text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight">Quick answers.</h2>
-        </div>
+        </Reveal>
 
-        <div className="space-y-2">
+        <Reveal className="space-y-2">
           <Faq
             q="How do I edit my footage?"
             a="Upload any .mp4 or .mov, then describe the edit in chat. 'Trim the filler words, warm grade, burn captions' is enough. The agent transcribes, cuts on word boundaries, grades, syncs captions, and normalizes loudness — no timeline needed."
@@ -350,7 +371,7 @@ export default function Home() {
             q="Can it add captions automatically?"
             a="Yes. Drop any footage into the project, say 'add captions', and the agent transcribes via Whisper, generates word-level offsets, styles them (2-word chunks, bold white pill), and burns them permanently into the export. Bring your own OpenAI key for transcription."
           />
-        </div>
+        </Reveal>
       </section>
 
       {/* ── FINAL CTA ─────────────────────────────────────────────────────── */}
@@ -358,7 +379,7 @@ export default function Home() {
         <div className="pointer-events-none absolute inset-0" aria-hidden="true">
           <div className="absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--color-accent)] opacity-[0.04] blur-[80px]" />
         </div>
-        <div className="relative mx-auto max-w-3xl px-4 py-24 text-center sm:px-6 sm:py-32">
+        <Reveal className="relative mx-auto max-w-3xl px-4 py-24 text-center sm:px-6 sm:py-32">
           <h2 className="text-[clamp(2rem,5vw,3.5rem)] font-black leading-[1.08] tracking-[-0.02em]">
             Your next video is <span className="text-[var(--color-accent)]">one message away.</span>
           </h2>
@@ -385,7 +406,7 @@ export default function Home() {
               <path d="M3 8h10M9 4l4 4-4 4" />
             </svg>
           </Link>
-        </div>
+        </Reveal>
       </section>
 
       {/* ── FOOTER ────────────────────────────────────────────────────────── */}

@@ -237,6 +237,48 @@ export function snapToBoundary(opts: {
 // trim_clip  (Hard Rule 3: 30ms audio fades at every cut boundary)
 // ---------------------------------------------------------------------------
 
+// Standard H.264 video-encode args. Every user-facing MP4 goes through this so
+// output is consistent: 4:2:0 for universal playback, explicit bt709 color tags
+// (untagged H.264 gets guessed by players → washed-out / shifted color), and
+// (for final deliverables) +faststart so web playback starts before the whole
+// file downloads. `faststart` is only valid for MP4/MOV — never pass it for WebM.
+function h264VideoArgs(preset: string, crf: string, faststart = false): string[] {
+  const args = [
+    "-c:v",
+    "libx264",
+    "-preset",
+    preset,
+    "-crf",
+    crf,
+    "-pix_fmt",
+    "yuv420p",
+    "-color_primaries",
+    "bt709",
+    "-color_trc",
+    "bt709",
+    "-colorspace",
+    "bt709",
+  ];
+  if (faststart) args.push("-movflags", "+faststart");
+  return args;
+}
+
+// Per-filter scale flags for every `scale=` in a filtergraph: lanczos is a much
+// sharper kernel than the default bilinear when downscaling (e.g. 4K → 1080p),
+// and accurate_rnd avoids rounding drift. Append as `scale=W:H:...,${SCALE_FLAGS}`
+// is wrong — flags are a scale option, so use `scale=W:H:flags=lanczos+...`.
+const SCALE_FLAGS = "flags=lanczos+accurate_rnd";
+
+// Map a key color (hex) to ffmpeg despill's `type` (green | blue) by whichever
+// channel dominates — so blue-screen keys get blue despill, green get green.
+function despillTypeFor(keyColorHex: string): "green" | "blue" {
+  const hex = keyColorHex.replace(/^#/, "");
+  if (hex.length < 6) return "green";
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  return b > g ? "blue" : "green";
+}
+
 export async function trimClip(opts: {
   inputPath: string;
   outputPath: string;
@@ -261,7 +303,7 @@ export async function trimClip(opts: {
     args.push("-an");
   }
 
-  args.push("-c:v", "libx264", "-preset", "fast", "-crf", "18", opts.outputPath);
+  args.push(...h264VideoArgs("fast", "18", true), opts.outputPath);
   return ffmpegRun(args);
 }
 
@@ -280,12 +322,7 @@ export async function concatClips(opts: {
     return ffmpegRun([
       "-i",
       opts.inputPaths[0],
-      "-c:v",
-      "libx264",
-      "-preset",
-      "fast",
-      "-crf",
-      "18",
+      ...h264VideoArgs("fast", "18", true),
       "-c:a",
       "aac",
       "-b:a",
@@ -315,12 +352,7 @@ export async function concatClips(opts: {
     "[v]",
     "-map",
     "[a]",
-    "-c:v",
-    "libx264",
-    "-preset",
-    "fast",
-    "-crf",
-    "18",
+    ...h264VideoArgs("fast", "18", true),
     "-c:a",
     "aac",
     "-b:a",
@@ -338,12 +370,7 @@ export async function concatClips(opts: {
       "-map",
       "[v]",
       "-an",
-      "-c:v",
-      "libx264",
-      "-preset",
-      "fast",
-      "-crf",
-      "18",
+      ...h264VideoArgs("fast", "18", true),
       opts.outputPath,
     ]);
   }
@@ -384,12 +411,7 @@ export async function gradeClip(opts: {
     opts.inputPath,
     "-vf",
     vf,
-    "-c:v",
-    "libx264",
-    "-preset",
-    "fast",
-    "-crf",
-    "18",
+    ...h264VideoArgs("fast", "18", true),
     "-c:a",
     "copy",
     opts.outputPath,
@@ -449,11 +471,13 @@ export async function chromaKey(opts: {
     // be copied into WebM, so transcode to Opus; `0:a?` keeps it optional.
     const outputPath = withExtension(opts.outputPath, ".webm");
     ensureParentDir(outputPath);
+    // despill after keying cleans the green/blue cast off the subject's edges so
+    // the transparent cutout composites cleanly over any background.
     const result = await ffmpegRun([
       "-i",
       opts.inputPath,
       "-vf",
-      chromakey,
+      `${chromakey},despill=type=${despillTypeFor(keyColor)}`,
       "-c:v",
       "libvpx-vp9",
       "-pix_fmt",
@@ -472,9 +496,12 @@ export async function chromaKey(opts: {
   const outputPath = withExtension(opts.outputPath, ".mp4");
   ensureParentDir(outputPath);
   const fill = normalizeFillColor(opts.background ?? "black");
+  // despill removes the green/blue light that a screen casts onto the subject's
+  // edges and hair — the difference between a clean cutout and a fringed one.
+  const despill = `despill=type=${despillTypeFor(keyColor)}`;
   const filterComplex =
     `[0:v]split=2[base][key];` +
-    `[key]${chromakey}[ck];` +
+    `[key]${chromakey},${despill}[ck];` +
     `[base]drawbox=t=fill:color=${fill}[bg];` +
     `[bg][ck]overlay=format=auto,format=yuv420p[out]`;
   const result = await ffmpegRun([
@@ -486,12 +513,7 @@ export async function chromaKey(opts: {
     "[out]",
     "-map",
     "0:a?",
-    "-c:v",
-    "libx264",
-    "-preset",
-    "fast",
-    "-crf",
-    "18",
+    ...h264VideoArgs("fast", "18", true),
     "-c:a",
     "copy",
     outputPath,
@@ -523,12 +545,7 @@ export async function speedClip(opts: {
     "[v]",
     "-map",
     "[a]",
-    "-c:v",
-    "libx264",
-    "-preset",
-    "fast",
-    "-crf",
-    "18",
+    ...h264VideoArgs("fast", "18", true),
     "-c:a",
     "aac",
     "-b:a",
@@ -581,12 +598,7 @@ export async function overlayClip(opts: {
     "[v]",
     "-map",
     "0:a?",
-    "-c:v",
-    "libx264",
-    "-preset",
-    "fast",
-    "-crf",
-    "18",
+    ...h264VideoArgs("fast", "18", true),
     "-c:a",
     "copy",
     opts.outputPath,
@@ -679,12 +691,7 @@ export async function addTransition(opts: {
     "[v]",
     "-map",
     "[a]",
-    "-c:v",
-    "libx264",
-    "-preset",
-    "fast",
-    "-crf",
-    "18",
+    ...h264VideoArgs("fast", "18", true),
     "-c:a",
     "aac",
     "-b:a",
@@ -704,12 +711,7 @@ export async function addTransition(opts: {
       "-map",
       "[v]",
       "-an",
-      "-c:v",
-      "libx264",
-      "-preset",
-      "fast",
-      "-crf",
-      "18",
+      ...h264VideoArgs("fast", "18", true),
       opts.outputPath,
     ]);
   }
@@ -1086,12 +1088,7 @@ export async function burnCaptions(opts: {
     opts.inputPath,
     "-vf",
     `subtitles=${escapedSrt}:force_style='${style}'`,
-    "-c:v",
-    "libx264",
-    "-preset",
-    "fast",
-    "-crf",
-    "18",
+    ...h264VideoArgs("fast", "18", true),
     "-c:a",
     "copy",
     opts.outputPath,
@@ -1973,12 +1970,7 @@ async function assembleWithTransitions(opts: {
       "[vout]",
       "-map",
       "[aout]",
-      "-c:v",
-      "libx264",
-      "-preset",
-      preset,
-      "-crf",
-      crf,
+      ...h264VideoArgs(preset, crf),
       "-c:a",
       "aac",
       "-b:a",
@@ -2015,7 +2007,9 @@ export async function renderEdl(opts: {
     // Draft vs final quality knobs. Draft trades resolution/quality for a fast
     // look at the cut during review; final is the deliverable.
     const isDraft = edl.quality === "draft";
-    const preset = isDraft ? "ultrafast" : "fast";
+    // Final uses "medium" (better quality-per-bitrate than "fast" for a modest
+    // encode-time cost); draft stays "ultrafast" for fast review cycles.
+    const preset = isDraft ? "ultrafast" : "medium";
     const crf = isDraft ? "28" : "18";
     const maxW = isDraft ? 854 : 1920;
     const maxH = isDraft ? 480 : 1080;
@@ -2043,7 +2037,7 @@ export async function renderEdl(opts: {
     // Appended to every segment's video chain so all outputs are byte-compatible
     // for concat: fit inside the canvas, pad to exact WxH, square pixels,
     // constant fps, 4:2:0.
-    const normalizeVf = `scale=${targetW}:${targetH}:force_original_aspect_ratio=decrease,pad=${targetW}:${targetH}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${targetFps},format=yuv420p`;
+    const normalizeVf = `scale=${targetW}:${targetH}:force_original_aspect_ratio=decrease:${SCALE_FLAGS},pad=${targetW}:${targetH}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${targetFps},format=yuv420p`;
     // anullsrc gives silent segments a real audio stream so every segment has
     // matching audio params (concat requires uniform stream presence).
     const silentAudioInput = "anullsrc=channel_layout=stereo:sample_rate=48000";
@@ -2127,12 +2121,17 @@ export async function renderEdl(opts: {
         const similarity = bg.similarity ?? 0.3;
         const blend = bg.blend ?? 0.1;
 
-        // Foreground: grade/speed (vfParts) → chroma key → fit to canvas.
+        // Foreground: grade/speed (vfParts) → chroma key + despill → fit to canvas.
         const fgFilters = [...vfParts];
-        if (useKey) fgFilters.push(`chromakey=0x${color}:${similarity}:${blend}`);
-        fgFilters.push(`scale=${targetW}:${targetH}:force_original_aspect_ratio=decrease`);
+        if (useKey) {
+          fgFilters.push(`chromakey=0x${color}:${similarity}:${blend}`);
+          fgFilters.push(`despill=type=${despillTypeFor(color)}`);
+        }
+        fgFilters.push(
+          `scale=${targetW}:${targetH}:force_original_aspect_ratio=decrease:${SCALE_FLAGS}`,
+        );
         // Background: cover the frame (scale up + center-crop), square pixels.
-        const bgChain = `[1:v]scale=${targetW}:${targetH}:force_original_aspect_ratio=increase,crop=${targetW}:${targetH},setsar=1[bg]`;
+        const bgChain = `[1:v]scale=${targetW}:${targetH}:force_original_aspect_ratio=increase:${SCALE_FLAGS},crop=${targetW}:${targetH},setsar=1[bg]`;
         // overlay shortest=1 bounds output to the foreground length (handles speed
         // changes + looped image backgrounds without a duration mismatch). The
         // trailing normalize makes this segment concat-compatible.
@@ -2153,7 +2152,7 @@ export async function renderEdl(opts: {
         }
         args.push("-filter_complex", filterComplex, ...maps);
         args.push("-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2");
-        args.push("-c:v", "libx264", "-preset", preset, "-crf", crf, segPath);
+        args.push(...h264VideoArgs(preset, crf), segPath);
       } else {
         vfParts.push(normalizeVf);
         args = ["-ss", String(segment.start), "-t", String(segDuration), "-i", sourcePath];
@@ -2167,7 +2166,7 @@ export async function renderEdl(opts: {
           args.push("-map", "0:v:0", "-map", "1:a:0", "-shortest");
         }
         args.push("-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2");
-        args.push("-c:v", "libx264", "-preset", preset, "-crf", crf, segPath);
+        args.push(...h264VideoArgs(preset, crf), segPath);
       }
 
       // Scale the watchdog with clip length (~8s of budget per source-second),
@@ -2299,12 +2298,7 @@ export async function renderEdl(opts: {
         "[vout]",
         "-map",
         "0:a?",
-        "-c:v",
-        "libx264",
-        "-preset",
-        preset,
-        "-crf",
-        crf,
+        ...h264VideoArgs(preset, crf),
         "-c:a",
         "copy",
         overlaidPath,
@@ -2337,12 +2331,7 @@ export async function renderEdl(opts: {
         currentPath,
         "-vf",
         `subtitles=${escapedAss}`,
-        "-c:v",
-        "libx264",
-        "-preset",
-        preset,
-        "-crf",
-        crf,
+        ...h264VideoArgs(preset, crf, true),
         "-c:a",
         "copy",
         // Force the container: the atomic temp name ends in ".part", which
@@ -2354,8 +2343,19 @@ export async function renderEdl(opts: {
       if (!captionResult.ok) return captionResult;
     } else {
       // No captions: copy current to the temp output path (force mp4 muxer —
-      // the ".part" extension is not a recognized container).
-      const copyResult = await ffmpegRun(["-i", currentPath, "-c", "copy", "-f", "mp4", outTmp]);
+      // the ".part" extension is not a recognized container). +faststart moves
+      // the moov atom to the front so web playback starts before full download.
+      const copyResult = await ffmpegRun([
+        "-i",
+        currentPath,
+        "-c",
+        "copy",
+        "-movflags",
+        "+faststart",
+        "-f",
+        "mp4",
+        outTmp,
+      ]);
       if (!copyResult.ok) return copyResult;
     }
 
